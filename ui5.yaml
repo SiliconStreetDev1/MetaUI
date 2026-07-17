@@ -10,3 +10,11 @@ builder:
         debug: true
         transformModulesToUI5:
           overridesToOverride: true
+server:
+  customMiddleware:
+    - name: ui5-tooling-transpile-middleware
+      afterMiddleware: compression
+      configuration:
+        debug: true
+        transformModulesToUI5:
+          overridesToOverride: true

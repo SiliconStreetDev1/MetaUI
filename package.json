@@ -1,14 +1,33 @@
 {
-  "name": "nz.co.siliconst.ui5.metaui",
-  "version": "1.0.0",
+  "name": "@siliconst/metaui",
+  "version": "1.0.2",
   "description": "Dynamic Metadata UI5 Engine",
+  "author": "SiliconStreetDev1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SiliconStreetDev1/MetaUI.git"
+  },
+  "keywords": [
+    "ui5",
+    "metadata",
+    "engine"
+  ],
+  "files": [
+    "src",
+    "ui5.yaml",
+    "README.md"
+  ],
   "scripts": {
-    "build": "ui5 build --clean-dest"
+    "build": "ui5 build --clean-dest",
+    "publish-prep": "node scripts/publish-prep.js"
   },
   "devDependencies": {
     "@types/openui5": "^1.120.0",
     "@ui5/cli": "^3.0.0",
-    "typescript": "^5.3.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
     "ui5-tooling-transpile": "^3.2.0"
   },
   "ui5": {

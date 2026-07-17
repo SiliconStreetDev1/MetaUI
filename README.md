@@ -33,35 +33,23 @@ You **cannot** run this test by double-clicking the `index.html` file due to bro
 
 ## 📦 Installation (NPM)
 
-If you are developing a modern UI5 application utilizing `ui5-tooling`, you can pull this engine in directly via NPM (once published to your internal registry):
+If you are developing a modern UI5 application utilizing `ui5-tooling`, you can pull this engine in directly via NPM:
 
 ```bash
-npm install @siliconst/ui5-metaui
+npm install @siliconst/metaui
 ```
 
-### 1. ui5.yaml Configuration
-Ensure your application consumes the library by adding it to your `ui5.yaml` dependencies:
+### 1. package.json Configuration
+Ensure your application consumes the library by adding it to your `package.json` under the `ui5` dependencies block:
 
-```yaml
-specVersion: "3.0"
-metadata:
-  name: my.custom.app
-type: application
-builder:
-  customTasks:
-    - name: ui5-tooling-transpile-task
-      afterTask: replaceVersion
----
-specVersion: "3.0"
-kind: extension
-type: project-shim
-metadata:
-  name: my.custom.app.shim
-shims:
-  configurations:
-    "@siliconst/ui5-metaui":
-      type: library
+```json
+  "ui5": {
+    "dependencies": [
+      "@siliconst/metaui"
+    ]
+  }
 ```
+*(Note: Because this is published as an enterprise-grade UI5 library, you **do not** need to configure any `ui5.yaml` project-shims!)*
 
 ### 2. manifest.json Registration
 You must explicitly declare the library dependency in your application's `manifest.json` so the UI5 core automatically downloads the runtime files and triggers the internal `PluginRegistry` bootstrapper.
