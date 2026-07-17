@@ -1,0 +1,18 @@
+<mvc:View
+    controllerName="test.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    displayBlock="true">
+    <App>
+        <Page title="MetaUI Standalone Sandbox Test">
+            <content>
+                <VBox class="sapUiSmallMargin">
+                    <Button text="Open MetaUI Dialog" press=".onOpenDialog" type="Emphasized" />
+                    <Title text="Submitted JSON Payload:" class="sapUiSmallMarginTop" />
+                    <TextArea id="outputArea" width="100%" rows="15" editable="false" />
+                </VBox>
+            </content>
+        </Page>
+    </App>
+</mvc:View>

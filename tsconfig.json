@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "strictNullChecks": true,
+    "baseUrl": "./",
+    "paths": {
+      "nz/co/siliconst/ui5/metaui/*": ["src/nz/co/siliconst/ui5/metaui/*"]
+    },
+    "types": ["@types/openui5"]
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

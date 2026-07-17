@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.ui5/
+.env
+
+# AI Agent Artifacts
+persona.md
+implementation_plan.md
+design_document.md
+task.md
+walkthrough.md
+docs/persona.md
+docs/implementation_plan.md
+docs/design_document.md
+docs/task.md
+docs/walkthrough.md

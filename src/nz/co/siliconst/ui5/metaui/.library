@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<library xmlns="http://www.sap.com/sap.ui.library.xsd">
+	<name>nz.co.siliconst.ui5.metaui</name>
+	<vendor>Siliconst</vendor>
+	<version>1.0.0</version>
+	<title>MetaUI Engine</title>
+</library>
