@@ -74,6 +74,25 @@ export default class GeneratorHost extends Control {
     }
 
     /**
+     * Lifecycle hook to automatically generate the layout if bound declaratively in XML.
+     */
+    public onBeforeRendering(): void {
+        if (!this.generatedContent && this.getProperty("schemaDefinition")) {
+            this.generate();
+        }
+    }
+
+    /**
+     * Extracts the payload and fires the submit event manually. Useful for inline XML embedding.
+     */
+    public triggerSubmit(): void {
+        if (this.stateManager) {
+            const payload = this.stateManager.extractPayload();
+            this.fireEvent("submit", { payload });
+        }
+    }
+
+    /**
      * Triggers the engine to parse the schema and build the layout.
      * Must be called manually or hooked into onBeforeRendering if properties are bound.
      */
@@ -106,7 +125,7 @@ export default class GeneratorHost extends Control {
      * Dialog Modality: Opens the generated layout inside a sap.m.Dialog.
      * Automatically wires up 'Save' and 'Cancel' buttons.
      */
-    public openInDialog(title: string = "Dynamic Form"): void {
+    public openInDialog(title: string = "Dynamic Form", submitButtonText: string = "Save"): void {
         if (!this.generatedContent) {
             this.generate();
         }
@@ -116,7 +135,7 @@ export default class GeneratorHost extends Control {
             contentWidth: "800px",
             content: [this], // Mount self inside the dialog
             beginButton: new Button({
-                text: "Save",
+                text: submitButtonText,
                 type: "Emphasized",
                 press: () => {
                     if (this.stateManager) {

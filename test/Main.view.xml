@@ -7,10 +7,34 @@
     <App>
         <Page title="MetaUI Standalone Sandbox Test">
             <content>
-                <VBox class="sapUiSmallMargin">
-                    <Button text="Open MetaUI Dialog" press=".onOpenDialog" type="Emphasized" />
-                    <Title text="Submitted JSON Payload:" class="sapUiSmallMarginTop" />
-                    <TextArea id="outputArea" width="100%" rows="15" editable="false" />
+                <VBox class="sapUiSmallMargin" spacing="1rem">
+                    
+                    <Panel headerText="Option 1: Declarative XML Binding (Inline)" expandable="true" expanded="true">
+                        <content>
+                            <Text text="This section uses the &lt;meta:GeneratorHost&gt; tag embedded directly into the XML view, bound to JSONModels." class="sapUiSmallMarginBottom" />
+                            <meta:GeneratorHost 
+                                id="metaHost"
+                                schemaDefinition="{schemaModel>/}" 
+                                initialData="{dataModel>/}" 
+                                submit=".onSubmit" />
+                            <Button text="Save Inline Form" press=".onSaveInline" type="Emphasized" class="sapUiSmallMarginTop" />
+                        </content>
+                    </Panel>
+
+                    <Panel headerText="Option 2: JavaScript API (Dialog Modality)" expandable="true" expanded="true">
+                        <content>
+                            <Text text="This section demonstrates instantiating the GeneratorHost purely in JavaScript and rendering it inside a sap.m.Dialog." class="sapUiSmallMarginBottom" />
+                            <Button text="Open MetaUI Dialog" press=".onOpenDialog" type="Emphasized" />
+                        </content>
+                    </Panel>
+
+                    <Panel headerText="Output Window" expandable="false">
+                        <content>
+                            <Title text="Submitted JSON Payload:" class="sapUiSmallMarginBottom" />
+                            <TextArea id="outputArea" width="100%" rows="15" editable="false" />
+                        </content>
+                    </Panel>
+
                 </VBox>
             </content>
         </Page>

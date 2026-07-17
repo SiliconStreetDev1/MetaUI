@@ -11,20 +11,40 @@ sap.ui.define([
             this.mockSchema = null;
             this.initialData = null;
 
-            // Fetch the external JSON files to simulate ABAP payload ingestion
+            // Fetch the external JSON files to simulate backend payload ingestion
             Promise.all([
                 fetch("mockSchema.json").then(res => res.json()),
                 fetch("mockData.json").then(res => res.json())
             ]).then((results) => {
                 this.mockSchema = results[0];
                 this.initialData = results[1];
-                MessageToast.show("JSON payloads loaded successfully.");
+
+                var sapUIModel = sap.ui.require("sap/ui/model/json/JSONModel");
+                if (!sapUIModel) {
+                    sapUIModel = sap.ui.model.json.JSONModel;
+                }
+                
+                // Create JSON models for the declarative XML binding
+                var schemaModel = new sapUIModel(this.mockSchema);
+                var dataModel = new sapUIModel(this.initialData);
+                
+                this.getView().setModel(schemaModel, "schemaModel");
+                this.getView().setModel(dataModel, "dataModel");
+                
+                MessageToast.show("JSON payloads successfully bound to XML View.");
             }).catch((err) => {
-                MessageToast.show("Error loading JSON. Are you running a local web server?");
-                console.error("Fetch error (Likely a CORS issue if opening via file://):", err);
+                MessageToast.show("Error loading JSON.");
+                console.error("Fetch error:", err);
             });
         },
 
+        // ---------- OPTION 1: XML BINDING INLINE ----------
+        onSaveInline: function() {
+            // Trigger the submit event on the embedded XML control
+            this.byId("metaHost").triggerSubmit();
+        },
+
+        // ---------- OPTION 2: JAVASCRIPT API DIALOG ----------
         onOpenDialog: function() {
             if (!this.mockSchema || !this.initialData) {
                 MessageToast.show("JSON payloads not loaded yet.");
@@ -35,13 +55,19 @@ sap.ui.define([
                 schemaDefinition: this.mockSchema,
                 initialData: this.initialData,
                 submit: (oEvent) => {
-                    // Extract the clean JSON payload from the UI5 engine event
-                    const payload = oEvent.getParameter("payload");
-                    this.byId("outputArea").setValue(JSON.stringify(payload, null, 2));
+                    this.onSubmit(oEvent); // Reuse the same handler to output payload
                 }
             });
 
-            host.openInDialog("MetaUI Generated Form");
+            host.openInDialog("MetaUI Generated Form (JS API)", "OK");
+        },
+
+        // ---------- COMMON OUTPUT HANDLER ----------
+        onSubmit: function(oEvent) {
+            // Extract the clean JSON payload from the UI5 engine event
+            const payload = oEvent.getParameter("payload");
+            this.byId("outputArea").setValue(JSON.stringify(payload, null, 2));
+            MessageToast.show("Payload Extracted Successfully!");
         }
     });
 });
