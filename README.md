@@ -1,9 +1,9 @@
 # MetaUI - Dynamic SAP UI5 Rendering Engine
 
-MetaUI is an enterprise-grade UI5 library that dynamically generates fully accessible, Fiori-compliant forms and tables purely from JSON schemas. It utilizes an **Isolated State Pattern** to entirely decouple from host OData bindings, yielding a clean JSON payload upon submission.
+MetaUI is an UI5 library that dynamically generates fully accessible, Fiori-compliant forms and tables purely from JSON schemas. It utilizes an **Isolated State Pattern** to entirely decouple from host OData bindings, yielding a clean JSON payload upon submission.
 
 ## 🏗️ Architecture
-1. **Zero Hacks**: Relies strictly on native UI5 layout grids (`sap.ui.layout.form.SimpleForm`, `sap.m.Table`).
+1. **Standard UI5**: Relies strictly on native UI5 layout grids (`sap.ui.layout.form.SimpleForm`, `sap.m.Table`).
 2. **Schema Normalization**: Ingests ABAP RTTI JSON payloads and normalizes them into a strict `ISchema` layout matrix.
 3. **Plugin Registry**: Maps primitive schema types (`string`, `number`, `boolean`, `dropdown`, `date`) directly to discrete UI5 control plugins (`sap.m.Input`, `sap.m.StepInput`, etc.).
 
