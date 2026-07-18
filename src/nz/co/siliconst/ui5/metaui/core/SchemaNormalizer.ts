@@ -1,31 +1,157 @@
 /**
  * @file SchemaNormalizer.ts
- * @description Transforms and validates incoming JSON payloads into the strict ISchema matrix.
+ * @description Transforms and validates incoming JSON payloads into the strict v2 ISchema dictionary matrix.
  */
 
-import { ISchema } from "../interfaces/ISchema";
+import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
 
-/**
- * Utility class ensuring data fidelity before layout construction begins.
- */
 export class SchemaNormalizer {
     
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.
-     * @param rawSchema The heterogeneous JSON object provided to the Engine.
-     * @returns The strictly cast ISchema matrix.
-     * @throws Error if the mandatory schema properties are missing.
      */
-    public static normalize(rawSchema: any): ISchema {
-        if (!rawSchema || typeof rawSchema !== 'object') {
-            throw new Error("[MetaUI] Invalid Schema Payload: Payload is not an object.");
-        }
-        
-        if (!rawSchema.mode || !rawSchema.rootFields || !rawSchema.tables) {
-            throw new Error("[MetaUI] Invalid Schema Payload: Missing required structures (mode, rootFields, tables).");
+    public static normalize(rawSchema?: any, data?: any): ISchema {
+        let schemaObj = rawSchema;
+
+        if (typeof schemaObj === "string") {
+            try {
+                schemaObj = JSON.parse(schemaObj);
+            } catch (e) {
+                console.warn("[MetaUI] Failed to parse schema string, falling back to inference.", e);
+                schemaObj = null;
+            }
         }
 
-        // Return the strongly typed and validated schema block.
-        return rawSchema as ISchema;
+        if (!schemaObj || typeof schemaObj !== 'object' || Array.isArray(schemaObj)) {
+            return this.inferSchemaFromData(data);
+        }
+
+        // It is an object. Ensure it conforms to v2 structure.
+        const normalized: ISchema = {
+            title: schemaObj.title || "MetaUI Generated Form",
+            type: schemaObj.type || (schemaObj.items ? "array" : "object"),
+        };
+
+        if (normalized.type === "object") {
+            normalized.properties = this.normalizeProperties(schemaObj.properties || {});
+        } else if (normalized.type === "array") {
+            normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items");
+        }
+
+        return normalized;
+    }
+
+    private static normalizeProperties(properties: any): Record<string, IPropertyMetadata> {
+        const normalizedProps: Record<string, IPropertyMetadata> = {};
+        for (const key of Object.keys(properties)) {
+            normalizedProps[key] = this.normalizePropertyMetadata(properties[key], key);
+        }
+        return normalizedProps;
+    }
+
+    private static normalizePropertyMetadata(prop: any, keyName: string): IPropertyMetadata {
+        const normalized: IPropertyMetadata = {
+            type: prop.type || "string",
+            ui: {
+                label: prop.ui?.label || this.generateLabel(keyName),
+                isKey: !!prop.ui?.isKey,
+                readOnly: !!prop.ui?.readOnly,
+                widget: prop.ui?.widget,
+                group: prop.ui?.group,
+                visibleOn: prop.ui?.visibleOn,
+                enabledOn: prop.ui?.enabledOn,
+                format: prop.ui?.format
+            },
+            required: !!prop.required,
+            maxLength: prop.maxLength,
+            minimum: prop.minimum,
+            maximum: prop.maximum,
+            pattern: prop.pattern,
+            precision: prop.precision,
+            scale: prop.scale,
+            valueHelp: prop.valueHelp
+        };
+
+        if (normalized.type === "object" && prop.properties) {
+            normalized.properties = this.normalizeProperties(prop.properties);
+        } else if (normalized.type === "array" && prop.items) {
+            normalized.items = this.normalizePropertyMetadata(prop.items, "items");
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Generates a Title Case label from camelCase or snake_case technical names.
+     */
+    private static generateLabel(name: string): string {
+        if (!name) return "";
+        let spaced = name.replace(/([A-Z])/g, " $1").replace(/_/g, " ");
+        return spaced.split(' ')
+            .filter(w => w.length > 0)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ')
+            .trim();
+    }
+
+    /**
+     * Infers a v2 ISchema structure dynamically from a plain data payload.
+     */
+    private static inferSchemaFromData(data: any): ISchema {
+        const schema: ISchema = { type: "object", properties: {} };
+        
+        if (!data || typeof data !== "object") {
+            return schema;
+        }
+
+        if (Array.isArray(data)) {
+            schema.type = "array";
+            schema.items = {
+                type: "object",
+                properties: data.length > 0 ? this.inferPropertiesFromObject(data[0]) : {}
+            };
+        } else {
+            schema.type = "object";
+            schema.properties = this.inferPropertiesFromObject(data);
+        }
+
+        return schema;
+    }
+
+    private static inferPropertiesFromObject(obj: any): Record<string, IPropertyMetadata> {
+        const properties: Record<string, IPropertyMetadata> = {};
+        if (!obj || typeof obj !== "object") return properties;
+
+        for (const key of Object.keys(obj)) {
+            const val = obj[key];
+            if (val === null || val === undefined) continue;
+            
+            if (typeof val === "object" && !Array.isArray(val)) continue;
+
+            let type: FieldType = "string";
+            let items: IPropertyMetadata | undefined;
+
+            if (typeof val === "number") type = "number";
+            else if (typeof val === "boolean") type = "boolean";
+            else if (Array.isArray(val)) {
+                type = "array";
+                items = {
+                    type: "object",
+                    properties: val.length > 0 ? this.inferPropertiesFromObject(val[0]) : {}
+                };
+            }
+            
+            properties[key] = {
+                type,
+                items,
+                ui: {
+                    label: this.generateLabel(key),
+                    isKey: false,
+                    readOnly: false
+                }
+            };
+        }
+
+        return properties;
     }
 }

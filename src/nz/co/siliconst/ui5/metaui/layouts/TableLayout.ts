@@ -1,6 +1,6 @@
 /**
  * @file TableLayout.ts
- * @description Generates a responsive SAP Fiori Table layout.
+ * @description Generates a responsive SAP Fiori Table layout for v2 schema.
  */
 
 import Table from "sap/m/Table";
@@ -12,24 +12,29 @@ import Title from "sap/m/Title";
 import ToolbarSpacer from "sap/m/ToolbarSpacer";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
-import { ITableMetadata, IFieldMetadata } from "../interfaces/ISchema";
 import { PluginRegistry } from "../core/PluginRegistry";
 import Control from "sap/ui/core/Control";
+import { IPlugin } from "../interfaces/IPlugin";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 
-/**
- * Utility class strictly for constructing sap.m.Table structures with dynamic pop-in vectors.
- */
 export class TableLayout {
     /**
      * Builds a responsive Table, dynamically calculating column priorities.
-     * @param tableMeta The metadata defining the table's columns and nested fields.
-     * @returns A fully constructed sap.m.Table ready to be bound to a list array.
      */
-    public static build(tableMeta: ITableMetadata): Table {
+    public static build(tableMeta: IPropertyMetadata, bindingPath: string = "meta>/", tableTitle: string = "Table", trackPlugin?: (plugin: IPlugin) => void): Table {
+        if (!tableMeta.properties) {
+            throw new Error("[MetaUI] Table requires an items schema with properties.");
+        }
+
+        const parts = bindingPath.split(">");
+        const actualModelName = parts.length > 1 ? parts[0] : undefined;
+        const actualPath = parts.length > 1 ? parts[1] : bindingPath;
+        // e.g. "meta>/Contacts" -> actualModelName = "meta", actualPath = "/Contacts"
+
         const table = new Table({
             headerToolbar: new Toolbar({
                 content: [
-                    new Title({ text: tableMeta.label || tableMeta.tableName }),
+                    new Title({ text: tableTitle }),
                     new ToolbarSpacer(),
                     new Button({
                         text: "Add Row",
@@ -37,25 +42,28 @@ export class TableLayout {
                         press: (oEvent: any) => {
                             const btn = oEvent.getSource();
                             const tbl = btn.getParent().getParent() as Table;
-                            const model = tbl.getModel("meta") as JSONModel;
-                            const path = `/${tableMeta.tableName}`;
-                            const data = model.getProperty(path) || [];
+                            const model = tbl.getModel(actualModelName) as JSONModel;
+                            const info = tbl.getBindingInfo("items");
+                            if (!info || !info.path) return;
+                            
+                            const data = model.getProperty(info.path) || [];
                             data.push({}); // append empty row
-                            model.setProperty(path, data);
+                            model.setProperty(info.path, data);
                         }
                     })
                 ]
             }),
-            fixedLayout: false, // Allows native UI5 column width calculations
+            fixedLayout: false,
             mode: "Delete",
             delete: (oEvent: any) => {
                 const item = oEvent.getParameter("listItem");
-                const path = item.getBindingContext("meta").getPath(); // e.g. "/Contacts/0"
-                const model = item.getModel("meta") as JSONModel;
+                const path = item.getBindingContext(actualModelName).getPath(); 
+                const model = item.getModel(actualModelName) as JSONModel;
                 
-                const parts = path.split("/");
-                const index = parseInt(parts.pop() || "0", 10);
-                const arrayPath = parts.join("/");
+                const splitPaths = path.split("/");
+                const index = parseInt(splitPaths.pop() || "0", 10);
+                let arrayPath = splitPaths.join("/");
+                if (arrayPath === "") arrayPath = "/";
                 
                 const data = model.getProperty(arrayPath);
                 data.splice(index, 1);
@@ -65,34 +73,43 @@ export class TableLayout {
 
         const templateCells: Control[] = [];
         const registry = PluginRegistry.getInstance();
+        const props = tableMeta.properties;
 
-        tableMeta.fields.forEach((field: IFieldMetadata) => {
-            // Build the column header
-            const column = new Column({
-                header: new Text({ text: field.label }),
-                // Fiori UX: High priority for primary keys so they don't pop-in too early
-                demandPopin: !field.isKey, 
-                minScreenWidth: field.isKey ? "" : "Tablet",
-                popinDisplay: "Inline"
-            });
-            table.addColumn(column);
+        Object.keys(props).forEach((key) => {
+            try {
+                const fieldMeta = props[key];
+                const isKey = !!fieldMeta.ui?.isKey;
+                
+                const column = new Column({
+                    header: new Text({ text: fieldMeta.ui?.label || key }),
+                    demandPopin: !isKey, 
+                    minScreenWidth: isKey ? "" : "Tablet",
+                    popinDisplay: "Inline"
+                });
+                table.addColumn(column);
 
-            // Instantiate the cell template (plugin)
-            const plugin = registry.getPlugin(field.type);
-            
-            // In table lists, the binding path is relative to the row's context context (e.g. "{fieldName}")
-            const control = plugin.render(field, field.fieldName);
-            templateCells.push(control);
+                const plugin = registry.getPlugin(fieldMeta.type, fieldMeta.ui?.widget);
+                if (trackPlugin) trackPlugin(plugin);
+                const control = plugin.render(fieldMeta, key, actualModelName); // No trailing slash for relative bindings
+                templateCells.push(control);
+            } catch (error) {
+                sap.ui.require(["sap/base/Log"], (Log: any) => {
+                    if (Log) Log.error(`[MetaUI] Failed to render column ${key}`, (error as Error).message, "TableLayout");
+                });
+                
+                // Add an empty text control as a fallback so the table columns match the cells array length
+                templateCells.push(new Text({ text: "Error" }));
+            }
         });
 
-        // Create the row template and bind it to the table via the tableName array path
         const rowTemplate = new ColumnListItem({
             cells: templateCells
         });
 
-        // The absolute binding path from the StateManager for this table (using the named model 'meta')
+        // V2 Fix: Actually bind the items to the table!
         table.bindItems({
-            path: `meta>/${tableMeta.tableName}`,
+            path: actualPath,
+            model: actualModelName,
             template: rowTemplate,
             templateShareable: false
         });

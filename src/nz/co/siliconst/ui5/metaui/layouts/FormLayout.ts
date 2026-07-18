@@ -5,21 +5,23 @@
 
 import SimpleForm from "sap/ui/layout/form/SimpleForm";
 import Label from "sap/m/Label";
-import { IFieldMetadata } from "../interfaces/ISchema";
+import Title from "sap/ui/core/Title";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import { PluginRegistry } from "../core/PluginRegistry";
+import { IPlugin } from "../interfaces/IPlugin";
 
-/**
- * Utility class strictly for constructing Form layouts without custom CSS.
- */
 export class FormLayout {
     /**
      * Builds a SimpleForm with ResponsiveGridLayout, injecting the requested plugins.
-     * @param fields The array of root fields to render as FormElements.
-     * @returns A fully populated sap.ui.layout.form.SimpleForm.
+     * @param properties The dictionary of fields to render.
+     * @param modelName The dynamic model name.
+     * @param formTitle Optional title for the form block.
+     * @param trackPlugin Optional callback to track instantiated plugins.
      */
-    public static build(fields: IFieldMetadata[]): SimpleForm {
+    public static build(properties: Record<string, IPropertyMetadata>, modelName: string = "meta", formTitle?: string, trackPlugin?: (plugin: IPlugin) => void): SimpleForm {
         const form = new SimpleForm({
             editable: true,
+            title: formTitle,
             layout: "ResponsiveGridLayout",
             labelSpanXL: 4,
             labelSpanL: 4,
@@ -37,23 +39,58 @@ export class FormLayout {
         });
 
         const registry = PluginRegistry.getInstance();
+        
+        // Group fields by their ui.group directive
+        const groups: Record<string, { key: string; meta: IPropertyMetadata }[]> = {};
+        const DEFAULT_GROUP = "__DEFAULT__";
+        
+        for (const key of Object.keys(properties)) {
+            const meta = properties[key];
+            const groupName = meta.ui?.group || DEFAULT_GROUP;
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push({ key, meta });
+        }
 
-        fields.forEach((field) => {
-            // Respect Fiori accessibility standards by enforcing the required flag on labels
-            const label = new Label({
-                text: field.label,
-                required: field.isRequired
-            });
-
-            // Instantiate the correct plugin for the data type
-            const plugin = registry.getPlugin(field.type);
+        // Render groups
+        for (const groupName of Object.keys(groups)) {
+            if (groupName !== DEFAULT_GROUP) {
+                form.addContent(new Title({ text: groupName }));
+            }
             
-            // In the isolated state manager architecture, the binding path maps exactly to the fieldName.
-            const control = plugin.render(field, `/${field.fieldName}`);
+            groups[groupName].forEach((field) => {
+                try {
+                    const label = new Label({
+                        text: field.meta.ui?.label || field.key,
+                        required: field.meta.required
+                    });
 
-            form.addContent(label);
-            form.addContent(control);
-        });
+                    // Attach visibility condition to label and control container logic
+                    if (field.meta.ui?.visibleOn) {
+                        const expr = `{= ${field.meta.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+                        label.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false}); // temporary, condition engine does this usually
+                    }
+
+                    const plugin = registry.getPlugin(field.meta.type, field.meta.ui?.widget);
+                    if (trackPlugin) trackPlugin(plugin);
+                    const control = plugin.render(field.meta, `/${field.key}`, modelName);
+
+                    if (field.meta.ui?.fullWidth) {
+                        sap.ui.require(["sap/ui/layout/GridData"], (GridData: any) => {
+                            control.setLayoutData(new GridData({
+                                span: "XL12 L12 M12 S12"
+                            }));
+                        });
+                    }
+
+                    form.addContent(label);
+                    form.addContent(control);
+                } catch (error) {
+                    sap.ui.require(["sap/base/Log"], (Log: any) => {
+                        if (Log) Log.error(`[MetaUI] Failed to render field ${field.key}`, (error as Error).message, "FormLayout");
+                    });
+                }
+            });
+        }
 
         return form;
     }

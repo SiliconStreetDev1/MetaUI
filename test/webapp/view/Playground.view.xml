@@ -1,0 +1,70 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.Playground"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:codeeditor="sap.ui.codeeditor"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    displayBlock="true"
+    xmlns="sap.m">
+    <Page title="Scenario: {viewModel>/scenarioTitle}" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Button text="Regenerate UI" icon="sap-icon://refresh" type="Emphasized" press=".onRegenerate" />
+            <Button text="Open in Dialog Instead" icon="sap-icon://popup-window" press=".onOpenDialog" />
+        </headerContent>
+        <content>
+            <IconTabBar 
+                id="idIconTabBar" 
+                headerMode="Inline"
+                stretchContentHeight="true" 
+                class="sapUiResponsiveContentPadding" 
+                applyContentPadding="false" 
+                expanded="true" 
+                expandable="false">
+                <items>
+                    <IconTabFilter text="Form Preview" icon="sap-icon://form" key="preview">
+                        <ScrollContainer height="100%" width="100%" vertical="true">
+                            <VBox class="sapUiMediumMargin">
+                                <meta:GeneratorHost 
+                                    id="metaHost"
+                                    schemaDefinition="{viewModel>/parsedSchema}" 
+                                    initialData="{viewModel>/parsedData}" 
+                                    useMessageManager="true"
+                                    beforeSubmit=".onBeforeSubmit"
+                                    submit=".onSubmit" />
+                            </VBox>
+                        </ScrollContainer>
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Schema Definition" icon="sap-icon://syntax" key="schema">
+                        <codeeditor:CodeEditor id="editorSchema" type="json" value="{viewModel>/schemaString}" height="100%" />
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Payload Data" icon="sap-icon://database" key="data">
+                        <codeeditor:CodeEditor id="editorData" type="json" value="{viewModel>/dataString}" height="100%" />
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Output Console" icon="sap-icon://sys-monitor" key="console">
+                        <VBox height="100%" width="100%" class="sapUiMediumMargin">
+                            <Button text="Trigger Submit" press=".onTriggerSubmit" type="Accept" class="sapUiSmallMarginBottom" />
+                            <TextArea id="outputConsole" width="100%" rows="15" editable="false" placeholder="Awaiting submission..." />
+                        </VBox>
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Integration Examples" icon="sap-icon://source-code" key="code">
+                        <codeeditor:CodeEditor id="editorCode" type="javascript" value="{viewModel>/codeExamples}" height="100%" editable="false" />
+                    </IconTabFilter>
+                </items>
+            </IconTabBar>
+        </content>
+        <footer>
+            <Toolbar>
+                <Button 
+                    id="messagePopoverBtn"
+                    icon="sap-icon://message-popup"
+                    text="{= ${message>/}.length }"
+                    type="Emphasized"
+                    press=".onMessagePopoverPress" />
+                <ToolbarSpacer/>
+            </Toolbar>
+        </footer>
+    </Page>
+</mvc:View>

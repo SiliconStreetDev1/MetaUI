@@ -1,0 +1,24 @@
+name: Unpublish NPM Versions
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to unpublish (e.g. 1.1.4)'
+        required: true
+        type: string
+
+jobs:
+  unpublish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Unpublish
+        run: npm unpublish @siliconst/metaui@${{ github.event.inputs.version }} --force
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM2 }}

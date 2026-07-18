@@ -42,4 +42,19 @@ export class EventBus implements IEventBus {
     public subscribe(listener: (event: IFieldChangeEvent) => void): void {
         this.listeners.push(listener);
     }
+
+    /**
+     * Unregisters a callback listener to prevent memory leaks.
+     * @param listener The callback function to remove.
+     */
+    public unsubscribe(listener: (event: IFieldChangeEvent) => void): void {
+        this.listeners = this.listeners.filter(l => l !== listener);
+    }
+
+    /**
+     * Unregisters all callback listeners.
+     */
+    public unsubscribeAll(): void {
+        this.listeners = [];
+    }
 }

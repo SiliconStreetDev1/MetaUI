@@ -1,0 +1,21 @@
+{
+    "PurchaseOrders": [
+        {
+            "orderId": "PO-1001",
+            "customer": "ACME Corp",
+            "totalAmount": 1250.50,
+            "lineItems": [
+                { "itemCode": "ITM-001", "quantity": 5, "price": 100.10 },
+                { "itemCode": "ITM-002", "quantity": 10, "price": 75.00 }
+            ]
+        },
+        {
+            "orderId": "PO-1002",
+            "customer": "Globex Inc",
+            "totalAmount": 450.00,
+            "lineItems": [
+                { "itemCode": "ITM-003", "quantity": 1, "price": 450.00 }
+            ]
+        }
+    ]
+}

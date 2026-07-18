@@ -1,56 +1,54 @@
 /**
  * @file BasePlugin.ts
- * @description Abstract foundation for all MetaUI plugins, enforcing lifecycle hooks.
+ * @description Abstract foundation for all MetaUI plugins, enforcing lifecycle hooks for v2 Schema.
  */
 
 import { IPlugin } from "../interfaces/IPlugin";
-import { IFieldMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import { EventBus } from "../core/EventBus";
 import Control from "sap/ui/core/Control";
 
-/**
- * Abstract class providing baseline properties and event publishing hooks for all UI5 controls.
- */
 export abstract class BasePlugin implements IPlugin {
-    /** The actual generated UI5 control. */
     protected control: Control | null = null;
-    /** The schema configuration associated with this specific field. */
-    protected metadata: IFieldMetadata | null = null;
+    protected metadata: IPropertyMetadata | null = null;
+    protected fieldKey: string = "";
 
-    /**
-     * Must be implemented by concrete classes to generate the specific control.
-     * @param fieldMetadata The immutable schema configuration.
-     * @param bindingPath The exact model path where this field's data is stored.
-     */
-    public abstract render(fieldMetadata: IFieldMetadata, bindingPath: string): Control;
+    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string): Control;
 
-    /**
-     * Must be implemented by concrete classes to run data integrity checks.
-     */
     public abstract validate(): boolean;
 
-    /**
-     * Triggered by the ConditionEngine when cross-field rules alter this field's metadata.
-     * @param newMetadata The dynamically updated rules.
-     */
-    public onStateChange(newMetadata: IFieldMetadata): void {
+    public onStateChange(newMetadata: IPropertyMetadata): void {
         this.metadata = newMetadata;
         this.applyState();
     }
 
-    /**
-     * Abstract hook for concrete plugins to re-bind their visibility or read-only states natively.
-     */
     protected abstract applyState(): void;
 
     /**
-     * Utility method for concrete plugins to easily broadcast changes to the EventBus.
-     * @param newValue The newly entered/selected value.
+     * Helper to apply common UI directives (like readOnly, visibleOn) directly to any control.
      */
+    protected applyCommonDirectives(control: any, metadata: IPropertyMetadata, modelName: string = "meta"): void {
+        if (metadata.ui?.readOnly !== undefined && typeof control.setEditable === "function") {
+            control.setEditable(!metadata.ui.readOnly);
+        }
+
+        if (metadata.ui?.visibleOn) {
+            const expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            control.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false });
+            // The ConditionEngine handles actual binding injection, but here we can set a fallback or natively bind if we bypass ConditionEngine.
+            control.bindProperty("visible", expr);
+        }
+        
+        if (metadata.ui?.enabledOn && typeof control.setEnabled === "function") {
+            const expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            control.bindProperty("enabled", expr);
+        }
+    }
+
     protected publishChange(newValue: any): void {
-        if (this.metadata) {
+        if (this.metadata && this.fieldKey) {
             EventBus.getInstance().publishFieldChange({
-                fieldName: this.metadata.fieldName,
+                fieldName: this.fieldKey,
                 newValue: newValue
             });
         }

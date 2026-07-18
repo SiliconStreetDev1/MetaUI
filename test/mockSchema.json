@@ -83,7 +83,7 @@
       "valueHelp": [
         { "key": "BASIC", "text": "Basic Plan" },
         { "key": "PREMIUM", "text": "Premium Plan" },
-        { "key": "ENTERPRISE", "text": "Enterprise Plan" }
+        { "key": "CORPORATE", "text": "Corporate Plan" }
       ]
     },
     {

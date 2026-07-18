@@ -12,6 +12,7 @@ import { IFieldChangeEvent } from "../interfaces/IEventBus";
  */
 export class ConditionEngine {
     private schema: ISchema;
+    private boundHandler: (event: IFieldChangeEvent) => void;
 
     /**
      * Initializes the ConditionEngine with the active schema.
@@ -19,6 +20,7 @@ export class ConditionEngine {
      */
     constructor(schema: ISchema) {
         this.schema = schema;
+        this.boundHandler = this.handleEvent.bind(this);
         this.initializeListeners();
     }
 
@@ -26,7 +28,7 @@ export class ConditionEngine {
      * Subscribes to the EventBus for real-time field change interception.
      */
     private initializeListeners(): void {
-        EventBus.getInstance().subscribe(this.handleEvent.bind(this));
+        EventBus.getInstance().subscribe(this.boundHandler);
     }
 
     /**
@@ -36,5 +38,12 @@ export class ConditionEngine {
     private handleEvent(event: IFieldChangeEvent): void {
         // Architecture hook: Logic to evaluate conditions against the schema 
         // and update plugin properties will be injected here in later phases.
+    }
+
+    /**
+     * Cleans up EventBus listeners to prevent memory leaks on destruction.
+     */
+    public destroy(): void {
+        EventBus.getInstance().unsubscribe(this.boundHandler);
     }
 }

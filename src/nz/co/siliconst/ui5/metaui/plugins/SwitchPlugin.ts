@@ -1,25 +1,25 @@
 /**
- * @file BooleanPlugin.ts
- * @description Renders a sap.m.Switch for boolean states.
+ * @file SwitchPlugin.ts
+ * @description Renders a sap.m.Switch for boolean data specifically marked with the switch widget.
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../interfaces/ISchema";
-import CheckBox from "sap/m/CheckBox";
+import Switch from "sap/m/Switch";
 import Control from "sap/ui/core/Control";
 
 /**
- * Handles rendering logic for toggleable booleans.
+ * Handles rendering logic for toggleable boolean switches.
  */
-export class BooleanPlugin extends BasePlugin {
+export class SwitchPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
-        
-        this.control = new CheckBox({
-            selected: `{${modelName}>${bindingPath}}`,
+
+        this.control = new Switch({
+            state: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
-            select: (oEvent: any) => {
-                const val = oEvent.getParameter("selected");
+            change: (oEvent: any) => {
+                const val = oEvent.getParameter("state");
                 this.publishChange(val);
                 this.validate();
             }
@@ -35,7 +35,8 @@ export class BooleanPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            (this.control as CheckBox).setEnabled(!this.metadata.ui?.readOnly);
+            const sw = this.control as Switch;
+            sw.setEnabled(!this.metadata.ui?.readOnly);
         }
     }
 }

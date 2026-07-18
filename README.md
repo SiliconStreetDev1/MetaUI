@@ -1,111 +1,134 @@
-# MetaUI - Dynamic SAP UI5 Rendering Engine
+# MetaUI
 
-MetaUI is an UI5 library that dynamically generates fully accessible, Fiori-compliant forms and tables purely from JSON schemas. It utilizes an **Isolated State Pattern** to entirely decouple from host OData bindings, yielding a clean JSON payload upon submission.
+**MetaUI** is a metadata-driven UI5 rendering engine. It provides a mechanism to generate SAP Fiori architectures at runtime by parsing standard JSON Schema definitions, reducing the requirement for manual XML View construction.
 
-## 🏗️ Architecture
-1. **Standard UI5**: Relies strictly on native UI5 layout grids (`sap.ui.layout.form.SimpleForm`, `sap.m.Table`).
-2. **Schema Normalization**: Ingests ABAP RTTI JSON payloads and normalizes them into a strict `ISchema` layout matrix.
-3. **Plugin Registry**: Maps primitive schema types (`string`, `number`, `boolean`, `dropdown`, `date`) directly to discrete UI5 control plugins (`sap.m.Input`, `sap.m.StepInput`, etc.).
+Built for strict UI5 architecture adherence, MetaUI enforces modularity through a Plugin-based design and explicitly avoids inline DOM manipulation.
 
-## 📚 Documentation Wiki
-Full payload references and API details are tracked in Git under the `docs/` folder:
-*   [Payload Formats & Schema API](docs/payload_formats.md)
+✨ **[Play with the Live Interactive Demo Here!](https://SiliconStreetDev1.github.io/MetaUI/index.html)** ✨
 
-## 🚀 How to Test the Sandbox
+---
 
-To understand how the engine works, a standalone test sandbox has been provided. It asynchronously loads two physical files:
-*   `test/mockSchema.json` - The schema definition detailing field types, required states, and dropdown arrays.
-*   `test/mockData.json` - The initial state payload to populate the form.
+## 🏗 Architecture & Design Tenets
 
-### Running the Test
-You **cannot** run this test by double-clicking the `index.html` file due to browser CORS restrictions blocking `fetch()`. You must run it via a local web server.
+1. **JSON-Schema Core:** MetaUI parses standard recursive JSON Schema `properties` blocks (`Record<string, IPropertyMetadata>`).
+2. **Implicit Layout Orchestration:** The `Engine` determines standard Layouts based on payload shape. Root `object` types map to `FormLayout` clusters. Root `array` types map to `TableLayout` instances. Nested arrays trigger recursive drill-down dialogs.
+3. **ConditionEngine Compilation:** Cross-context visibility rules (e.g., `"$root.status === 'DRAFT'"`) are transpiled into native UI5 Expression Bindings to utilize native reactivity.
+4. **Strict Plugin Pipeline:** The `PluginRegistry` isolates control instantiation. Core layout managers delegate to registered implementations of `IPlugin`.
 
-1. Open a terminal in the root `MetaUI` project folder.
-2. Run a static file server using Node.js:
-   ```bash
-   npx serve -p 8080 .
-   ```
-3. Open your web browser and navigate to:
-   `http://localhost:8080/test/index.html`
-4. Click **"Open MetaUI Dialog"**.
-5. Modify the values in the form. Notice the built-in validation rules (e.g., required fields, dropdown selections).
-6. Click **Save**. The clean, extracted JSON payload will be printed directly to the text area.
+---
 
-## 📦 Installation (NPM)
+## 🚀 Quick Start (Sandbox)
 
-If you are developing a modern UI5 application utilizing `ui5-tooling`, you can pull this engine in directly via NPM:
+The repository contains an internal UI5 sandbox for testing the engine's inference logic.
 
 ```bash
-npm install @siliconst/metaui
+# Install dependencies
+npm install
+
+# Run the UI5 development server (Sandbox application)
+npm run start
 ```
+The test suite will boot at `http://localhost:8080/index.html`.
 
-### 1. package.json Configuration
-Ensure your application consumes the library by adding it to your `package.json` under the `ui5` dependencies block:
+---
 
-```json
-  "ui5": {
-    "dependencies": [
-      "@siliconst/metaui"
-    ]
-  }
-```
-*(Note: Because this is published as an enterprise-grade UI5 library, you **do not** need to configure any `ui5.yaml` project-shims!)*
+## 🛠 Integration
 
-### 2. manifest.json Registration
-You must explicitly declare the library dependency in your application's `manifest.json` so the UI5 core automatically downloads the runtime files and triggers the internal `PluginRegistry` bootstrapper.
+### Installation
 
-```json
-"sap.ui5": {
-  "dependencies": {
-    "minUI5Version": "1.120.0",
-    "libs": {
-      "sap.m": {},
-      "sap.ui.core": {},
-      "nz.co.siliconst.ui5.metaui": {}
-    }
-  }
-}
-```
-
-## 💻 Instantiating the Engine in your Controller
-
-Once installed and registered, simply require the `GeneratorHost` control in your view controllers:
+Import the compiled library namespace into your UI5 project. 
 
 ```javascript
-sap.ui.define([
-    "sap/ui/core/mvc/Controller",
-    "nz/co/siliconst/ui5/metaui/controls/GeneratorHost"
-], function(Controller, GeneratorHost) {
-    return Controller.extend("my.app.controller.Main", {
-        
-        openDynamicForm: function(schemaPayload, dataPayload) {
-            const host = new GeneratorHost({
-                schemaDefinition: schemaPayload, // The RTTI schema from ABAP
-                initialData: dataPayload,        // Your isolated JSON payload
-                submit: (oEvent) => {
-                    const finalJsonPayload = oEvent.getParameter("payload");
-                    // Send finalJsonPayload back to SAP ABAP via your REST/OData API!
-                }
-            });
-            
-            host.openInDialog("Edit Customer");
+sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (GeneratorHost) {
+    const host = new GeneratorHost({
+        // The Schema Definition
+        schemaDefinition: {
+            type: "object",
+            properties: {
+                Username: { type: "string", ui: { label: "User Name" } },
+                IsActive: { type: "boolean", ui: { label: "Active", widget: "switch" } }
+            }
+        },
+        // The Data Payload
+        initialData: {
+            Username: "JDoe",
+            IsActive: true
         }
+    });
+
+    // Option A: Render inside an existing container
+    myVBox.addItem(host);
+    
+    // Option B: Mount as an isolated Dialog
+    host.openInDialog("User Configuration", "Save");
+
+    // Capture the extracted JSON payload on submit
+    host.attachSubmit(function(oEvent) {
+        const payload = oEvent.getParameter("payload");
+        console.log(payload);
     });
 });
 ```
 
-## 🔗 Declarative XML Model Binding
-Because `GeneratorHost` extends `sap.ui.core.Control`, you can also embed it directly into your XML Views and bind standard UI5 Models (JSON, OData) natively to its properties.
+### Declarative XML Binding
 
-First, add the namespace to your XML View:
-```xml
-xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+MetaUI supports client-side validation based on JSON Schema constraints natively.
+
+### Mandatory Fields
+Adding `"required": true` to any property in the schema will enforce input validation prior to the `submit` event being fired.
+
+### Custom Validation Exits (`beforeSubmit`)
+For business logic requiring custom checks (e.g., async validation), the `GeneratorHost` provides a `beforeSubmit` event.
+
+```javascript
+onBeforeSubmit: function(oEvent) {
+    const payload = oEvent.getParameter("payload");
+    const preventDefault = oEvent.getParameter("preventDefault");
+    const addError = oEvent.getParameter("addError");
+
+    if (payload.CustomerName === "Reserved") {
+        addError("CustomerName", "This customer name is reserved.");
+        preventDefault();
+    }
+}
 ```
 
-Then bind your host application's models directly to the control:
+### Fiori Message Manager Integration
+By default, validation errors are shown locally. To aggregate validation errors into the global UI5 Message Popover, enable `useMessageManager` on the `GeneratorHost`:
+
 ```xml
-<meta:GeneratorHost 
-    schemaDefinition="{schemaModel>/CustomerSchema}" 
-    initialData="{odataModel>/Customers('1001')}" />
+<meta:GeneratorHost
+    schemaDefinition="{/mySchema}"
+    useMessageManager="true"
+    beforeSubmit=".onBeforeSubmit"
+    submit=".onSubmit" />
 ```
-*Note: The engine will safely clone the incoming `initialData` into its own isolated state, preventing any unwanted two-way binding bleed into your host OData models until you explicitly catch the `submit` event!*
+
+## Supported Features
+
+The `GeneratorHost` fully supports declarative XML instantiation in traditional UI5 views:
+
+```xml
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <meta:GeneratorHost 
+        id="metaHost"
+        schemaDefinition="{backend>/schema}" 
+        initialData="{backend>/data}" 
+        submit=".onFormSubmit" />
+        
+</mvc:View>
+```
+
+---
+
+## 📚 Technical Documentation
+
+For detailed information regarding the JSON Schema properties, `ui.*` orchestrations, and recursive nested arrays, consult the payload formats specification:
+
+- [Payload Formats & Directives](docs/payload_formats.md)
+- [Fiori Integration Guide](docs/fiori_integration.md)
+
+

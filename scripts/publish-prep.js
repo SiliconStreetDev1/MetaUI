@@ -4,7 +4,7 @@ const path = require('path');
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 
-console.log('Preparing enterprise-grade publish...');
+console.log('Preparing publish...');
 
 if (!fs.existsSync(distDir)) {
     console.error('Error: dist directory not found. Run npm run build first.');

@@ -1,0 +1,127 @@
+{
+  "title": "Customer Profile",
+  "type": "object",
+  "properties": {
+    "CustomerName": {
+      "type": "string",
+      "required": true,
+      "maxLength": 50,
+      "ui": {
+        "label": "Customer Name",
+        "isKey": true,
+        "group": "General Information"
+      }
+    },
+    "IsActive": {
+      "type": "boolean",
+      "ui": {
+        "label": "Account Active",
+        "group": "General Information",
+        "widget": "switch"
+      }
+    },
+    "Comments": {
+      "type": "string",
+      "ui": {
+        "label": "Additional Notes",
+        "group": "General Information",
+        "widget": "textArea",
+        "rows": 4,
+        "fullWidth": true
+      }
+    },
+    "AccountType": {
+      "type": "dropdown",
+      "required": true,
+      "valueHelp": [
+        { "key": "BASIC", "text": "Basic Plan" },
+        { "key": "PREMIUM", "text": "Premium Plan" },
+        { "key": "CORPORATE", "text": "Corporate Plan" }
+      ],
+      "ui": {
+        "label": "Account Type",
+        "group": "General Information"
+      }
+    },
+    "CreditLimit": {
+      "type": "number",
+      "required": true,
+      "scale": 2,
+      "ui": {
+        "label": "Credit Limit (USD)",
+        "group": "Financials",
+        "visibleOn": "$root.IsActive === true"
+      }
+    },
+    "CreationDate": {
+      "type": "date",
+      "ui": {
+        "label": "Creation Date",
+        "readOnly": true,
+        "group": "System Logs"
+      }
+    },
+    "MeetingTime": {
+      "type": "time",
+      "required": true,
+      "ui": {
+        "label": "Meeting Time",
+        "group": "System Logs"
+      }
+    },
+    "LastLogin": {
+      "type": "datetime",
+      "ui": {
+        "label": "Last Login Timestamp",
+        "readOnly": true,
+        "group": "System Logs"
+      }
+    },
+    "Contacts": {
+      "type": "array",
+      "ui": {
+        "label": "Authorized Contacts"
+      },
+      "items": {
+        "type": "object",
+        "properties": {
+          "ContactID": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "label": "ID",
+              "isKey": true,
+              "readOnly": true
+            }
+          },
+          "FullName": {
+            "type": "string",
+            "required": true,
+            "maxLength": 100,
+            "ui": {
+              "label": "Full Name"
+            }
+          },
+          "Role": {
+            "type": "dropdown",
+            "required": true,
+            "valueHelp": [
+              { "key": "ADMIN", "text": "Administrator" },
+              { "key": "BILLING", "text": "Billing Contact" },
+              { "key": "TECH", "text": "Technical Support" }
+            ],
+            "ui": {
+              "label": "Role"
+            }
+          },
+          "HasPortalAccess": {
+            "type": "boolean",
+            "ui": {
+              "label": "Portal Access"
+            }
+          }
+        }
+      }
+    }
+  }
+}

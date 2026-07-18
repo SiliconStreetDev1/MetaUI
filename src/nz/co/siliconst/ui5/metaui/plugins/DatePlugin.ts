@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from "./BasePlugin";
-import { IFieldMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import DatePicker from "sap/m/DatePicker";
 import Control from "sap/ui/core/Control";
 
@@ -12,15 +12,21 @@ import Control from "sap/ui/core/Control";
  * Handles rendering logic for Date strings.
  */
 export class DatePlugin extends BasePlugin {
-    public render(fieldMetadata: IFieldMetadata, bindingPath: string): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
         this.control = new DatePicker({
-            value: `{meta>${bindingPath}}`,
-            valueFormat: "yyyy-MM-dd",
+            value: {
+                path: `${modelName}>${bindingPath}`,
+                type: "sap.ui.model.type.Date",
+                formatOptions: {
+                    source: { pattern: "yyyy-MM-dd" },
+                    pattern: "yyyy-MM-dd"
+                }
+            },
             displayFormat: "long",
-            editable: !fieldMetadata.isReadOnly,
-            required: fieldMetadata.isRequired,
+            editable: !fieldMetadata.ui?.readOnly,
+            required: fieldMetadata.required,
             change: (oEvent: any) => {
                 const val = oEvent.getParameter("value");
                 this.publishChange(val);
@@ -34,10 +40,10 @@ export class DatePlugin extends BasePlugin {
     public validate(): boolean {
         if (!this.control || !this.metadata) return true;
         const dp = this.control as DatePicker;
-        const isValid = dp.isValidValue();
+        const isValid = typeof dp.isValidValue === "function" ? dp.isValidValue() : true;
         const val = dp.getValue();
 
-        if (this.metadata.isRequired && (!val || val.trim() === "")) {
+        if (this.metadata.required && (!val || typeof val !== 'string' || val.trim() === "")) {
             dp.setValueState("Error" as any);
             dp.setValueStateText("A valid date is required.");
             return false;
@@ -56,8 +62,8 @@ export class DatePlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             const dp = this.control as DatePicker;
-            dp.setEditable(!this.metadata.isReadOnly);
-            dp.setRequired(this.metadata.isRequired);
+            dp.setEditable(!this.metadata.ui?.readOnly);
+            dp.setRequired(this.metadata.required);
         }
     }
 }

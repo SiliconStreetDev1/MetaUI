@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from "./BasePlugin";
-import { IFieldMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import Select from "sap/m/Select";
 import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
@@ -13,12 +13,13 @@ import Control from "sap/ui/core/Control";
  * Handles rendering logic for dropdown inputs.
  */
 export class DropdownPlugin extends BasePlugin {
-    public render(fieldMetadata: IFieldMetadata, bindingPath: string): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
         const select = new Select({
-            selectedKey: `{meta>${bindingPath}}`,
-            enabled: !fieldMetadata.isReadOnly,
+            selectedKey: `{${modelName}>${bindingPath}}`,
+            enabled: !fieldMetadata.ui?.readOnly,
+            forceSelection: false,
             change: (oEvent: any) => {
                 const item = oEvent.getParameter("selectedItem");
                 const val = item ? item.getKey() : "";
@@ -28,9 +29,8 @@ export class DropdownPlugin extends BasePlugin {
         });
 
         if (fieldMetadata.valueHelp && Array.isArray(fieldMetadata.valueHelp)) {
-            if (!fieldMetadata.isRequired) {
-                select.addItem(new Item({ key: "", text: "--- Select ---" }));
-            }
+            // Always add the empty placeholder so that 'required' checks can actually fire if the user hasn't made a choice
+            select.addItem(new Item({ key: "", text: "--- Select ---" }));
             
             fieldMetadata.valueHelp.forEach(vh => {
                 select.addItem(new Item({ key: vh.key, text: vh.text }));
@@ -46,7 +46,7 @@ export class DropdownPlugin extends BasePlugin {
         const select = this.control as Select;
         const val = select.getSelectedKey();
 
-        if (this.metadata.isRequired && (!val || val.trim() === "")) {
+        if (this.metadata.required && (!val || val.trim() === "")) {
             select.setValueState("Error" as any);
             select.setValueStateText("Selection is required.");
             return false;
@@ -59,7 +59,7 @@ export class DropdownPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             const select = this.control as Select;
-            select.setEnabled(!this.metadata.isReadOnly);
+            select.setEnabled(!this.metadata.ui?.readOnly);
         }
     }
 }

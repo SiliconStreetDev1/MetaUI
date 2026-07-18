@@ -1,0 +1,39 @@
+{
+    "title": "Purchase Orders List",
+    "type": "object",
+    "properties": {
+        "PurchaseOrders": {
+            "type": "array",
+            "ui": { "label": "Purchase Orders" },
+            "items": {
+                "type": "object",
+                "properties": {
+                    "orderId": { 
+                        "type": "string",
+                        "ui": { "label": "Order ID", "isKey": true }
+                    },
+                    "customer": { 
+                        "type": "string", 
+                        "ui": { "label": "Customer Name" }
+                    },
+                    "totalAmount": { 
+                        "type": "number", 
+                        "ui": { "label": "Total Amount" } 
+                    },
+                    "lineItems": { 
+                        "type": "array", 
+                        "ui": { "label": "Line Items" },
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "itemCode": { "type": "string", "ui": { "label": "Item Code", "isKey": true } },
+                                "quantity": { "type": "number", "ui": { "label": "Quantity" } },
+                                "price": { "type": "number", "ui": { "label": "Unit Price" } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

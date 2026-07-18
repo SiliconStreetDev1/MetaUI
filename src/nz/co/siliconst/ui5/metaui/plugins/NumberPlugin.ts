@@ -4,22 +4,22 @@
  */
 
 import { BasePlugin } from "./BasePlugin";
-import { IFieldMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import StepInput from "sap/m/StepInput";
 import Control from "sap/ui/core/Control";
 
 /**
- * Handles rendering and logic for numeric inputs with precision and scale.
+ * Handles rendering and logic for numeric inputs.
  */
 export class NumberPlugin extends BasePlugin {
-    public render(fieldMetadata: IFieldMetadata, bindingPath: string): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
-        
+
         this.control = new StepInput({
-            value: `{meta>${bindingPath}}`,
+            value: `{${modelName}>${bindingPath}}`,
             displayValuePrecision: fieldMetadata.scale || 0,
-            editable: !fieldMetadata.isReadOnly,
-            required: fieldMetadata.isRequired,
+            editable: !fieldMetadata.ui?.readOnly,
+            required: fieldMetadata.required,
             change: (oEvent: any) => {
                 const val = oEvent.getParameter("value");
                 this.publishChange(val);
@@ -35,7 +35,8 @@ export class NumberPlugin extends BasePlugin {
         const input = this.control as StepInput;
         const val = input.getValue();
 
-        if (this.metadata.isRequired && (val === null || val === undefined)) {
+        // StepInput generally defaults to 0 and isn't usually undefined unless unbound or erased
+        if (this.metadata.required && (val === null || val === undefined || Number.isNaN(val) || val === "")) {
             input.setValueState("Error" as any);
             input.setValueStateText("This field is required.");
             return false;
@@ -48,8 +49,8 @@ export class NumberPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             const input = this.control as StepInput;
-            input.setEditable(!this.metadata.isReadOnly);
-            input.setRequired(this.metadata.isRequired);
+            input.setEditable(!this.metadata.ui?.readOnly);
+            input.setRequired(this.metadata.required);
         }
     }
 }

@@ -1,56 +1,82 @@
 /**
  * @file Engine.ts
- * @description The central orchestrator that routes data between the Layout Factory and Plugin Registry.
+ * @description The central orchestrator that routes data between the Layout Factory and Plugin Registry (v2).
  */
 
-import { ISchema } from "../interfaces/ISchema";
+import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
+import { IPlugin } from "../interfaces/IPlugin";
 import { ConditionEngine } from "./ConditionEngine";
 import Control from "sap/ui/core/Control";
 import VBox from "sap/m/VBox";
 
-/**
- * The MetaUI Engine. Responsible for bootstrapping the layout generation.
- * Follows strict Orchestrator patterns; delegates all actual rendering to LayoutManagers.
- */
 export class Engine {
     private conditionEngine: ConditionEngine | null = null;
+    private activePlugins: IPlugin[] = [];
     
-    /**
-     * Evaluates the schema and delegates generation to the layout factory.
-     * @param schema The fully normalized schema definition.
-     * @param layoutManager The injected layout factory class.
-     * @returns The populated UI5 layout container.
-     */
-    public build(schema: ISchema, layoutManager: ILayoutManager): Control {
-        // Bootstrap the condition engine to start listening for field events in this schema
+    public build(schema: ISchema, layoutManager: ILayoutManager, modelName: string = "meta"): Control {
         this.conditionEngine = new ConditionEngine(schema);
+        this.activePlugins = [];
+
+        const trackPlugin = (plugin: IPlugin) => this.activePlugins.push(plugin);
         
-        if (schema.mode === "form") {
-            return layoutManager.renderForm(schema);
-        } else if (schema.mode === "table") {
-            if (!schema.tables || schema.tables.length === 0) {
-                throw new Error("[MetaUI] Table mode requires at least one table definition.");
+        // Implicit layout routing based on root type
+        if (schema.type === "array") {
+            if (!schema.items) {
+                throw new Error("[MetaUI] Array schema must define 'items'.");
             }
-            return layoutManager.renderTable(schema.tables[0]);
-        } else if (schema.mode === "mixed") {
+            return layoutManager.renderTable(schema.items, `${modelName}>/`, schema.title);
+        }
+        
+        if (schema.type === "object") {
             const container = new VBox({ renderType: "Bare" });
+            const props = schema.properties || {};
             
-            // 1. Render the top-level form if there are root fields
-            if (schema.rootFields && schema.rootFields.length > 0) {
-                container.addItem(layoutManager.renderForm(schema));
+            // Separate scalar properties (form fields) from root array properties (inline tables)
+            const formProps: Record<string, IPropertyMetadata> = {};
+            const tableProps: { key: string; meta: IPropertyMetadata }[] = [];
+            
+            for (const key of Object.keys(props)) {
+                if (props[key].type === "array") {
+                    tableProps.push({ key, meta: props[key] });
+                } else {
+                    formProps[key] = props[key];
+                }
             }
             
-            // 2. Render all tables sequentially below the form
-            if (schema.tables && schema.tables.length > 0) {
-                schema.tables.forEach(tableMeta => {
-                    container.addItem(layoutManager.renderTable(tableMeta));
-                });
+            // Render the top-level form if there are scalar fields
+            if (Object.keys(formProps).length > 0) {
+                container.addItem(layoutManager.renderForm(formProps, modelName, schema.title, trackPlugin));
+            }
+            
+            // Render root-level arrays as massive native tables below the form
+            for (const tableProp of tableProps) {
+                if (tableProp.meta.items) {
+                    container.addItem(layoutManager.renderTable(tableProp.meta.items, `${modelName}>/${tableProp.key}`, tableProp.meta.ui?.label || tableProp.key));
+                }
             }
             
             return container;
         }
         
-        throw new Error(`[MetaUI] Mode '${schema.mode}' is not yet implemented or invalid.`);
+        throw new Error(`[MetaUI] Unsupported schema type: ${schema.type}`);
+    }
+
+    public validateAll(): boolean {
+        let isValid = true;
+        for (const plugin of this.activePlugins) {
+            if (!plugin.validate()) {
+                isValid = false;
+            }
+        }
+        return isValid;
+    }
+
+    public destroy(): void {
+        if (this.conditionEngine) {
+            this.conditionEngine.destroy();
+            this.conditionEngine = null;
+        }
+        this.activePlugins = [];
     }
 }

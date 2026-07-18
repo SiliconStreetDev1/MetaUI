@@ -1,0 +1,23 @@
+{
+  "name": "metaui-sandbox",
+  "version": "1.0.0",
+  "description": "Fiori Playground Sandbox for MetaUI",
+  "private": true,
+  "scripts": {
+    "start": "ui5 serve -o index.html",
+    "build": "ui5 build --all --dest dist"
+  },
+  "dependencies": {
+    "@siliconst/metaui": "file:../"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^3.0.0",
+    "ui5-middleware-servestatic": "^3.0.0"
+  },
+  "ui5": {
+    "dependencies": [
+      "@siliconst/metaui",
+      "ui5-middleware-servestatic"
+    ]
+  }
+}

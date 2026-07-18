@@ -1,9 +1,12 @@
 {
   "CustomerName": "Siliconst Corp",
   "IsActive": true,
+  "Comments": "This customer requires priority shipping for all POs.\nPlease ensure contact is made before dispatch.",
   "CreditLimit": 150000.00,
   "AccountType": "CORPORATE",
   "CreationDate": "2026-07-17",
+  "MeetingTime": "14:30:00",
+  "LastLogin": "2026-07-18T09:00:00",
   "Contacts": [
     {
       "ContactID": "C-001",

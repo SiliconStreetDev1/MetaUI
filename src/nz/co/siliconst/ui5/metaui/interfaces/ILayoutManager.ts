@@ -4,23 +4,18 @@
  */
 
 import Control from "sap/ui/core/Control";
-import { ISchema, ITableMetadata } from "./ISchema";
+import { IPropertyMetadata } from "./ISchema";
 
-/**
- * The factory interface responsible for structuring the visual grid.
- */
+import { IPlugin } from "./IPlugin";
+
 export interface ILayoutManager {
     /**
-     * Constructs a responsive form layout container utilizing native UI5 grids.
-     * @param schema The master schema containing rootFields to be mounted.
-     * @returns A populated UI5 container (e.g., sap.ui.layout.form.SimpleForm).
+     * Renders a form-style layout for the root fields defined in the schema.
      */
-    renderForm(schema: ISchema): Control;
+    renderForm(properties: Record<string, IPropertyMetadata>, modelName?: string, formTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control;
 
     /**
-     * Constructs an analytical or responsive table layout.
-     * @param tableMeta The metadata defining the table columns.
-     * @returns A UI5 Table control (e.g., sap.m.Table or sap.ui.table.Table).
+     * Renders a tabular layout for the provided array metadata.
      */
-    renderTable(tableMeta: ITableMetadata): Control;
+    renderTable(tableMeta: IPropertyMetadata, modelName?: string, tableTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control;
 }

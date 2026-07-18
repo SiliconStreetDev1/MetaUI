@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaUI - Fiori Launchpad Sandbox</title>
+
+    <script type="text/javascript">
+        window["sap-ushell-config"] = {
+            defaultRenderer: "fiori2",
+            renderers: {
+                fiori2: {
+                    componentData: {
+                        config: {
+                            enableSearch: false,
+                            rootIntent: "Shell-home"
+                        }
+                    }
+                }
+            },
+            services: {
+                LaunchPage: {
+                    adapter: {
+                        config: {
+                            groups: [{
+                                title: "MetaUI Demonstrations",
+                                isPreset: true,
+                                isVisible: true,
+                                isGroupLocked: false,
+                                tiles: [{
+                                    tileType: "sap.ushell.ui.tile.StaticTile",
+                                    properties: {
+                                        title: "MetaUI Sandbox",
+                                        targetURL: "#MetaUISandbox-display"
+                                    }
+                                }]
+                            }]
+                        }
+                    }
+                }
+            },
+            applications: {
+                "MetaUISandbox-display": {
+                    title: "MetaUI Sandbox",
+                    description: "A MetaUI Playground",
+                    additionalInformation: "SAPUI5.Component=metaui.sandbox",
+                    applicationType: "URL",
+                    url: "../"
+                }
+            }
+        };
+    </script>
+
+    <script src="https://ui5.sap.com/test-resources/sap/ushell/bootstrap/sandbox.js" id="sap-ushell-bootstrap"></script>
+
+    <script id="sap-ui-bootstrap"
+            src="https://ui5.sap.com/resources/sap-ui-core.js"
+            data-sap-ui-libs="sap.m, sap.ushell, sap.ui.core, sap.ui.layout"
+            data-sap-ui-theme="sap_horizon"
+            data-sap-ui-compatVersion="edge"
+            data-sap-ui-resourceroots='{"metaui.sandbox": "../"}'
+            data-sap-ui-frameOptions="allow">
+    </script>
+
+    <script>
+        sap.ui.getCore().attachInit(function() {
+            // Initialize the FLP sandbox renderer
+            sap.ushell.Container.createRenderer().placeAt("content");
+        });
+    </script>
+</head>
+<body class="sapUiBody" id="content">
+</body>
+</html>

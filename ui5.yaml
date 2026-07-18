@@ -3,11 +3,19 @@ metadata:
   name: nz.co.siliconst.ui5.metaui
 type: library
 builder:
+  resources:
+    excludes:
+      - "/test/**"
+      - "/test-resources/**"
   customTasks:
     - name: ui5-tooling-transpile-task
       afterTask: replaceVersion
       configuration:
         debug: true
+        removeSourceFiles: true
+        excludePatterns:
+          - "test/**"
+          - "test-resources/**"
         transformModulesToUI5:
           overridesToOverride: true
 server:
@@ -16,5 +24,8 @@ server:
       afterMiddleware: compression
       configuration:
         debug: true
+        excludePatterns:
+          - "test/**"
+          - "test-resources/**"
         transformModulesToUI5:
           overridesToOverride: true

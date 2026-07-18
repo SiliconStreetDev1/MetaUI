@@ -1,0 +1,52 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check if version exists on NPM
+        id: check_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view @siliconst/metaui@$VERSION version >/dev/null 2>&1; then
+            echo "Version $VERSION already exists on NPM. Skipping publish."
+            echo "publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $VERSION does not exist. Proceeding with publish..."
+            echo "publish=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Library Dependencies
+        if: steps.check_version.outputs.publish == 'true'
+        run: npm ci
+
+      - name: Build UI5 Library
+        if: steps.check_version.outputs.publish == 'true'
+        run: npm run build
+
+      - name: Prepare for Publish
+        if: steps.check_version.outputs.publish == 'true'
+        run: npm run publish-prep
+
+      - name: Publish to NPM
+        if: steps.check_version.outputs.publish == 'true'
+        working-directory: ./dist
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM2 }}

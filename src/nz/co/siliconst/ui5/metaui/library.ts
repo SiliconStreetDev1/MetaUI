@@ -11,6 +11,12 @@ import { NumberPlugin } from "./plugins/NumberPlugin";
 import { BooleanPlugin } from "./plugins/BooleanPlugin";
 import { DropdownPlugin } from "./plugins/DropdownPlugin";
 import { DatePlugin } from "./plugins/DatePlugin";
+import { TimePlugin } from "./plugins/TimePlugin";
+import { DateTimePlugin } from "./plugins/DateTimePlugin";
+import { ArrayPlugin } from "./plugins/ArrayPlugin";
+
+import { TextAreaPlugin } from "./plugins/TextAreaPlugin";
+import { SwitchPlugin } from "./plugins/SwitchPlugin";
 
 // Delegate to standard library registration
 Core.initLibrary({
@@ -26,7 +32,8 @@ Core.initLibrary({
         "nz.co.siliconst.ui5.metaui.controls.GeneratorHost"
     ],
     elements: [],
-    interfaces: []
+    interfaces: [],
+    noLibraryCSS: true
 });
 
 /**
@@ -34,10 +41,15 @@ Core.initLibrary({
  */
 const registry = PluginRegistry.getInstance();
 registry.register("string", StringPlugin);
+registry.register("string", TextAreaPlugin, "textArea");
 registry.register("number", NumberPlugin);
 registry.register("boolean", BooleanPlugin);
+registry.register("boolean", SwitchPlugin, "switch");
 registry.register("dropdown", DropdownPlugin);
 registry.register("date", DatePlugin);
+registry.register("time", TimePlugin);
+registry.register("datetime", DateTimePlugin);
+registry.register("array", ArrayPlugin);
 
 // Exporting window object safely for UI5 compatibility if needed
 export default (window as any)["nz"]["co"]["siliconst"]["ui5"]["metaui"];

@@ -1,34 +1,22 @@
 /**
  * @file BaseLayout.ts
  * @description Central layout factory that delegates to specific form or table layout engines.
- * Implements ILayoutManager.
  */
 
 import { ILayoutManager } from "../interfaces/ILayoutManager";
-import { ISchema, ITableMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import { FormLayout } from "./FormLayout";
 import { TableLayout } from "./TableLayout";
 
-/**
- * The core layout manager that delegates structural grid rendering based on schema configurations.
- */
+import { IPlugin } from "../interfaces/IPlugin";
+
 export class BaseLayout implements ILayoutManager {
-    /**
-     * Constructs a responsive form layout container.
-     * @param schema The master schema containing rootFields to be mounted.
-     * @returns A populated UI5 container (sap.ui.layout.form.SimpleForm).
-     */
-    public renderForm(schema: ISchema): Control {
-        return FormLayout.build(schema.rootFields);
+    public renderForm(properties: Record<string, IPropertyMetadata>, modelName: string = "meta", formTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control {
+        return FormLayout.build(properties, modelName, formTitle, trackPlugin);
     }
 
-    /**
-     * Constructs a responsive table layout container.
-     * @param tableMeta The metadata defining the table columns.
-     * @returns A UI5 Table control (sap.m.Table).
-     */
-    public renderTable(tableMeta: ITableMetadata): Control {
-        return TableLayout.build(tableMeta);
+    public renderTable(tableMeta: IPropertyMetadata, modelName: string = "meta", tableTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control {
+        return TableLayout.build(tableMeta, modelName, tableTitle, trackPlugin);
     }
 }
