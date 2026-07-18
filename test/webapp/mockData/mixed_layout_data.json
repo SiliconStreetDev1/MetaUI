@@ -1,0 +1,8 @@
+{
+    "ProjectName": "MetaUI Development",
+    "Budget": 50000,
+    "TeamMembers": [
+        { "Name": "Alice", "Role": "Lead Developer" },
+        { "Name": "Bob", "Role": "UI Designer" }
+    ]
+}

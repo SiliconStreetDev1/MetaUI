@@ -7,6 +7,17 @@
   "CreationDate": "2026-07-17",
   "MeetingTime": "14:30:00",
   "LastLogin": "2026-07-18T09:00:00",
+  "AccessRegions": ["North America", "Europe"],
+  "Discount": 15,
+  "ClientRating": 4,
+  "AlertMsg": "Please ensure you upload all supporting documentation before submitting.",
+  "Website": "https://www.siliconst.co.nz",
+  "IBAN": "NZ89370400440532013000",
+  "LicenseCode": "ABC-123",
+  "SupportPhone": "5551234567",
+  "ContactEmail": "admin@siliconst.co.nz",
+  "Revenue": 5000000.00,
+  "LiveCountries": "NZ",
   "Contacts": [
     {
       "ContactID": "C-001",

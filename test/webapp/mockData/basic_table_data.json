@@ -1,0 +1,12 @@
+[
+    {
+        "ID": "EMP-001",
+        "Name": "Alice Smith",
+        "Department": "Engineering"
+    },
+    {
+        "ID": "EMP-002",
+        "Name": "Bob Johnson",
+        "Department": "Marketing"
+    }
+]

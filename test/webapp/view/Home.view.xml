@@ -9,32 +9,64 @@
     <Page title="MetaUI Launchpad">
         <content>
             <VBox class="sapUiMediumMargin">
-                <Title text="Select a Demonstration Scenario" level="H2" class="sapUiSmallMarginBottom" />
+                <Title text="Basic Layouts" level="H2" class="sapUiSmallMarginBottom" />
                 <HBox wrap="Wrap">
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="The 'Everything' Form" subheader="All Plugins" press=".onNavToScenario" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Basic Form" subheader="Standard Fields" press=".onNavToScenario" width="200px">
                         <customData>
-                            <sap.ui.core:CustomData xmlns:sap.ui.core="sap.ui.core" key="scenario" value="everything" />
+                            <core:CustomData key="scenario" value="basic_form" />
                         </customData>
                         <TileContent>
                             <NumericContent value="1" icon="sap-icon://form" />
                         </TileContent>
                     </GenericTile>
 
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="initialDataJson" press=".onNavToScenario" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Basic Table" subheader="Array Data" press=".onNavToScenario" width="200px">
                         <customData>
-                            <sap.ui.core:CustomData xmlns:sap.ui.core="sap.ui.core" key="scenario" value="string" />
+                            <core:CustomData key="scenario" value="basic_table" />
                         </customData>
                         <TileContent>
-                            <NumericContent value="2" icon="sap-icon://syntax" />
+                            <NumericContent value="2" icon="sap-icon://table-view" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Mixed Layout" subheader="Form &amp; Table" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="mixed_layout" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="3" icon="sap-icon://header" />
+                        </TileContent>
+                    </GenericTile>
+                </HBox>
+            </VBox>
+
+            <VBox class="sapUiMediumMargin">
+                <Title text="Complex Scenarios" level="H2" class="sapUiSmallMarginBottom" />
+                <HBox wrap="Wrap">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="The 'Everything' Form" subheader="All Plugins" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="everything" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="4" icon="sap-icon://dimension" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="initialDataJson" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="string" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="5" icon="sap-icon://syntax" />
                         </TileContent>
                     </GenericTile>
 
                     <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="JS API Dialog" subheader="Programmatic" press=".onNavToScenario" width="200px">
                         <customData>
-                            <sap.ui.core:CustomData xmlns:sap.ui.core="sap.ui.core" key="scenario" value="dialog" />
+                            <core:CustomData key="scenario" value="dialog" />
                         </customData>
                         <TileContent>
-                            <NumericContent value="3" icon="sap-icon://popup-window" />
+                            <NumericContent value="6" icon="sap-icon://popup-window" />
                         </TileContent>
                     </GenericTile>
 
@@ -43,7 +75,7 @@
                             <core:CustomData key="scenario" value="inference" />
                         </customData>
                         <TileContent>
-                            <NumericContent value="4" icon="sap-icon://chain-link" />
+                            <NumericContent value="7" icon="sap-icon://chain-link" />
                         </TileContent>
                     </GenericTile>
 
@@ -52,7 +84,16 @@
                             <core:CustomData key="scenario" value="complex" />
                         </customData>
                         <TileContent>
-                            <NumericContent value="5" icon="sap-icon://hierarchy" />
+                            <NumericContent value="8" icon="sap-icon://hierarchy" />
+                        </TileContent>
+                    </GenericTile>
+                    
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Wizard Layout" subheader="Multi-Step Forms" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="wizard" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="9" icon="sap-icon://step" />
                         </TileContent>
                     </GenericTile>
                 </HBox>

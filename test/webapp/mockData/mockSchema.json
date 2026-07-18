@@ -31,7 +31,7 @@
       }
     },
     "AccountType": {
-      "type": "dropdown",
+      "type": "string",
       "required": true,
       "valueHelp": [
         { "key": "BASIC", "text": "Basic Plan" },
@@ -40,7 +40,8 @@
       ],
       "ui": {
         "label": "Account Type",
-        "group": "General Information"
+        "group": "General Information",
+        "widget": "select"
       }
     },
     "CreditLimit": {
@@ -61,20 +62,140 @@
         "group": "System Logs"
       }
     },
+    "Attachment": {
+      "type": "string",
+      "ui": {
+        "label": "Supporting Document",
+        "group": "Enterprise Controls",
+        "widget": "fileUploader"
+      }
+    },
+    "AccessRegions": {
+      "type": "array",
+      "enum": ["North America", "Europe", "Asia", "Oceania"],
+      "ui": {
+        "label": "Access Regions",
+        "group": "Enterprise Controls",
+        "widget": "multiSelect"
+      }
+    },
+    "Discount": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 50,
+      "multipleOf": 5,
+      "ui": {
+        "label": "Discount % (Max 50%)",
+        "group": "Enterprise Controls",
+        "widget": "slider"
+      }
+    },
+    "ClientRating": {
+      "type": "number",
+      "maximum": 5,
+      "ui": {
+        "label": "Client Rating",
+        "group": "Enterprise Controls",
+        "widget": "rating"
+      }
+    },
+    "AlertMsg": {
+      "type": "string",
+      "ui": {
+        "widget": "messageStrip",
+        "group": "Enterprise Controls"
+      }
+    },
+    "Website": {
+      "type": "string",
+      "ui": {
+        "label": "Corporate Website",
+        "group": "Validators",
+        "validators": ["url"]
+      }
+    },
+    "IBAN": {
+      "type": "string",
+      "ui": {
+        "label": "Bank Account (IBAN)",
+        "group": "Validators",
+        "validators": ["iban"]
+      }
+    },
+    "LicenseCode": {
+      "type": "string",
+      "ui": {
+        "label": "License Code (ABC-123)",
+        "group": "Validators",
+        "validators": [{"name": "pattern", "args": "^[A-Z]{3}-\\d{3}$"}, {"name": "minLength", "args": 7}]
+      }
+    },
+    "SupportPhone": {
+      "type": "string",
+      "ui": {
+        "label": "Support Phone",
+        "group": "Formatters",
+        "formatter": "phone"
+      }
+    },
+    "ActionRow": {
+      "type": "string",
+      "ui": {
+        "label": "Navigate to Corporate",
+        "group": "Formatters",
+        "widget": "urlButton",
+        "args": "https://sap.com"
+      }
+    },
+    "ContactEmail": {
+      "type": "string",
+      "required": true,
+      "ui": {
+        "label": "Contact Email",
+        "group": "Plugin Demonstrations",
+        "validators": ["email"]
+      }
+    },
+    "Revenue": {
+      "type": "number",
+      "ui": {
+        "label": "Projected Revenue",
+        "group": "Plugin Demonstrations",
+        "formatter": "currency"
+      }
+    },
+    "LiveCountries": {
+      "type": "string",
+      "ui": {
+        "label": "Live Country Search (Async)",
+        "group": "Plugin Demonstrations",
+        "widget": "remoteDropdown"
+      }
+    },
+    "ResetData": {
+      "type": "string",
+      "ui": {
+        "label": "Danger Zone",
+        "group": "Plugin Demonstrations",
+        "widget": "clearButton"
+      }
+    },
     "MeetingTime": {
-      "type": "time",
+      "type": "string",
       "required": true,
       "ui": {
         "label": "Meeting Time",
-        "group": "System Logs"
+        "group": "System Logs",
+        "widget": "time"
       }
     },
     "LastLogin": {
-      "type": "datetime",
+      "type": "string",
       "ui": {
         "label": "Last Login Timestamp",
         "readOnly": true,
-        "group": "System Logs"
+        "group": "System Logs",
+        "widget": "datetime"
       }
     },
     "Contacts": {
@@ -103,7 +224,7 @@
             }
           },
           "Role": {
-            "type": "dropdown",
+            "type": "string",
             "required": true,
             "valueHelp": [
               { "key": "ADMIN", "text": "Administrator" },
@@ -111,7 +232,8 @@
               { "key": "TECH", "text": "Technical Support" }
             ],
             "ui": {
-              "label": "Role"
+              "label": "Role",
+              "widget": "select"
             }
           },
           "HasPortalAccess": {

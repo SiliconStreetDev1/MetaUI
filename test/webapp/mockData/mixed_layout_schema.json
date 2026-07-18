@@ -1,0 +1,24 @@
+{
+    "type": "object",
+    "properties": {
+        "ProjectName": {
+            "type": "string",
+            "ui": { "label": "Project Name" }
+        },
+        "Budget": {
+            "type": "number",
+            "ui": { "label": "Project Budget" }
+        },
+        "TeamMembers": {
+            "type": "array",
+            "ui": { "label": "Team Members" },
+            "items": {
+                "type": "object",
+                "properties": {
+                    "Name": { "type": "string", "ui": { "label": "Name" } },
+                    "Role": { "type": "string", "ui": { "label": "Role" } }
+                }
+            }
+        }
+    }
+}

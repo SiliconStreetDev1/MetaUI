@@ -1,0 +1,60 @@
+{
+    "type": "object",
+    "title": "Employee Onboarding Wizard",
+    "layoutStrategy": "wizard",
+    "properties": {
+        "FirstName": {
+            "type": "string",
+            "required": true,
+            "ui": {
+                "label": "First Name",
+                "group": "Personal Information"
+            }
+        },
+        "LastName": {
+            "type": "string",
+            "required": true,
+            "ui": {
+                "label": "Last Name",
+                "group": "Personal Information"
+            }
+        },
+        "Email": {
+            "type": "string",
+            "required": true,
+            "validations": ["email"],
+            "ui": {
+                "label": "Work Email",
+                "group": "Contact Details"
+            }
+        },
+        "Phone": {
+            "type": "string",
+            "ui": {
+                "label": "Phone Number",
+                "group": "Contact Details"
+            }
+        },
+        "Department": {
+            "type": "string",
+            "ui": {
+                "label": "Department",
+                "widget": "dropdown",
+                "group": "Role Specifics"
+            },
+            "valueHelp": [
+                { "key": "Engineering", "text": "Engineering" },
+                { "key": "Sales", "text": "Sales" },
+                { "key": "HR", "text": "Human Resources" }
+            ]
+        },
+        "StartDate": {
+            "type": "string",
+            "ui": {
+                "label": "Start Date",
+                "widget": "date",
+                "group": "Role Specifics"
+            }
+        }
+    }
+}

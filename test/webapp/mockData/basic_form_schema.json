@@ -1,0 +1,25 @@
+{
+    "type": "object",
+    "properties": {
+        "FirstName": {
+            "type": "string",
+            "required": true,
+            "ui": {
+                "label": "First Name"
+            }
+        },
+        "LastName": {
+            "type": "string",
+            "required": true,
+            "ui": {
+                "label": "Last Name"
+            }
+        },
+        "Age": {
+            "type": "number",
+            "ui": {
+                "label": "Age"
+            }
+        }
+    }
+}

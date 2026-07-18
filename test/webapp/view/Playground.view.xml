@@ -7,6 +7,8 @@
     xmlns="sap.m">
     <Page title="Scenario: {viewModel>/scenarioTitle}" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
+            <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
+            <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />
             <Button text="Regenerate UI" icon="sap-icon://refresh" type="Emphasized" press=".onRegenerate" />
             <Button text="Open in Dialog Instead" icon="sap-icon://popup-window" press=".onOpenDialog" />
         </headerContent>
@@ -27,7 +29,9 @@
                                     id="metaHost"
                                     schemaDefinition="{viewModel>/parsedSchema}" 
                                     initialData="{viewModel>/parsedData}" 
+                                    debugMode="{viewModel>/debugMode}"
                                     useMessageManager="true"
+                                    fieldChange=".onFieldChange"
                                     beforeSubmit=".onBeforeSubmit"
                                     submit=".onSubmit" />
                             </VBox>
@@ -44,7 +48,6 @@
 
                     <IconTabFilter text="Output Console" icon="sap-icon://sys-monitor" key="console">
                         <VBox height="100%" width="100%" class="sapUiMediumMargin">
-                            <Button text="Trigger Submit" press=".onTriggerSubmit" type="Accept" class="sapUiSmallMarginBottom" />
                             <TextArea id="outputConsole" width="100%" rows="15" editable="false" placeholder="Awaiting submission..." />
                         </VBox>
                     </IconTabFilter>
