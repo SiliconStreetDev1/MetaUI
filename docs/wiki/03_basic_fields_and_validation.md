@@ -56,8 +56,8 @@ MetaUI supports standard JSON Schema primitives. The `PluginRegistry` automatica
 }
 ```
 
-### Static Dropdowns (Select)
-If you need a simple dropdown with hardcoded options, set the widget to `select` and provide a `valueHelp` array containing `key` and `text` pairs. *(For live API-driven dropdowns, see 09. Actions and Datasources).*
+### Single-Select Dropdowns (type: "string")
+If you need a simple dropdown with hardcoded options, use `"type": "string"`. You can provide an `enum` or `valueHelp` array containing `key` and `text` pairs. *(For live API-driven dropdowns, see 09. Actions and Datasources).*
 
 ```json
 {
@@ -67,6 +67,25 @@ If you need a simple dropdown with hardcoded options, set the widget to `select`
     "ui": {
       "label": "Document Status",
       "widget": "select"
+    }
+  }
+}
+```
+
+### Multi-Select Fields (type: "array")
+In strict adherence to the JSON Schema standard, if a user can select *multiple* options, the resulting payload is an array of strings. Therefore, the property must be `"type": "array"`, and the `enum` logic is placed inside an `items` block. MetaUI will automatically map this to a multi-select or token-input field.
+
+```json
+{
+  "AccessRegions": {
+    "type": "array",
+    "ui": {
+      "label": "Access Regions",
+      "widget": "multiSelect"
+    },
+    "items": {
+      "type": "string",
+      "enum": ["North America", "Europe", "Asia"]
     }
   }
 }

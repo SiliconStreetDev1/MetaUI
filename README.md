@@ -13,6 +13,9 @@ MetaUI is designed for use cases where **CDS annotations are unavailable, imposs
 
 Built for strict UI5 architecture adherence, MetaUI enforces modularity through a Plugin-based design and explicitly avoids inline DOM manipulation.
 
+- **Hybrid / Partial Schema Inference**: Supports the standard JSON-Schema `additionalProperties: true` directive. Provide a minimal "Partial Schema" to override specific UI elements (e.g. converting a string into a dropdown), and the engine will recursively deep-merge it with an automatically inferred schema generated from the rest of your data payload.
+- **Strict Array Routing**: Pure contract-based routing strictly separates sub-layouts (arrays of objects) from inline field plugins (primitive arrays), enabling flawless enterprise nested rendering without hacky edge cases.
+
 ✨ **[Play with the Live Interactive Demo Here!](https://SiliconStreetDev1.github.io/MetaUI/index.html)** ✨
 
 ---

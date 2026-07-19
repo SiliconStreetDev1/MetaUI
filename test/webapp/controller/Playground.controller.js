@@ -125,6 +125,9 @@ sap.ui.define([
                 case "inference":
                     sTitle = "Schema Inference (No Schema Provided)";
                     break;
+                case "partial":
+                    sTitle = "Partial Inference (additionalProperties: true)";
+                    break;
                 case "complex":
                     sTitle = "Complex Hierarchy (Nested Arrays)";
                     break;

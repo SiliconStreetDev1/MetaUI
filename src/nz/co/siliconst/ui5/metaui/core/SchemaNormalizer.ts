@@ -7,7 +7,7 @@ import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
 import { Logger } from "../utils/Logger";
 
 export class SchemaNormalizer {
-    
+
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.
      */
@@ -35,12 +35,25 @@ export class SchemaNormalizer {
                 title: schemaObj.title || "MetaUI Generated Form",
                 type: schemaObj.type || (schemaObj.items ? "array" : "object"),
                 layoutStrategy: schemaObj.layoutStrategy,
-                uiLayout: schemaObj.uiLayout
+                uiLayout: schemaObj.uiLayout,
+                additionalProperties: schemaObj.additionalProperties
             };
 
+            let targetProperties = schemaObj.properties || {};
+
+            if (schemaObj.additionalProperties === true && data) {
+                const inferred = this.inferSchemaFromData(data);
+                if (inferred.type === "object" && inferred.properties) {
+                    targetProperties = this.deepMergeProperties(inferred.properties, targetProperties);
+                } else if (inferred.type === "array" && inferred.items && inferred.items.properties) {
+                    // Array schema merging could be added here if we want full support.
+                }
+            }
+
             if (normalized.type === "object") {
-                normalized.properties = this.normalizeProperties(schemaObj.properties || {});
+                normalized.properties = this.normalizeProperties(targetProperties);
             } else if (normalized.type === "array") {
+                // Future expansion: array deep merge
                 normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items");
             }
 
@@ -52,6 +65,22 @@ export class SchemaNormalizer {
             // Fallback to empty object to prevent hard crash downstream
             return { type: "object", properties: {} };
         }
+    }
+
+    private static deepMergeProperties(base: any, override: any): any {
+        const merged = { ...base };
+        for (const key of Object.keys(override)) {
+            const overrideVal = override[key];
+            const baseVal = merged[key];
+
+            if (baseVal && typeof baseVal === "object" && !Array.isArray(baseVal) &&
+                overrideVal && typeof overrideVal === "object" && !Array.isArray(overrideVal)) {
+                merged[key] = this.deepMergeProperties(baseVal, overrideVal);
+            } else {
+                merged[key] = overrideVal;
+            }
+        }
+        return merged;
     }
 
     private static normalizeProperties(properties: any): Record<string, IPropertyMetadata> {
@@ -69,7 +98,7 @@ export class SchemaNormalizer {
                 label: prop.ui?.label || this.generateLabel(keyName),
                 isKey: !!prop.ui?.isKey,
                 readOnly: !!prop.ui?.readOnly,
-                widget: prop.ui?.widget,
+                widget: prop.ui?.widget || (prop.valueHelp || prop.enum ? "select" : undefined),
                 visibleOn: prop.ui?.visibleOn,
                 enabledOn: prop.ui?.enabledOn,
                 format: prop.ui?.format,
@@ -118,7 +147,7 @@ export class SchemaNormalizer {
      */
     private static inferSchemaFromData(data: any): ISchema {
         const schema: ISchema = { type: "object", properties: {} };
-        
+
         if (!data || typeof data !== "object") {
             return schema;
         }
@@ -144,7 +173,7 @@ export class SchemaNormalizer {
         for (const key of Object.keys(obj)) {
             const val = obj[key];
             if (val === null || val === undefined) continue;
-            
+
             if (typeof val === "object" && !Array.isArray(val)) continue;
 
             let type: FieldType = "string";
@@ -159,7 +188,7 @@ export class SchemaNormalizer {
                     properties: val.length > 0 ? this.inferPropertiesFromObject(val[0]) : {}
                 };
             }
-            
+
             properties[key] = {
                 type,
                 items,

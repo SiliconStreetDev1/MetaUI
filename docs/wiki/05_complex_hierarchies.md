@@ -2,9 +2,12 @@
 
 Enterprise data payloads are rarely flat. MetaUI supports recursive generation of nested `object` and `array` structures indefinitely.
 
-## Embedded Tables (Arrays inside Objects)
+## Embedded Tables vs Inline Fields (Array Routing)
 
-If a property inside a parent object is typed as an `array`, the `FormLayout` delegates the generation back to the `Engine` to natively embed a `TableLayout` beneath the form fields.
+MetaUI uses a strict, contract-based architectural boundary to determine how an `array` property should be rendered:
+
+1. **Sub-Layouts (Tables):** If a property is an `array` and explicitly contains a collection of complex records (`items.type === "object"`), the layout engine delegates generation back to the `Engine` to natively embed a `TableLayout` beneath the form fields.
+2. **Inline Field Controls:** If a property is an `array` of simple primitives (e.g., an array of enum strings) OR it explicitly maps to a UI widget (e.g., `"widget": "multiSelect"`), it remains inline inside the Form as a Field Plugin.
 
 ```json
 {

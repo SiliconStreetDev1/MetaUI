@@ -85,6 +85,7 @@ export interface IPropertyMetadata {
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
     uiLayout?: ILayoutElement[];
+    additionalProperties?: boolean;
 }
 
 /**
@@ -97,4 +98,5 @@ export interface ISchema {
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
     uiLayout?: ILayoutElement[];
+    additionalProperties?: boolean;
 }

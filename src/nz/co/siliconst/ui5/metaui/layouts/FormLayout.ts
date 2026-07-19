@@ -76,7 +76,14 @@ export class FormLayout implements ILayoutManager {
                     return;
                 }
 
-                if (meta.type === "array") {
+                // Architectural Boundary: Separate Field Controls (Plugins) from Sub-Layouts (LayoutManagers)
+                // A property is delegated to a Sub-Layout Manager (Table) ONLY if it represents a collection of complex objects.
+                // Collections of primitives, or explicitly assigned widgets (like multiSelect), remain in the Form as Field Plugins.
+                const isCollectionOfRecords = meta.items?.type === "object" || meta.items?.properties;
+                const hasExplicitWidget = !!meta.ui?.widget;
+                const isSubLayout = meta.type === "array" && isCollectionOfRecords && !hasExplicitWidget;
+
+                if (isSubLayout) {
                     tableElements.push({ scope: propKey, meta, label: element.label });
                 } else {
                     hasFormFields = true;

@@ -79,6 +79,15 @@
                         </TileContent>
                     </GenericTile>
 
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Partial Schema" subheader="additionalProperties" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="partial" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="7b" icon="sap-icon://chain-link" />
+                        </TileContent>
+                    </GenericTile>
+
                     <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Complex Hierarchy" subheader="Nested Tables &amp; Dialogs" press=".onNavToScenario" width="200px">
                         <customData>
                             <core:CustomData key="scenario" value="complex" />

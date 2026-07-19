@@ -4,6 +4,14 @@ MetaUI is a plugin-driven JSON-schema rendering engine for SAP UI5. Instead of r
 
 ## Architecture Overview
 
+## Engine Modes
+
+MetaUI operates in three distinct inference modes depending on how you define your schema:
+
+1. **Strict Whitelist Mode (Default)**: If you provide a full `schemaDefinition`, the engine strictly renders *only* the properties you define. Any extra fields in your data payload are ignored.
+2. **100% Inference Mode**: If you omit the `schemaDefinition` entirely, the engine infers a schema from your data payload on the fly, rendering standard text inputs, checkboxes, and number fields.
+3. **Hybrid Partial Mode**: If you provide a minimal schema with `"additionalProperties": true`, the engine will recursively deep-merge your custom UI directives (e.g. converting a string to a Dropdown) with an automatically inferred baseline from your data payload.
+
 ```mermaid
 flowchart TD
     A[JSON Schema & Payload] --> B(GeneratorHost)

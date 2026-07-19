@@ -31,6 +31,9 @@ sap.ui.define([
             } else if (sScenario === "hierarchy_test") {
                 sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/hierarchy_test.json");
                 sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/hierarchy_test_data.json");
+            } else if (sScenario === "partial") {
+                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/partial_schema.json");
+                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/partial_data.json");
             }
 
             return Promise.all([
