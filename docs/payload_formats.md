@@ -14,6 +14,16 @@ A standard `FormLayout` is derived from an `object` type with scalar properties.
 {
   "title": "Customer Profile",
   "type": "object",
+  "uiLayout": [
+    {
+      "type": "Group",
+      "label": "General Information",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/CustomerName" },
+        { "type": "Control", "scope": "#/properties/IsActive" }
+      ]
+    }
+  ],
   "properties": {
     "CustomerName": {
       "type": "string",
@@ -21,15 +31,13 @@ A standard `FormLayout` is derived from an `object` type with scalar properties.
       "maxLength": 50,
       "ui": {
         "label": "Customer Name",
-        "isKey": true,
-        "group": "General Information"
+        "isKey": true
       }
     },
     "IsActive": {
       "type": "boolean",
       "ui": {
         "label": "Account Active",
-        "group": "General Information",
         "widget": "switch"
       }
     }
@@ -39,7 +47,7 @@ A standard `FormLayout` is derived from an `object` type with scalar properties.
 
 ### Complex Hierarchies (Nested Arrays)
 
-If a property is of `type: "array"`, the `Engine` will automatically inject it as a native drill-down `TableLayout` beneath the parent form. Deeply nested tables will automatically utilize the `ArrayPlugin` to spawn recursive Dialog drill-downs.
+If a property is of `type: "array"`, the `FormLayout` will natively orchestrate an embedded `TableLayout` beneath the parent form. Deeply nested tables and objects will automatically utilize the `ArrayPlugin` or `ObjectPlugin` to spawn recursive Dialog drill-downs.
 
 ```json
 {
@@ -81,13 +89,37 @@ If a property is of `type: "array"`, the `Engine` will automatically inject it a
 These properties adhere to standard JSON Schema structures and drive both rendering and strict validation pipelines:
 
 ### `type` (String)
-Primitive type mapping (`string`, `number`, `boolean`, `array`, `date`, `time`, `datetime`).
+Primitive type mapping (`string`, `number`, `boolean`, `array`, `object`, `date`).
 
 ### `required` (Boolean)
 If true, the layout renders a mandatory asterisk next to the field label and blocks form submission if the field is empty, actively highlighting the input in red.
 
 ### `maxLength` (Number)
 Enforces maximum character length on string inputs.
+
+---
+
+## Layout Orchestration (`uiLayout`)
+
+The visual layout of the schema is fully decoupled from the data definition using the `uiLayout` array.
+
+### `uiLayout` (Array)
+An array of layout elements defining exactly how the fields should be displayed on screen.
+- **`Group`**: A visual container. Generates a Fiori `Title`. Supports nested `elements`.
+- **`Control`**: A data field. Must specify a `scope` (JSON pointer) linking it to a definition in the `properties` block. Supports an optional `widget` override.
+- **`WizardStep`**: Defines an isolated paginated step for the `WizardLayout`.
+
+```json
+"uiLayout": [
+  {
+    "type": "Group",
+    "label": "Financial Details",
+    "elements": [
+      { "type": "Control", "scope": "#/properties/CreditLimit" }
+    ]
+  }
+]
+```
 
 ---
 
@@ -99,12 +131,6 @@ All MetaUI visual orchestrations are driven by the optional `ui` dictionary insi
 The human-readable label injected into Column Headers or Form Labels.
 ```json
 "ui": { "label": "Total Amount (USD)" }
-```
-
-### `ui.group` (String)
-Enables semantic Form Grouping. Any scalar property sharing the same group string will be clustered under a native `sap.ui.core.Title` section inside the `FormLayout`.
-```json
-"ui": { "group": "Financial Details" }
 ```
 
 ### `ui.isKey` (Boolean)
@@ -119,10 +145,30 @@ Overrides the default Plugin resolution to render a specific UI5 Control.
 | Property Type | Default Widget | Supported Override Widgets |
 |---------------|----------------|----------------------------|
 | `boolean`     | `sap.m.CheckBox` | `switch` (`sap.m.Switch`) |
-| `string`      | `sap.m.Input`  | `textArea` (Future), `html` (Future) |
+| `string`      | `sap.m.Input`  | `textArea`, `html`, `clearButton`, `remoteDropdown`, `select`, `time`, `datetime` |
 
 ```json
-"ui": { "widget": "switch" }
+"ui": { "widget": "remoteDropdown" }
+```
+
+### `ui.validators` (Array of Strings or Objects)
+Instructs the `PipelineManager` to execute specific registered business logic validators before saving data to the model. Can be a simple string array or an array of configuration objects (`IValidationRule`) for passing custom arguments.
+
+```json
+"ui": { 
+  "validators": [
+    "email", 
+    "required",
+    { "name": "maxLength", "args": 50 }
+  ] 
+}
+```
+
+### `ui.formatter` (String)
+Instructs the `PipelineManager` to pass the raw data through a registered data formatter before displaying it in the UI.
+
+```json
+"ui": { "formatter": "currency" }
 ```
 
 ### `ui.readOnly` (Boolean)

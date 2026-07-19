@@ -6,92 +6,147 @@
 import SimpleForm from "sap/ui/layout/form/SimpleForm";
 import Label from "sap/m/Label";
 import Title from "sap/ui/core/Title";
-import { IPropertyMetadata } from "../interfaces/ISchema";
-import { PluginRegistry } from "../core/PluginRegistry";
-import { IPlugin } from "../interfaces/IPlugin";
+import VBox from "sap/m/VBox";
+import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
+import { ILayoutManager } from "../interfaces/ILayoutManager";
+import { Engine } from "../core/Engine";
+import { Logger } from "../utils/Logger";
+import Control from "sap/ui/core/Control";
 
-export class FormLayout {
+/**
+ * Layout Manager responsible for generating a fully responsive SAP Fiori SimpleForm.
+ * It traverses the `uiLayout` tree defined in the schema to build the form groups and fields,
+ * completely separating visual orchestration from data modeling.
+ * @namespace nz.co.siliconst.ui5.metaui.layouts
+ * @public
+ */
+export class FormLayout implements ILayoutManager {
     /**
-     * Builds a SimpleForm with ResponsiveGridLayout, injecting the requested plugins.
-     * @param properties The dictionary of fields to render.
-     * @param modelName The dynamic model name.
-     * @param formTitle Optional title for the form block.
-     * @param trackPlugin Optional callback to track instantiated plugins.
+     * Renders the JSON Schema properties into a UI5 SimpleForm using the uiLayout definitions.
+     * 
+     * @param schema The active JSON schema subset.
+     * @param modelName The bound UI5 model name.
+     * @param engine The central orchestrator for delegating plugin generation.
+     * @param onSubmit Optional submit hook.
+     * @returns {Control} The VBox wrapper containing the generated form.
      */
-    public static build(properties: Record<string, IPropertyMetadata>, modelName: string = "meta", formTitle?: string, trackPlugin?: (plugin: IPlugin) => void): SimpleForm {
+    public render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void): Control {
+        const container = new VBox({ renderType: "Bare" });
         const form = new SimpleForm({
             editable: true,
-            title: formTitle,
+            title: schema.title,
             layout: "ResponsiveGridLayout",
-            labelSpanXL: 4,
-            labelSpanL: 4,
-            labelSpanM: 4,
-            labelSpanS: 12,
+            labelSpanXL: 4, labelSpanL: 4, labelSpanM: 4, labelSpanS: 12,
             adjustLabelSpan: false,
-            emptySpanXL: 0,
-            emptySpanL: 0,
-            emptySpanM: 0,
-            emptySpanS: 0,
-            columnsXL: 1,
-            columnsL: 1,
-            columnsM: 1,
+            emptySpanXL: 0, emptySpanL: 0, emptySpanM: 0, emptySpanS: 0,
+            columnsXL: 1, columnsL: 1, columnsM: 1,
             singleContainerFullSize: false
         });
 
-        const registry = PluginRegistry.getInstance();
-        
-        // Group fields by their ui.group directive
-        const groups: Record<string, { key: string; meta: IPropertyMetadata }[]> = {};
-        const DEFAULT_GROUP = "__DEFAULT__";
-        
-        for (const key of Object.keys(properties)) {
-            const meta = properties[key];
-            const groupName = meta.ui?.group || DEFAULT_GROUP;
-            if (!groups[groupName]) groups[groupName] = [];
-            groups[groupName].push({ key, meta });
+        if (!schema.uiLayout || !Array.isArray(schema.uiLayout)) {
+            Logger.warn("[MetaUI] Missing 'uiLayout' array in schema. Form will not render any fields.");
+            container.addItem(form);
+            return container;
         }
 
-        // Render groups
-        for (const groupName of Object.keys(groups)) {
-            if (groupName !== DEFAULT_GROUP) {
-                form.addContent(new Title({ text: groupName }));
-            }
-            
-            groups[groupName].forEach((field) => {
-                try {
-                    const label = new Label({
-                        text: field.meta.ui?.label || field.key,
-                        required: field.meta.required
-                    });
+        const tableElements: { scope: string, meta: IPropertyMetadata, label?: string }[] = [];
+        let hasFormFields = false;
 
-                    // Attach visibility condition to label and control container logic
-                    if (field.meta.ui?.visibleOn) {
-                        const expr = `{= ${field.meta.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
-                        label.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false}); // temporary, condition engine does this usually
-                    }
-
-                    const plugin = registry.getPlugin(field.meta.type, field.meta.ui?.widget);
-                    if (trackPlugin) trackPlugin(plugin);
-                    const control = plugin.render(field.meta, `/${field.key}`, modelName);
-
-                    if (field.meta.ui?.fullWidth) {
-                        sap.ui.require(["sap/ui/layout/GridData"], (GridData: any) => {
-                            control.setLayoutData(new GridData({
-                                span: "XL12 L12 M12 S12"
-                            }));
-                        });
-                    }
-
-                    form.addContent(label);
-                    form.addContent(control);
-                } catch (error) {
-                    sap.ui.require(["sap/base/Log"], (Log: any) => {
-                        if (Log) Log.error(`[MetaUI] Failed to render field ${field.key}`, (error as Error).message, "FormLayout");
-                    });
+        // Recursively render layout elements
+        const renderElement = (element: ILayoutElement) => {
+            if (element.type === "Group") {
+                if (element.label) {
+                    form.addContent(new Title({ text: element.label }));
                 }
-            });
+                
+                if (element.elements && Array.isArray(element.elements)) {
+                    element.elements.forEach(renderElement);
+                }
+            } else if (element.type === "Control") {
+                if (!element.scope || !element.scope.startsWith("#/properties/")) {
+                    Logger.error(`[MetaUI] Invalid scope '${element.scope}' in uiLayout Control.`, "", "FormLayout");
+                    return;
+                }
+                
+                const propKey = element.scope.replace("#/properties/", "");
+                const meta = schema.properties?.[propKey];
+                
+                if (!meta) {
+                    Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", "FormLayout");
+                    return;
+                }
+
+                if (meta.type === "array") {
+                    tableElements.push({ scope: propKey, meta, label: element.label });
+                } else {
+                    hasFormFields = true;
+                    this._renderScalarField(form, element, propKey, meta, modelName, engine);
+                }
+            } else {
+                Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", "FormLayout");
+            }
+        };
+
+        // Render everything defined in the layout
+        schema.uiLayout.forEach(renderElement);
+
+        if (hasFormFields) {
+            container.addItem(form);
         }
 
-        return form;
+        // Render array/table sub-layouts full width below the form
+        tableElements.forEach(field => {
+            try {
+                const subSchema = {
+                    type: "array",
+                    title: field.label || field.meta.ui?.label || field.scope,
+                    items: field.meta.items || { type: "object", properties: {} },
+                    uiLayout: field.meta.items?.uiLayout // Pass down sub-layout if available
+                };
+                
+                const control = engine.generateLayout(subSchema as ISchema, modelName, `/${field.scope}`);
+                if (control) {
+                    control.addStyleClass("sapUiSmallMarginTop");
+                    container.addItem(control);
+                }
+            } catch (error) {
+                const msg = (error as Error).message;
+                Logger.error(`[MetaUI] Failed to render array field ${field.scope}`, msg, "FormLayout");
+                Logger.showErrorPopup(`Failed to render array field '${field.scope}'.\n\nDetails: ${msg}`);
+            }
+        });
+
+        return container;
+    }
+
+    private _renderScalarField(form: SimpleForm, element: ILayoutElement, propKey: string, meta: IPropertyMetadata, modelName: string, engine: Engine): void {
+        try {
+            const labelText = element.label || meta.ui?.label || propKey;
+            const label = new Label({
+                text: labelText,
+                required: meta.required
+            });
+
+            // Override widget if specified in the layout element
+            const effectiveMeta = { ...meta };
+            if (element.widget) {
+                effectiveMeta.ui = { ...meta.ui, widget: element.widget };
+            }
+
+            const control = engine.generateField(effectiveMeta, `/${propKey}`, modelName);
+
+            if (effectiveMeta.ui?.fullWidth) {
+                sap.ui.require(["sap/ui/layout/GridData"], (GridData: any) => {
+                    control.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
+                });
+            }
+
+            form.addContent(label);
+            form.addContent(control);
+        } catch (error) {
+            const msg = (error as Error).message;
+            Logger.error(`[MetaUI] Failed to render field ${propKey}`, msg, "FormLayout");
+            Logger.showErrorPopup(`Failed to render field '${propKey}'.\n\nDetails: ${msg}`);
+        }
     }
 }

@@ -3,6 +3,8 @@
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:codeeditor="sap.ui.codeeditor"
     xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:table="sap.ui.table"
+    xmlns:layout="sap.ui.layout"
     displayBlock="true"
     xmlns="sap.m">
     <Page title="Scenario: {viewModel>/scenarioTitle}" showNavButton="true" navButtonPress=".onNavBack">

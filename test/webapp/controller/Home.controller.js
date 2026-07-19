@@ -15,6 +15,10 @@ sap.ui.define([
             this.getOwnerComponent().getRouter().navTo("playground", {
                 scenario: sScenario
             });
+        },
+
+        onNavToMultiHost: function () {
+            this.getOwnerComponent().getRouter().navTo("multihost");
         }
     });
 });

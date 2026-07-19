@@ -12,24 +12,40 @@ import Title from "sap/m/Title";
 import ToolbarSpacer from "sap/m/ToolbarSpacer";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
-import { PluginRegistry } from "../core/PluginRegistry";
 import Control from "sap/ui/core/Control";
-import { IPlugin } from "../interfaces/IPlugin";
-import { IPropertyMetadata } from "../interfaces/ISchema";
+import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
+import { ILayoutManager } from "../interfaces/ILayoutManager";
+import { Engine } from "../core/Engine";
+import { Logger } from "../utils/Logger";
 
-export class TableLayout {
+/**
+ * Layout Manager responsible for generating a responsive SAP Fiori Table.
+ * It is automatically utilized by the Engine when the schema root or property is of type 'array'.
+ * Includes built-in support for adding and deleting rows via dynamic data binding manipulation.
+ * 
+ * @namespace nz.co.siliconst.ui5.metaui.layouts
+ * @public
+ */
+export class TableLayout implements ILayoutManager {
     /**
-     * Builds a responsive Table, dynamically calculating column priorities.
+     * Renders the JSON Schema array properties into a UI5 Table.
+     * 
+     * @param schema The active JSON schema array definition.
+     * @param modelName The UI5 JSONModel name used for data binding.
+     * @param engine The central orchestrator for delegating column plugin generation.
+     * @param onSubmit Optional submit hook.
+     * @param bindingPath The JSON path representing the array within the payload.
+     * @returns {Control} The generated sap.m.Table control.
+     * @throws {Error} If the provided schema is not of type 'array'.
      */
-    public static build(tableMeta: IPropertyMetadata, bindingPath: string = "meta>/", tableTitle: string = "Table", trackPlugin?: (plugin: IPlugin) => void): Table {
-        if (!tableMeta.properties) {
-            throw new Error("[MetaUI] Table requires an items schema with properties.");
+    public render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void, bindingPath: string = "/"): Control {
+        if (schema.type !== "array" || !schema.items || !schema.items.properties) {
+            throw new Error("[MetaUI] TableLayout requires an array schema with items.properties.");
         }
 
-        const parts = bindingPath.split(">");
-        const actualModelName = parts.length > 1 ? parts[0] : undefined;
-        const actualPath = parts.length > 1 ? parts[1] : bindingPath;
-        // e.g. "meta>/Contacts" -> actualModelName = "meta", actualPath = "/Contacts"
+        const tableTitle = schema.title || "Table";
+        const actualModelName = modelName;
+        const actualPath = bindingPath;
 
         const table = new Table({
             headerToolbar: new Toolbar({
@@ -45,10 +61,10 @@ export class TableLayout {
                             const model = tbl.getModel(actualModelName) as JSONModel;
                             const info = tbl.getBindingInfo("items");
                             if (!info || !info.path) return;
-                            
+
                             const data = model.getProperty(info.path) || [];
-                            data.push({}); // append empty row
-                            model.setProperty(info.path, data);
+                            const newData = [...data, {}];
+                            model.setProperty(info.path, newData);
                         }
                     })
                 ]
@@ -57,56 +73,104 @@ export class TableLayout {
             mode: "Delete",
             delete: (oEvent: any) => {
                 const item = oEvent.getParameter("listItem");
-                const path = item.getBindingContext(actualModelName).getPath(); 
+                const path = item.getBindingContext(actualModelName).getPath();
                 const model = item.getModel(actualModelName) as JSONModel;
-                
+
                 const splitPaths = path.split("/");
                 const index = parseInt(splitPaths.pop() || "0", 10);
                 let arrayPath = splitPaths.join("/");
                 if (arrayPath === "") arrayPath = "/";
-                
-                const data = model.getProperty(arrayPath);
-                data.splice(index, 1);
-                model.setProperty(arrayPath, data);
+
+                const data = model.getProperty(arrayPath) || [];
+                const newData = [...data];
+                newData.splice(index, 1);
+                model.setProperty(arrayPath, newData);
             }
         });
 
         const templateCells: Control[] = [];
-        const registry = PluginRegistry.getInstance();
-        const props = tableMeta.properties;
+        const props = schema.items.properties;
+        const layoutElements = schema.uiLayout;
 
-        Object.keys(props).forEach((key) => {
-            try {
-                const fieldMeta = props[key];
-                const isKey = !!fieldMeta.ui?.isKey;
-                
-                const column = new Column({
-                    header: new Text({ text: fieldMeta.ui?.label || key }),
-                    demandPopin: !isKey, 
-                    minScreenWidth: isKey ? "" : "Tablet",
-                    popinDisplay: "Inline"
-                });
-                table.addColumn(column);
+        if (layoutElements && Array.isArray(layoutElements)) {
+            // Only render columns defined in uiLayout
+            layoutElements.forEach((element: ILayoutElement) => {
+                if (element.type === "Control") {
+                    if (!element.scope || !element.scope.startsWith("#/properties/")) {
+                        Logger.error(`[MetaUI] Invalid scope '${element.scope}' in uiLayout Control for Table.`, "", "TableLayout");
+                        return;
+                    }
 
-                const plugin = registry.getPlugin(fieldMeta.type, fieldMeta.ui?.widget);
-                if (trackPlugin) trackPlugin(plugin);
-                const control = plugin.render(fieldMeta, key, actualModelName); // No trailing slash for relative bindings
-                templateCells.push(control);
-            } catch (error) {
-                sap.ui.require(["sap/base/Log"], (Log: any) => {
-                    if (Log) Log.error(`[MetaUI] Failed to render column ${key}`, (error as Error).message, "TableLayout");
-                });
-                
-                // Add an empty text control as a fallback so the table columns match the cells array length
-                templateCells.push(new Text({ text: "Error" }));
-            }
-        });
+                    const propKey = element.scope.replace("#/properties/", "");
+                    const fieldMeta = props[propKey];
+
+                    if (!fieldMeta) {
+                        Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions for Table.`, "", "TableLayout");
+                        return;
+                    }
+
+                    try {
+                        const isKey = !!fieldMeta.ui?.isKey;
+
+                        const column = new Column({
+                            header: new Text({ text: element.label || fieldMeta.ui?.label || propKey }),
+                            demandPopin: !isKey,
+                            minScreenWidth: isKey ? "" : "Tablet",
+                            popinDisplay: "Inline"
+                        });
+                        table.addColumn(column);
+
+                        // Override widget if specified in the layout element
+                        const effectiveMeta = { ...fieldMeta };
+                        if (element.widget) {
+                            effectiveMeta.ui = { ...fieldMeta.ui, widget: element.widget };
+                        }
+
+                        // Use engine to generate fields natively and track validation
+                        const control = engine.generateField(effectiveMeta, propKey, actualModelName || "meta", true);
+                        templateCells.push(control);
+                    } catch (error) {
+                        const msg = (error as Error).message;
+                        Logger.error(`[MetaUI] Failed to render column ${propKey}`, msg, "TableLayout");
+                        Logger.showErrorPopup(`Failed to render table column '${propKey}'.\n\nDetails: ${msg}`);
+                        templateCells.push(new Text({ text: "Error" }));
+                    }
+                } else {
+                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}' inside TableLayout. Only 'Control' is supported for columns.`, "", "TableLayout");
+                }
+            });
+        } else {
+            // Fallback: If no uiLayout is provided, render all properties as columns
+            Object.keys(props).forEach((key) => {
+                try {
+                    const fieldMeta = props[key];
+                    const isKey = !!fieldMeta.ui?.isKey;
+
+                    const column = new Column({
+                        header: new Text({ text: fieldMeta.ui?.label || key }),
+                        demandPopin: !isKey,
+                        minScreenWidth: isKey ? "" : "Tablet",
+                        popinDisplay: "Inline"
+                    });
+                    table.addColumn(column);
+
+                    const control = engine.generateField(fieldMeta, key, actualModelName || "meta", true);
+                    templateCells.push(control);
+                } catch (error) {
+                    const msg = (error as Error).message;
+                    Logger.error(`[MetaUI] Failed to render fallback column ${key}`, msg, "TableLayout");
+                    Logger.showErrorPopup(`Failed to render fallback table column '${key}'.\n\nDetails: ${msg}`);
+                    templateCells.push(new Text({ text: "Error" }));
+                }
+            });
+        }
+
+
 
         const rowTemplate = new ColumnListItem({
             cells: templateCells
         });
 
-        // V2 Fix: Actually bind the items to the table!
         table.bindItems({
             path: actualPath,
             model: actualModelName,

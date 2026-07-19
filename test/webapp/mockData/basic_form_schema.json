@@ -20,6 +20,71 @@
             "ui": {
                 "label": "Age"
             }
+        },
+        "Photo": {
+            "type": "string",
+            "ui": {
+                "label": "Profile Photo",
+                "widget": "camera"
+            }
+        },
+        "Signature": {
+            "type": "string",
+            "ui": {
+                "label": "User Signature",
+                "widget": "signature"
+            }
+        },
+        "Location": {
+            "type": "object",
+            "ui": {
+                "label": "Current Location",
+                "widget": "location"
+            }
+        },
+        "Barcode": {
+            "type": "string",
+            "ui": {
+                "label": "Asset Barcode",
+                "widget": "scanner"
+            }
+        },
+        "VoiceNotes": {
+            "type": "string",
+            "ui": {
+                "label": "Voice Dictation",
+                "widget": "voiceInput"
+            }
+        },
+        "RichDescription": {
+            "type": "string",
+            "ui": {
+                "label": "Rich Text Details",
+                "widget": "richText"
+            }
         }
-    }
+    },
+    "uiLayout": [
+        {
+            "type": "Group",
+            "label": "Personal Details",
+            "elements": [
+                { "type": "Control", "scope": "#/properties/FirstName" },
+                { "type": "Control", "scope": "#/properties/LastName" },
+                { "type": "Control", "scope": "#/properties/Age" }
+            ]
+        },
+        {
+            "type": "Group",
+            "label": "Hardware Integrations (Base64)",
+            "elements": [
+                { "type": "Control", "scope": "#/properties/Photo" },
+                { "type": "Control", "scope": "#/properties/Signature" },
+                { "type": "Control", "scope": "#/properties/Location" },
+                { "type": "Control", "scope": "#/properties/Barcode" },
+                { "type": "Control", "scope": "#/properties/VoiceNotes" },
+                { "type": "Control", "scope": "#/properties/RichDescription" }
+            ]
+        }
+    ]
 }

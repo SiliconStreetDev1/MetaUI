@@ -1,0 +1,68 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.MultiHost"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:codeeditor="sap.ui.codeeditor"
+    displayBlock="true"
+    xmlns="sap.m">
+    <Page title="Multi-Host Row Form Demo" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Button text="Add New Row" icon="sap-icon://add" press=".onAddRow" type="Emphasized" />
+            <Button text="Extract All Data" icon="sap-icon://download" press=".onExtractData" />
+        </headerContent>
+        <content>
+            <IconTabBar 
+                id="multiHostTabBar" 
+                headerMode="Inline"
+                stretchContentHeight="true" 
+                class="sapUiResponsiveContentPadding" 
+                applyContentPadding="false" 
+                expanded="true" 
+                expandable="false">
+                <items>
+                    <IconTabFilter text="Form Preview" icon="sap-icon://form" key="preview">
+                        <ScrollContainer height="100%" width="100%" vertical="true">
+                            <VBox class="sapUiMediumMargin">
+                                <MessageStrip
+                                    text="This demo proves the modularity and isolation of the GeneratorHost. Each row in this table binds a unique instance of GeneratorHost to the row context. The IDs are deterministic and will not collide, and their states are completely separated."
+                                    type="Information"
+                                    showIcon="true"
+                                    class="sapUiSmallMarginBottom" />
+
+                                <!-- The sap.m.Table handles the cloning of the GeneratorHost -->
+                                <Table id="multiHostTable" items="{multiModel>/records}" noDataText="No records available">
+                                    <columns>
+                                        <Column><Text text="Dynamic Record Form (Text, Date, Time)" /></Column>
+                                        <Column width="100px" hAlign="End"><Text text="Actions" /></Column>
+                                    </columns>
+                                    <items>
+                                        <ColumnListItem>
+                                            <cells>
+                                                <!-- Multi-Host implementation -->
+                                                <!-- The 'initialData' is bound specifically to the row's 'data' object -->
+                                                <meta:GeneratorHost
+                                                    schemaDefinition="{multiModel>/schemaString}"
+                                                    initialData="{multiModel>data}" 
+                                                    useMessageManager="false" />
+                                                
+                                                <Button icon="sap-icon://delete" type="Reject" press=".onDeleteRow" />
+                                            </cells>
+                                        </ColumnListItem>
+                                    </items>
+                                </Table>
+                            </VBox>
+                        </ScrollContainer>
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Schema Definition" icon="sap-icon://syntax" key="schema">
+                        <codeeditor:CodeEditor id="editorSchema" type="json" value="{multiModel>/schemaString}" height="100%" />
+                    </IconTabFilter>
+
+                    <IconTabFilter text="Payload Data" icon="sap-icon://database" key="data">
+                        <codeeditor:CodeEditor id="editorData" type="json" value="{multiModel>/dataString}" height="100%" />
+                    </IconTabFilter>
+                </items>
+            </IconTabBar>
+        </content>
+    </Page>
+</mvc:View>

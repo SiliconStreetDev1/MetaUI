@@ -5,7 +5,7 @@
  * with a proprietary 'ui' directive block for Fiori visual orchestration.
  */
 
-export type FieldType = "string" | "number" | "boolean" | "date" | "dropdown" | "time" | "datetime" | "array" | "object";
+export type FieldType = "string" | "number" | "integer" | "boolean" | "date" | "array" | "object";
 
 /**
  * Value help structure mapping SAP Key/Text pairs.
@@ -13,6 +13,22 @@ export type FieldType = "string" | "number" | "boolean" | "date" | "dropdown" | 
 export interface IValueHelp {
     key: string;
     text: string;
+}
+
+export interface IValidationRule {
+    name: string;
+    args?: any;
+}
+
+/**
+ * An element in the visual layout tree.
+ */
+export interface ILayoutElement {
+    type: "Group" | "Control" | "HorizontalLayout" | "VerticalLayout" | "WizardStep";
+    label?: string;
+    scope?: string; // JSON Pointer to property, e.g. "#/properties/FirstName"
+    elements?: ILayoutElement[];
+    widget?: string; // Optional override for the widget
 }
 
 /**
@@ -23,12 +39,21 @@ export interface IUIDirective {
     isKey?: boolean;
     readOnly?: boolean;
     widget?: string;
-    group?: string;
     visibleOn?: string;
     enabledOn?: string;
     format?: string;
     rows?: number;
     fullWidth?: boolean;
+    validators?: (string | IValidationRule)[];
+    formatter?: string;
+    args?: any;
+    dialogButtonText?: string;
+}
+
+export interface IRemoteValueHelpConfig {
+    url: string;
+    keyPath: string;
+    textPath: string;
 }
 
 /**
@@ -50,13 +75,16 @@ export interface IPropertyMetadata {
     // Numeric specifics
     precision?: number;
     scale?: number;
+    multipleOf?: number;
     
     // Value constraints
-    valueHelp?: IValueHelp[];
+    valueHelp?: IValueHelp[] | IRemoteValueHelpConfig;
+    enum?: string[] | number[];
     
     // Nested recursion for objects and arrays
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
+    uiLayout?: ILayoutElement[];
 }
 
 /**
@@ -64,7 +92,9 @@ export interface IPropertyMetadata {
  */
 export interface ISchema {
     title?: string;
+    layoutStrategy?: string;
     type?: "object" | "array"; // Implicit layout hinting
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
+    uiLayout?: ILayoutElement[];
 }

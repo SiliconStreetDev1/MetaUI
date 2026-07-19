@@ -1,5 +1,10 @@
 {
     "type": "array",
+    "uiLayout": [
+        { "type": "Control", "scope": "#/properties/ID" },
+        { "type": "Control", "scope": "#/properties/Name" },
+        { "type": "Control", "scope": "#/properties/Department" }
+    ],
     "items": {
         "type": "object",
         "properties": {

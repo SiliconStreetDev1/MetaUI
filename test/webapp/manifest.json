@@ -62,6 +62,11 @@
           "pattern": "playground/{scenario}",
           "name": "playground",
           "target": "playground"
+        },
+        {
+          "pattern": "multihost",
+          "name": "multihost",
+          "target": "multihost"
         }
       ],
       "targets": {
@@ -72,6 +77,10 @@
         "playground": {
           "viewId": "playground",
           "viewName": "Playground"
+        },
+        "multihost": {
+          "viewId": "multihost",
+          "viewName": "MultiHost"
         }
       }
     },

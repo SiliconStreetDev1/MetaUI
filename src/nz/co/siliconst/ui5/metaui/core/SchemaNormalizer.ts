@@ -4,6 +4,7 @@
  */
 
 import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
+import { Logger } from "../utils/Logger";
 
 export class SchemaNormalizer {
     
@@ -17,7 +18,9 @@ export class SchemaNormalizer {
             try {
                 schemaObj = JSON.parse(schemaObj);
             } catch (e) {
-                console.warn("[MetaUI] Failed to parse schema string, falling back to inference.", e);
+                const msg = (e as Error).message;
+                Logger.error("[MetaUI SchemaNormalizer] Failed to parse schema string.", msg);
+                Logger.showErrorPopup(`Failed to parse the provided JSON schema.\n\nDetails: ${msg}`);
                 schemaObj = null;
             }
         }
@@ -26,19 +29,29 @@ export class SchemaNormalizer {
             return this.inferSchemaFromData(data);
         }
 
-        // It is an object. Ensure it conforms to v2 structure.
-        const normalized: ISchema = {
-            title: schemaObj.title || "MetaUI Generated Form",
-            type: schemaObj.type || (schemaObj.items ? "array" : "object"),
-        };
+        try {
+            // It is an object. Ensure it conforms to v2 structure.
+            const normalized: ISchema = {
+                title: schemaObj.title || "MetaUI Generated Form",
+                type: schemaObj.type || (schemaObj.items ? "array" : "object"),
+                layoutStrategy: schemaObj.layoutStrategy,
+                uiLayout: schemaObj.uiLayout
+            };
 
-        if (normalized.type === "object") {
-            normalized.properties = this.normalizeProperties(schemaObj.properties || {});
-        } else if (normalized.type === "array") {
-            normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items");
+            if (normalized.type === "object") {
+                normalized.properties = this.normalizeProperties(schemaObj.properties || {});
+            } else if (normalized.type === "array") {
+                normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items");
+            }
+
+            return normalized;
+        } catch (error) {
+            const msg = (error as Error).message;
+            Logger.error("[MetaUI SchemaNormalizer] Critical error normalizing schema object.", msg);
+            Logger.showErrorPopup(`Schema Normalization failed.\n\nDetails: ${msg}`);
+            // Fallback to empty object to prevent hard crash downstream
+            return { type: "object", properties: {} };
         }
-
-        return normalized;
     }
 
     private static normalizeProperties(properties: any): Record<string, IPropertyMetadata> {
@@ -57,10 +70,14 @@ export class SchemaNormalizer {
                 isKey: !!prop.ui?.isKey,
                 readOnly: !!prop.ui?.readOnly,
                 widget: prop.ui?.widget,
-                group: prop.ui?.group,
                 visibleOn: prop.ui?.visibleOn,
                 enabledOn: prop.ui?.enabledOn,
-                format: prop.ui?.format
+                format: prop.ui?.format,
+                validators: prop.ui?.validators,
+                formatter: prop.ui?.formatter,
+                args: prop.ui?.args,
+                rows: prop.ui?.rows,
+                fullWidth: prop.ui?.fullWidth
             },
             required: !!prop.required,
             maxLength: prop.maxLength,
@@ -74,8 +91,10 @@ export class SchemaNormalizer {
 
         if (normalized.type === "object" && prop.properties) {
             normalized.properties = this.normalizeProperties(prop.properties);
+            normalized.uiLayout = prop.uiLayout;
         } else if (normalized.type === "array" && prop.items) {
             normalized.items = this.normalizePropertyMetadata(prop.items, "items");
+            normalized.uiLayout = prop.uiLayout;
         }
 
         return normalized;

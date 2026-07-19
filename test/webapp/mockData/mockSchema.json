@@ -8,15 +8,13 @@
       "maxLength": 50,
       "ui": {
         "label": "Customer Name",
-        "isKey": true,
-        "group": "General Information"
+        "isKey": true
       }
     },
     "IsActive": {
       "type": "boolean",
       "ui": {
         "label": "Account Active",
-        "group": "General Information",
         "widget": "switch"
       }
     },
@@ -24,7 +22,6 @@
       "type": "string",
       "ui": {
         "label": "Additional Notes",
-        "group": "General Information",
         "widget": "textArea",
         "rows": 4,
         "fullWidth": true
@@ -34,13 +31,21 @@
       "type": "string",
       "required": true,
       "valueHelp": [
-        { "key": "BASIC", "text": "Basic Plan" },
-        { "key": "PREMIUM", "text": "Premium Plan" },
-        { "key": "CORPORATE", "text": "Corporate Plan" }
+        {
+          "key": "BASIC",
+          "text": "Basic Plan"
+        },
+        {
+          "key": "PREMIUM",
+          "text": "Premium Plan"
+        },
+        {
+          "key": "CORPORATE",
+          "text": "Corporate Plan"
+        }
       ],
       "ui": {
         "label": "Account Type",
-        "group": "General Information",
         "widget": "select"
       }
     },
@@ -50,7 +55,6 @@
       "scale": 2,
       "ui": {
         "label": "Credit Limit (USD)",
-        "group": "Financials",
         "visibleOn": "$root.IsActive === true"
       }
     },
@@ -58,24 +62,26 @@
       "type": "date",
       "ui": {
         "label": "Creation Date",
-        "readOnly": true,
-        "group": "System Logs"
+        "readOnly": true
       }
     },
     "Attachment": {
       "type": "string",
       "ui": {
         "label": "Supporting Document",
-        "group": "Enterprise Controls",
         "widget": "fileUploader"
       }
     },
     "AccessRegions": {
       "type": "array",
-      "enum": ["North America", "Europe", "Asia", "Oceania"],
+      "enum": [
+        "North America",
+        "Europe",
+        "Asia",
+        "Oceania"
+      ],
       "ui": {
         "label": "Access Regions",
-        "group": "Enterprise Controls",
         "widget": "multiSelect"
       }
     },
@@ -86,7 +92,6 @@
       "multipleOf": 5,
       "ui": {
         "label": "Discount % (Max 50%)",
-        "group": "Enterprise Controls",
         "widget": "slider"
       }
     },
@@ -95,46 +100,53 @@
       "maximum": 5,
       "ui": {
         "label": "Client Rating",
-        "group": "Enterprise Controls",
         "widget": "rating"
       }
     },
     "AlertMsg": {
       "type": "string",
       "ui": {
-        "widget": "messageStrip",
-        "group": "Enterprise Controls"
+        "widget": "messageStrip"
       }
     },
     "Website": {
       "type": "string",
       "ui": {
         "label": "Corporate Website",
-        "group": "Validators",
-        "validators": ["url"]
+        "validators": [
+          "url"
+        ]
       }
     },
     "IBAN": {
       "type": "string",
       "ui": {
         "label": "Bank Account (IBAN)",
-        "group": "Validators",
-        "validators": ["iban"]
+        "validators": [
+          "iban"
+        ]
       }
     },
     "LicenseCode": {
       "type": "string",
       "ui": {
         "label": "License Code (ABC-123)",
-        "group": "Validators",
-        "validators": [{"name": "pattern", "args": "^[A-Z]{3}-\\d{3}$"}, {"name": "minLength", "args": 7}]
+        "validators": [
+          {
+            "name": "pattern",
+            "args": "^[A-Z]{3}-\\d{3}$"
+          },
+          {
+            "name": "minLength",
+            "args": 7
+          }
+        ]
       }
     },
     "SupportPhone": {
       "type": "string",
       "ui": {
         "label": "Support Phone",
-        "group": "Formatters",
         "formatter": "phone"
       }
     },
@@ -142,7 +154,6 @@
       "type": "string",
       "ui": {
         "label": "Navigate to Corporate",
-        "group": "Formatters",
         "widget": "urlButton",
         "args": "https://sap.com"
       }
@@ -152,15 +163,15 @@
       "required": true,
       "ui": {
         "label": "Contact Email",
-        "group": "Plugin Demonstrations",
-        "validators": ["email"]
+        "validators": [
+          "email"
+        ]
       }
     },
     "Revenue": {
       "type": "number",
       "ui": {
         "label": "Projected Revenue",
-        "group": "Plugin Demonstrations",
         "formatter": "currency"
       }
     },
@@ -168,7 +179,6 @@
       "type": "string",
       "ui": {
         "label": "Live Country Search (Async)",
-        "group": "Plugin Demonstrations",
         "widget": "remoteDropdown"
       }
     },
@@ -176,7 +186,6 @@
       "type": "string",
       "ui": {
         "label": "Danger Zone",
-        "group": "Plugin Demonstrations",
         "widget": "clearButton"
       }
     },
@@ -185,7 +194,6 @@
       "required": true,
       "ui": {
         "label": "Meeting Time",
-        "group": "System Logs",
         "widget": "time"
       }
     },
@@ -194,7 +202,6 @@
       "ui": {
         "label": "Last Login Timestamp",
         "readOnly": true,
-        "group": "System Logs",
         "widget": "datetime"
       }
     },
@@ -227,9 +234,18 @@
             "type": "string",
             "required": true,
             "valueHelp": [
-              { "key": "ADMIN", "text": "Administrator" },
-              { "key": "BILLING", "text": "Billing Contact" },
-              { "key": "TECH", "text": "Technical Support" }
+              {
+                "key": "ADMIN",
+                "text": "Administrator"
+              },
+              {
+                "key": "BILLING",
+                "text": "Billing Contact"
+              },
+              {
+                "key": "TECH",
+                "text": "Technical Support"
+              }
             ],
             "ui": {
               "label": "Role",
@@ -243,7 +259,161 @@
             }
           }
         }
-      }
+      },
+      "uiLayout": [
+        {
+          "type": "Control",
+          "scope": "#/properties/ContactID"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/FullName"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/Role"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/HasPortalAccess"
+        }
+      ]
     }
-  }
+  },
+  "uiLayout": [
+    {
+      "type": "Group",
+      "label": "General Information",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/CustomerName"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/IsActive"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/Comments"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/AccountType"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Financials",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/CreditLimit"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "System Logs",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/CreationDate"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/MeetingTime"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/LastLogin"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Enterprise Controls",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/Attachment"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/Discount"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/ClientRating"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/AlertMsg"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Validators",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/Website"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/IBAN"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/LicenseCode"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Formatters",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/SupportPhone"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/ActionRow"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Plugin Demonstrations",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/ContactEmail"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/Revenue"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/LiveCountries"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/ResetData"
+        }
+      ]
+    },
+    {
+      "type": "Control",
+      "scope": "#/properties/AccessRegions"
+    },
+    {
+      "type": "Control",
+      "scope": "#/properties/Contacts"
+    }
+  ]
 }

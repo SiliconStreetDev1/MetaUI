@@ -6,22 +6,30 @@
 import JSONModel from "sap/ui/model/json/JSONModel";
 import ManagedObject from "sap/ui/base/ManagedObject";
 
+
 /**
  * Manages the isolated internal data payload for the MetaUI engine.
  */
 export class StateManager {
     private model: JSONModel;
 
+    private activeModelName: string;
+
     /**
      * Initializes the state manager with an optional initial payload.
      * @param initialData The initial JSON payload to populate the fields.
+     * @param modelName The UI5 model alias used for isolation.
      */
-    constructor(initialData: Record<string, any> = {}) {
+    constructor(initialData: Record<string, any> = {}, modelName: string = "meta") {
+        this.activeModelName = modelName;
+        
         // Deep copy to ensure no reference leakage from the host application
         const safeData = JSON.parse(JSON.stringify(initialData));
         this.model = new JSONModel(safeData);
         this.model.setDefaultBindingMode("TwoWay");
     }
+
+
 
     /**
      * Retrieves the isolated JSONModel instance to attach to the root GeneratorHost control.
@@ -52,5 +60,15 @@ export class StateManager {
         // Create a deep copy to prevent accidental mutations by the host
         const data = this.model.getData();
         return JSON.parse(JSON.stringify(data));
+    }
+
+    /**
+     * Cleans up internal state and natively destroys the UI5 JSONModel to prevent memory leaks.
+     */
+    public destroy(): void {
+        
+        if (this.model) {
+            this.model.destroy();
+        }
     }
 }

@@ -1,60 +1,107 @@
 {
-    "type": "object",
-    "title": "Employee Onboarding Wizard",
-    "layoutStrategy": "wizard",
-    "properties": {
-        "FirstName": {
-            "type": "string",
-            "required": true,
-            "ui": {
-                "label": "First Name",
-                "group": "Personal Information"
-            }
+  "type": "object",
+  "title": "Employee Onboarding Wizard",
+  "layoutStrategy": "wizard",
+  "properties": {
+    "FirstName": {
+      "type": "string",
+      "required": true,
+      "ui": {
+        "label": "First Name"
+      }
+    },
+    "LastName": {
+      "type": "string",
+      "required": true,
+      "ui": {
+        "label": "Last Name"
+      }
+    },
+    "Email": {
+      "type": "string",
+      "required": true,
+      "ui": {
+        "label": "Work Email",
+        "validators": ["email"]
+      }
+    },
+    "Phone": {
+      "type": "string",
+      "ui": {
+        "label": "Phone Number"
+      }
+    },
+    "Department": {
+      "type": "string",
+      "ui": {
+        "label": "Department",
+        "widget": "dropdown"
+      },
+      "valueHelp": [
+        {
+          "key": "Engineering",
+          "text": "Engineering"
         },
-        "LastName": {
-            "type": "string",
-            "required": true,
-            "ui": {
-                "label": "Last Name",
-                "group": "Personal Information"
-            }
+        {
+          "key": "Sales",
+          "text": "Sales"
         },
-        "Email": {
-            "type": "string",
-            "required": true,
-            "validations": ["email"],
-            "ui": {
-                "label": "Work Email",
-                "group": "Contact Details"
-            }
-        },
-        "Phone": {
-            "type": "string",
-            "ui": {
-                "label": "Phone Number",
-                "group": "Contact Details"
-            }
-        },
-        "Department": {
-            "type": "string",
-            "ui": {
-                "label": "Department",
-                "widget": "dropdown",
-                "group": "Role Specifics"
-            },
-            "valueHelp": [
-                { "key": "Engineering", "text": "Engineering" },
-                { "key": "Sales", "text": "Sales" },
-                { "key": "HR", "text": "Human Resources" }
-            ]
-        },
-        "StartDate": {
-            "type": "string",
-            "ui": {
-                "label": "Start Date",
-                "widget": "date",
-                "group": "Role Specifics"
-            }
+        {
+          "key": "HR",
+          "text": "Human Resources"
         }
+      ]
+    },
+    "StartDate": {
+      "type": "string",
+      "ui": {
+        "label": "Start Date",
+        "widget": "date"
+      }
     }
+  },
+  "uiLayout": [
+    {
+      "type": "Group",
+      "label": "Personal Information",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/FirstName"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/LastName"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Contact Details",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/Email"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/Phone"
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Role Specifics",
+      "elements": [
+        {
+          "type": "Control",
+          "scope": "#/properties/Department"
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/StartDate"
+        }
+      ]
+    }
+  ]
 }

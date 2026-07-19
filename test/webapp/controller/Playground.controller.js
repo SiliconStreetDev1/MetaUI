@@ -11,9 +11,14 @@ sap.ui.define([
     "nz/co/siliconst/ui5/metaui/plugins/validators/EmailValidatorPlugin",
     "nz/co/siliconst/ui5/metaui/plugins/formatters/CurrencyFormatterPlugin",
     "nz/co/siliconst/ui5/metaui/plugins/actions/ClearFormActionPlugin",
-    "nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteValueHelpPlugin",
+    "metaui/sandbox/plugins/MockRemoteValueHelpPlugin",
+    "metaui/sandbox/plugins/MockLiveSearchPlugin",
+    "metaui/sandbox/mockData/MockDataService",
+    "metaui/sandbox/controller/scenarios/BaseScenarioHelper",
+    "metaui/sandbox/controller/scenarios/BasicFormScenarioHelper",
+    "metaui/sandbox/controller/scenarios/ComplexScenarioHelper",
     "nz/co/siliconst/ui5/metaui/library"
-], function (Controller, History, JSONModel, MessageToast, MessagePopover, MessageItem, GeneratorHost, PipelineManager, PluginRegistry, EmailValidatorPlugin, CurrencyFormatterPlugin, ClearFormActionPlugin, RemoteValueHelpPlugin) {
+], function (Controller, History, JSONModel, MessageToast, MessagePopover, MessageItem, GeneratorHost, PipelineManager, PluginRegistry, EmailValidatorPlugin, CurrencyFormatterPlugin, ClearFormActionPlugin, MockRemoteValueHelpPluginModule, MockLiveSearchPluginModule, MockDataService, BaseScenarioHelper, BasicFormScenarioHelper, ComplexScenarioHelper) {
     "use strict";
 
     /**
@@ -21,7 +26,7 @@ sap.ui.define([
      * Demonstrates the core capabilities of the MetaUI library.
      */
     return Controller.extend("metaui.sandbox.controller.Playground", {
-        
+
         onInit: function () {
             var oRouter = this.getOwnerComponent().getRouter();
             oRouter.getRoute("playground").attachPatternMatched(this._onObjectMatched, this);
@@ -39,22 +44,25 @@ sap.ui.define([
             this.getView().setModel(this.viewModel, "viewModel");
 
             // Register MessageManager for global Fiori validation errors
-            var oMessageManager = sap.ui.getCore().getMessageManager();
-            this.getView().setModel(oMessageManager.getMessageModel(), "message");
-            oMessageManager.registerObject(this.getView(), true);
+            sap.ui.require(["sap/ui/core/Core"], function (Core) {
+                var oMessageManager = Core.getMessageManager();
+                this.getView().setModel(oMessageManager.getMessageModel(), "message");
+                oMessageManager.registerObject(this.getView(), true);
+            }.bind(this));
 
             // ==========================================
             // REGISTER CUSTOM TEST PLUGINS
             // ==========================================
-            
+
             // Validators & Formatters (PipelineManager)
             PipelineManager.GlobalPipeline.validators.register("email", new EmailValidatorPlugin.EmailValidatorPlugin());
             PipelineManager.GlobalPipeline.formatters.register("currency", new CurrencyFormatterPlugin.CurrencyFormatterPlugin());
-            
+
             // Controls, Actions, Datasources (PluginRegistry)
             var pluginReg = PluginRegistry.PluginRegistry.getInstance();
             pluginReg.register("string", ClearFormActionPlugin.ClearFormActionPlugin, "clearButton");
-            pluginReg.register("string", RemoteValueHelpPlugin.RemoteValueHelpPlugin, "remoteDropdown");
+            pluginReg.register("string", MockRemoteValueHelpPluginModule.MockRemoteValueHelpPlugin, "remoteDropdown");
+            pluginReg.register("string", MockLiveSearchPluginModule.MockLiveSearchPlugin, "liveSearch");
         },
 
         _onObjectMatched: function (oEvent) {
@@ -70,6 +78,15 @@ sap.ui.define([
             // 1. Resolve Scenario Metadata
             this._applyScenarioMetadata(sScenario);
 
+            // 1.5 Setup Scenario Helper
+            if (sScenario === "basic_form") {
+                this.activeScenarioHelper = new BasicFormScenarioHelper(this);
+            } else if (sScenario === "complex") {
+                this.activeScenarioHelper = new ComplexScenarioHelper(this);
+            } else {
+                this.activeScenarioHelper = new BaseScenarioHelper(this);
+            }
+
             // 2. Fetch Base Mock Data
             this._loadBaseMockData(sScenario);
         },
@@ -83,7 +100,7 @@ sap.ui.define([
          * @param {string} sScenario The scenario key from the router
          * @private
          */
-        _applyScenarioMetadata: function(sScenario) {
+        _applyScenarioMetadata: function (sScenario) {
             var sTitle = "Playground";
 
             switch (sScenario) {
@@ -127,57 +144,17 @@ sap.ui.define([
          * @param {string} sScenario The scenario key from the router
          * @private
          */
-        _loadBaseMockData: function(sScenario) {
-            var sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockSchema.json");
-            var sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockData.json");
-
-            if (sScenario === "complex") {
-                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockSchemaComplex.json");
-                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockDataComplex.json");
-            } else if (sScenario === "wizard") {
-                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockWizardSchema.json");
-                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockWizardData.json");
-            } else if (sScenario === "basic_form") {
-                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_form_schema.json");
-                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_form_data.json");
-            } else if (sScenario === "basic_table") {
-                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_table_schema.json");
-                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_table_data.json");
-            } else if (sScenario === "mixed_layout") {
-                sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mixed_layout_schema.json");
-                sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mixed_layout_data.json");
-            }
-
-            Promise.all([
-                fetch(sSchemaUrl).then(res => res.text()),
-                fetch(sDataUrl).then(res => res.text())
-            ]).then((results) => {
-                var schemaTxt = results[0];
-                var dataTxt = results[1];
-
-                // Route data manipulation based on scenario before applying to the editors
-                switch (sScenario) {
-                    case "inference":
-                        schemaTxt = ""; // Erase schema to force inference
-                        break;
-                    default:
-                        // No pre-processing needed
-                        break;
-                }
-
-                this.viewModel.setProperty("/schemaString", schemaTxt);
-                this.viewModel.setProperty("/dataString", dataTxt);
-
-                // Trigger generation once data is populated
-                this.onRegenerate();
-
-            }).catch(err => {
-                console.error("Error loading JSON", err);
-                MessageToast.show("Failed to load mock files.");
-            });
+        _loadBaseMockData: function (sScenario) {
+            MockDataService.loadScenario(sScenario)
+                .then((result) => {
+                    this.viewModel.setProperty("/schemaString", result.schemaString);
+                    this.viewModel.setProperty("/dataString", result.dataString);
+                    // Trigger generation once data is populated
+                    this.onRegenerate();
+                });
         },
 
-        _bindScenarioToHost: function(sScenario, schemaStr, dataStr, parsedSchema, parsedData) {
+        _bindScenarioToHost: function (sScenario, schemaStr, dataStr, parsedSchema, parsedData) {
             var oHost = this.byId("metaHost");
 
             switch (sScenario) {
@@ -199,7 +176,7 @@ sap.ui.define([
         // UI INTERACTION EVENT HANDLERS
         // ==========================================
 
-        onRegenerate: function() {
+        onRegenerate: function () {
             var schemaStr = this.viewModel.getProperty("/schemaString");
             var dataStr = this.viewModel.getProperty("/dataString");
             var sScenario = this.viewModel.getProperty("/scenario");
@@ -212,54 +189,33 @@ sap.ui.define([
                 this._bindScenarioToHost(sScenario, schemaStr, dataStr, parsedSchema, parsedData);
 
                 // Force layout generation
-                this.byId("metaHost").generate(); 
-                
+                this.byId("metaHost").generate();
+
                 this.byId("outputConsole").setValue("UI Regenerated.");
                 MessageToast.show("UI successfully regenerated from editor code.");
-            } catch(e) {
+            } catch (e) {
                 this.byId("outputConsole").setValue("Syntax Error in JSON:\n" + e.message);
                 MessageToast.show("Syntax error in JSON");
             }
         },
 
-        onTriggerSubmit: function() {
+        onTriggerSubmit: function () {
             this.byId("metaHost").triggerSubmit();
         },
 
-        onFieldChange: function(oEvent) {
-            var sFieldPath = oEvent.getParameter("fieldPath");
-            var sValue = oEvent.getParameter("value");
-            var oHost = oEvent.getSource();
-
-            // Demonstrate Async Validation on CustomerName
-            if (sFieldPath === "CustomerName" && sValue) {
-                // Lock the form while 'checking' the server
-                oHost.setBusy(true);
-
-                setTimeout(function() {
-                    oHost.setBusy(false);
-                    if (sValue.toLowerCase() === "taken") {
-                        oHost.addCustomError("CustomerName", "This customer name is already taken in the database.");
-                    } else {
-                        oHost.clearCustomError("CustomerName");
-                    }
-                }, 800);
-            }
-        },
-        
-        onBeforeSubmit: function(oEvent) {
-            var payload = oEvent.getParameter("payload");
-            var addError = oEvent.getParameter("addError");
-            var preventDefault = oEvent.getParameter("preventDefault");
-
-            // Example of a custom validation rule throwing to the Message Manager
-            if (payload.Name && payload.Name.toLowerCase() === "error") {
-                addError("Name", "You are not allowed to use the name 'error'.");
-                preventDefault();
+        onFieldChange: function (oEvent) {
+            if (this.activeScenarioHelper && this.activeScenarioHelper.onFieldChange) {
+                this.activeScenarioHelper.onFieldChange(oEvent);
             }
         },
 
-        onMessagePopoverPress: function(oEvent) {
+        onBeforeSubmit: function (oEvent) {
+            if (this.activeScenarioHelper && this.activeScenarioHelper.onBeforeSubmit) {
+                this.activeScenarioHelper.onBeforeSubmit(oEvent);
+            }
+        },
+
+        onMessagePopoverPress: function (oEvent) {
             var oSourceControl = oEvent.getSource();
             if (!this._messagePopover) {
                 this._messagePopover = new MessagePopover({
@@ -278,33 +234,20 @@ sap.ui.define([
             this._messagePopover.toggle(oSourceControl);
         },
 
-        onSubmit: function(oEvent) {
-            var payload = oEvent.getParameter("payload");
-            
-            // Push payload directly to the data viewer
-            this.viewModel.setProperty("/dataString", JSON.stringify(payload, null, 2));
-
-            this.byId("outputConsole").setValue(
-                "--- EXTRACTED PAYLOAD ---\n\n" + 
-                JSON.stringify(payload, null, 2)
-            );
-            MessageToast.show("Payload successfully extracted!");
-
-            // Navigate to Payload Data tab
-            var oIconTabBar = this.byId("idIconTabBar");
-            if (oIconTabBar) {
-                oIconTabBar.setSelectedKey("data");
+        onSubmit: function (oEvent) {
+            if (this.activeScenarioHelper && this.activeScenarioHelper.onSubmit) {
+                this.activeScenarioHelper.onSubmit(oEvent);
             }
         },
 
-        onOpenDialog: function() {
+        onOpenDialog: function () {
             var host = new GeneratorHost({
                 schemaDefinition: this.viewModel.getProperty("/parsedSchema"),
                 initialData: this.viewModel.getProperty("/parsedData"),
                 submit: this.onSubmit.bind(this)
             });
-            
-            host.openInDialog("MetaUI Dialog Demonstration", "Save & Extract");
+
+            host.openInDialog("MetaUI Dialog Demonstration", "OK");
         },
 
         onNavBack: function () {
@@ -323,7 +266,7 @@ sap.ui.define([
         // DOCUMENTATION & INTEGRATION STRINGS
         // ==========================================
 
-        _getCodeExamples: function() {
+        _getCodeExamples: function () {
             return `// ==========================================
 // OPTION 1: DECLARATIVE XML BINDING
 // ==========================================

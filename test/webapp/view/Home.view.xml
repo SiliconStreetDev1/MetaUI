@@ -96,6 +96,21 @@
                             <NumericContent value="9" icon="sap-icon://step" />
                         </TileContent>
                     </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Deep Hierarchy" subheader="Hardware ID Test" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="hierarchy_test" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="10" icon="sap-icon://tree" />
+                        </TileContent>
+                    </GenericTile>
+                    
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Generator in Table" press=".onNavToMultiHost" width="200px">
+                        <TileContent>
+                            <NumericContent value="11" icon="sap-icon://table-row" />
+                        </TileContent>
+                    </GenericTile>
                 </HBox>
             </VBox>
         </content>

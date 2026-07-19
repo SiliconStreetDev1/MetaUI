@@ -9,6 +9,7 @@
 export interface IFieldChangeEvent {
     fieldName: string;
     newValue: any;
+    modelName?: string;
 }
 
 /**

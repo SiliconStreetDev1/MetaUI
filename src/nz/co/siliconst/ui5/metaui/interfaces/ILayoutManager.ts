@@ -10,12 +10,12 @@ import { IPlugin } from "./IPlugin";
 
 export interface ILayoutManager {
     /**
-     * Renders a form-style layout for the root fields defined in the schema.
+     * Renders a UI container based on the provided schema.
+     * @param schema The schema defining the layout content.
+     * @param modelName The UI5 JSONModel name for data binding.
+     * @param engine Reference back to the Engine for recursive internal field generation.
+     * @param onSubmit Callback to trigger form submission from the layout natively (e.g. Wizard complete)
+     * @param bindingPath Optional path to bind the layout (e.g. for nested array tables)
      */
-    renderForm(properties: Record<string, IPropertyMetadata>, modelName?: string, formTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control;
-
-    /**
-     * Renders a tabular layout for the provided array metadata.
-     */
-    renderTable(tableMeta: IPropertyMetadata, modelName?: string, tableTitle?: string, trackPlugin?: (plugin: IPlugin) => void): Control;
+    render(schema: import("./ISchema").ISchema, modelName: string, engine: import("../core/Engine").Engine, onSubmit?: () => void, bindingPath?: string): Control;
 }
