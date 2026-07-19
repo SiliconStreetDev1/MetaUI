@@ -62,7 +62,8 @@ export class TableLayout implements ILayoutManager {
                             const info = tbl.getBindingInfo("items");
                             if (!info || !info.path) return;
 
-                            const data = model.getProperty(info.path) || [];
+                            const rawData = model.getProperty(info.path);
+                            const data = Array.isArray(rawData) ? rawData : [];
                             const newData = [...data, {}];
                             model.setProperty(info.path, newData);
                         }
@@ -81,7 +82,8 @@ export class TableLayout implements ILayoutManager {
                 let arrayPath = splitPaths.join("/");
                 if (arrayPath === "") arrayPath = "/";
 
-                const data = model.getProperty(arrayPath) || [];
+                const rawData = model.getProperty(arrayPath);
+                const data = Array.isArray(rawData) ? rawData : [];
                 const newData = [...data];
                 newData.splice(index, 1);
                 model.setProperty(arrayPath, newData);
