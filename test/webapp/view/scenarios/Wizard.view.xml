@@ -54,13 +54,12 @@
                         <!--                                                         -->
                         <!-- ======================================================= -->
                         
-                        <meta:DynamicHost 
+                        <meta:DynamicHost
+                            fieldChange=".onFieldChange" 
                             id="metaHost"
-                            schemaDefinition="{viewModel>/parsedSchema}" 
-                            inputData="{viewModel>/parsedData}" 
-                            inputDataJson=""
-                            outputData=""
-                            outputDataJson="{viewModel>/liveOutputString}"
+                            schemaDefinition="{viewModel>/parsedSchema}"
+                            data="{viewModel>/parsedData}"
+                            dataJson="{viewModel>/rawJsonStringIn}"
                             liveUpdate="{viewModel>/liveUpdate}"
                             displayMode="{viewModel>/displayMode}"
                             debugMode="{viewModel>/debugMode}"

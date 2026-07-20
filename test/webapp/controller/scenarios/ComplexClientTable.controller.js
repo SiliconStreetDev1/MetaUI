@@ -72,8 +72,8 @@ sap.ui.define([
                 <Text text="{viewModel>id}" />
                 <meta:DynamicHost 
                     schemaDefinition="{viewModel>/schemaDefinition}"
-                    inputDataJson="{viewModel>metadataString}" 
-                    outputDataJson="{viewModel>metadataString}" 
+                    dataJson="{viewModel>metadataString}" 
+                    dataJson="{viewModel>metadataString}" 
                     liveUpdate="{viewModel>/liveUpdate}"
                     displayMode="{viewModel>/displayMode}" />
             </cells>
@@ -93,13 +93,6 @@ sap.ui.define([
                 displayMode: false,
                 codeExamples: sSnippet.trim()
             });
-            
-            // Watch for changes on the records to update the live string
-            this.viewModel.attachPropertyChange(function() {
-                if (this.viewModel.getProperty("/liveUpdate")) {
-                    this.onExtractData();
-                }
-            }.bind(this));
 
             this.getView().setModel(this.viewModel, "viewModel");
         },
@@ -146,23 +139,11 @@ sap.ui.define([
             this.viewModel.setProperty("/editorDataString", JSON.stringify(aRecords, null, 2));
         },
 
-        onExtractData: function () {
-            var aRecords = this.viewModel.getProperty("/records");
-            var aExtracted = aRecords.map(function(row) {
-                var parsedMeta = {};
-                try {
-                    parsedMeta = JSON.parse(row.metadataString);
-                } catch (e) {
-                    parsedMeta = { error: "Invalid JSON" };
-                }
-                return {
-                    id: row.id,
-                    name: row.name,
-                    metadata: parsedMeta
-                };
-            });
-            
-            this.viewModel.setProperty("/liveOutputString", JSON.stringify(aExtracted, null, 2));
+        onFieldChange: function () {
+            if (this.viewModel.getProperty("/liveUpdate")) {
+                var aRecords = this.viewModel.getProperty("/records");
+                this.viewModel.setProperty("/editorDataString", JSON.stringify(aRecords, null, 2));
+            }
         },
 
         onInboundStringChange: function (oEvent) {

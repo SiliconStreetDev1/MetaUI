@@ -5,7 +5,7 @@
     xmlns:layout="sap.ui.layout"
     displayBlock="true"
     xmlns="sap.m">
-    <Page title="Scenario: String Binding (inputDataJson)" showNavButton="true" navButtonPress=".onNavBack">
+    <Page title="Scenario: String Binding (dataJson)" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
             <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
             <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
@@ -15,11 +15,12 @@
             <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
                 <Text text="This scenario demonstrates injecting a raw JSON string into the GeneratorHost instead of a parsed JavaScript object. The engine will natively parse the JSON string on boot." class="sapUiSmallMarginBottom" />
                 
-                <meta:DynamicHost 
+                <meta:DynamicHost
+                            fieldChange=".onFieldChange" 
                     id="metaHost"
                     schemaDefinition="{viewModel>/parsedSchema}"
                     displayMode="{viewModel>/displayMode}"
-                    inputDataJson="{viewModel>/rawJsonStringIn}" 
+                    dataJson="{viewModel>/rawJsonStringIn}" 
                     debugMode="{viewModel>/debugMode}"
                     useMessageManager="true" />
             </VBox>

@@ -16,7 +16,7 @@ Built for strict UI5 architecture adherence, MetaUI enforces modularity through 
 - **100% Schema Inference**: Bind raw JSON to the new `DynamicHost` and the engine will instantly infer the metadata, schema, and layout on the fly.
 - **Hybrid / Partial Schema Inference**: Supports the standard JSON-Schema `additionalProperties: true` directive. Provide a minimal "Partial Schema" to override specific UI elements (e.g. converting a string into a dropdown), and the engine will recursively deep-merge it with an automatically inferred schema generated from the rest of your data payload.
 - **Strict Array Routing**: Pure contract-based routing strictly separates sub-layouts (arrays of objects) from inline field plugins (primitive arrays), enabling flawless complex nested rendering without hacky edge cases.
-- **True Two-Way Sync**: Safely double-bind `inputData` and `outputData` to the exact same UI5 model property. Built-in `deepEqual` loop-breakers catch UI5 data echoes, perfectly preserving user cursor focus during live model swaps.
+- **True Two-Way Sync**: Safely double-bind `data` and `data` to the exact same UI5 model property. Built-in `deepEqual` loop-breakers catch UI5 data echoes, perfectly preserving user cursor focus during live model swaps.
 
 ✨ **[Play with the Live Interactive Demo Here!](https://SiliconStreetDev1.github.io/MetaUI/index.html)** ✨
 
@@ -90,7 +90,7 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (Dy
             }
         },
         // The Data Payload
-        inputData: {
+        data: {
             "FirstName": "John",
             "LastName": "Doe"
         },
@@ -122,7 +122,7 @@ The `DynamicHost` fully supports declarative XML instantiation in traditional UI
     <meta:DynamicHost 
         id="dynamicFormHost" 
         schemaDefinition="{backend>/SchemaDefinition}" 
-        inputData="{backend>/PayloadData}" 
+        data="{backend>/PayloadData}" 
         useMessageManager="true"
         submit=".onMetaFormSubmit" />
         

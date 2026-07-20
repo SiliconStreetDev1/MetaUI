@@ -1,7 +1,6 @@
 import Control from "sap/ui/core/Control";
 import RenderManager from "sap/ui/core/RenderManager";
 import GeneratorHost from "./host/GeneratorHost";
-import HostFactory from "../core/HostFactory";
 import { Logger } from "../utils/Logger";
 
 /**
@@ -17,10 +16,8 @@ export default class DynamicHost extends Control {
     static readonly metadata = {
         properties: {
             schemaDefinition: { type: "any", defaultValue: null },
-            inputData: { type: "any", defaultValue: null, bindable: "bindable" },
-            inputDataJson: { type: "string", defaultValue: null, bindable: "bindable" },
-            outputData: { type: "object", defaultValue: null, bindable: "bindable" },
-            outputDataJson: { type: "string", defaultValue: null, bindable: "bindable" },
+            data: { type: "object", defaultValue: null, bindable: "bindable" },
+            dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
             isValid: { type: "boolean", defaultValue: true },
             useMessageManager: { type: "boolean", defaultValue: false },
@@ -87,43 +84,58 @@ export default class DynamicHost extends Control {
      * down to the inner host perfectly transparently.
      */
     public onBeforeRendering(): void {
+        Logger.debug("[MetaUI DynamicHost]", `onBeforeRendering called. _initializedInner: ${this._initializedInner}`, "DynamicHost");
+
         if (!this._initializedInner) {
-            const hasSchema = !!this.getProperty("schemaDefinition");
-            const hasData = !!this.getProperty("inputDataJson") || !!this.getProperty("inputData");
-            
+            const schema = this.getProperty("schemaDefinition");
+            const dataJson = this.getProperty("dataJson");
+            const data = this.getProperty("data");
+
+            const hasSchema = !!schema;
+            const hasData = !!dataJson || !!data;
+
+            Logger.debug("[MetaUI DynamicHost]", `Evaluating boot. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
+
             // Only boot if we have either a schema or some data to infer from
             if (hasSchema || hasData) {
                 if (this.getProperty("debugMode")) {
                     Logger.debug("[MetaUI DynamicHost]", `Booting inner host. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
                 }
                 // The architectural Facade router logic:
-                this._innerHost = HostFactory.createHost(hasSchema);
-                
-                // 1. Mount FIRST so it inherits all UI5 models from the tree.
-                // CRITICAL: If we attempt to bind properties before the control is mounted in the DOM, 
-                // the inner control becomes an 'orphan' and the UI5 Model framework will fail to resolve the bindings.
-                this.setAggregation("_content", this._innerHost);
-                
-                // 2. Forward all bindings and static values to the spawned host.
-                // This ensures the inner host stays perfectly synchronized with any changes to the outer wrapper's XML bindings.
+                // We've simplified this! We no longer use HostFactory or separate subclasses.
+                // GeneratorHost is fully capable of inferring the schema if none is provided.
+                this._innerHost = new GeneratorHost();
+
+                // 1. Forward all static values to the spawned host BEFORE mounting.
+                // Since we no longer use bindProperty, it's perfectly safe to set raw properties before mounting.
                 const props = this.getMetadata().getProperties();
                 for (const propName in props) {
-                    const bindingInfo = this.getBindingInfo(propName);
-                    if (!bindingInfo) {
-                        const val = this.getProperty(propName);
-                        // don't overwrite with nulls if it's default
-                        if (val !== null && val !== undefined) {
-                            this._innerHost.setProperty(propName, val);
-                        }
+                    const val = super.getProperty(propName);
+                    if (val !== null && val !== undefined) {
+                        this._innerHost.setProperty(propName, val);
                     }
                 }
-                
+
+                // 2. Mount so it inherits models and triggers lifecycle.
+                this.setAggregation("_content", this._innerHost);
+
                 // 3. Forward all event subscriptions.
                 // By proxying the events upwards, the developer can subscribe to `<meta:DynamicHost submit="...">` 
                 // and perfectly receive the inner host's submission event.
                 const events = this.getMetadata().getEvents();
                 for (const eventName in events) {
                     this._innerHost.attachEvent(eventName, (oEvent: any) => {
+                        // Natively push updated payload out to any bound Fiori Element properties.
+                        // Using super.setProperty prevents an infinite loop back down to _innerHost.
+                        if (eventName === "submit" || eventName === "fieldChange") {
+                            const params = oEvent.getParameters();
+                            if (params.payload) {
+                                super.setProperty("data", params.payload, true);
+
+                                const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
+                                super.setProperty("dataJson", str, true);
+                            }
+                        }
                         this.fireEvent(eventName, oEvent.getParameters());
                     });
                 }
@@ -139,9 +151,18 @@ export default class DynamicHost extends Control {
      * it instantly mirrors that value down to the inner instantiated host.
      */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
+        if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition") {
+            if (this.getProperty("debugMode")) {
+                Logger.debug("[MetaUI DynamicHost]", `Wrapper received setProperty: ${propertyName}`, "DynamicHost");
+            }
+        }
         super.setProperty(propertyName, value, suppressInvalidate);
         if (this._innerHost) {
             this._innerHost.setProperty(propertyName, value, suppressInvalidate);
+        } else if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition") {
+            if (this.getProperty("debugMode")) {
+                Logger.debug("[MetaUI DynamicHost]", `_innerHost not yet initialized when ${propertyName} was set. Booting will happen on next render.`, "DynamicHost");
+            }
         }
         return this;
     }
@@ -174,7 +195,7 @@ export default class DynamicHost extends Control {
      * Overrides standard UI5 getProperty to transparently pull extracted data from the inner host.
      */
     public getProperty(propertyName: string): any {
-        if (this._innerHost && (propertyName === "outputData" || propertyName === "outputDataJson")) {
+        if (this._innerHost && (propertyName === "data" || propertyName === "dataJson")) {
             return this._innerHost.getProperty(propertyName);
         }
         return super.getProperty(propertyName);

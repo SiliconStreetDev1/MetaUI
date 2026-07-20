@@ -114,7 +114,7 @@ sap.ui.define([
                 var bSuccess = oGeneratorHost.triggerSubmit();
                 
                 if (bSuccess) {
-                    aExtracted.push(oGeneratorHost.getProperty("outputData"));
+                    aExtracted.push(oGeneratorHost.getProperty('data'));
                 } else {
                     bAllValid = false;
                 }

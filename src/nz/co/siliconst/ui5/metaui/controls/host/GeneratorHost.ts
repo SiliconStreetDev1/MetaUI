@@ -33,10 +33,8 @@ export default class GeneratorHost extends Control {
     static readonly metadata = {
         properties: {
             schemaDefinition: { type: "any", defaultValue: null },
-            inputData: { type: "any", defaultValue: null, bindable: "bindable" },
-            inputDataJson: { type: "string", defaultValue: null, bindable: "bindable" },
-            outputData: { type: "object", defaultValue: null, bindable: "bindable" },
-            outputDataJson: { type: "string", defaultValue: null, bindable: "bindable" },
+            data: { type: "object", defaultValue: null, bindable: "bindable" },
+            dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
             isValid: { type: "boolean", defaultValue: true },
             useMessageManager: { type: "boolean", defaultValue: false },
@@ -195,19 +193,33 @@ export default class GeneratorHost extends Control {
         }
     }
 
+    /** Cached schema for intelligent diffing during inference mode hot-swaps */
+    protected parsedSchema: Record<string, unknown> | null = null;
+
+    /**
+     * Exposes the parsed schema to the DataSyncDelegate for diffing.
+     */
+    public getParsedSchema(): Record<string, unknown> | null {
+        return this.parsedSchema;
+    }
+
     /**
      * Standard UI5 Rendering Hook.
-     * Evaluates whether it possesses a schema. If so, triggers the internal engine generation.
+     * Evaluates whether it possesses a schema or data. If so, triggers the internal engine generation.
      */
     public onBeforeRendering(): void {
+        if (this.getProperty("debugMode")) {
+            Logger.debug("[MetaUI GeneratorHost]", `onBeforeRendering called. Engine boot state: schemaDefinition exists = ${!!this.getProperty("schemaDefinition")}, data exists = ${!!this.getProperty("data")}, dataJson exists = ${!!this.getProperty("dataJson")}`, "GeneratorHost");
+        }
+
         if (!this.generatedContent) {
             const hasSchema = !!this.getProperty("schemaDefinition");
+            const hasData = !!this.getProperty("dataJson") || !!this.getProperty("data");
 
-            // Standard Explicit Class STRICTLY requires a schema to generate.
-            if (hasSchema) {
+            if (hasSchema || hasData) {
                 this.generate();
             } else if (this.getProperty("debugMode")) {
-                Logger.debug("[MetaUI]", "GeneratorHost skipped rendering. 'schemaDefinition' was not provided.", "GeneratorHost");
+                Logger.debug("[MetaUI]", "GeneratorHost skipped rendering. Neither 'schemaDefinition' nor data was provided.", "GeneratorHost");
             }
         }
     }
@@ -284,7 +296,7 @@ export default class GeneratorHost extends Control {
      * or forces a full UI teardown if it's a structural property change (like schemaDefinition).
      */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
-        if (propertyName === "inputDataJson" || propertyName === "inputData") {
+        if (propertyName === "dataJson" || propertyName === "data") {
             this.dataSyncDelegate.handleInputDataHotSwap(propertyName, value, suppressInvalidate);
             return this;
         }
@@ -334,8 +346,8 @@ export default class GeneratorHost extends Control {
             }
 
             const rawSchema = this.getProperty("schemaDefinition");
-            let inputData = this.getProperty("inputData");
-            const inputDataJson = this.getProperty("inputDataJson");
+            let inputData = this.getProperty("data");
+            const inputDataJson = this.getProperty("dataJson");
 
             if (inputDataJson) {
                 try {
@@ -356,12 +368,15 @@ export default class GeneratorHost extends Control {
 
             const normalizedSchema = SchemaNormalizer.normalize(rawSchema, finalData);
 
+            // Cache the parsed/inferred schema so DataSyncDelegate can diff against it later
+            this.parsedSchema = normalizedSchema as Record<string, unknown>;
+
             if (normalizedSchema) {
                 const schemaErrors = SchemaValidator.validateSchemaStructure(normalizedSchema);
                 if (schemaErrors.length > 0) {
                     const errorMsg = "Schema Structural Errors Found:\n- " + schemaErrors.join("\n- ");
                     // Let's log it out loudly regardless of debug mode, so developers can see why it didn't render
-                    console.error("[MetaUI]", errorMsg);
+                    Logger.error("[MetaUI]", errorMsg, "GeneratorHost");
                     if (this.getProperty("debugMode")) {
                         MessageBox.error(errorMsg, { title: "MetaUI Schema Error" });
                         return;
@@ -391,7 +406,7 @@ export default class GeneratorHost extends Control {
             this.dataSyncDelegate.pushToBindings(payload);
 
         } catch (error) {
-            console.error("[MetaUI] Fatal crash during layout generation:", error);
+            Logger.error("[MetaUI]", "Fatal crash during layout generation: " + (error as Error).message, "GeneratorHost");
             this.validationDelegate.mountCrashBoundary(error as Error);
         }
     }

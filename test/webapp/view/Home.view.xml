@@ -52,7 +52,7 @@
                         </TileContent>
                     </GenericTile>
 
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="inputDataJson" press=".onNavToScenario" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="dataJson" press=".onNavToScenario" width="200px">
                         <customData>
                             <core:CustomData key="scenario" value="string" />
                         </customData>

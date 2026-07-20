@@ -56,10 +56,10 @@
                                 <ColumnListItem>
                                     <cells>
                                         <!-- Multi-Host implementation -->
-                                        <!-- The 'inputData' is bound specifically to the row's 'data' object -->
+                                        <!-- The 'data' is bound specifically to the row's 'data' object -->
                                         <meta:DynamicHost 
                                             schemaDefinition="{viewModel>/parsedSchema}" 
-                                            inputData="{viewModel>data}" 
+                                            data="{viewModel>data}" 
                                             liveUpdate="{viewModel>/liveUpdate}"
                                             fieldChange=".onFieldChange"
                                             displayMode="{viewModel>/displayMode}" />

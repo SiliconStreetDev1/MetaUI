@@ -60,7 +60,7 @@ To embed a dynamic form directly into a Fiori page (instead of a popup dialog), 
             <metaui:GeneratorHost 
                 id="dynamicFormHost" 
                 schemaDefinition="{backend>/SchemaDefinition}" 
-                inputData="{backend>/PayloadData}"
+                data="{backend>/PayloadData}"
                 useMessageManager="true"
                 submit=".onMetaFormSubmit" />
         </content>
@@ -71,7 +71,7 @@ To embed a dynamic form directly into a Fiori page (instead of a popup dialog), 
 
 ## 3. Controller Binding (JavaScript)
 
-If your backend supplies the JSON as strings, you can bind to `inputDataJson` instead of `inputData`.
+If your backend supplies the JSON as strings, you can bind to `dataJson` instead of `data`.
 
 ```javascript
 onInit: function() {
@@ -80,13 +80,13 @@ onInit: function() {
     
     // Engine automatically renders when schema and data are supplied
     host.setProperty("schemaDefinition", mySchemaObject);
-    host.setProperty("inputData", myPayloadObject);
+    host.setProperty("data", myPayloadObject);
 },
 ```
 
 ## 4. True Two-Way Binding (Double Bind)
 
-If you want the `GeneratorHost` to act like a standard UI5 input field and automatically mutate your external model property as the user types, you can double-bind `inputData` and `outputData` to the exact same property.
+If you want the `GeneratorHost` to act like a standard UI5 input field and automatically mutate your external model property as the user types, you can double-bind `data` and `data` to the exact same property.
 
 The Engine uses a native `deepEqual` check to safely break the two-way infinite loop while preserving cursor focus.
 
@@ -96,8 +96,8 @@ The Engine uses a native `deepEqual` check to safely break the two-way infinite 
     schemaDefinition="{backend>/SchemaDefinition}" 
     
     <!-- Double bind to the exact same property! -->
-    inputData="{backend>/PayloadData}"
-    outputData="{backend>/PayloadData}"
+    data="{backend>/PayloadData}"
+    data="{backend>/PayloadData}"
     
     liveUpdate="true" />
 ```

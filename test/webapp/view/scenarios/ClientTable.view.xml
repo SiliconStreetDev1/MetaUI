@@ -41,7 +41,7 @@
                     </layoutData>
                     <VBox class="sapUiMediumMargin">
                         <MessageStrip
-                            text="Compact Layout: Notice how the Inference Engine's SchemaNormalizer now defaults to a dense CompactLayout inside tight spaces (like this table cell) instead of a bulky SimpleForm. The bindings are purely stringified JSON (inputDataJson/outputDataJson double bind)."
+                            text="Compact Layout: Notice how the Inference Engine's SchemaNormalizer now defaults to a dense CompactLayout inside tight spaces (like this table cell) instead of a bulky SimpleForm. The bindings are purely stringified JSON (dataJson/dataJson double bind)."
                             type="Success"
                             showIcon="true"
                             class="sapUiSmallMarginBottom" />
@@ -59,9 +59,9 @@
                                         <Text text="{viewModel>id}" />
                                         <Input value="{viewModel>name}" />
                                         <!-- String double binding with NO schema -->
-                                        <meta:DynamicHost 
-                                            inputDataJson="{viewModel>metadataString}" 
-                                            outputDataJson="{viewModel>metadataString}" 
+                                        <meta:DynamicHost
+                            fieldChange=".onFieldChange" 
+                                            dataJson="{viewModel>metadataString}" 
                                             liveUpdate="{viewModel>/liveUpdate}"
                                             displayMode="{viewModel>/displayMode}" />
                                         
@@ -73,20 +73,7 @@
                     </VBox>
                 </ScrollContainer>
 
-                <!-- Right Pane: Output -->
-                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
-                    <layoutData>
-                        <l:SplitterLayoutData size="30%" />
-                    </layoutData>
-                    <Title text="Extracted Final Payload" level="H3" class="sapUiSmallMarginBottom" />
-                    <codeeditor:CodeEditor type="json" value="{viewModel>/liveOutputString}" height="100%" editable="false">
-                        <codeeditor:layoutData>
-                            <FlexItemData growFactor="1" />
-                        </codeeditor:layoutData>
-                    </codeeditor:CodeEditor>
-                </VBox>
-                
-            </l:Splitter>
+                </l:Splitter>
         </content>
     </Page>
 </mvc:View>

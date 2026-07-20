@@ -54,13 +54,12 @@
                         <!--                                                         -->
                         <!-- ======================================================= -->
                         
-                        <meta:DynamicHost 
+                        <meta:DynamicHost
+                            fieldChange=".onFieldChange" 
                             id="metaHost"
-                            schemaDefinition="{viewModel>/parsedSchema}" 
-                            inputData="{viewModel>/parsedData}" 
-                            inputDataJson="{viewModel>/editorDataString}"
-                            outputData="{viewModel>/parsedData}"
-                            outputDataJson="{viewModel>/editorDataString}"
+                            schemaDefinition="{viewModel>/parsedSchema}"
+                            data="{viewModel>/parsedData}"
+                            dataJson="{viewModel>/editorDataString}"
                             liveUpdate="true"
                             displayMode="{viewModel>/displayMode}"
                             debugMode="{viewModel>/debugMode}"
@@ -75,21 +74,7 @@
                     </VBox>
                 </ScrollContainer>
 
-                <!-- Right Pane: Output (Hidden in Wizard) -->
-                
-                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
-                    <layoutData>
-                        <l:SplitterLayoutData size="30%" />
-                    </layoutData>
-                    <Title text="{= ${viewModel>/liveUpdate} ? 'Live Outbound Payload' : 'Outbound Payload'}" level="H3" class="sapUiSmallMarginBottom" />
-                    <codeeditor:CodeEditor type="json" value="{viewModel>/editorDataString}" height="100%" editable="false">
-                        <codeeditor:layoutData>
-                            <FlexItemData growFactor="1" />
-                        </codeeditor:layoutData>
-                    </codeeditor:CodeEditor>
-                </VBox>
-                
-            </l:Splitter>
+                </l:Splitter>
         </content>
         <footer>
             <Toolbar>

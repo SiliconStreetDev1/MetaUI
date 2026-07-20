@@ -38,7 +38,7 @@ npm install nz.co.siliconst.ui5.metaui
 
 The core control is the `DynamicHost`. It requires two properties:
 1. `schemaDefinition`: The JSON Schema defining the fields.
-2. `inputData`: The runtime data payload.
+2. `data`: The runtime data payload.
 
 ```javascript
 sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (DynamicHost) {
@@ -61,7 +61,7 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (Dy
     // 3. Instantiate the host
     const host = new DynamicHost({
         schemaDefinition: schema,
-        inputData: data,
+        data: data,
         displayMode: false, // Set to true to render the form as a read-only native Display view
         debugMode: true // Enables visible error popups and detailed console logging for troubleshooting
     });

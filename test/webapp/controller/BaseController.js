@@ -160,17 +160,28 @@ sap.ui.define([
             var oViewModel = this.getModel("viewModel");
             var oHost = new GeneratorHost({
                 schemaDefinition: oViewModel.getProperty("/parsedSchema"),
-                inputData: oViewModel.getProperty("/parsedData"),
+                data: oViewModel.getProperty("/parsedData"),
                 displayMode: oViewModel.getProperty("/displayMode"),
                 debugMode: oViewModel.getProperty("/debugMode")
             });
 
             // Wire up the submit event to extract data when the user clicks the configurable button
             oHost.attachSubmit(function(oEvent) {
-                var payload = oEvent.getParameter("payload");
-                MessageToast.show("Submit triggered from Popup! Check console.");
+                var params = oEvent.getParameters();
+                var payload = params.payload;
+                var sPayload = JSON.stringify(payload, null, 2);
+                console.log("----- DIALOG SUBMIT TRIGGERED -----");
+                console.log("oEvent.getParameters():", params);
+                console.log("Extracted payload:", payload);
+                console.log("Stringified payload:", sPayload);
                 Log.info("[Sandbox] Popup Submit Payload:", payload);
-                oViewModel.setProperty("/liveOutputString", JSON.stringify(payload, null, 2));
+                
+                sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
+                    MessageBox.success("Payload successfully extracted from MetaUI.", {
+                        title: "Extracted Payload",
+                        details: sPayload || "No payload extracted."
+                    });
+                });
             });
 
             // Make sure the host is attached to the view lifecycle for models/theming
@@ -187,7 +198,14 @@ sap.ui.define([
         onFieldChange: function (oEvent) {
             var fieldPath = oEvent.getParameter("fieldPath");
             var isValid = oEvent.getParameter("isValid");
+            var payload = oEvent.getParameter("payload");
+            
             Log.info("[Sandbox] Field Changed: " + fieldPath + " (Valid: " + isValid + ")");
+            
+            var oViewModel = this.getModel("viewModel");
+            if (oViewModel.getProperty("/liveUpdate") && payload) {
+                oViewModel.setProperty("/editorDataString", JSON.stringify(payload, null, 2));
+            }
         },
 
         onValidationStateChanged: function (oEvent) {

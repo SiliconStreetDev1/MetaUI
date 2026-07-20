@@ -19,7 +19,7 @@ sap.ui.define([], function () {
                 "basic_table": "Basic Table Layout",
                 "mixed_layout": "Form & Table Mixed Layout",
                 "everything": "The 'Everything' Form",
-                "string": "String Binding (inputDataJson)",
+                "string": "String Binding (dataJson)",
                 "dialog": "JavaScript API (Dialog Modality)",
                 "inference": "Schema Inference (No Schema Provided)",
                 "partial": "Partial Inference (additionalProperties: true)",
@@ -49,9 +49,10 @@ sap.ui.define([], function () {
                 "partial": "Demonstrates partial schema inference. We provided a few rules in the Schema tab, but allowed the system to automatically build the rest of the form based on the incoming data.",
                 "complex": "Demonstrates deeply nested data. Try clicking on the nested tables or arrays to see how the system automatically spawns sub-dialogs to handle complex hierarchies.",
                 "wizard": "Demonstrates breaking a massive form into smaller, sequential steps. Notice how you cannot proceed to the next step until all errors in the current step are fixed.",
-                "live_binding": "Demonstrates real-time output. Notice how the 'Live Outbound Payload' JSON on the right updates instantly on every single keystroke you make.",
+                "live_binding": "Demonstrates real-time output. Notice how the 'Live Outbound Payload' JSON on the right updates instantly on standard change events (e.g., losing focus or pressing Enter).",
+                "dialog_integration": "Demonstrates integrating the MetaUI engine inside a popup Dialog. Uses standard event-driven extraction instead of live two-way syncing.",
                 "double_bind": "Demonstrates true two-way data binding. Both the input and output are wired to the exact same source, proving the form can update live without jittering.",
-                "string_double_bind": "Demonstrates two-way data binding using pure JSON text strings. Everything updates instantly on every keystroke without requiring any background data conversion."
+                "string_double_bind": "Demonstrates two-way data binding using pure JSON text strings. Everything updates instantly on change events without requiring any background data conversion."
             };
 
             return mDescriptions[sScenario] || "This scenario demonstrates standard MetaUI rendering and binding capabilities.";
@@ -69,7 +70,7 @@ sap.ui.define([], function () {
 <!-- DOUBLE BINDING (TRUE TWO-WAY SYNC) -->
 <!-- ========================================== -->
 <!-- If you want the form to automatically mutate your original model property as the user types, -->
-<!-- you can bind both inputData and outputData to the exact same shared property. -->
+<!-- you can bind both data and data to the exact same shared property. -->
 <!-- The GeneratorHost contains internal safeguards to catch the resulting UI5 binding "echoes" -->
 <!-- and will silently drop them, keeping your cursor perfectly stable. -->
 
@@ -82,8 +83,8 @@ sap.ui.define([], function () {
         schemaDefinition="{myModel>/schema}" 
         
         <!-- Bind both to the exact same property! -->
-        inputData="{myModel>/mySharedDataObject}" 
-        outputData="{myModel>/mySharedDataObject}"
+        data="{myModel>/mySharedDataObject}" 
+        data="{myModel>/mySharedDataObject}"
         
         liveUpdate="true" 
     />
@@ -95,7 +96,7 @@ sap.ui.define([], function () {
 <!-- STRING DOUBLE BINDING (RAW JSON INJECTION) -->
 <!-- ========================================== -->
 <!-- If you don't have an object, and ONLY have a raw JSON string in your model, -->
-<!-- you can double-bind both inputDataJson and outputDataJson to the exact same string property. -->
+<!-- you can double-bind both dataJson and dataJson to the exact same string property. -->
 <!-- The engine will natively parse it on the way in, and stringify it on the way out! -->
 
 <mvc:View
@@ -106,8 +107,8 @@ sap.ui.define([], function () {
         schemaDefinition="{myModel>/schema}" 
         
         <!-- Bind both to the exact same string property! -->
-        inputDataJson="{myModel>/myRawJsonString}" 
-        outputDataJson="{myModel>/myRawJsonString}"
+        dataJson="{myModel>/myRawJsonString}" 
+        dataJson="{myModel>/myRawJsonString}"
         
         liveUpdate="true" 
     />
@@ -123,11 +124,11 @@ sap.ui.define([], function () {
 
 var oHost = this.byId("metaHost");
 
-// Instead of 'inputData', bind to 'inputDataJson'
-oHost.bindProperty("inputDataJson", "myModel>/rawJsonStringIn");
+// Instead of 'data', bind to 'dataJson'
+oHost.bindProperty("dataJson", "myModel>/rawJsonStringIn");
 
-// Instead of 'outputData', bind to 'outputDataJson'
-oHost.bindProperty("outputDataJson", "myModel>/rawJsonStringOut");
+// Instead of 'data', bind to 'dataJson'
+oHost.bindProperty("dataJson", "myModel>/rawJsonStringOut");
 `;
 
                 case "dialog":
@@ -140,8 +141,8 @@ oHost.bindProperty("outputDataJson", "myModel>/rawJsonStringOut");
 
 sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(DynamicHost) {
     const host = new DynamicHost({
-        schemaDefinition: mySchemaObject, // Optional! If omitted, it will infer from inputData
-        inputData: myDataObject,
+        schemaDefinition: mySchemaObject, // Optional! If omitted, it will infer from data
+        data: myDataObject,
         submit: function(oEvent) {
             const payload = oEvent.getParameter("payload");
             console.log("Extracted Data:", payload);
@@ -158,11 +159,11 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(Dyn
 // SCHEMA INFERENCE
 // ==========================================
 // If you don't provide a JSON Schema, or if your schema is incomplete (additionalProperties: true),
-// MetaUI will automatically analyze your inputData and infer a schema on the fly!
+// MetaUI will automatically analyze your data and infer a schema on the fly!
 // It will detect strings, numbers, booleans, arrays, and nested objects automatically.
 
 <meta:DynamicHost 
-    inputData="{myModel>/myUnstructuredData}" 
+    data="{myModel>/myUnstructuredData}" 
     submit=".onSubmit"
 />
 `;
@@ -171,13 +172,13 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(Dyn
                     return `// ==========================================
 // LIVE BINDING
 // ==========================================
-// By default, MetaUI only pushes data to 'outputData' when you click Submit (after validation).
-// If you want real-time keystroke-by-keystroke updates, simply set liveUpdate="true".
+// By default, MetaUI only pushes data to 'data' when you click Submit (after validation).
+// If you want real-time updates on change events, simply set liveUpdate="true".
 
 <meta:DynamicHost 
     schemaDefinition="{myModel>/mySchema}" 
-    inputData="{myModel>/initialData}" 
-    outputData="{myModel>/liveOutput}"
+    data="{myModel>/initialData}" 
+    data="{myModel>/liveOutput}"
     liveUpdate="true" 
 />
 `;
@@ -187,9 +188,9 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(Dyn
 // STANDARD XML INTEGRATION (UNIDIRECTIONAL)
 // ==========================================
 // The safest and most common way to integrate MetaUI.
-// inputData is treated as a read-only starting point.
-// outputData receives the final mutated result only after validation passes.
-// If the user cancels the form, your original inputData remains untouched.
+// data is treated as a read-only starting point.
+// data receives the final mutated result only after validation passes.
+// If the user cancels the form, your original data remains untouched.
 
 <mvc:View
     xmlns:mvc="sap.ui.core.mvc"
@@ -198,8 +199,8 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(Dyn
     <meta:DynamicHost 
         id="myDynamicForm"
         schemaDefinition="{myModel>/schema}" 
-        inputData="{myModel>/initialData}" 
-        outputData="{myModel>/finalResult}"
+        data="{myModel>/initialData}" 
+        data="{myModel>/finalResult}"
         
         fieldChange=".onFieldChange"       <!-- Fired when ANY field is modified -->
         beforeSubmit=".onBeforeSubmit"     <!-- Fired before validation block. Good for cross-field checks. -->

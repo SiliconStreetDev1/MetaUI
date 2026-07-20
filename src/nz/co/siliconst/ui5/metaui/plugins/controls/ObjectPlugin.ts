@@ -47,7 +47,7 @@ export class ObjectPlugin extends BasePlugin {
                 sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: any) => {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
-                        inputData: nestedData,
+                        data: nestedData,
                         displayMode: this.isDisplayMode
                     });
 

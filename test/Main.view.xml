@@ -15,7 +15,7 @@
                             <meta:DynamicHost 
                                 id="metaHost"
                                 schemaDefinition="{schemaModel>/}" 
-                                inputData="{dataModel>/}" 
+                                data="{dataModel>/}" 
                                 submit=".onSubmit" />
                             <Button text="Save Inline Form" press=".onSaveInline" type="Emphasized" class="sapUiSmallMarginTop" />
                         </content>

@@ -39,30 +39,8 @@ export class DataSyncDelegate {
         this._lastPushedPayloadJson = payloadStr;
         this._lastPushedPayloadObj = deepEqual({}, payload) ? null : JSON.parse(JSON.stringify(payload)); // Safe clone
 
-        this.host.setProperty("outputData", payload, true);
-        this.host.setProperty("outputDataJson", payloadStr, true);
-
-        let outDataBinding = this.host.getBinding("outputData") as PropertyBinding;
-        if (!outDataBinding && (this.host as any).getParent && (this.host as any).getParent()?.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.DynamicHost") {
-            outDataBinding = (this.host as any).getParent().getBinding("outputData");
-        }
-
-        if (outDataBinding && typeof outDataBinding.setExternalValue === "function") {
-            outDataBinding.setExternalValue(payload);
-        } else if (outDataBinding && typeof outDataBinding.setValue === "function") {
-            outDataBinding.setValue(payload);
-        }
-
-        let outJsonBinding = this.host.getBinding("outputDataJson") as PropertyBinding;
-        if (!outJsonBinding && (this.host as any).getParent && (this.host as any).getParent()?.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.DynamicHost") {
-            outJsonBinding = (this.host as any).getParent().getBinding("outputDataJson");
-        }
-
-        if (outJsonBinding && typeof outJsonBinding.setExternalValue === "function") {
-            outJsonBinding.setExternalValue(payloadStr);
-        } else if (outJsonBinding && typeof outJsonBinding.setValue === "function") {
-            outJsonBinding.setValue(payloadStr);
-        }
+        this.host.setProperty("data", payload, true);
+        this.host.setProperty("dataJson", payloadStr, true);
     }
 
     /**
