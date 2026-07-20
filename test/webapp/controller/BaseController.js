@@ -53,7 +53,7 @@ sap.ui.define([
             var oViewModel = new JSONModel({
                 debugMode: true,
                 liveUpdate: true,
-                displayMode: false,
+                editable: true,
                 scenarioDescription: ""
             });
             this.setModel(oViewModel, "viewModel");
@@ -161,7 +161,7 @@ sap.ui.define([
             var oHost = new GeneratorHost({
                 schemaDefinition: oViewModel.getProperty("/parsedSchema"),
                 data: oViewModel.getProperty("/parsedData"),
-                displayMode: oViewModel.getProperty("/displayMode"),
+                editable: oViewModel.getProperty("/editable"),
                 debugMode: oViewModel.getProperty("/debugMode")
             });
 

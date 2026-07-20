@@ -19,7 +19,7 @@ export class FileUploaderPlugin extends BasePlugin {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Link");
             const LinkControl = sap.ui.require("sap/m/Link");
             this.control = new LinkControl({
@@ -57,7 +57,7 @@ export class FileUploaderPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as FileUploader).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

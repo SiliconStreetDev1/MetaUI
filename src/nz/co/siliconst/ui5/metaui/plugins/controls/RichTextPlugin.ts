@@ -19,7 +19,7 @@ export class RichTextPlugin extends BasePlugin {
         this.fieldKey = bindingPath.replace('/', '');
         this.modelName = modelName;
 
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/FormattedText");
             const FormattedTextControl = sap.ui.require("sap/m/FormattedText");
             this.control = new FormattedTextControl({
@@ -60,7 +60,7 @@ export class RichTextPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as unknown as { setProperty: (k: string, v: unknown) => void }).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }

@@ -7,11 +7,11 @@
     xmlns="sap.m">
     <Page title="Scenario: StringDoubleBind" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
-            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
+            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
             <Button icon="sap-icon://sys-help-2" text="Scenario Info" type="Transparent" press=".onScenarioInfo" />
             <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
             
-            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Only Mode" />
+            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
             <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />
             <Button text="Regenerate UI" icon="sap-icon://refresh" type="Emphasized" press=".onRegenerate" />
             <Button text="Open in Dialog Instead" icon="sap-icon://popup-window" press=".onOpenDialog" />
@@ -61,7 +61,7 @@
                             data="{viewModel>/parsedData}"
                             dataJson="{viewModel>/editorDataString}"
                             liveUpdate="true"
-                            displayMode="{viewModel>/displayMode}"
+                            editable="{viewModel>/editable}"
                             debugMode="{viewModel>/debugMode}"
                             useMessageManager="true" />
                             

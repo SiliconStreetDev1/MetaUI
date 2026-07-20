@@ -75,7 +75,7 @@ sap.ui.define([
                     dataJson="{viewModel>metadataString}" 
                     dataJson="{viewModel>metadataString}" 
                     liveUpdate="{viewModel>/liveUpdate}"
-                    displayMode="{viewModel>/displayMode}" />
+                    editable="{viewModel>/editable}" />
             </cells>
         </ColumnListItem>
     </items>
@@ -90,7 +90,7 @@ sap.ui.define([
                 editorDataString: JSON.stringify(aRecords, null, 2),
                 liveOutputString: "",
                 liveUpdate: true,
-                displayMode: false,
+                editable: true,
                 codeExamples: sSnippet.trim()
             });
 

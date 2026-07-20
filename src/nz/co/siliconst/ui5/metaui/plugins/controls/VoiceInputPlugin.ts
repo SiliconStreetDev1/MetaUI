@@ -10,7 +10,7 @@ export class VoiceInputPlugin extends BasePlugin {
         this.fieldKey = bindingPath.replace('/', '');
         this.modelName = modelName;
 
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({
@@ -52,7 +52,7 @@ export class VoiceInputPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }

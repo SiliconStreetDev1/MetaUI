@@ -53,7 +53,7 @@ export class TableLayout implements ILayoutManager {
                 content: [
                     new Title({ text: tableTitle }),
                     new ToolbarSpacer(),
-                    ...(engine.isDisplayMode ? [] : [
+                    ...(!engine.isEditable ? [] : [
                         new Button({
                             text: "Add Row",
                             icon: "sap-icon://add",
@@ -74,7 +74,7 @@ export class TableLayout implements ILayoutManager {
                 ]
             }),
             fixedLayout: false,
-            mode: engine.isDisplayMode ? "None" : "Delete",
+            mode: !engine.isEditable ? "None" : "Delete",
             delete: (oEvent: sap.ui.base.Event) => {
                 const item = oEvent.getParameter("listItem");
                 const path = item.getBindingContext(actualModelName).getPath();

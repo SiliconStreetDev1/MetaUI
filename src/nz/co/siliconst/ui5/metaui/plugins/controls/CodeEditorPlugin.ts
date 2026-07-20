@@ -61,7 +61,7 @@ export class CodeEditorPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             value: `{${modelName}>${bindingPath}}`,
             type: fieldMetadata.ui?.args || "javascript", // will be dynamically overridden if args is missing
-            editable: this.isDisplayMode ? false : !fieldMetadata.ui?.readOnly,
+            editable: !this.isEditable ? false : !fieldMetadata.ui?.readOnly,
             height: "100px", // Initial minimum height
             width: "100%",
             change: () => {
@@ -118,7 +118,7 @@ export class CodeEditorPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as unknown).setEditable(!this.metadata.ui?.readOnly);
         }
     }

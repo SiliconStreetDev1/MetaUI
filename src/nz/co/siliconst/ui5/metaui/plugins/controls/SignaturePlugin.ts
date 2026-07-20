@@ -10,7 +10,7 @@ export class SignaturePlugin extends BasePlugin {
         this.fieldKey = bindingPath.replace('/', '');
         this.modelName = modelName;
 
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Image");
             const ImageControl = sap.ui.require("sap/m/Image");
             this.control = new ImageControl({
@@ -48,7 +48,7 @@ export class SignaturePlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as unknown as { setProperty: (k: string, v: unknown) => void }).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }

@@ -48,8 +48,8 @@ export interface IPlugin {
     destroy?(): void;
 
     /**
-     * Injects the global display mode context into the plugin before rendering.
-     * @param mode True if the plugin should render in a read-only display mode.
+     * Injects the global editable mode context into the plugin before rendering.
+     * @param editable True if the plugin should render in an editable mode.
      */
-    setDisplayMode?(mode: boolean): void;
+    setEditable?(editable: boolean): void;
 }

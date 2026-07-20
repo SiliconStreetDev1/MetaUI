@@ -62,7 +62,7 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (Dy
     const host = new DynamicHost({
         schemaDefinition: schema,
         data: data,
-        displayMode: false, // Set to true to render the form as a read-only native Display view
+        editable: true, // Set to true to render the form as a read-only native Display view
         debugMode: true // Enables visible error popups and detailed console logging for troubleshooting
     });
 

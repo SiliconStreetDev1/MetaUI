@@ -29,7 +29,7 @@ export class DropdownPlugin extends BasePlugin {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             
@@ -97,7 +97,7 @@ export class DropdownPlugin extends BasePlugin {
      */
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             const select = this.control as Select;
             select.setEnabled(!this.metadata.ui?.readOnly);
         }

@@ -17,7 +17,7 @@ export class TextAreaPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.replace("/", ""); // For EventBus
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({
@@ -54,7 +54,7 @@ export class TextAreaPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             const input = this.control as TextArea;
             input.setEditable(!this.metadata.ui?.readOnly);
             input.setRequired(this.metadata.required);

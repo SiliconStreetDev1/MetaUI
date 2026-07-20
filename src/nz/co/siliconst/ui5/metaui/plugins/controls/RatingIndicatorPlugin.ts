@@ -19,7 +19,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
 
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({
@@ -55,7 +55,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as RatingIndicator).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

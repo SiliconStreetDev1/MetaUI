@@ -16,7 +16,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
         this.fieldKey = bindingPath.replace('/', '');
         this.modelName = modelName;
 
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({
@@ -76,7 +76,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.inputControl && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             this.inputControl.setEditable(!this.metadata.ui?.readOnly);
         }
     }

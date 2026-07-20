@@ -28,8 +28,8 @@ export class ObjectPlugin extends BasePlugin {
 
         this.control = new Button({
             id: this.generateStableId(engineScopeId, bindingPath),
-            text: this.isDisplayMode ? "View Details" : "Edit Details",
-            icon: this.isDisplayMode ? "sap-icon://display" : "sap-icon://form",
+            text: !this.isEditable ? "View Details" : "Edit Details",
+            icon: !this.isEditable ? "sap-icon://display" : "sap-icon://form",
             press: (oEvent: sap.ui.base.Event) => {
                 const btn = oEvent.getSource() as Button;
                 const parentModel = btn.getModel(modelName) as JSONModel;
@@ -48,17 +48,17 @@ export class ObjectPlugin extends BasePlugin {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
                         data: nestedData,
-                        displayMode: this.isDisplayMode
+                        editable: this.isEditable
                     });
 
-                    if (!this.isDisplayMode) {
+                    if (!!this.isEditable) {
                         host.attachSubmit((e: any) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
                         });
                     }
 
-                    const buttonText = field.ui?.dialogButtonText || (this.isDisplayMode ? "Close" : "OK");
+                    const buttonText = field.ui?.dialogButtonText || (!this.isEditable ? "Close" : "OK");
                     host.openInDialog(`Nested Details: ${field.ui?.label || propKey}`, buttonText);
                 });
             }

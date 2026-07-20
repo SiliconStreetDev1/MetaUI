@@ -40,7 +40,7 @@ export default class GeneratorHost extends Control {
             useMessageManager: { type: "boolean", defaultValue: false },
             modelName: { type: "string", defaultValue: "meta" },
             debugMode: { type: "boolean", defaultValue: false },
-            displayMode: { type: "boolean", defaultValue: false }
+            editable: { type: "boolean", defaultValue: true }
         },
         aggregations: {
             _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
@@ -301,7 +301,7 @@ export default class GeneratorHost extends Control {
             return this;
         }
 
-        if (propertyName === "displayMode" || propertyName === "debugMode" || propertyName === "schemaDefinition") {
+        if (propertyName === "editable" || propertyName === "debugMode" || propertyName === "schemaDefinition") {
             const currentVal = this.getProperty(propertyName);
             if (currentVal !== value) {
                 super.setProperty(propertyName, value, suppressInvalidate);
@@ -330,7 +330,7 @@ export default class GeneratorHost extends Control {
             this.tearDownGeneratedLayout();
 
             // CRITICAL FIX: Extract the unsaved internal payload BEFORE destroying the state manager
-            // Otherwise, toggling displayMode (or other structural properties) will wipe user inputs!
+            // Otherwise, toggling editable (or other structural properties) will wipe user inputs!
             let internalPayload = null;
             if (this.stateManager) {
                 internalPayload = this.stateManager.extractPayload();
@@ -388,7 +388,7 @@ export default class GeneratorHost extends Control {
             this.stateManager = new StateManager(finalData, normalizedSchema, this.activeModelName);
             this.setModel(this.stateManager.getModel(), this.activeModelName);
 
-            this.engine = new Engine(this.getProperty("displayMode") as boolean);
+            this.engine = new Engine(this.getProperty("editable") as boolean);
 
             this.generatedContent = this.engine.build(
                 normalizedSchema,

@@ -13,7 +13,7 @@ MetaUI supports standard JSON Schema primitives. The `PluginRegistry` automatica
 | `object` | `sap.m.Button` (Drill-down) | `location` |
 
 ## Display Mode
-By setting `displayMode: true` on the `GeneratorHost`, MetaUI transforms all editable controls into read-only native Display variants automatically (e.g. `sap.m.Input` becomes `sap.m.Text`, `sap.m.CheckBox` formats to "Yes/No" text, Camera/Signature render as `sap.m.Image`). This allows you to reuse the exact same schema definition for both editable forms and display-only tiles.
+By setting `editable: false` on the `GeneratorHost`, MetaUI transforms all editable controls into read-only native Display variants automatically (e.g. `sap.m.Input` becomes `sap.m.Text`, `sap.m.CheckBox` formats to "Yes/No" text, Camera/Signature render as `sap.m.Image`). This allows you to reuse the exact same schema definition for both editable forms and display-only tiles.
 
 ## Schema Definition Examples
 

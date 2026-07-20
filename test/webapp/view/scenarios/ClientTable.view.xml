@@ -7,7 +7,7 @@
     xmlns="sap.m">
     <Page title="Scenario: Client Table Inference" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
-            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
+            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
             <Switch state="{viewModel>/liveUpdate}" customTextOn="Live" customTextOff="Manual" tooltip="Toggle Live JSON Updates" />
             <Button text="Add New Row" icon="sap-icon://add" press=".onAddRow" type="Emphasized" />
             <Button text="Force Extract Data" icon="sap-icon://download" press=".onExtractData" />
@@ -63,7 +63,7 @@
                             fieldChange=".onFieldChange" 
                                             dataJson="{viewModel>metadataString}" 
                                             liveUpdate="{viewModel>/liveUpdate}"
-                                            displayMode="{viewModel>/displayMode}" />
+                                            editable="{viewModel>/editable}" />
                                         
                                         <Button icon="sap-icon://delete" type="Reject" press=".onDeleteRow" />
                                     </cells>

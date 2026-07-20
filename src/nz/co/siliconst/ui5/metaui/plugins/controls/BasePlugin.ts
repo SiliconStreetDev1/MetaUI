@@ -28,18 +28,18 @@ export abstract class BasePlugin implements IPlugin {
     /** The UI5 JSONModel name used for absolute binding paths. */
     protected modelName: string = "meta";
 
-    /** Indicates if the engine is enforcing a read-only display mode. */
-    protected isDisplayMode: boolean = false;
+    /** Indicates if the engine is enforcing an editable mode. */
+    protected isEditable: boolean = true;
     
     /** Internal callback provided by GeneratorHost to signal validation/data changes upwards */
     protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
 
     /**
-     * Injects the global display mode context into the plugin before rendering.
-     * @param mode True if the plugin should render in a read-only display mode.
+     * Injects the global editable mode context into the plugin before rendering.
+     * @param editable True if the plugin should render in editable mode.
      */
-    public setDisplayMode(mode: boolean): void {
-        this.isDisplayMode = mode;
+    public setEditable(editable: boolean): void {
+        this.isEditable = editable;
     }
 
     /**

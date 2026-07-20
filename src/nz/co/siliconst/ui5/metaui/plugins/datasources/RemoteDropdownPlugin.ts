@@ -29,7 +29,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
             return new sap.m.Text({ text: "Error: No URL provided" }) as Control;
         }
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             
@@ -93,7 +93,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             const select = this.control as Select;
             select.setEnabled(!this.metadata.ui?.readOnly);
         }

@@ -28,7 +28,7 @@ export default class DynamicHost extends Control {
             useMessageManager: { type: "boolean", defaultValue: false },
             modelName: { type: "string", defaultValue: "meta" },
             debugMode: { type: "boolean", defaultValue: false },
-            displayMode: { type: "boolean", defaultValue: false }
+            editable: { type: "boolean", defaultValue: true }
         },
         aggregations: {
             _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }

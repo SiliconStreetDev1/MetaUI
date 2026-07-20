@@ -68,7 +68,7 @@ sap.ui.define([
                 editorDataString: JSON.stringify(aRecords, null, 2),
                 liveOutputString: "",
                 liveUpdate: true,
-                displayMode: false
+                editable: true
             });
             this.getView().setModel(this.viewModel, "viewModel");
         },

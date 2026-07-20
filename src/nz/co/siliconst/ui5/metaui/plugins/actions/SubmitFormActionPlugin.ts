@@ -19,7 +19,7 @@ export class SubmitFormActionPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({ visible: false });
@@ -47,7 +47,7 @@ export class SubmitFormActionPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             (this.control as Button).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

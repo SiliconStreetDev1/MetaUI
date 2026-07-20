@@ -30,8 +30,8 @@ export class ArrayPlugin extends BasePlugin {
 
         this.control = new Button({
             id: this.generateStableId(engineScopeId, bindingPath),
-            text: this.isDisplayMode ? "View Records" : "Edit Records",
-            icon: this.isDisplayMode ? "sap-icon://display" : "sap-icon://list",
+            text: !this.isEditable ? "View Records" : "Edit Records",
+            icon: !this.isEditable ? "sap-icon://display" : "sap-icon://list",
             press: (oEvent: sap.ui.base.Event) => {
                 const btn = oEvent.getSource() as Button;
                 const parentModel = btn.getModel(modelName) as JSONModel;
@@ -50,18 +50,18 @@ export class ArrayPlugin extends BasePlugin {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
                         data: nestedData,
-                        displayMode: this.isDisplayMode // Pass the display mode down to the child Engine!
+                        editable: this.isEditable // Pass the display mode down to the child Engine!
                     });
 
                     // Only attach submit event if we are not in display mode
-                    if (!this.isDisplayMode) {
+                    if (!!this.isEditable) {
                         host.attachSubmit((e: any) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
                         });
                     }
 
-                    const buttonText = field.ui?.dialogButtonText || (this.isDisplayMode ? "Close" : "OK");
+                    const buttonText = field.ui?.dialogButtonText || (!this.isEditable ? "Close" : "OK");
                     host.openInDialog(`Nested Records: ${field.ui?.label || propKey}`, buttonText);
                 });
             }

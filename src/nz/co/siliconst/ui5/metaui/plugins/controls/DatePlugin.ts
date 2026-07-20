@@ -16,7 +16,7 @@ export class DatePlugin extends BasePlugin {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         
-        if (this.isDisplayMode) {
+        if (!this.isEditable) {
             sap.ui.requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             this.control = new TextControl({
@@ -65,7 +65,7 @@ export class DatePlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (this.isDisplayMode) return;
+            if (!this.isEditable) return;
             const dp = this.control as DatePicker;
             dp.setEditable(!this.metadata.ui?.readOnly);
             dp.setRequired(this.metadata.required);

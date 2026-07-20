@@ -41,11 +41,11 @@ export class Engine {
     
     private activeModel?: sap.ui.model.Model;
     
-    /** Tracks whether the entire engine is running in Read-Only Display mode. */
-    public readonly isDisplayMode: boolean = false;
+    /** Tracks whether the entire engine is running in Editable mode. */
+    public readonly isEditable: boolean = true;
 
-    constructor(displayMode: boolean = false) {
-        this.isDisplayMode = displayMode;
+    constructor(editable: boolean = true) {
+        this.isEditable = editable;
     }
     
     /**
@@ -103,7 +103,7 @@ export class Engine {
     public generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate: boolean = false): Control {
         try {
             const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
-            plugin.setDisplayMode(this.isDisplayMode);
+            plugin.setEditable(this.isEditable);
             
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });

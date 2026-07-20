@@ -7,7 +7,7 @@
     xmlns="sap.m">
     <Page title="Scenario: String Binding (dataJson)" showNavButton="true" navButtonPress=".onNavBack">
         <headerContent>
-            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
+            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
             <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
             <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />
         </headerContent>
@@ -19,7 +19,7 @@
                             fieldChange=".onFieldChange" 
                     id="metaHost"
                     schemaDefinition="{viewModel>/parsedSchema}"
-                    displayMode="{viewModel>/displayMode}"
+                    editable="{viewModel>/editable}"
                     dataJson="{viewModel>/rawJsonStringIn}" 
                     debugMode="{viewModel>/debugMode}"
                     useMessageManager="true" />
