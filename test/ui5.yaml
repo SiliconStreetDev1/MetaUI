@@ -10,3 +10,13 @@ server:
       configuration:
         debug: true
         rootPath: ../dist/resources
+    - name: "sap-fe-mockserver"
+      beforeMiddleware: csp
+      configuration:
+        mountPath: /
+        services:
+          - urlPath: /odata/v4/main
+            metadataPath: ./mockserver/metadata.xml
+            mockdataPath: ./mockserver/data
+            generateMockData: true
+        annotations: []

@@ -10,6 +10,7 @@ import VBox from "sap/m/VBox";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
+import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 import Control from "sap/ui/core/Control";
 
@@ -68,8 +69,7 @@ export class FormLayout implements ILayoutManager {
                     return;
                 }
                 
-                const propKey = element.scope.replace("#/properties/", "");
-                const meta = schema.properties?.[propKey];
+                const { meta, bindingPath, propKey } = SchemaNormalizer.resolveScope(schema, element.scope);
                 
                 if (!meta) {
                     Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", "FormLayout");
@@ -85,11 +85,11 @@ export class FormLayout implements ILayoutManager {
 
                 if (isSubLayout) {
                     Logger.debug("[MetaUI FormLayout]", `Routing property '${propKey}' to Table Sub-Layout.`, "FormLayout");
-                    tableElements.push({ scope: propKey, meta, label: element.label });
+                    tableElements.push({ scope: bindingPath, meta, label: element.label });
                 } else {
                     hasFormFields = true;
-                    Logger.debug("[MetaUI FormLayout]", `Rendering scalar field '${propKey}'.`, "FormLayout");
-                    this._renderScalarField(form, element, propKey, meta, modelName, engine);
+                    Logger.debug("[MetaUI FormLayout]", `Rendering scalar field '${bindingPath}'.`, "FormLayout");
+                    this._renderScalarField(form, element, bindingPath, meta, modelName, engine);
                 }
             } else {
                 Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", "FormLayout");

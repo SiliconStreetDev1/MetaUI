@@ -5,19 +5,22 @@
   "private": true,
   "scripts": {
     "start": "ui5 serve -o index.html",
+    "start:mock": "ui5 serve -o mockServer.html",
     "build": "ui5 build --all --dest dist"
   },
   "dependencies": {
     "@siliconst/metaui": "file:../"
   },
   "devDependencies": {
+    "@sap-ux/ui5-middleware-fe-mockserver": "^2.4.15",
     "@ui5/cli": "^3.0.0",
     "ui5-middleware-servestatic": "^3.0.0"
   },
   "ui5": {
     "dependencies": [
       "@siliconst/metaui",
-      "ui5-middleware-servestatic"
+      "ui5-middleware-servestatic",
+      "@sap-ux/ui5-middleware-fe-mockserver"
     ]
   }
 }

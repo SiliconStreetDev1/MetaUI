@@ -16,6 +16,7 @@ import Control from "sap/ui/core/Control";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
+import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 
 /**
@@ -99,48 +100,36 @@ export class TableLayout implements ILayoutManager {
         if (layoutElements && Array.isArray(layoutElements)) {
             // Only render columns defined in uiLayout
             layoutElements.forEach((element: ILayoutElement) => {
-                if (element.type === "Control") {
-                    if (!element.scope || !element.scope.startsWith("#/properties/")) {
-                        Logger.error(`[MetaUI] Invalid scope '${element.scope}' in uiLayout Control for Table.`, "", "TableLayout");
-                        return;
-                    }
-
-                    const propKey = element.scope.replace("#/properties/", "");
-                    const fieldMeta = props[propKey];
-
+                if (element.type === "Control" && element.scope) {
+                    const { meta: fieldMeta, bindingPath, propKey } = SchemaNormalizer.resolveScope(
+                        { type: "object", properties: props } as ISchema, 
+                        element.scope
+                    );
+                    
                     if (!fieldMeta) {
                         Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions for Table.`, "", "TableLayout");
-                        return;
-                    }
-
-                    try {
-                        const isKey = !!fieldMeta.ui?.isKey;
-
-                        const column = new Column({
+                    } else {
+                        // The architectural boundary: Table Layout orchestrates the columns and aggregation binding,
+                        // but delegates the actual cell rendering to the Engine's Field Plugins.
+                        table.addColumn(new Column({
                             header: new Text({ text: element.label || fieldMeta.ui?.label || propKey }),
-                            demandPopin: !isKey,
-                            minScreenWidth: isKey ? "" : "Tablet",
+                            demandPopin: !fieldMeta.ui?.isKey,
+                            minScreenWidth: fieldMeta.ui?.isKey ? "" : "Tablet",
                             popinDisplay: "Inline"
-                        });
-                        table.addColumn(column);
+                        }));
 
-                        // Override widget if specified in the layout element
                         const effectiveMeta = { ...fieldMeta };
                         if (element.widget) {
                             effectiveMeta.ui = { ...fieldMeta.ui, widget: element.widget };
                         }
 
-                        // Use engine to generate fields natively and track validation
-                        const control = engine.generateField(effectiveMeta, propKey, actualModelName || "meta", true);
+                        // We pass the activeModel as actualModelName down. But the path must be relative to the 
+                        // table row binding context, so we just use the bindingPath (e.g. "id" or "header/id")
+                        const control = engine.generateField(effectiveMeta, bindingPath, actualModelName || "meta", true);
                         templateCells.push(control);
-                    } catch (error) {
-                        const msg = (error as Error).message;
-                        Logger.error(`[MetaUI] Failed to render column ${propKey}`, msg, "TableLayout");
-                        Logger.showErrorPopup(`Failed to render table column '${propKey}'.\n\nDetails: ${msg}`);
-                        templateCells.push(new Text({ text: "Error" }));
                     }
                 } else {
-                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}' inside TableLayout. Only 'Control' is supported for columns.`, "", "TableLayout");
+                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}' in Table.`, "", "TableLayout");
                 }
             });
         } else {

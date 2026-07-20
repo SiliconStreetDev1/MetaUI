@@ -177,10 +177,9 @@ export class SchemaNormalizer {
             const val = obj[key];
             if (val === null || val === undefined) continue;
 
-            if (typeof val === "object" && !Array.isArray(val)) continue;
-
             let type: FieldType = "string";
             let items: IPropertyMetadata | undefined;
+            let nestedProps: Record<string, IPropertyMetadata> | undefined;
 
             if (typeof val === "number") type = "number";
             else if (typeof val === "boolean") type = "boolean";
@@ -190,11 +189,15 @@ export class SchemaNormalizer {
                     type: "object",
                     properties: val.length > 0 ? this.inferPropertiesFromObject(val[0]) : {}
                 };
+            } else if (typeof val === "object") {
+                type = "object";
+                nestedProps = this.inferPropertiesFromObject(val);
             }
 
             properties[key] = {
                 type,
                 items,
+                properties: nestedProps,
                 ui: {
                     label: this.generateLabel(key),
                     isKey: false,
@@ -204,5 +207,45 @@ export class SchemaNormalizer {
         }
 
         return properties;
+    }
+
+    /**
+     * Resolves a JSON Schema scope (e.g. '#/properties/header/properties/id')
+     * against the ISchema, returning the PropertyMetadata and the UI5 binding path.
+     */
+    public static resolveScope(schema: ISchema, scope: string): { meta: IPropertyMetadata | undefined, bindingPath: string, propKey: string } {
+        if (!scope || !scope.startsWith("#/properties/")) {
+            return { meta: undefined, bindingPath: scope || "", propKey: scope || "" };
+        }
+        
+        const pathSegments = scope.replace("#/properties/", "").split("/properties/");
+        let current: any = schema.properties;
+        let meta: IPropertyMetadata | undefined;
+        
+        Logger.debug("[MetaUI SchemaNormalizer]", `Resolving scope '${scope}' with segments: ${JSON.stringify(pathSegments)}`, "SchemaNormalizer");
+        Logger.debug("[MetaUI SchemaNormalizer]", `Root schema keys: ${Object.keys(schema.properties || {})}`, "SchemaNormalizer");
+
+        for (let i = 0; i < pathSegments.length; i++) {
+            const segment = pathSegments[i];
+            if (!current) {
+                Logger.debug("[MetaUI SchemaNormalizer]", `current is undefined at segment '${segment}'`, "SchemaNormalizer");
+                meta = undefined;
+                break;
+            }
+            meta = current[segment];
+            Logger.debug("[MetaUI SchemaNormalizer]", `Segment '${segment}' resolved to meta: ${!!meta}. Available keys in current: ${Object.keys(current)}`, "SchemaNormalizer");
+            if (i < pathSegments.length - 1) {
+                current = meta?.properties;
+            }
+        }
+        
+        const bindingPath = pathSegments.join("/");
+        const propKey = scope.replace("#/properties/", ""); // The original raw string for logging
+        
+        return {
+            meta,
+            bindingPath,
+            propKey
+        };
     }
 }

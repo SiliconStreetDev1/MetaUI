@@ -1,0 +1,7 @@
+[
+    {
+        "ID": "1",
+        "DocumentType": "Standard",
+        "ConfigPayload": "{\"type\":\"object\",\"properties\":{\"CustomerName\":{\"type\":\"string\",\"title\":\"Customer Name\"},\"OrderTotal\":{\"type\":\"number\",\"title\":\"Total Amount\"}}}"
+    }
+]

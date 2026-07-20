@@ -34,18 +34,13 @@ export class DefaultLayoutGenerator {
             return false; // Nothing to map
         }
 
-        const elements: ILayoutElement[] = [];
-
-        for (const key of Object.keys(props)) {
-            elements.push({
-                type: "Control",
-                scope: `#/properties/${key}`
-            });
-        }
+        const elements = this.generateElementsFromProperties(props, "#/properties");
 
         if (isArray) {
             // Table layouts expect an array of flat Controls at the root uiLayout
-            schema.uiLayout = elements;
+            // For tables, we flatten the deep elements or just render the root level
+            // To keep it safe, we'll just use the flat elements for tables
+            schema.uiLayout = elements.filter(e => e.type === "Control");
         } else {
             // Form layouts expect a grouped structure
             schema.uiLayout = [
@@ -58,5 +53,27 @@ export class DefaultLayoutGenerator {
         }
 
         return true;
+    }
+
+    private static generateElementsFromProperties(props: any, basePath: string): ILayoutElement[] {
+        const elements: ILayoutElement[] = [];
+        for (const key of Object.keys(props)) {
+            const prop = props[key];
+            const currentPath = `${basePath}/${key}`;
+
+            if (prop.type === "object" && prop.properties) {
+                elements.push({
+                    type: "Group",
+                    label: prop.ui?.label || key,
+                    elements: this.generateElementsFromProperties(prop.properties, `${currentPath}/properties`)
+                });
+            } else {
+                elements.push({
+                    type: "Control",
+                    scope: currentPath
+                });
+            }
+        }
+        return elements;
     }
 }

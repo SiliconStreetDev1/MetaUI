@@ -7,6 +7,15 @@
     "description": "Comprehensive Demonstration Playground for MetaUI",
     "applicationVersion": {
       "version": "1.0.0"
+    },
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/main/",
+        "type": "OData",
+        "settings": {
+          "odataVersion": "4.0"
+        }
+      }
     }
   },
   "sap.ui": {
@@ -40,6 +49,14 @@
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
           "bundleName": "metaui.sandbox.i18n.i18n"
+        }
+      },
+      "odata": {
+        "dataSource": "mainService",
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
         }
       }
     },
@@ -142,6 +159,16 @@
           "pattern": "playground/complex_client_table",
           "name": "complex_client_table",
           "target": "complex_client_table"
+        },
+        {
+          "pattern": "playground/odata_v4_rap",
+          "name": "odata_v4_rap",
+          "target": "odata_v4_rap"
+        },
+        {
+          "pattern": "playground/deep_structures",
+          "name": "deep_structures",
+          "target": "deep_structures"
         }
       ],
       "targets": {
@@ -220,6 +247,14 @@
         "complex_client_table": {
           "viewId": "complex_client_table",
           "viewName": "scenarios.ComplexClientTable"
+        },
+        "odata_v4_rap": {
+          "viewId": "odata_v4_rap",
+          "viewName": "scenarios.ODataV4Rap"
+        },
+        "deep_structures": {
+          "viewId": "deep_structures",
+          "viewName": "scenarios.DeepStructures"
         }
       }
     },

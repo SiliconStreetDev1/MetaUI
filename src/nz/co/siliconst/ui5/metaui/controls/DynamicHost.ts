@@ -2,6 +2,7 @@ import Control from "sap/ui/core/Control";
 import RenderManager from "sap/ui/core/RenderManager";
 import GeneratorHost from "./host/GeneratorHost";
 import { Logger } from "../utils/Logger";
+import { ODataDelegate } from "./host/delegates/ODataDelegate";
 
 /**
  * A transparent wrapper control (Facade) that automatically chooses between Explicit Schema Mode 
@@ -13,6 +14,10 @@ import { Logger } from "../utils/Logger";
  * @namespace nz.co.siliconst.ui5.metaui.controls
  */
 export default class DynamicHost extends Control {
+    private _innerHost: GeneratorHost | null = null;
+    private odataDelegate: ODataDelegate | null = null;
+    private _initializedInner: boolean = false;
+
     static readonly metadata = {
         properties: {
             schemaDefinition: { type: "any", defaultValue: null },
@@ -83,8 +88,44 @@ export default class DynamicHost extends Control {
      * It handles the complex lifecycle task of copying all bindings, raw properties, and event listeners 
      * down to the inner host perfectly transparently.
      */
+    private initODataDelegate(): void {
+        if (!this.odataDelegate) {
+            const oContext = this.getBindingContext("odata") || this.getBindingContext();
+            if (oContext) {
+                Logger.debug("[MetaUI DynamicHost]", `Context found for delegate initialization: ${oContext.getPath()}`, "DynamicHost");
+                if (typeof (oContext as any).requestObject === "function" || typeof (oContext as any).getObject === "function") {
+                    Logger.debug("[MetaUI DynamicHost]", `Context supports requestObject/getObject. Instantiating ODataDelegate.`, "DynamicHost");
+                    this.odataDelegate = new ODataDelegate(this, oContext as any);
+                    this.odataDelegate.syncToEngine();
+                } else {
+                    Logger.debug("[MetaUI DynamicHost]", `Context does NOT support requestObject/getObject! Keys: ${Object.keys(oContext)}`, "DynamicHost");
+                }
+            }
+        }
+    }
+
+    public setBindingContext(oContext: sap.ui.model.Context | null | undefined, sModelName?: string): this {
+        super.setBindingContext(oContext, sModelName);
+        this.initODataDelegate();
+        return this;
+    }
+
+    public bindElement(vPath: string | any, mParameters?: object): this {
+        super.bindElement(vPath, mParameters);
+        const sModelName = typeof vPath === "object" ? vPath.model : undefined;
+        const oBinding = this.getElementBinding(sModelName);
+        if (oBinding) {
+            oBinding.attachChange(() => {
+                this.initODataDelegate();
+            });
+        }
+        return this;
+    }
+
     public onBeforeRendering(): void {
         Logger.debug("[MetaUI DynamicHost]", `onBeforeRendering called. _initializedInner: ${this._initializedInner}`, "DynamicHost");
+
+        this.initODataDelegate();
 
         if (!this._initializedInner) {
             const schema = this.getProperty("schemaDefinition");
@@ -134,6 +175,9 @@ export default class DynamicHost extends Control {
 
                                 const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
                                 super.setProperty("dataJson", str, true);
+                            }
+                            if (eventName === "fieldChange" && this.odataDelegate) {
+                                this.odataDelegate.handleFieldChange(params.fieldPath, params.value);
                             }
                         }
                         this.fireEvent(eventName, oEvent.getParameters());

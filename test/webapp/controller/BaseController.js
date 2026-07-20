@@ -203,7 +203,7 @@ sap.ui.define([
             Log.info("[Sandbox] Field Changed: " + fieldPath + " (Valid: " + isValid + ")");
             
             var oViewModel = this.getModel("viewModel");
-            if (oViewModel.getProperty("/liveUpdate") && payload) {
+            if (oViewModel && oViewModel.getProperty("/liveUpdate") && payload) {
                 oViewModel.setProperty("/editorDataString", JSON.stringify(payload, null, 2));
             }
         },

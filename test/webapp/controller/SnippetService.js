@@ -52,7 +52,8 @@ sap.ui.define([], function () {
                 "live_binding": "Demonstrates real-time output. Notice how the 'Live Outbound Payload' JSON on the right updates instantly on standard change events (e.g., losing focus or pressing Enter).",
                 "dialog_integration": "Demonstrates integrating the MetaUI engine inside a popup Dialog. Uses standard event-driven extraction instead of live two-way syncing.",
                 "double_bind": "Demonstrates true two-way data binding. Both the input and output are wired to the exact same source, proving the form can update live without jittering.",
-                "string_double_bind": "Demonstrates two-way data binding using pure JSON text strings. Everything updates instantly on change events without requiring any background data conversion."
+                "string_double_bind": "Demonstrates two-way data binding using pure JSON text strings. Everything updates instantly on change events without requiring any background data conversion.",
+                "odata_v4_rap": "Demonstrates integrating MetaUI with an OData V4 backend, simulating a RAP Determination that dynamically calculates and serves the JSON schema when a field changes."
             };
 
             return mDescriptions[sScenario] || "This scenario demonstrates standard MetaUI rendering and binding capabilities.";

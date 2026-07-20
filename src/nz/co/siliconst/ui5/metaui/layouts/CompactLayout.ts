@@ -9,6 +9,7 @@ import Title from "sap/ui/core/Title";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
+import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 import Control from "sap/ui/core/Control";
 
@@ -58,8 +59,7 @@ export class CompactLayout implements ILayoutManager {
                     return;
                 }
                 
-                const propKey = element.scope.replace("#/properties/", "");
-                const meta = schema.properties?.[propKey];
+                const { meta, bindingPath, propKey } = SchemaNormalizer.resolveScope(schema, element.scope);
                 
                 if (!meta) {
                     Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", "CompactLayout");
@@ -72,10 +72,10 @@ export class CompactLayout implements ILayoutManager {
 
                 if (isSubLayout) {
                     Logger.debug("[MetaUI CompactLayout]", `Routing property '${propKey}' to Table Sub-Layout.`, "CompactLayout");
-                    tableElements.push({ scope: propKey, meta, label: element.label });
+                    tableElements.push({ scope: bindingPath, meta, label: element.label });
                 } else {
-                    Logger.debug("[MetaUI CompactLayout]", `Rendering scalar field '${propKey}'.`, "CompactLayout");
-                    this._renderScalarField(container, element, propKey, meta, modelName, engine);
+                    Logger.debug("[MetaUI CompactLayout]", `Rendering scalar field '${bindingPath}'.`, "CompactLayout");
+                    this._renderScalarField(container, element, bindingPath, meta, modelName, engine);
                 }
             } else {
                 Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", "CompactLayout");

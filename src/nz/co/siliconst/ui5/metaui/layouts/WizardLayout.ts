@@ -11,6 +11,7 @@ import VBox from "sap/m/VBox";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
+import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 import Control from "sap/ui/core/Control";
 
@@ -86,8 +87,7 @@ export class WizardLayout implements ILayoutManager {
                 return;
             }
             
-            const propKey = element.scope.replace("#/properties/", "");
-            const meta = schema.properties?.[propKey];
+            const { meta, bindingPath, propKey } = SchemaNormalizer.resolveScope(schema, element.scope);
             
             if (!meta) {
                 Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", "WizardLayout");
@@ -106,7 +106,7 @@ export class WizardLayout implements ILayoutManager {
                     effectiveMeta.ui = { ...meta.ui, widget: element.widget };
                 }
 
-                const control = engine.generateField(effectiveMeta, `/${propKey}`, modelName);
+                const control = engine.generateField(effectiveMeta, `/${bindingPath}`, modelName);
 
                 if (effectiveMeta.ui?.fullWidth) {
                     sap.ui.require(["sap/ui/layout/GridData"], (GridData: any) => {

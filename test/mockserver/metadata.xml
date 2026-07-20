@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:DataServices>
+        <Schema Namespace="MainService" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+            
+            <EntityType Name="ConfigurationProfile">
+                <Key>
+                    <PropertyRef Name="ID" />
+                </Key>
+                <Property Name="ID" Type="Edm.String" Nullable="false" />
+                <Property Name="DocumentType" Type="Edm.String" />
+                <Property Name="ConfigPayload" Type="Edm.String" />
+            </EntityType>
+
+            <EntityType Name="Employee">
+                <Key>
+                    <PropertyRef Name="ID" />
+                </Key>
+                <Property Name="ID" Type="Edm.String" Nullable="false" />
+                <Property Name="FirstName" Type="Edm.String" />
+                <Property Name="LastName" Type="Edm.String" />
+                <Property Name="Department" Type="Edm.String" />
+            </EntityType>
+
+            <EntityContainer Name="EntityContainer">
+                <EntitySet Name="ConfigurationProfiles" EntityType="MainService.ConfigurationProfile" />
+                <EntitySet Name="Employees" EntityType="MainService.Employee" />
+            </EntityContainer>
+            
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

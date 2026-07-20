@@ -1,0 +1,31 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.scenarios.DeepStructures"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:m="sap.m"
+    xmlns:layout="sap.ui.layout"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:ce="sap.ui.codeeditor"
+    displayBlock="true">
+
+    <m:Page title="Deep Structures (Nested Object Inference)" showNavButton="true" navButtonPress=".onNavBack">
+        <m:content>
+            <m:Panel headerText="Generated Form" backgroundDesign="Solid">
+                <meta:DynamicHost 
+                    data="{viewModel>/deepData}" 
+                    liveUpdate="true" 
+                    debugMode="true"
+                    fieldChange=".onFieldChange" />
+            </m:Panel>
+
+            <m:Panel headerText="Raw Data (Live Synced)" backgroundDesign="Solid" class="sapUiSmallMarginTop">
+                <ce:CodeEditor 
+                    type="json"
+                    value="{viewModel>/deepDataStr}"
+                    height="400px"
+                    editable="true"
+                    syntaxHints="false"
+                    lineNumbers="true" />
+            </m:Panel>
+        </m:content>
+    </m:Page>
+</mvc:View>
