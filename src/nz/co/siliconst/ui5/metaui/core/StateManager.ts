@@ -107,6 +107,11 @@ export class StateManager {
         }
     }
 
+    /**
+     * Resolves the schema metadata for a given internal binding path.
+     * @param path The flat binding path representing the field.
+     * @returns The associated IPropertyMetadata, or undefined if not mapped.
+     */
     private findMetadataForPath(path: string): IPropertyMetadata | undefined {
         if (!this.schema || !this.schema.properties) return undefined;
         // Basic single-level support for now. Nested object resolution would split by '.' or '/'

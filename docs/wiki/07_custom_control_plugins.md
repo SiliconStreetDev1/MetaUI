@@ -45,13 +45,20 @@ export class MyCustomMapPlugin extends BasePlugin {
 ## 2. Register the Plugin
 
 Once built, you must map the plugin to a JSON Schema Type and an optional `ui.widget` hint inside the `PluginRegistry`.
+Because MetaUI uses **Universal Lazy Loading**, you do not instantiate the class. Instead, you provide the **string module path** so the engine can download it asynchronously over the network only when it's needed!
 
-**`src/core/PluginRegistry.ts`**
+**`src/core/PluginRegistry.ts`** (or in your application's bootstrap controller)
 ```typescript
-import { MyCustomMapPlugin } from "../plugins/controls/MyCustomMapPlugin";
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
 
-// Inside constructor:
-this.register("string", MyCustomMapPlugin, "customMap");
+// 1. Register a Field Plugin (No static imports!)
+PluginRegistry.getInstance().registerPluginPath("string", "customMap", "nz/co/siliconst/ui5/metaui/plugins/controls/MyCustomMapPlugin");
+
+// 2. Register a Custom Action Button Plugin
+PluginRegistry.getInstance().registerActionPath("customSubmit", "nz/co/siliconst/ui5/metaui/plugins/actions/CustomSubmitPlugin");
+
+// 3. Register a Custom Layout Strategy Plugin
+PluginRegistry.getInstance().registerLayoutPath("splitScreen", "nz/co/siliconst/ui5/metaui/layouts/SplitScreenLayout");
 ```
 
 ## 3. Trigger it via Schema

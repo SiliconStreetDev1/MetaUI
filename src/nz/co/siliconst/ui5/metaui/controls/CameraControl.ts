@@ -27,6 +27,9 @@ export default class CameraControl extends BaseHardwareControl {
     private videoEl: HTMLVideoElement | null = null;
     private mediaStream: MediaStream | null = null;
 
+    /**
+     * Initializes the control and builds the internal camera UI.
+     */
     public init(): void {
         super.init();
 
@@ -144,6 +147,10 @@ export default class CameraControl extends BaseHardwareControl {
         this.retakeBtn.setVisible(true);
     }
 
+    /**
+     * Sets the value of the control programmatically.
+     * @param value The base64 data URL string representing the image.
+     */
     public setValue(value: any): this {
         super.setValue(value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {
@@ -157,6 +164,9 @@ export default class CameraControl extends BaseHardwareControl {
         return this;
     }
 
+    /**
+     * Cleans up the hardware streams when the control is destroyed.
+     */
     public exit(): void {
         this.stopCamera();
         super.exit();

@@ -15,6 +15,10 @@ export interface IHostDialog {
 export class DialogDelegate {
     private host: IHostDialog & Control;
 
+    /**
+     * Initializes a new DialogDelegate to handle dialog-based rendering.
+     * @param host The parent DynamicHost or GeneratorHost control.
+     */
     constructor(host: IHostDialog & Control) {
         this.host = host;
     }

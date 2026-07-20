@@ -58,4 +58,25 @@ export default class RichTextControl extends BaseHardwareControl {
             }
         }
     }
+
+    /**
+     * Overrides the default property setter to prevent full DOM invalidation.
+     * When dataJson pushes updates down to the UI5 models, UI5 typically destroys 
+     * and recreates the custom control if the property changes. 
+     * By suppressing re-rendering (true flag) and manually passing the value 
+     * to the inner RichTextEditor, we prevent TinyMCE from tearing down its iframe
+     * and triggering expensive, redundant plugin boot sequences.
+     *
+     * @param {any} val The new string value to bind
+     * @returns {this} The control instance for chaining
+     */
+    public setValue(val: any): this {
+        this.setProperty("value", val, true); // suppress re-rendering
+        if (this.richTextEditor && val !== undefined && val !== null) {
+            if (this.richTextEditor.getValue() !== val) {
+                this.richTextEditor.setValue(val as string);
+            }
+        }
+        return this;
+    }
 }

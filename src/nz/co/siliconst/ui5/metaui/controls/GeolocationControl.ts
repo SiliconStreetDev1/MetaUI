@@ -25,6 +25,9 @@ export default class GeolocationControl extends BaseHardwareControl {
         }
     };
 
+    /**
+     * Initializes the control and builds the internal UI components.
+     */
     public init(): void {
         super.init();
 
@@ -46,6 +49,10 @@ export default class GeolocationControl extends BaseHardwareControl {
         this.setAggregation("_content", this.vBox);
     }
 
+    /**
+     * Lifecycle hook called before the control is rendered to the DOM.
+     * Updates button state and sets any existing values.
+     */
     public onBeforeRendering(): void {
         const metadata = this.getProperty("schemaMetadata");
         if (metadata && metadata.ui && metadata.ui.label) {
@@ -76,7 +83,10 @@ export default class GeolocationControl extends BaseHardwareControl {
                 this.setValueAndFire(locStr);
                 MessageToast.show("Location acquired.");
             },
-            () => {
+            (error) => {
+                import("../utils/Logger").then(({ Logger }) => {
+                    Logger.error("[MetaUI] Geolocation failed or denied", error.message, "GeolocationControl");
+                });
                 MessageToast.show("Unable to retrieve your location");
             }
         );

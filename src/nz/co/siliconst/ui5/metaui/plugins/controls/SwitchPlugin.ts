@@ -12,6 +12,16 @@ import Control from "sap/ui/core/Control";
  * Handles rendering logic for toggleable boolean switches.
  */
 export class SwitchPlugin extends BasePlugin {
+    /**
+     * Renders a `sap.m.Switch` component.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured Switch control.
+     */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -48,10 +58,17 @@ export class SwitchPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current switch state.
+     * @returns {any} The boolean state.
+     */
     protected getValue(): any {
         return this.control ? (this.control as Switch).getState() : false;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

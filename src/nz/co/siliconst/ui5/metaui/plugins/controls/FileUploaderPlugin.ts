@@ -15,6 +15,16 @@ import Control from "sap/ui/core/Control";
  * @public
  */
 export class FileUploaderPlugin extends BasePlugin {
+    /**
+     * Renders a `sap.ui.unified.FileUploader` component.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured FileUploader control.
+     */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -51,10 +61,17 @@ export class FileUploaderPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current file path.
+     * @returns {any} The file value.
+     */
     protected getValue(): any {
         return this.control ? (this.control as FileUploader).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

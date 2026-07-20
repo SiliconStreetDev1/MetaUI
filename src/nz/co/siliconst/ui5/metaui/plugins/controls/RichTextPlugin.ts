@@ -13,6 +13,16 @@ function isValueAccessor(control: unknown): control is IValueAccessor {
 }
 
 export class RichTextPlugin extends BasePlugin {
+    /**
+     * Renders a `RichTextControl` component.
+     * 
+     * @param metadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured RichTextControl.
+     */
     public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
@@ -51,6 +61,10 @@ export class RichTextPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current HTML string value.
+     * @returns {unknown} The string value.
+     */
     protected getValue(): unknown {
         if (isValueAccessor(this.control)) {
             return this.control.getValue();
@@ -58,6 +72,9 @@ export class RichTextPlugin extends BasePlugin {
         return null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

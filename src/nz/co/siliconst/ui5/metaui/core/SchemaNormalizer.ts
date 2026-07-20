@@ -67,6 +67,12 @@ export class SchemaNormalizer {
         }
     }
 
+    /**
+     * Recursively deep merges an inferred schema over a base schema.
+     * @param base The base property dictionary.
+     * @param override The overriding inferred dictionary.
+     * @returns A new deeply merged property dictionary.
+     */
     private static deepMergeProperties(base: any, override: any): any {
         const merged = { ...base };
         for (const key of Object.keys(override)) {
@@ -83,6 +89,11 @@ export class SchemaNormalizer {
         return merged;
     }
 
+    /**
+     * Normalizes a collection of properties.
+     * @param properties The raw properties map.
+     * @returns A map of strict IPropertyMetadata objects.
+     */
     private static normalizeProperties(properties: any): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         for (const key of Object.keys(properties)) {
@@ -91,6 +102,12 @@ export class SchemaNormalizer {
         return normalizedProps;
     }
 
+    /**
+     * Normalizes a single property against the ISchema specification.
+     * @param prop The raw property definition.
+     * @param keyName The string key name for generating default labels.
+     * @returns A strict IPropertyMetadata instance.
+     */
     private static normalizePropertyMetadata(prop: any, keyName: string): IPropertyMetadata {
         const normalized: IPropertyMetadata = {
             type: prop.type || "string",
@@ -169,6 +186,11 @@ export class SchemaNormalizer {
         return schema;
     }
 
+    /**
+     * Infers field metadata recursively from a raw data object.
+     * @param obj The raw JavaScript object.
+     * @returns A dictionary of inferred IPropertyMetadata.
+     */
     private static inferPropertiesFromObject(obj: any): Record<string, IPropertyMetadata> {
         const properties: Record<string, IPropertyMetadata> = {};
         if (!obj || typeof obj !== "object") return properties;

@@ -15,6 +15,11 @@ import Control from "sap/ui/core/Control";
  * @public
  */
 export class CodeEditorPlugin extends BasePlugin {
+    /**
+     * Infers the language type from the content.
+     * @param value The raw string.
+     * @returns The language string.
+     */
     private detectLanguage(value: string): string {
         if (!value || typeof value !== "string") return "javascript";
         
@@ -40,6 +45,9 @@ export class CodeEditorPlugin extends BasePlugin {
         return "javascript";
     }
 
+    /**
+     * Dynamically adjusts the height of the editor based on content lines.
+     */
     private adjustHeight(): void {
         if (!this.control) return;
         const val = (this.control as unknown as { getValue: () => unknown }).getValue() || "";
@@ -49,6 +57,16 @@ export class CodeEditorPlugin extends BasePlugin {
         (this.control as unknown).setHeight(newHeight + "px");
     }
 
+    /**
+     * Renders a `sap.ui.codeeditor.CodeEditor` component.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured CodeEditor control.
+     */
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -112,10 +130,17 @@ export class CodeEditorPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current code string.
+     * @returns {any} The code value.
+     */
     protected getValue(): any {
         return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

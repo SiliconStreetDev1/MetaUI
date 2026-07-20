@@ -25,6 +25,10 @@ export class DataSyncDelegate {
     private _lastPushedPayloadObj: Record<string, unknown> | null = null;
     private _lastReceivedInputObj: Record<string, unknown> | null = null;
 
+    /**
+     * Initializes a new DataSyncDelegate to handle data payload binding extraction.
+     * @param host The parent host interface containing properties.
+     */
     constructor(host: IHostDataSync) {
         this.host = host;
     }

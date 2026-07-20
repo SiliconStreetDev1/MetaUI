@@ -25,6 +25,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
     private recognition: any = null;
     private isRecording: boolean = false;
 
+    /**
+     * Initializes the dictation interface and requests Web Speech API setup.
+     */
     public init(): void {
         super.init();
 
@@ -155,6 +158,10 @@ export default class VoiceInputControl extends BaseHardwareControl {
         this.startBtn.setType("Emphasized");
     }
 
+    /**
+     * Lifecycle hook called before the control is rendered to the DOM.
+     * Handles browser support visual state.
+     */
     public onBeforeRendering(): void {
         const readOnly = this.getProperty("readOnly");
         this.textArea.setEditable(!readOnly);
@@ -171,6 +178,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
         }
     }
 
+    /**
+     * Cleans up hardware event listeners when the control is destroyed.
+     */
     public exit(): void {
         this.stopDictation();
         if (this.recognition) {

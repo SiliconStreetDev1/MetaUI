@@ -79,14 +79,22 @@ export default class DynamicHost extends Control {
         }
     };
 
+    /**
+     * Internal reference to the generated inner host instance.
+     * @private
+     */
     private _innerHost: GeneratorHost | null = null;
+    
+    /**
+     * Flag indicating if the inner host has been initialized.
+     * @private
+     */
     private _initializedInner: boolean = false;
 
     /**
-     * Standard UI5 Lifecycle Hook.
-     * Evaluates the initial properties and spawns the appropriate inner host strategy via the HostFactory.
-     * It handles the complex lifecycle task of copying all bindings, raw properties, and event listeners 
-     * down to the inner host perfectly transparently.
+     * Initializes the OData Delegate if an OData context is detected.
+     * This allows DynamicHost to seamlessly synchronize metadata and properties from an OData model.
+     * @private
      */
     private initODataDelegate(): void {
         if (!this.odataDelegate) {
@@ -104,12 +112,30 @@ export default class DynamicHost extends Control {
         }
     }
 
+    /**
+     * Standard UI5 method override.
+     * Sets the binding context for the control and attempts to initialize the OData delegate
+     * if the context points to an OData model.
+     * 
+     * @param {sap.ui.model.Context | null | undefined} oContext The binding context object
+     * @param {string} [sModelName] Optional model name
+     * @returns {this} The control instance for chaining
+     */
     public setBindingContext(oContext: sap.ui.model.Context | null | undefined, sModelName?: string): this {
         super.setBindingContext(oContext, sModelName);
         this.initODataDelegate();
         return this;
     }
 
+    /**
+     * Standard UI5 method override.
+     * Binds the element to the given path and attaches a change listener to re-evaluate
+     * the OData delegate when the element binding resolves.
+     * 
+     * @param {string | any} vPath The binding path or configuration object
+     * @param {object} [mParameters] Optional binding parameters
+     * @returns {this} The control instance for chaining
+     */
     public bindElement(vPath: string | any, mParameters?: object): this {
         super.bindElement(vPath, mParameters);
         const sModelName = typeof vPath === "object" ? vPath.model : undefined;
@@ -122,6 +148,12 @@ export default class DynamicHost extends Control {
         return this;
     }
 
+    /**
+     * Standard UI5 Lifecycle Hook.
+     * Evaluates the initial properties and spawns the GeneratorHost.
+     * It handles the complex lifecycle task of copying all bindings, raw properties, and event listeners 
+     * down to the inner host perfectly transparently.
+     */
     public onBeforeRendering(): void {
         Logger.debug("[MetaUI DynamicHost]", `onBeforeRendering called. _initializedInner: ${this._initializedInner}`, "DynamicHost");
 
@@ -217,6 +249,11 @@ export default class DynamicHost extends Control {
 
     /**
      * Programmatic API support. Routes dialog commands down to the spawned inner host.
+     * If the inner host has not booted yet, it forces initialization immediately.
+     * 
+     * @param {string} [title="Form"] The title of the dialog
+     * @param {string} [submitButtonText="OK"] The text for the primary action button
+     * @param {string} [cancelButtonText="Cancel"] The text for the cancel button
      */
     public openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string): void {
         if (!this._innerHost) {
@@ -227,6 +264,9 @@ export default class DynamicHost extends Control {
 
     /**
      * Proxies submission triggering down to the instantiated generator host.
+     * Evaluates the internal Engine validation suite and returns true if structurally sound.
+     * 
+     * @returns {boolean} True if the internal payload passes schema validation, false otherwise.
      */
     public triggerSubmit(): boolean {
         if (!this._innerHost) {
@@ -237,6 +277,10 @@ export default class DynamicHost extends Control {
 
     /**
      * Overrides standard UI5 getProperty to transparently pull extracted data from the inner host.
+     * Ensures that querying the DynamicHost facade for `data` always yields the freshest payload.
+     * 
+     * @param {string} propertyName The name of the property to retrieve
+     * @returns {any} The property value
      */
     public getProperty(propertyName: string): any {
         if (this._innerHost && (propertyName === "data" || propertyName === "dataJson")) {

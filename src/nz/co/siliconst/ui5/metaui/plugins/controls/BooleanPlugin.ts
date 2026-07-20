@@ -54,6 +54,8 @@ export class BooleanPlugin extends BasePlugin {
             }
         });
 
+        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+
         return this.control as Control;
     }
 

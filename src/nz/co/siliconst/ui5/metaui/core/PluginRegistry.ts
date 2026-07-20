@@ -2,106 +2,72 @@
  * @file PluginRegistry.ts
  * @description Centralized hub for mapping UI5 controls to SAP schema data types.
  * Enforces the Registry Pattern to decouple the core engine from specific UI5 control implementations.
+ * NOW WITH UNIVERSAL LAZY LOADING.
  */
 
 import { IPlugin } from "../interfaces/IPlugin";
-import { FieldType } from "../interfaces/ISchema";
-
-import { Registry } from "./Registry";
+import { FieldType, ISchema, IPropertyMetadata } from "../interfaces/ISchema";
+import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Logger } from "../utils/Logger";
+import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 
-import { StringPlugin } from "../plugins/controls/StringPlugin";
-import { NumberPlugin } from "../plugins/controls/NumberPlugin";
-import { DatePlugin } from "../plugins/controls/DatePlugin";
-import { TimePlugin } from "../plugins/controls/TimePlugin";
-import { DateTimePlugin } from "../plugins/controls/DateTimePlugin";
-import { BooleanPlugin } from "../plugins/controls/BooleanPlugin";
-import { SwitchPlugin } from "../plugins/controls/SwitchPlugin";
-import { ArrayPlugin } from "../plugins/controls/ArrayPlugin";
-import { ObjectPlugin } from "../plugins/controls/ObjectPlugin";
-import { DropdownPlugin } from "../plugins/controls/DropdownPlugin";
-import { TextAreaPlugin } from "../plugins/controls/TextAreaPlugin";
-import { CodeEditorPlugin } from "../plugins/controls/CodeEditorPlugin";
-
-// New Phase 1 Controls
-import { FileUploaderPlugin } from "../plugins/controls/FileUploaderPlugin";
-import { MultiSelectPlugin } from "../plugins/controls/MultiSelectPlugin";
-import { SliderPlugin } from "../plugins/controls/SliderPlugin";
-import { RatingIndicatorPlugin } from "../plugins/controls/RatingIndicatorPlugin";
-import { MessageStripPlugin } from "../plugins/controls/MessageStripPlugin";
-
-// New Phase 5 Hardware / Base64 Plugins
-import { CameraPlugin } from "../plugins/controls/CameraPlugin";
-import { SignaturePlugin } from "../plugins/controls/SignaturePlugin";
-import { GeolocationPlugin } from "../plugins/controls/GeolocationPlugin";
-import { BarcodeScannerPlugin } from "../plugins/controls/BarcodeScannerPlugin";
-import { VoiceInputPlugin } from "../plugins/controls/VoiceInputPlugin";
-import { RichTextPlugin } from "../plugins/controls/RichTextPlugin";
-
-// New Phase 4 Actions & Datasources
-import { UrlNavigationActionPlugin } from "../plugins/actions/UrlNavigationActionPlugin";
-import { SubmitFormActionPlugin } from "../plugins/actions/SubmitFormActionPlugin";
-import { ODataListBindingPlugin } from "../plugins/datasources/ODataListBindingPlugin";
-import { RemoteDropdownPlugin } from "../plugins/datasources/RemoteDropdownPlugin";
-
-/**
- * Singleton orchestrator responsible for maintaining the registry of all available UI control plugins.
- * Resolves standard JSON schema types to their respective UI5 native controls.
- * 
- * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
- */
 export class PluginRegistry {
-    /** The single instance of the PluginRegistry. */
     private static instance: PluginRegistry;
     
-    /** Internal strongly typed registry holding plugin constructors. */
-    private readonly registry: Registry<new () => IPlugin> = new Registry<new () => IPlugin>("Controls");
+    private fieldIndex: Record<string, string> = {};
+    private actionIndex: Record<string, string> = {};
+    private layoutIndex: Record<string, string> = {};
+    
+    private activePromises: Record<string, Promise<any>> = {};
 
     private constructor() {
-        // Built-in Default Mappings
-        this.register("string", StringPlugin);
-        this.register("number", NumberPlugin);
-        this.register("integer", NumberPlugin);
-        this.register("date", DatePlugin);
-        this.register("boolean", BooleanPlugin);
-        this.register("array", ArrayPlugin);
-        this.register("object", ObjectPlugin);
+        // Core Mappings
+        this.registerPluginPath("string", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/StringPlugin");
+        this.registerPluginPath("number", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/NumberPlugin");
+        this.registerPluginPath("integer", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/NumberPlugin");
+        this.registerPluginPath("date", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/DatePlugin");
+        this.registerPluginPath("boolean", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/BooleanPlugin");
+        this.registerPluginPath("array", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/ArrayPlugin");
+        this.registerPluginPath("object", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/ObjectPlugin");
 
         // Widget Overrides
-        this.register("string", TimePlugin, "time");
-        this.register("string", DateTimePlugin, "datetime");
-        this.register("boolean", SwitchPlugin, "switch");
-        this.register("string", DropdownPlugin, "select");
-        this.register("string", TextAreaPlugin, "textArea");
-        this.register("string", CodeEditorPlugin, "codeEditor");
+        this.registerPluginPath("string", "time", "nz/co/siliconst/ui5/metaui/plugins/controls/TimePlugin");
+        this.registerPluginPath("string", "datetime", "nz/co/siliconst/ui5/metaui/plugins/controls/DateTimePlugin");
+        this.registerPluginPath("boolean", "switch", "nz/co/siliconst/ui5/metaui/plugins/controls/SwitchPlugin");
+        this.registerPluginPath("string", "select", "nz/co/siliconst/ui5/metaui/plugins/controls/DropdownPlugin");
+        this.registerPluginPath("string", "textArea", "nz/co/siliconst/ui5/metaui/plugins/controls/TextAreaPlugin");
+        this.registerPluginPath("string", "codeEditor", "nz/co/siliconst/ui5/metaui/plugins/controls/CodeEditorPlugin");
         
         // Phase 1 Mappings
-        this.register("string", FileUploaderPlugin, "fileUploader");
-        this.register("array", MultiSelectPlugin, "multiSelect");
-        this.register("number", SliderPlugin, "slider");
-        this.register("number", RatingIndicatorPlugin, "rating");
-        this.register("string", MessageStripPlugin, "messageStrip");
+        this.registerPluginPath("string", "fileUploader", "nz/co/siliconst/ui5/metaui/plugins/controls/FileUploaderPlugin");
+        this.registerPluginPath("array", "multiSelect", "nz/co/siliconst/ui5/metaui/plugins/controls/MultiSelectPlugin");
+        this.registerPluginPath("number", "slider", "nz/co/siliconst/ui5/metaui/plugins/controls/SliderPlugin");
+        this.registerPluginPath("number", "rating", "nz/co/siliconst/ui5/metaui/plugins/controls/RatingIndicatorPlugin");
+        this.registerPluginPath("string", "messageStrip", "nz/co/siliconst/ui5/metaui/plugins/controls/MessageStripPlugin");
 
         // Phase 5 Mappings (Hardware)
-        this.register("string", CameraPlugin, "camera");
-        this.register("string", SignaturePlugin, "signature");
-        this.register("object", GeolocationPlugin, "location");
-        this.register("string", BarcodeScannerPlugin, "scanner");
-        this.register("string", VoiceInputPlugin, "voiceInput");
-        this.register("string", RichTextPlugin, "richText");
+        this.registerPluginPath("string", "camera", "nz/co/siliconst/ui5/metaui/plugins/controls/CameraPlugin");
+        this.registerPluginPath("string", "signature", "nz/co/siliconst/ui5/metaui/plugins/controls/SignaturePlugin");
+        this.registerPluginPath("object", "location", "nz/co/siliconst/ui5/metaui/plugins/controls/GeolocationPlugin");
+        this.registerPluginPath("string", "scanner", "nz/co/siliconst/ui5/metaui/plugins/controls/BarcodeScannerPlugin");
+        this.registerPluginPath("string", "voiceInput", "nz/co/siliconst/ui5/metaui/plugins/controls/VoiceInputPlugin");
+        this.registerPluginPath("string", "richText", "nz/co/siliconst/ui5/metaui/plugins/controls/RichTextPlugin");
 
-        // Phase 4 Mappings
-        this.register("string", UrlNavigationActionPlugin, "urlButton");
-        this.register("string", SubmitFormActionPlugin, "submitButton");
-        this.register("string", ODataListBindingPlugin, "odataSelect");
-        this.register("string", RemoteDropdownPlugin, "remoteDropdown");
+        // Actions & Datasources
+        this.registerPluginPath("string", "urlButton", "nz/co/siliconst/ui5/metaui/plugins/actions/UrlNavigationActionPlugin");
+        this.registerPluginPath("string", "submitButton", "nz/co/siliconst/ui5/metaui/plugins/actions/SubmitFormActionPlugin");
+        this.registerPluginPath("string", "odataSelect", "nz/co/siliconst/ui5/metaui/plugins/datasources/ODataListBindingPlugin");
+        this.registerPluginPath("string", "remoteDropdown", "nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteDropdownPlugin");
+        this.registerPluginPath("string", "liveSearch", "nz/co/siliconst/ui5/metaui/plugins/datasources/LiveSearchPlugin");
+        this.registerPluginPath("string", "remoteValueHelp", "nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteValueHelpPlugin");
+
+        // Layouts
+        this.registerLayoutPath("form", "nz/co/siliconst/ui5/metaui/layouts/FormLayout");
+        this.registerLayoutPath("table", "nz/co/siliconst/ui5/metaui/layouts/TableLayout");
+        this.registerLayoutPath("wizard", "nz/co/siliconst/ui5/metaui/layouts/WizardLayout");
+        this.registerLayoutPath("compact", "nz/co/siliconst/ui5/metaui/layouts/CompactLayout");
     }
 
-    /**
-     * Retrieves the singular instance of the PluginRegistry.
-     * @returns {PluginRegistry} The active instance.
-     */
     public static getInstance(): PluginRegistry {
         if (!PluginRegistry.instance) {
             PluginRegistry.instance = new PluginRegistry();
@@ -109,52 +75,149 @@ export class PluginRegistry {
         return PluginRegistry.instance;
     }
 
-    /**
-     * Registers a new control plugin to be utilized by the Layout Managers.
-     * 
-     * @param type The JSON Schema primitive type (e.g., 'string', 'number').
-     * @param pluginConstructor The class constructor for the plugin implementation.
-     * @param widgetName Optional UI hint to override the default type handler (e.g., 'textArea' for a 'string').
-     */
-    public register(type: FieldType, pluginConstructor: new () => IPlugin, widgetName?: string): void {
+    public registerPluginPath(type: FieldType, widgetName: string | undefined, path: string): void {
         const key = widgetName ? `${type}:${widgetName}` : type;
-        this.registry.register(key, pluginConstructor);
+        this.fieldIndex[key] = path;
+    }
+
+    public registerActionPath(actionName: string, path: string): void {
+        this.actionIndex[actionName] = path;
+    }
+
+    public registerLayoutPath(strategy: string, path: string): void {
+        this.layoutIndex[strategy] = path;
+    }
+
+    private getFieldPath(type: FieldType, widgetName?: string): string {
+        let path;
+        if (widgetName) {
+            path = this.fieldIndex[`${type}:${widgetName}`];
+        }
+        if (!path) {
+            path = this.fieldIndex[type];
+        }
+        if (!path) {
+            throw new Error(`No plugin path mapped for FieldType: ${type} (widget: ${widgetName})`);
+        }
+        return path;
+    }
+
+    private getLayoutPath(strategy: string): string {
+        const path = this.layoutIndex[strategy];
+        if (!path) {
+            throw new Error(`No layout path mapped for strategy: ${strategy}`);
+        }
+        return path;
     }
 
     /**
-     * Resolves and instantiates the correct control plugin based on the field type and widget hint.
-     * Falls back to the primitive type handler if the specific widget is not registered.
+     * Statically traverses the schema structure to identify all required plugins
+     * and layouts without actually instantiating them.
      * 
-     * @param type The JSON Schema primitive type.
-     * @param widgetName The specific UI widget hint (if provided in schema.ui.widget).
-     * @returns {IPlugin} A new instance of the resolved plugin.
-     * @throws {Error} If no handler is registered for the specified type.
+     * @param {ISchema} schema The root JSON schema payload to traverse
+     * @returns {Set<string>} A distinct set of UI5 module paths required to render the schema
      */
-    public getPlugin(type: FieldType, widgetName?: string): IPlugin {
-        let PluginClass;
+    public getPathsToLoad(schema: ISchema): Set<string> {
+        const pathsToLoad = new Set<string>();
         
-        if (widgetName) {
-            PluginClass = this.registry.get(`${type}:${widgetName}`);
-        }
-        
-        if (!PluginClass) {
-            PluginClass = this.registry.get(type);
+        // 1. Gather layout strategy
+        const strategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
+        pathsToLoad.add(this.getLayoutPath(strategy));
+
+        // 2. Recursively gather field plugins
+        const scanProperties = (props: Record<string, IPropertyMetadata>) => {
+            for (const key in props) {
+                const prop = props[key];
+                try {
+                    pathsToLoad.add(this.getFieldPath(prop.type || "string", prop.ui?.widget));
+                } catch (e) {
+                    Logger.warn(`[MetaUI LazyLoad] Could not find mapped plugin for field ${key}`);
+                }
+                if (prop.properties) scanProperties(prop.properties);
+                if (prop.items && prop.items.properties) scanProperties(prop.items.properties);
+                if (prop.items && prop.items.type) {
+                    try {
+                        pathsToLoad.add(this.getFieldPath(prop.items.type, prop.items.ui?.widget));
+                    } catch (e) {}
+                }
+            }
+        };
+
+        if (schema.properties) {
+            scanProperties(schema.properties);
+        } else if (schema.items && schema.items.properties) {
+            scanProperties(schema.items.properties);
         }
 
+        return pathsToLoad;
+    }
+
+    /**
+     * Defers the generation of the UI until all required UI5 modules have been
+     * downloaded asynchronously. Maintains a cache of active promises to prevent
+     * redundant network requests for the same module.
+     * 
+     * @param {ISchema} schema The root JSON schema payload to parse
+     * @returns {Promise<void>} Resolves when all dependencies are securely in the UI5 require cache
+     */
+    public async preloadDependencies(schema: ISchema): Promise<void> {
+        const pathsToLoad = this.getPathsToLoad(schema);
+
+        // 3. Batch execute sap.ui.require via Promises
+        const promises = Array.from(pathsToLoad).map(path => {
+            if (!this.activePromises[path]) {
+                this.activePromises[path] = new Promise((resolve, reject) => {
+                    sap.ui.require([path], 
+                        (Module: any) => resolve(Module), 
+                        (err: any) => {
+                            Logger.error(`Failed to lazy load module: ${path}`);
+                            reject(err);
+                        }
+                    );
+                });
+            }
+            return this.activePromises[path];
+        });
+
+        await Promise.all(promises);
+    }
+
+    private extractConstructor(Module: any): any {
+        if (!Module) return null;
+        if (typeof Module === "function") return Module;
+        if (Module.default && typeof Module.default === "function") return Module.default;
+        
+        // Handle namespace exports (e.g. { FormLayout: class... })
+        const keys = Object.keys(Module);
+        for (const key of keys) {
+            if (typeof Module[key] === "function") {
+                return Module[key];
+            }
+        }
+        return null;
+    }
+
+    public getPlugin(type: FieldType, widgetName?: string): IPlugin {
+        const path = this.getFieldPath(type, widgetName);
+        const Module = sap.ui.require(path);
+        const PluginClass = this.extractConstructor(Module);
+        
         if (!PluginClass) {
-            const msg = `No control plugin registered for FieldType: ${type}${widgetName ? ` (widget: ${widgetName})` : ''}`;
-            Logger.error("[MetaUI PluginRegistry]", msg);
-            Logger.showErrorPopup(`Plugin Registry Error.\n\nDetails: ${msg}`);
-            throw new Error(`[MetaUI] ${msg}`);
+            throw new Error(`[MetaUI Plugin Instantiation] Plugin ${path} was not preloaded or has no constructor!`);
         }
         
-        try {
-            return new PluginClass();
-        } catch (error) {
-            const msg = (error as Error).message;
-            Logger.error(`[MetaUI PluginRegistry] Failed to instantiate plugin for ${type}`, msg);
-            Logger.showErrorPopup(`Failed to instantiate plugin for '${type}'.\n\nDetails: ${msg}`);
-            throw new Error(`[MetaUI Plugin Instantiation] ${msg}`);
+        return new PluginClass();
+    }
+
+    public getLayout(strategy: string): ILayoutManager {
+        const path = this.getLayoutPath(strategy);
+        const Module = sap.ui.require(path);
+        const LayoutClass = this.extractConstructor(Module);
+        
+        if (!LayoutClass) {
+            throw new Error(`[MetaUI Layout Instantiation] Layout ${path} was not preloaded or has no constructor!`);
         }
+        
+        return new LayoutClass();
     }
 }

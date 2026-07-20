@@ -110,6 +110,15 @@ export class CompactLayout implements ILayoutManager {
         return container;
     }
 
+    /**
+     * Synthesizes a primitive field into the layout.
+     * @param container The VBox container.
+     * @param element The layout element definition.
+     * @param propKey The bound property key.
+     * @param meta The inferred metadata schema.
+     * @param modelName The UI5 data model name.
+     * @param engine The core Engine instance.
+     */
     private _renderScalarField(container: VBox, element: ILayoutElement, propKey: string, meta: IPropertyMetadata, modelName: string, engine: Engine): void {
         try {
             const labelText = element.label || meta.ui?.label || propKey;

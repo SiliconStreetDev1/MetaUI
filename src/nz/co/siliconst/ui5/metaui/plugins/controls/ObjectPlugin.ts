@@ -11,6 +11,16 @@ import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
 
 export class ObjectPlugin extends BasePlugin {
+    /**
+     * Renders a `sap.m.Button` to open a nested Object form dialog.
+     * 
+     * @param field The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured Button control.
+     */
     public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = field;
@@ -67,14 +77,24 @@ export class ObjectPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Validates the object plugin (always true as validation is deferred to the dialog host).
+     * @returns {IPluginValidationResult} The validation result.
+     */
     public validate(): IPluginValidationResult {
         return { isValid: true };
     }
 
+    /**
+     * Read-only component for the engine, returns null.
+     */
     protected getValue(): any {
         return null;
     }
 
+    /**
+     * Read-only component, no dynamic state handling needed for the button itself.
+     */
     protected applyState(): void {
         // No dynamic state handling needed for the button
     }

@@ -22,6 +22,9 @@ export default class SignatureControl extends BaseHardwareControl {
     private canvasCtx: CanvasRenderingContext2D | null = null;
     private canvasEl: HTMLCanvasElement | null = null;
 
+    /**
+     * Initializes the control and builds the canvas drawing surface.
+     */
     public init(): void {
         super.init();
 
@@ -157,6 +160,10 @@ export default class SignatureControl extends BaseHardwareControl {
         }
     }
 
+    /**
+     * Sets the value of the control programmatically and re-draws the canvas.
+     * @param value The base64 data URL string representing the signature image.
+     */
     public setValue(value: any): this {
         super.setValue(value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {

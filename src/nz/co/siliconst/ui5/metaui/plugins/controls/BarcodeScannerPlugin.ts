@@ -10,6 +10,16 @@ import BarcodeScannerButton from "sap/ndc/BarcodeScannerButton";
 export class BarcodeScannerPlugin extends BasePlugin {
     private inputControl!: Input;
 
+    /**
+     * Renders a `BarcodeScannerButton` alongside an `Input`.
+     * 
+     * @param metadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured HBox control.
+     */
     public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
@@ -70,10 +80,17 @@ export class BarcodeScannerPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current scanned text.
+     * @returns {any} The barcode string.
+     */
     protected getValue(): any {
         return this.inputControl ? this.inputControl.getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.inputControl && this.metadata) {
             if (!this.isEditable) return;

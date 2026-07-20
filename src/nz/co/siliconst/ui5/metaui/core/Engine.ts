@@ -11,7 +11,6 @@ import { PluginRegistry } from "./PluginRegistry";
 import Control from "sap/ui/core/Control";
 import VBox from "sap/m/VBox";
 import Text from "sap/m/Text";
-import { Registry } from "./Registry";
 import { Logger } from "../utils/Logger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import Core from "sap/ui/core/Core";
@@ -20,7 +19,7 @@ import Messaging from "sap/ui/core/Messaging";
 /**
  * The Engine is responsible for translating a normalized schema into a physical UI5 layout.
  * It delegates layout generation to the configured `LayoutManager` and field generation to the `PluginRegistry`.
- * It is NOT a God Class; it strictly routes execution flow and tracks active plugins for validation.
+ * It strictly routes execution flow and tracks active plugins for validation.
  * It embodies the "Plugin-First Philosophy" by routing all complex field and layout rendering
  * through discrete, decoupled plugins rather than handling native overrides.
  * 
@@ -28,26 +27,28 @@ import Messaging from "sap/ui/core/Messaging";
  * @public
  */
 export class Engine {
-    /** Global registry of all available layout strategies (e.g. Form, Table, Wizard). */
-    public static layoutRegistry: Registry<ILayoutManager>;
     /** Handles dynamic conditional logic across the active form. */
     private conditionEngine: ConditionEngine | null = null;
-    
+
     /** Array of all instantiated plugins generated during the current build. */
     private activePlugins: { plugin: IPlugin, path: string }[] = [];
 
     /** Deterministic scope ID injected by the host control to prevent clone collisions. */
     public engineScopeId?: string;
-    
+
     private activeModel?: sap.ui.model.Model;
-    
+
     /** Tracks whether the entire engine is running in Editable mode. */
     public readonly isEditable: boolean = true;
 
+    /**
+     * Initializes a new Engine instance.
+     * @param editable Whether the engine should render form fields as editable or read-only.
+     */
     constructor(editable: boolean = true) {
         this.isEditable = editable;
     }
-    
+
     /**
      * Bootstraps the layout generation process by resolving the correct layout strategy.
      * 
@@ -72,7 +73,7 @@ export class Engine {
                 onChange(isValid, fieldKey, errorMessage, controlId);
             }
         };
-        
+
         try {
             // Intercept and synthesize a default layout if the developer/backend failed to provide one
             if (DefaultLayoutGenerator.ensureLayout(schema)) {
@@ -80,8 +81,8 @@ export class Engine {
             }
 
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
-            const layoutManager = Engine.layoutRegistry.getStrict(layoutStrategy);
-            
+            const layoutManager = PluginRegistry.getInstance().getLayout(layoutStrategy);
+
             return layoutManager.render(schema, modelName, this, onSubmit);
         } catch (error) {
             const msg = (error as Error).message;
@@ -104,17 +105,17 @@ export class Engine {
         try {
             const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
             plugin.setEditable(this.isEditable);
-            
+
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });
             }
             const scopeId = isTemplate ? undefined : this.engineScopeId;
             const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange);
-            
+
             if (this.conditionEngine) {
                 this.conditionEngine.registerPlugin(bindingPath, plugin);
             }
-            
+
             return control;
         } catch (error) {
             const msg = (error as Error).message;
@@ -136,7 +137,7 @@ export class Engine {
     public generateLayout(schema: ISchema, modelName: string, bindingPath?: string): Control {
         try {
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
-            const layoutManager = Engine.layoutRegistry.getStrict(layoutStrategy);
+            const layoutManager = PluginRegistry.getInstance().getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);
         } catch (error) {
             const msg = (error as Error).message;
@@ -154,13 +155,19 @@ export class Engine {
     public validateAll(): IPluginValidationResult[] {
         const errors: IPluginValidationResult[] = [];
         for (const item of this.activePlugins) {
-            const result = item.plugin.validate();
-            if (!result.isValid) {
-                // Ensure the path is bound to the error so GeneratorHost knows where to target it
-                result.fieldKey = result.fieldKey || item.path.replace(/^\//, "");
-                errors.push(result);
-                // Add console log to find which plugin fails silently
-                Logger.error("[MetaUI Validation] Plugin failed validation silently:", item.path || item.plugin.constructor.name);
+            try {
+                const result = item.plugin.validate();
+                if (!result.isValid) {
+                    // Ensure the path is bound to the error so GeneratorHost knows where to target it
+                    result.fieldKey = result.fieldKey || item.path.replace(/^\//, "");
+                    errors.push(result);
+                    // Add console log to find which plugin fails silently
+                    Logger.error("[MetaUI Validation] Plugin failed validation silently:", item.path || item.plugin.constructor.name);
+                }
+            } catch (error) {
+                const msg = (error as Error).message;
+                Logger.error(`[MetaUI Validation] Exception during plugin validation at path ${item.path}`, msg);
+                errors.push({ isValid: false, errorMessage: `Validation crashed: ${msg}`, fieldKey: item.path.replace(/^\//, "") });
             }
         }
         return errors;
@@ -174,7 +181,7 @@ export class Engine {
             this.conditionEngine.destroy();
             this.conditionEngine = null;
         }
-        
+
         // ------------------------------------------------------------------------
         // Ghost Error Prevention
         // Flush MessageManager for active plugins before destroying their controls
@@ -182,11 +189,11 @@ export class Engine {
         const messageManager = Messaging;
         const existingMessages = messageManager.getMessageModel().getData();
         const messagesToRemove: any[] = [];
-        
+
         for (const item of this.activePlugins) {
             if (this.activeModel) {
                 const targetPath = `/${item.path.replace(/^\//, "")}`;
-                const matched = existingMessages.filter((msg: any) => 
+                const matched = existingMessages.filter((msg: any) =>
                     msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel.getId()
                 );
                 messagesToRemove.push(...matched);
@@ -195,11 +202,11 @@ export class Engine {
                 item.plugin.destroy();
             }
         }
-        
+
         if (messagesToRemove.length > 0) {
             messageManager.removeMessages(messagesToRemove);
         }
-        
+
         this.activePlugins = [];
     }
 }

@@ -12,6 +12,16 @@ import Control from "sap/ui/core/Control";
  * Handles rendering and logic for timestamps/datetime inputs.
  */
 export class DateTimePlugin extends BasePlugin {
+    /**
+     * Renders a `sap.m.DateTimePicker` component.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured DateTimePicker control.
+     */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -60,10 +70,17 @@ export class DateTimePlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current datetime string.
+     * @returns {any} The datetime value.
+     */
     protected getValue(): any {
         return this.control ? (this.control as DateTimePicker).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

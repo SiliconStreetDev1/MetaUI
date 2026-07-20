@@ -17,6 +17,10 @@ export interface IHostValidation {
 export class ValidationDelegate {
     private host: IHostValidation;
 
+    /**
+     * Initializes the ValidationDelegate for registering controls to the global MessageManager.
+     * @param host The parent host interface.
+     */
     constructor(host: IHostValidation) {
         this.host = host;
     }

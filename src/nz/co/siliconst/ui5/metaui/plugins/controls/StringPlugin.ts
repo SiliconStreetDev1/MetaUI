@@ -22,6 +22,8 @@ export class StringPlugin extends BasePlugin {
      * @param fieldMetadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
      * @returns {Control} The configured Input control.
      */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {

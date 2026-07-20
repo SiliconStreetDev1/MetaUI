@@ -18,7 +18,9 @@ import { TextCaseFormatterPlugin } from "../plugins/formatters/TextCaseFormatter
 import { Logger } from "../utils/Logger";
 
 // --- Built-in Default Validators ---
+/** Internal rule for required fields. */
 class RequiredValidator implements IValidator {
+    /** Validates that the value is not null, undefined, or empty string. */
     validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (parsedValue === null || parsedValue === undefined || parsedValue === "") {
             return { isValid: false, errorMessage: "This field is required." };
@@ -27,7 +29,9 @@ class RequiredValidator implements IValidator {
     }
 }
 
+/** Internal rule for string maximum length. */
 class MaxLengthValidator implements IValidator {
+    /** Validates that a string does not exceed the provided argument length. */
     validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof parsedValue === "string" && args && typeof args === "number") {
             if (parsedValue.length > args) {
@@ -87,9 +91,15 @@ export class PipelineManager {
             const validator = this.validators.get(rule);
             if (validator) {
                 const args = argsMap ? argsMap[rule] : undefined;
-                const result = validator.validate(parsedValue, args);
-                if (!result.isValid) {
-                    return result; // Fast fail on first error
+                try {
+                    const result = validator.validate(parsedValue, args);
+                    if (!result.isValid) {
+                        return result; // Fast fail on first error
+                    }
+                } catch (error) {
+                    const msg = (error as Error).message;
+                    Logger.error(`[MetaUI] PipelineManager: Validator '${rule}' crashed during execution.`, msg);
+                    return { isValid: false, errorMessage: `System validation error: ${msg}` };
                 }
             } else {
                 Logger.warn(`[MetaUI] PipelineManager: Requested validator '${rule}' not found in registry.`);

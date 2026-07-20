@@ -12,6 +12,16 @@ import Control from "sap/ui/core/Control";
  * Handles rendering logic for Date strings.
  */
 export class DatePlugin extends BasePlugin {
+    /**
+     * Renders a `sap.m.DatePicker` component.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured DatePicker control.
+     */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -59,10 +69,17 @@ export class DatePlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current date string.
+     * @returns {any} The date value.
+     */
     protected getValue(): any {
         return this.control ? (this.control as DatePicker).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

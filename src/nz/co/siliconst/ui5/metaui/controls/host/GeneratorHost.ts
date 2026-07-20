@@ -9,6 +9,7 @@ import { DataSyncDelegate } from "./delegates/DataSyncDelegate";
 import { ValidationDelegate } from "./delegates/ValidationDelegate";
 import { DialogDelegate } from "./delegates/DialogDelegate";
 import MessageBox from "sap/m/MessageBox";
+import { PluginRegistry } from "../../core/PluginRegistry";
 
 /**
  * Base wrapper element for embedding the dynamic form natively via Explicit Schemas.
@@ -321,11 +322,40 @@ export default class GeneratorHost extends Control {
     }
 
     /**
-     * The core rendering pipeline.
-     * Normalizes the schema, sets up the state manager, orchestrates the engine build,
-     * and sets the generated UI components into the internal aggregation tree.
+     * Internal reference to the active debounce timeout.
+     * Prevents sequential redundant layouts from being generated when properties are set rapidly.
      */
-    public generate(): void {
+    private _generateTimeoutId: number | null = null;
+
+    /**
+     * The core rendering pipeline entry point.
+     * Debounces concurrent or rapid consecutive calls to prevent UI tearing and redundant network requests.
+     * Delays execution by 50ms to allow all synchronous property bindings to settle before orchestrating the build.
+     * @returns Promise that resolves when the layout is successfully built and mounted.
+     */
+    public async generate(): Promise<void> {
+        return new Promise((resolve) => {
+            if (this._generateTimeoutId !== null) {
+                window.clearTimeout(this._generateTimeoutId);
+            }
+            this._generateTimeoutId = window.setTimeout(async () => {
+                this._generateTimeoutId = null;
+                try {
+                    await this._doGenerate();
+                } catch (e) {
+                    Logger.error("[MetaUI]", "Error in deferred generate: " + e, "GeneratorHost");
+                }
+                resolve();
+            }, 50);
+        });
+    }
+
+    /**
+     * The underlying synchronous generator orchestration method.
+     * Normalizes the schema, sets up the state manager, loads missing plugins over the network,
+     * orchestrates the Engine build, and mounts the generated UI components into the internal tree.
+     */
+    private async _doGenerate(): Promise<void> {
         try {
             this.tearDownGeneratedLayout();
 
@@ -384,6 +414,15 @@ export default class GeneratorHost extends Control {
                 }
             }
 
+            const pathsToLoad = PluginRegistry.getInstance().getPathsToLoad(normalizedSchema as any);
+            const needsNetworkLoad = Array.from(pathsToLoad).some(path => !sap.ui.require(path));
+
+            if (needsNetworkLoad) {
+                this.setBusy(true);
+                await PluginRegistry.getInstance().preloadDependencies(normalizedSchema as any);
+                this.setBusy(false);
+            }
+
             this.activeModelName = "metaUI_" + this.getId();
             this.stateManager = new StateManager(finalData, normalizedSchema, this.activeModelName);
             this.setModel(this.stateManager.getModel(), this.activeModelName);
@@ -406,6 +445,7 @@ export default class GeneratorHost extends Control {
             this.dataSyncDelegate.pushToBindings(payload);
 
         } catch (error) {
+            this.setBusy(false);
             Logger.error("[MetaUI]", "Fatal crash during layout generation: " + (error as Error).message, "GeneratorHost");
             this.validationDelegate.mountCrashBoundary(error as Error);
         }

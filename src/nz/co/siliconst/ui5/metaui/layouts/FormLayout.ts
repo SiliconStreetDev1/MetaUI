@@ -128,6 +128,15 @@ export class FormLayout implements ILayoutManager {
         return container;
     }
 
+    /**
+     * Synthesizes a primitive field into the Form.
+     * @param form The SimpleForm instance.
+     * @param element The layout element definition.
+     * @param propKey The bound property key.
+     * @param meta The inferred metadata schema.
+     * @param modelName The UI5 data model name.
+     * @param engine The core Engine instance.
+     */
     private _renderScalarField(form: SimpleForm, element: ILayoutElement, propKey: string, meta: IPropertyMetadata, modelName: string, engine: Engine): void {
         try {
             const labelText = element.label || meta.ui?.label || propKey;

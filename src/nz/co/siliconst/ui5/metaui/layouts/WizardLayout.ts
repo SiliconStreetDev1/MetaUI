@@ -80,6 +80,14 @@ export class WizardLayout implements ILayoutManager {
         return wizard;
     }
 
+    /**
+     * Synthesizes a field into the wizard step form.
+     * @param form The SimpleForm belonging to the step.
+     * @param element The layout element definition.
+     * @param schema The schema reference.
+     * @param modelName The UI5 data model name.
+     * @param engine The core Engine instance.
+     */
     private _renderElementInForm(form: SimpleForm, element: ILayoutElement, schema: ISchema, modelName: string, engine: Engine): void {
         if (element.type === "Control") {
             if (!element.scope || !element.scope.startsWith("#/properties/")) {

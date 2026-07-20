@@ -55,22 +55,35 @@ export class DefaultLayoutGenerator {
         return true;
     }
 
+    /**
+     * Recursively traverses property metadata to synthesize generic Group and Control layout definitions.
+     * @param props The properties object from the schema.
+     * @param basePath The absolute JSON scope path to prefix bindings.
+     * @returns An array of generated layout element descriptors.
+     */
     private static generateElementsFromProperties(props: any, basePath: string): ILayoutElement[] {
         const elements: ILayoutElement[] = [];
         for (const key of Object.keys(props)) {
-            const prop = props[key];
-            const currentPath = `${basePath}/${key}`;
+            try {
+                const prop = props[key];
+                const currentPath = `${basePath}/${key}`;
 
-            if (prop.type === "object" && prop.properties) {
-                elements.push({
-                    type: "Group",
-                    label: prop.ui?.label || key,
-                    elements: this.generateElementsFromProperties(prop.properties, `${currentPath}/properties`)
-                });
-            } else {
-                elements.push({
-                    type: "Control",
-                    scope: currentPath
+                if (prop.type === "object" && prop.properties) {
+                    elements.push({
+                        type: "Group",
+                        label: prop.ui?.label || key,
+                        elements: this.generateElementsFromProperties(prop.properties, `${currentPath}/properties`)
+                    });
+                } else {
+                    elements.push({
+                        type: "Control",
+                        scope: currentPath
+                    });
+                }
+            } catch (error) {
+                // If a single synthesized property fails, swallow it to prevent the entire synthesized form from crashing.
+                import("../utils/Logger").then(({ Logger }) => {
+                    Logger.error(`[MetaUI] DefaultLayoutGenerator failed to synthesize property '${key}'`, (error as Error).message);
                 });
             }
         }

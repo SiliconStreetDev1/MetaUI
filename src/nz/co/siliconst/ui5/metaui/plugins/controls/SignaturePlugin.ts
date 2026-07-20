@@ -4,6 +4,16 @@ import Control from "sap/ui/core/Control";
 import SignatureControl from "../../controls/SignatureControl";
 
 export class SignaturePlugin extends BasePlugin {
+    /**
+     * Renders a `SignatureControl` component.
+     * 
+     * @param metadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured SignatureControl.
+     */
     public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
@@ -42,10 +52,17 @@ export class SignaturePlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Retrieves the current base64 signature image state.
+     * @returns {any} The signature image value.
+     */
     protected getValue(): any {
         return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
