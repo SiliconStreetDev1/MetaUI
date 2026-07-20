@@ -17,8 +17,8 @@
                 
                 <meta:DynamicHost 
                     id="metaHost"
-                    schemaDefinition="{viewModel 
-                                            displayMode="{viewModel>/displayMode}" >/parsedSchema}" 
+                    schemaDefinition="{viewModel>/parsedSchema}"
+                    displayMode="{viewModel>/displayMode}"
                     inputDataJson="{viewModel>/rawJsonStringIn}" 
                     debugMode="{viewModel>/debugMode}"
                     useMessageManager="true" />
