@@ -11,12 +11,12 @@ You can trigger formatters by passing a string to `ui.formatter`. Some formatter
 
 ```json
 {
-  "Salary": {
-    "type": "number",
+  "EmployeeName": {
+    "type": "string",
     "ui": {
-      "label": "Annual Salary",
-      "formatter": "currency",
-      "args": ["USD"]
+      "label": "Full Name",
+      "formatter": "textCase",
+      "args": "upper"
     }
   }
 }

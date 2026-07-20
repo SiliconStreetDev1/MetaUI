@@ -284,6 +284,9 @@ export default class DynamicHost extends Control {
      * @returns {unknown} The property value
      */
     public getProperty(propertyName: string): unknown {
+        if (propertyName === "outputData") {
+            propertyName = "data"; // Forward deprecated outputData to data
+        }
         if (this._innerHost && (propertyName === "data" || propertyName === "dataJson")) {
             return this._innerHost.getProperty(propertyName);
         }

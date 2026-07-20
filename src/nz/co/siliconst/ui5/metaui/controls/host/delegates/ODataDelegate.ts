@@ -82,7 +82,7 @@ export class ODataDelegate {
         if (!oData) return;
         
         // Remove OData metadata properties before pushing to MetaUI
-        const cleanData = { ...oData };
+        const cleanData = { ...(oData as Record<string, unknown>) };
         for (const key of Object.keys(cleanData)) {
             if (key.startsWith("@") || key.startsWith("__")) {
                 delete cleanData[key];

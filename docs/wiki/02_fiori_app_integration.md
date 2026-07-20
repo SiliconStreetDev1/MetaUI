@@ -44,7 +44,7 @@ Declare the dependency so the Fiori Launchpad loads the library correctly.
 
 ## 2. XML View Declaration
 
-To embed a dynamic form directly into a Fiori page (instead of a popup dialog), declare the `metaui` XML namespace and inject the `<GeneratorHost>`.
+To embed a dynamic form directly into a Fiori page (instead of a popup dialog), declare the `metaui` XML namespace and inject the `<DynamicHost>`.
 
 **`View.view.xml`**
 ```xml
@@ -56,8 +56,8 @@ To embed a dynamic form directly into a Fiori page (instead of a popup dialog), 
 
     <Page title="Dynamic Configuration">
         <content>
-            <!-- Embed the GeneratorHost -->
-            <metaui:GeneratorHost 
+            <!-- Embed the DynamicHost -->
+            <metaui:DynamicHost 
                 id="dynamicFormHost" 
                 schemaDefinition="{backend>/SchemaDefinition}" 
                 data="{backend>/PayloadData}"
@@ -84,24 +84,24 @@ onInit: function() {
 },
 ```
 
-## 4. True Two-Way Binding (Double Bind)
+## 4. True Two-Way Binding
 
-If you want the `GeneratorHost` to act like a standard UI5 input field and automatically mutate your external model property as the user types, you can double-bind `data` and `data` to the exact same property.
+If you want the `DynamicHost` to act like a standard UI5 input field and automatically mutate your external model property as the user types, you simply rely on UI5's native two-way binding on the `data` (or `dataJson`) property.
 
-The Engine uses a native `deepEqual` check to safely break the two-way infinite loop while preserving cursor focus.
+The Engine uses a native `deepEqual` check internally to safely break the two-way infinite loop while preserving cursor focus.
 
 ```xml
-<metaui:GeneratorHost 
+<metaui:DynamicHost 
     id="dynamicFormHost" 
     schemaDefinition="{backend>/SchemaDefinition}" 
     
-    <!-- Double bind to the exact same property! -->
-    data="{backend>/PayloadData}"
+    <!-- Native two-way binding -->
     data="{backend>/PayloadData}"
     
     liveUpdate="true" />
 ```
 
+```javascript
 onFormSubmit: function(oEvent) {
     const payload = oEvent.getParameter("payload");
     // Send updated payload back to OData/REST service

@@ -156,7 +156,7 @@
                         </TileContent>
                     </GenericTile>
                     
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Generator in Table" press=".onNavToScenario" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Host in Table" press=".onNavToScenario" width="200px">
                         <customData>
                             <core:CustomData key="scenario" value="multihost" />
                         </customData>

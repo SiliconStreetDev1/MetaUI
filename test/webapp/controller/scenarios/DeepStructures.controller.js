@@ -6,6 +6,17 @@ sap.ui.define([
 
     return BaseController.extend("metaui.sandbox.controller.scenarios.DeepStructures", {
         onInit: function () {
+            var oViewModel = this.setupViewModel();
+            
+            // Load the code example for this specific scenario
+            sap.ui.require(["metaui/sandbox/controller/SnippetService"], function(SnippetService) {
+                var sSnippet = SnippetService.getCodeSnippet("deep_structures");
+                oViewModel.setProperty("/codeExamples", sSnippet || "// Complex nested data structures are automatically inferred by MetaUI!");
+                
+                var sDesc = SnippetService.getScenarioDescription("complex"); // Reuse complex description
+                oViewModel.setProperty("/scenarioDescription", sDesc);
+            });
+
             const initialData = {
                 header: {
                     id: "DOC-29384",
@@ -24,34 +35,22 @@ sap.ui.define([
                         instructions: "Leave at back door",
                         requiresSignature: true
                     }
-                }
+                },
+                Contacts: [
+                    { name: "John Doe", role: "Manager" },
+                    { name: "Jane Smith", role: "Developer" }
+                ]
             };
 
-            const oModel = new JSONModel({
-                deepData: initialData,
-                deepDataStr: JSON.stringify(initialData, null, 2)
-            });
+            const dataString = JSON.stringify(initialData, null, 2);
 
-            this.getView().setModel(oModel, "viewModel");
-
-            // Setup two-way binding for the CodeEditor string sync
-            const oBinding = oModel.bindProperty("/deepDataStr");
-            oBinding.attachChange(function (oEvent) {
-                try {
-                    const parsed = JSON.parse(oEvent.getSource().getValue());
-                    oModel.setProperty("/deepData", parsed);
-                } catch (e) {
-                    // Invalid JSON while typing, ignore
-                }
-            });
-        },
-
-        onFieldChange: function (oEvent) {
-            const oModel = this.getView().getModel("viewModel");
-            const newData = oModel.getProperty("/deepData");
+            // Bind to the CodeEditors
+            oViewModel.setProperty("/editorDataString", dataString);
             
-            // Sync changes back to the text editor string
-            oModel.setProperty("/deepDataStr", JSON.stringify(newData, null, 2));
+            // Bind to the native MetaUI bindings
+            oViewModel.setProperty("/parsedSchema", null); // Let it infer
+            oViewModel.setProperty("/parsedData", initialData);
+            oViewModel.setProperty("/rawJsonStringIn", dataString);
         }
     });
 });

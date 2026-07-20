@@ -23,7 +23,7 @@
 
                     <Panel headerText="Option 2: JavaScript API (Dialog Modality)" expandable="true" expanded="true">
                         <content>
-                            <Text text="This section demonstrates instantiating the GeneratorHost purely in JavaScript and rendering it inside a sap.m.Dialog." class="sapUiSmallMarginBottom" />
+                            <Text text="This section demonstrates instantiating the DynamicHost purely in JavaScript and rendering it inside a sap.m.Dialog." class="sapUiSmallMarginBottom" />
                             <Button text="Open MetaUI Dialog" press=".onOpenDialog" type="Emphasized" />
                         </content>
                     </Panel>

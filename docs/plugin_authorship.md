@@ -23,17 +23,19 @@ import Control from "sap/ui/core/Control";
 import Input from "sap/m/Input";
 
 export class MyCustomInputPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.split("/").pop() || "";
         this.modelName = modelName;
+        this.onChange = onChange;
 
         this.control = new Input({
+            id: this.generateStableId(engineScopeId, bindingPath),
             value: `{${modelName}>/${bindingPath}}`,
             placeholder: fieldMetadata.ui?.label || "Enter value",
             change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("value");
-                this.publishChange(val);
+                // this.publishChange(val); (legacy method)
                 this.validate();
             }
         });
@@ -44,7 +46,7 @@ export class MyCustomInputPlugin extends BasePlugin {
         return this.control;
     }
 
-    protected getValue(): any {
+    protected getValue(): unknown {
         return (this.control as Input).getValue();
     }
 
@@ -58,17 +60,17 @@ export class MyCustomInputPlugin extends BasePlugin {
 
 ## 3. Registering Your Plugin
 
-Once your plugin class is written, you must register it with the `PluginRegistry` so the `Engine` knows when to use it.
+Once your plugin class is written, you must register its path with the `PluginRegistry` so the `Engine` can dynamically lazy-load it when needed.
 
 ### Registering Controls, Actions, and Data Sources
 Use the `PluginRegistry` for visual plugins.
 
 ```typescript
 import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
-import { MyCustomInputPlugin } from "./MyCustomInputPlugin";
 
-// Register it to handle string types where widget === 'myCustomWidget'
-PluginRegistry.getInstance().register("string", MyCustomInputPlugin, "myCustomWidget");
+// Do NOT import your plugin class directly! MetaUI lazy loads it.
+// Just register the UI5 module path.
+PluginRegistry.getInstance().registerPluginPath("string", "myCustomWidget", "your/namespace/MyCustomInputPlugin");
 ```
 
 ### Registering Validators and Formatters

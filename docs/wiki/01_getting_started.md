@@ -62,7 +62,7 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (Dy
     const host = new DynamicHost({
         schemaDefinition: schema,
         data: data,
-        editable: true, // Set to true to render the form as a read-only native Display view
+        editable: true, // Set to false to render the form as a read-only native Display view
         debugMode: true // Enables visible error popups and detailed console logging for troubleshooting
     });
 
@@ -79,6 +79,22 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (Dy
 ```
 
 When `openInDialog` is called, the engine processes the schema and natively generates a `sap.ui.layout.form.SimpleForm` with a bound `sap.m.Input` and `sap.m.Switch`.
+
+## DynamicHost API Properties
+
+The `DynamicHost` exposes the following configuration properties (which can be set in XML or programmatically):
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `schemaDefinition` | `object` | `null` | The JSON Schema defining the fields. If omitted, the engine infers fields from the payload. |
+| `data` | `object` | `null` | The runtime data payload. Can be bound to OData or JSON models natively. |
+| `dataJson` | `string` | `null` | A stringified version of the payload, useful for REST services returning flat strings. |
+| `editable` | `boolean` | `true` | When `true`, fields render as Inputs, Switches, etc. When `false`, the entire form renders as read-only display fields (e.g., `sap.m.Text`). |
+| `liveUpdate` | `boolean` | `false` | If `true`, any change in a field immediately fires the `submit` / `fieldChange` events, enabling live extraction without a submit button. |
+| `useMessageManager`| `boolean` | `false` | Natively integrates with the UI5 `MessageManager` to highlight validation errors directly on the inputs using ValueStates. |
+| `modelName` | `string` | `"meta"` | The internal UI5 model namespace used by the `StateManager`. You rarely need to change this. |
+| `debugMode` | `boolean` | `false` | Enables verbose console logging and triggers a `MessageBox` stack trace on critical errors instead of silent failure. |
+| `isValid` | `boolean` | `true` | A read-only boolean reflecting the real-time validity of the current form data against the schema. |
 
 ## Next Steps
 

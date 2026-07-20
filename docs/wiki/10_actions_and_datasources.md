@@ -1,4 +1,4 @@
-# 09. Actions and Datasources
+# 10. Actions and Datasources
 
 MetaUI allows dynamic schemas to include actionable buttons and live data lookups.
 
@@ -18,7 +18,7 @@ Action plugins are rendered as Fiori Buttons (`sap.m.Button`). They execute a be
   }
 }
 ```
-When clicked, the `SubmitFormActionPlugin` triggers the `GeneratorHost` validation pipeline. If valid, it fires the `submit` event on the host.
+When clicked, the `SubmitFormActionPlugin` triggers the `DynamicHost` validation pipeline. If valid, it fires the `submit` event on the host.
 
 ### Navigation
 ```json

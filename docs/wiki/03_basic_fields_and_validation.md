@@ -6,14 +6,15 @@ MetaUI supports standard JSON Schema primitives. The `PluginRegistry` automatica
 
 | Type | Default Control | Supported `ui.widget` Overrides |
 |---|---|---|
-| `string` | `sap.m.Input` | `textArea`, `select`, `time`, `datetime`, `fileUploader`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`, `codeEditor` |
+| `string` | `sap.m.Input` | `textArea`, `select`, `time`, `datetime`, `fileUploader`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`, `codeEditor`, `messageStrip` |
 | `number` / `integer` | `sap.m.StepInput` | `slider`, `rating` |
 | `boolean`| `sap.m.CheckBox` | `switch` |
 | `date`   | `sap.m.DatePicker` | None |
 | `object` | `sap.m.Button` (Drill-down) | `location` |
+| `array`  | `sap.m.Table` (via Layout) | `multiSelect` |
 
 ## Display Mode
-By setting `editable: false` on the `GeneratorHost`, MetaUI transforms all editable controls into read-only native Display variants automatically (e.g. `sap.m.Input` becomes `sap.m.Text`, `sap.m.CheckBox` formats to "Yes/No" text, Camera/Signature render as `sap.m.Image`). This allows you to reuse the exact same schema definition for both editable forms and display-only tiles.
+By setting `editable: false` on the `DynamicHost`, MetaUI transforms all editable controls into read-only native Display variants automatically (e.g. `sap.m.Input` becomes `sap.m.Text`, `sap.m.CheckBox` formats to "Yes/No" text, Camera/Signature render as `sap.m.Image`). This allows you to reuse the exact same schema definition for both editable forms and display-only tiles.
 
 ## Schema Definition Examples
 

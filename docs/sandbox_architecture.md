@@ -8,7 +8,7 @@ To ensure the Playground remains maintainable and acts as a clean best-practice 
 
 The main `Playground.controller.js` does **not** contain massive `switch` statements to handle different test tiles (e.g. "Basic Form", "Double Bind", "Live String Binding").
 
-Instead, the orchestration of how to bind the `GeneratorHost` to the test app's view model is abstracted into Scenario Helpers:
+Instead, the orchestration of how to bind the `DynamicHost` to the test app's view model is abstracted into Scenario Helpers:
 - `BaseScenarioHelper.js`: Handles the default unidirectional binding.
 - `DoubleBindScenarioHelper.js`: Handles binding both `data` and `data` to the exact same shared property to demonstrate two-way synchronization.
 - `StringBindingScenarioHelper.js`: Demonstrates parsing and binding raw JSON strings.

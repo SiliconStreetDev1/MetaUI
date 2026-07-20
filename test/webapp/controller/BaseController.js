@@ -10,7 +10,7 @@ sap.ui.define([
     "sap/m/Button",
     "nz/co/siliconst/ui5/metaui/controls/DynamicHost",
     "sap/base/Log"
-], function (Controller, History, JSONModel, MessagePopover, MessageItem, Core, MessageToast, Dialog, Button, GeneratorHost, Log) {
+], function (Controller, History, JSONModel, MessagePopover, MessageItem, Core, MessageToast, Dialog, Button, DynamicHost, Log) {
     "use strict";
 
     return Controller.extend("metaui.sandbox.controller.BaseController", {
@@ -158,7 +158,7 @@ sap.ui.define([
 
         onOpenDialog: function () {
             var oViewModel = this.getModel("viewModel");
-            var oHost = new GeneratorHost({
+            var oHost = new DynamicHost({
                 schemaDefinition: oViewModel.getProperty("/parsedSchema"),
                 data: oViewModel.getProperty("/parsedData"),
                 editable: oViewModel.getProperty("/editable"),
@@ -192,7 +192,7 @@ sap.ui.define([
         },
 
         /* =========================================================== */
-        /* GeneratorHost Event Handlers                                */
+        /* DynamicHost Event Handlers                                  */
         /* =========================================================== */
 
         onFieldChange: function (oEvent) {

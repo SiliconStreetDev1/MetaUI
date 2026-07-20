@@ -8,7 +8,7 @@ sap.ui.define([
 
     /**
      * MultiHost Controller
-     * Demonstrates cloning multiple GeneratorHost controls inside a sap.m.Table template.
+     * Demonstrates cloning multiple DynamicHost controls inside a sap.m.Table template.
      */
     return Controller.extend("metaui.sandbox.controller.scenarios.MultiHost", {
         onInit: function () {
@@ -107,14 +107,14 @@ sap.ui.define([
             var aExtracted = [];
             var bAllValid = true;
             aItems.forEach(function(oItem) {
-                var oGeneratorHost = oItem.getCells()[0];
+                var oDynamicHost = oItem.getCells()[0];
                 
-                // Trigger the internal payload extraction mechanics of the GeneratorHost
+                // Trigger the internal payload extraction mechanics of the DynamicHost
                 // This forces schema validation and extracts the latest data payload.
-                var bSuccess = oGeneratorHost.triggerSubmit();
+                var bSuccess = oDynamicHost.triggerSubmit();
                 
                 if (bSuccess) {
-                    aExtracted.push(oGeneratorHost.getProperty('data'));
+                    aExtracted.push(oDynamicHost.getProperty('data'));
                 } else {
                     bAllValid = false;
                 }

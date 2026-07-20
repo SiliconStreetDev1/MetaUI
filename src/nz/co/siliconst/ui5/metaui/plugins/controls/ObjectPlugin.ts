@@ -53,10 +53,11 @@ export class ObjectPlugin extends BasePlugin {
                     updatePath = ctxPath.endsWith("/") ? ctxPath + bindingPath : (ctxPath === "/" ? "/" + bindingPath : ctxPath + "/" + bindingPath);
                 }
                 
-                const nestedData = parentModel.getProperty(updatePath) || {};
+                // Deep clone to prevent live-mutations on the parent model before 'Submit' is clicked
+                const nestedData = JSON.parse(JSON.stringify(parentModel.getProperty(updatePath) || {}));
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: typeof import("../../controls/host/GeneratorHost").default) => {
-                    const host = new GeneratorHost({
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHost: typeof import("../../controls/DynamicHost").default) => {
+                    const host = new DynamicHost({
                         schemaDefinition: subSchema,
                         data: nestedData,
                         editable: this.isEditable

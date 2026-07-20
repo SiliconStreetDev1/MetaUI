@@ -41,12 +41,12 @@
                     </layoutData>
                     <VBox class="sapUiMediumMargin">
                         <MessageStrip
-                            text="This demo proves the modularity and isolation of the GeneratorHost. Each row in this table binds a unique instance of GeneratorHost to the row context. The IDs are deterministic and will not collide, and their states are completely separated."
+                            text="This demo proves the modularity and isolation of the DynamicHost. Each row in this table binds a unique instance of DynamicHost to the row context. The IDs are deterministic and will not collide, and their states are completely separated."
                             type="Information"
                             showIcon="true"
                             class="sapUiSmallMarginBottom" />
 
-                        <!-- The sap.m.Table handles the cloning of the GeneratorHost -->
+                        <!-- The sap.m.Table handles the cloning of the DynamicHost -->
                         <Table id="multiHostTable" items="{viewModel>/records}" noDataText="No records available">
                             <columns>
                                 <Column><Text text="Dynamic Record Form (Text, Date, Time)" /></Column>

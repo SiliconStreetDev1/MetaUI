@@ -16,11 +16,13 @@ import Text from "sap/m/Text";
 
 export class MyCustomMapPlugin extends BasePlugin {
     
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
+        this.onChange = onChange;
         this.metadata = fieldMetadata; // Sets up base property for ConditionEngine state management
         
         // 1. Instantiate your custom UI5 Control
         this.control = new Text({
+            id: this.generateStableId(engineScopeId, bindingPath),
             text: `{${modelName}>${bindingPath}}`
         });
 

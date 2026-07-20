@@ -13,7 +13,7 @@
         </headerContent>
         <content>
             <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
-                <Text text="This scenario demonstrates injecting a raw JSON string into the GeneratorHost instead of a parsed JavaScript object. The engine will natively parse the JSON string on boot." class="sapUiSmallMarginBottom" />
+                <Text text="This scenario demonstrates injecting a raw JSON string into the DynamicHost instead of a parsed JavaScript object. The engine will natively parse the JSON string on boot." class="sapUiSmallMarginBottom" />
                 
                 <meta:DynamicHost
                             fieldChange=".onFieldChange" 

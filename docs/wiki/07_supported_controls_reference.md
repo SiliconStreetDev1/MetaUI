@@ -36,10 +36,10 @@ Mapped to `sap.m.Input` with numeric type enforcement.
 }
 ```
 
-### 3. Boolean (Switch/Checkbox)
-Mapped to `sap.m.Switch` (default) or `sap.m.CheckBox`.
+### 3. Boolean (Checkbox/Switch)
+Mapped to `sap.m.CheckBox` (default) or `sap.m.Switch`.
 * **Type:** `"boolean"`
-* **Options:** `ui.widget = "switch" | "checkbox"`
+* **Options:** `ui.widget = "switch"`
 ```json
 {
     "IsActive": {

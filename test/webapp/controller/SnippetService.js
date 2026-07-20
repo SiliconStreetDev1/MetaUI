@@ -72,7 +72,7 @@ sap.ui.define([], function () {
 <!-- ========================================== -->
 <!-- If you want the form to automatically mutate your original model property as the user types, -->
 <!-- you can bind both data and data to the exact same shared property. -->
-<!-- The GeneratorHost contains internal safeguards to catch the resulting UI5 binding "echoes" -->
+<!-- The DynamicHost contains internal safeguards to catch the resulting UI5 binding "echoes" -->
 <!-- and will silently drop them, keeping your cursor perfectly stable. -->
 
 <mvc:View

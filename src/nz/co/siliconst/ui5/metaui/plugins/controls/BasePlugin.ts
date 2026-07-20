@@ -138,14 +138,25 @@ export abstract class BasePlugin implements IPlugin {
         }
 
         if (metadata.ui?.visibleOn) {
-            const expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
+            let expr = "";
+            if (ExpressionBuilder) {
+                expr = ExpressionBuilder.build(metadata.ui.visibleOn, this.fieldKey, modelName);
+            } else {
+                expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            }
             control.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false });
-            // The ConditionEngine handles actual binding injection, but here we can set a fallback or natively bind if we bypass ConditionEngine.
             control.bindProperty("visible", expr);
         }
         
         if (metadata.ui?.enabledOn && typeof control.setEnabled === "function") {
-            const expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
+            let expr = "";
+            if (ExpressionBuilder) {
+                expr = ExpressionBuilder.build(metadata.ui.enabledOn, this.fieldKey, modelName);
+            } else {
+                expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
+            }
             control.bindProperty("enabled", expr);
         }
     }

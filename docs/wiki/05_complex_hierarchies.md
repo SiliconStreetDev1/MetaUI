@@ -43,7 +43,7 @@ What happens if you have a massive Object inside another Object? Standard UI5 Fo
 
 To solve this, if a property is of `type: "object"`, the layout engine utilizes the **`ObjectPlugin`**. 
 
-Instead of attempting to render the nested object's fields inline, the `ObjectPlugin` renders a simple Fiori Button (e.g., "View Details"). When the user clicks this button, MetaUI takes the nested schema and recursively mounts a brand new `GeneratorHost` inside a popup `sap.m.Dialog`. 
+Instead of attempting to render the nested object's fields inline, the `ObjectPlugin` renders a simple Fiori Button (e.g., "View Details"). When the user clicks this button, MetaUI takes the nested schema and recursively mounts a brand new `DynamicHost` inside a popup `sap.m.Dialog`. 
 
 This is incredibly useful for isolating complex nested configurations without breaking the user experience of the parent form.
 
@@ -85,7 +85,7 @@ Let's look at an complex scenario: an Employee Profile that contains a massive s
 ### What happens on the screen:
 1. **The Parent Form:** MetaUI renders the "Employee Name" input field. Next to it, instead of trying to cram 3 network fields into the form, it renders a label `"Network Settings"` and a Fiori Button that says `"View Details"`.
 2. **The Drill-Down:** The user clicks "View Details". MetaUI dynamically generates a `sap.m.Dialog` (Popup).
-3. **The Popup Form:** Inside that popup, a brand new `GeneratorHost` takes over. It parses the nested `uiLayout` and renders the `IpAddress`, `SubnetMask`, and `UseProxy` fields natively.
+3. **The Popup Form:** Inside that popup, a brand new `DynamicHost` takes over. It parses the nested `uiLayout` and renders the `IpAddress`, `SubnetMask`, and `UseProxy` fields natively.
 4. **The Custom Action:** At the bottom of the popup, instead of a generic "Save" button, it renders a button labeled `"Apply Network Settings"` (because we defined `ui.dialogButtonText`).
 5. **Data Persistence:** When the user clicks Apply, the popup closes, and the data is safely merged back into the root `meta` JSONModel under the `"NetworkConfiguration"` key.
 

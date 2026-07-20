@@ -4,14 +4,14 @@ MetaUI is designed to be highly extensible. You can intercept the layout generat
 
 ## Event Hooks
 
-The `GeneratorHost` emits three critical events: `beforeSubmit`, `submit`, and `validationError`.
+The `DynamicHost` emits three critical events: `beforeSubmit`, `submit`, and `validationError`.
 
 ### `beforeSubmit`
 Fired after all internal validations pass, but *before* the dialog closes or the final `submit` event fires. Use this to run asynchronous backend validations or complex cross-field checks.
 
 **`View.view.xml`**
 ```xml
-<metaui:GeneratorHost 
+<metaui:DynamicHost 
     id="dynamicFormHost" 
     beforeSubmit=".onBeforeSubmit" 
     submit=".onFinalSubmit" />
@@ -46,7 +46,7 @@ onValidationError: function(oEvent) {
 
 ## OData V2/V4 Model Injection
 
-MetaUI runs entirely isolated using its internal `JSONModel` bound as `meta`. However, you can pass an external OData model to the `GeneratorHost` if your custom plugins (like `ODataListBindingPlugin`) require backend access.
+MetaUI runs entirely isolated using its internal `JSONModel` bound as `meta`. However, you can pass an external OData model to the `DynamicHost` if your custom plugins (like `ODataListBindingPlugin`) require backend access.
 
 ```javascript
 onInit: function() {

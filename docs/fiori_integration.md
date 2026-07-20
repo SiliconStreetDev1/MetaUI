@@ -1,6 +1,6 @@
 # Fiori Integration Guide
 
-MetaUI is designed for robust deployment within the SAP Fiori Launchpad. This guide outlines the standard procedures for integrating the `GeneratorHost` into a structured `Component.js` architecture.
+MetaUI is designed for robust deployment within the SAP Fiori Launchpad. This guide outlines the standard procedures for integrating the `DynamicHost` into a structured `Component.js` architecture.
 
 ## 1. Library Declaration (manifest.json)
 
@@ -57,7 +57,7 @@ sap.ui.define([
 
 ## 3. View Integration & Error Management
 
-Embed the `GeneratorHost` inside your XML view. Enable `useMessageManager="true"` to route all schema validation errors to the Fiori Launchpad's global error popover.
+Embed the `DynamicHost` inside your XML view. Enable `useMessageManager="true"` to route all schema validation errors to the Fiori Launchpad's global error popover.
 
 ```xml
 <mvc:View
@@ -78,7 +78,7 @@ Embed the `GeneratorHost` inside your XML view. Enable `useMessageManager="true"
         </headerContent>
         
         <content>
-            <meta:GeneratorHost 
+            <meta:DynamicHost 
                 id="dynamicForm"
                 schemaDefinition="{api>/DynamicSchema}" 
                 data="{api>/PayloadData}"
@@ -112,6 +112,6 @@ To trace MetaUI rendering issues, filter your console for the `[MetaUI]` prefix:
 ```javascript
 // Example of accessing logs programmatically if needed
 sap.ui.require(["sap/base/Log"], function(Log) {
-    Log.setLevel(Log.Level.ALL, "GeneratorHost");
+    Log.setLevel(Log.Level.ALL, "DynamicHost");
 });
 ```

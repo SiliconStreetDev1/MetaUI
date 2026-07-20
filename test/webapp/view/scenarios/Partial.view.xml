@@ -1,91 +1,1 @@
-<mvc:View
-    controllerName="metaui.sandbox.controller.scenarios.Partial"
-    xmlns:mvc="sap.ui.core.mvc"
-    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
-    xmlns:codeeditor="sap.ui.codeeditor"
-    xmlns:l="sap.ui.layout"
-    xmlns="sap.m">
-    <Page title="Scenario: Partial" showNavButton="true" navButtonPress=".onNavBack">
-        <headerContent>
-            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
-            <Button icon="sap-icon://sys-help-2" text="Scenario Info" type="Transparent" press=".onScenarioInfo" />
-            <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
-            <Switch state="{viewModel>/liveUpdate}" customTextOn="Live" customTextOff="Manual" tooltip="Toggle Live JSON Updates" />
-            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />
-            <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />
-            <Button text="Regenerate UI" icon="sap-icon://refresh" type="Emphasized" press=".onRegenerate" />
-            <Button text="Open in Dialog Instead" icon="sap-icon://popup-window" press=".onOpenDialog" />
-        </headerContent>
-        <content>
-            <l:Splitter height="100%" width="100%">
-                <!-- Left Pane: Source & Schema Tabs -->
-                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
-                    <layoutData>
-                        <l:SplitterLayoutData size="30%" />
-                    </layoutData>
-                    <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">
-                        <layoutData>
-                            <FlexItemData growFactor="1" />
-                        </layoutData>
-                        <items>
-                            <IconTabFilter text="Inbound Source">
-                                <codeeditor:CodeEditor type="json" value="{viewModel>/editorDataString}" height="100%" editable="true" />
-                            </IconTabFilter>
-                            <IconTabFilter text="Schema">
-                                <codeeditor:CodeEditor type="json" value="{viewModel>/schemaString}" height="100%" editable="true" />
-                            </IconTabFilter>
-                            <IconTabFilter text="Integration Examples">
-                                <codeeditor:CodeEditor type="javascript" value="{viewModel>/codeExamples}" height="100%" editable="false" />
-                            </IconTabFilter>
-                        </items>
-                    </IconTabBar>
-                </VBox>
-
-                <!-- Center Pane: MetaUI Engine -->
-                <ScrollContainer height="100%" vertical="true" width="auto">
-                    <layoutData>
-                        <l:SplitterLayoutData size="auto" />
-                    </layoutData>
-                    <VBox class="sapUiMediumMargin">
-                        
-                        <!-- ======================================================= -->
-                        <!--                                                         -->
-                        <!--           THE META UI GENERATOR HOST                    -->
-                        <!--                                                         -->
-                        <!-- ======================================================= -->
-                        
-                        <meta:DynamicHost
-                            fieldChange=".onFieldChange" 
-                            id="metaHost"
-                            schemaDefinition="{viewModel>/parsedSchema}"
-                            data="{viewModel>/parsedData}"
-                            dataJson="{viewModel>/rawJsonStringIn}"
-                            liveUpdate="{viewModel>/liveUpdate}"
-                            editable="{viewModel>/editable}"
-                            debugMode="{viewModel>/debugMode}"
-                            useMessageManager="true" />
-                            
-                        <!-- ======================================================= -->
-                        <!--                                                         -->
-                        <!--           END OF META UI HOST                           -->
-                        <!--                                                         -->
-                        <!-- ======================================================= -->
-                        
-                    </VBox>
-                </ScrollContainer>
-
-                </l:Splitter>
-        </content>
-        <footer>
-            <Toolbar>
-                <Button 
-                    id="messagePopoverBtn"
-                    icon="sap-icon://message-popup"
-                    text="{= ${message>/}.length }"
-                    type="Emphasized"
-                    press=".onMessagePopoverPress" />
-                <ToolbarSpacer/>
-            </Toolbar>
-        </footer>
-    </Page>
-</mvc:View>
+<mvc:View    controllerName="metaui.sandbox.controller.scenarios.Partial"    xmlns:mvc="sap.ui.core.mvc"    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"    xmlns:codeeditor="sap.ui.codeeditor"    xmlns:l="sap.ui.layout"    xmlns="sap.m">    <Page title="Scenario: Partial" showNavButton="true" navButtonPress=".onNavBack">        <headerContent>            <Switch state="{viewModel>/editable}" customTextOn="Edit" customTextOff="Display" tooltip="Toggle Editable Mode" />            <Button icon="sap-icon://sys-help-2" text="Scenario Info" type="Transparent" press=".onScenarioInfo" />            <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />            <Switch state="{viewModel>/liveUpdate}" customTextOn="Live" customTextOff="Manual" tooltip="Toggle Live JSON Updates" />            <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />            <Button text="Regenerate UI" icon="sap-icon://refresh" type="Emphasized" press=".onRegenerate" />            <Button text="Open in Dialog Instead" icon="sap-icon://popup-window" press=".onOpenDialog" />        </headerContent>        <content>            <l:Splitter height="100%" width="100%">                <!-- Left Pane: Source & Schema Tabs -->                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">                    <layoutData>                        <l:SplitterLayoutData size="30%" />                    </layoutData>                    <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">                        <layoutData>                            <FlexItemData growFactor="1" />                        </layoutData>                        <items>                            <IconTabFilter text="Inbound Source">                                <codeeditor:CodeEditor type="json" value="{viewModel>/editorDataString}" height="100%" editable="true" />                            </IconTabFilter>                            <IconTabFilter text="Schema">                                <codeeditor:CodeEditor type="json" value="{viewModel>/schemaString}" height="100%" editable="true" />                            </IconTabFilter>                            <IconTabFilter text="Integration Examples">                                <codeeditor:CodeEditor type="javascript" value="{viewModel>/codeExamples}" height="100%" editable="false" />                            </IconTabFilter>                        </items>                    </IconTabBar>                </VBox>                <!-- Center Pane: MetaUI Engine -->                <ScrollContainer height="100%" vertical="true" width="auto">                    <layoutData>                        <l:SplitterLayoutData size="auto" />                    </layoutData>                    <VBox class="sapUiMediumMargin">                        <!-- ======================================================= -->                        <!--                                                         -->                        <!--           THE META UI GENERATOR HOST                    -->                        <!--                                                         -->                        <!-- ======================================================= -->                        <meta:DynamicHost                            fieldChange=".onFieldChange"                             id="metaHost"                            schemaDefinition="{viewModel>/parsedSchema}"                            data="{viewModel>/parsedData}"                            dataJson="{viewModel>/rawJsonStringIn}"                            liveUpdate="{viewModel>/liveUpdate}"                            editable="{viewModel>/editable}"                            debugMode="{viewModel>/debugMode}"                            useMessageManager="true" />                        <!-- ======================================================= -->                        <!--                                                         -->                        <!--           END OF META UI HOST                           -->                        <!--                                                         -->                        <!-- ======================================================= -->                    </VBox>                </ScrollContainer>                </l:Splitter>        </content>        <footer>            <Toolbar>                <Button                     id="messagePopoverBtn"                    icon="sap-icon://message-popup"                    text="{= ${message>/}.length }"                    type="Emphasized"                    press=".onMessagePopoverPress" />                <ToolbarSpacer/>            </Toolbar>        </footer>    </Page></mvc:View>
