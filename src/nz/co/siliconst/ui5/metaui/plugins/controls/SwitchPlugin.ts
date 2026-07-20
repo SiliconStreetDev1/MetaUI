@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Switch from "sap/m/Switch";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for toggleable boolean switches.
@@ -27,8 +28,7 @@ export class SwitchPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
 
         if (!this.isEditable) {
-            (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
@@ -44,8 +44,8 @@ export class SwitchPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             state: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
-            change: (oEvent: unknown) => {
-                const val = (oEvent as { getParameter: (s: string) => unknown }).getParameter("state");
+            change: (oEvent: sap.ui.base.Event) => {
+                const val = (oEvent as sap.ui.base.Event).getParameter("state");
                 const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -60,9 +60,9 @@ export class SwitchPlugin extends BasePlugin {
 
     /**
      * Retrieves the current switch state.
-     * @returns {any} The boolean state.
+     * @returns {unknown} The boolean state.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as Switch).getState() : false;
     }
 

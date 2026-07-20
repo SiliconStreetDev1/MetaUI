@@ -6,7 +6,7 @@ import { Logger } from "../../../utils/Logger";
 export interface IHostDialog {
     generate(): void;
     triggerSubmit(): boolean;
-    fireEvent(eventName: string, parameters?: any): void;
+    fireEvent(eventName: string, parameters?: Record<string, unknown>): this;
 }
 
 /**

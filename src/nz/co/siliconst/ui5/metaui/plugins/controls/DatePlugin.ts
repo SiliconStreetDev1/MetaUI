@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import DatePicker from "sap/m/DatePicker";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for Date strings.
@@ -27,8 +28,7 @@ export class DatePlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
@@ -71,9 +71,9 @@ export class DatePlugin extends BasePlugin {
 
     /**
      * Retrieves the current date string.
-     * @returns {any} The date value.
+     * @returns {unknown} The date value.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as DatePicker).getValue() : null;
     }
 

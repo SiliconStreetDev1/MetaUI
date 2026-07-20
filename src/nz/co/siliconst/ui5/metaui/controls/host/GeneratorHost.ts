@@ -10,6 +10,7 @@ import { ValidationDelegate } from "./delegates/ValidationDelegate";
 import { DialogDelegate } from "./delegates/DialogDelegate";
 import MessageBox from "sap/m/MessageBox";
 import { PluginRegistry } from "../../core/PluginRegistry";
+import { ISchema } from "../../interfaces/ISchema";
 
 /**
  * Base wrapper element for embedding the dynamic form natively via Explicit Schemas.
@@ -108,9 +109,9 @@ export default class GeneratorHost extends Control {
         super.init();
 
         // Initialize Composition Delegates
-        this.dataSyncDelegate = new DataSyncDelegate(this as any);
-        this.validationDelegate = new ValidationDelegate(this as any);
-        this.dialogDelegate = new DialogDelegate(this as any);
+        this.dataSyncDelegate = new DataSyncDelegate(this);
+        this.validationDelegate = new ValidationDelegate(this);
+        this.dialogDelegate = new DialogDelegate(this);
 
         this.onInternalFieldChange = this.onInternalFieldChange.bind(this);
     }
@@ -329,24 +330,16 @@ export default class GeneratorHost extends Control {
 
     /**
      * The core rendering pipeline entry point.
-     * Debounces concurrent or rapid consecutive calls to prevent UI tearing and redundant network requests.
-     * Delays execution by 50ms to allow all synchronous property bindings to settle before orchestrating the build.
+     * Uses Promise resolution to debounce concurrent or rapid consecutive calls natively without arbitrary timeouts.
      * @returns Promise that resolves when the layout is successfully built and mounted.
      */
     public async generate(): Promise<void> {
-        return new Promise((resolve) => {
-            if (this._generateTimeoutId !== null) {
-                window.clearTimeout(this._generateTimeoutId);
+        return Promise.resolve().then(async () => {
+            try {
+                await this._doGenerate();
+            } catch (e) {
+                Logger.error("[MetaUI]", "Error in deferred generate: " + e, "GeneratorHost");
             }
-            this._generateTimeoutId = window.setTimeout(async () => {
-                this._generateTimeoutId = null;
-                try {
-                    await this._doGenerate();
-                } catch (e) {
-                    Logger.error("[MetaUI]", "Error in deferred generate: " + e, "GeneratorHost");
-                }
-                resolve();
-            }, 50);
         });
     }
 
@@ -414,12 +407,12 @@ export default class GeneratorHost extends Control {
                 }
             }
 
-            const pathsToLoad = PluginRegistry.getInstance().getPathsToLoad(normalizedSchema as any);
+            const pathsToLoad = PluginRegistry.getInstance().getPathsToLoad(normalizedSchema as ISchema);
             const needsNetworkLoad = Array.from(pathsToLoad).some(path => !sap.ui.require(path));
 
             if (needsNetworkLoad) {
                 this.setBusy(true);
-                await PluginRegistry.getInstance().preloadDependencies(normalizedSchema as any);
+                await PluginRegistry.getInstance().preloadDependencies(normalizedSchema as ISchema);
                 this.setBusy(false);
             }
 

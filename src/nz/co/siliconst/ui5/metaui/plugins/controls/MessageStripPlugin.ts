@@ -45,7 +45,7 @@ export class MessageStripPlugin extends BasePlugin {
     /**
      * Read-only control, returns null.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return null; // Read-only component
     }
 

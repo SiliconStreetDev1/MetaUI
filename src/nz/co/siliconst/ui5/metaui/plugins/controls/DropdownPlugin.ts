@@ -8,6 +8,7 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Select from "sap/m/Select";
 import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for dropdown inputs.
@@ -32,8 +33,7 @@ export class DropdownPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             
             const valueHelpArray = fieldMetadata.valueHelp && Array.isArray(fieldMetadata.valueHelp) 
                 ? fieldMetadata.valueHelp 
@@ -88,9 +88,9 @@ export class DropdownPlugin extends BasePlugin {
 
     /**
      * Retrieves the currently selected key.
-     * @returns {any} The selected key.
+     * @returns {unknown} The selected key.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as Select).getSelectedKey() : null;
     }
 

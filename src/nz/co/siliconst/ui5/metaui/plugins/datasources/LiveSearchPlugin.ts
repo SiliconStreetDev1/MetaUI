@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from "../controls/BasePlugin";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
@@ -26,11 +26,11 @@ export class LiveSearchPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Type to search...",
             showSuggestion: true,
-            suggest: (oEvent: unknown) => {
-                const query = (oEvent as { getParameter: (s: string) => unknown }).getParameter("suggestValue");
+            suggest: (oEvent: sap.ui.base.Event) => {
+                const query = (oEvent as sap.ui.base.Event).getParameter("suggestValue");
                 this.fetchSuggestions(input, query);
             },
-            change: (oEvent: unknown) => {
+            change: (oEvent: sap.ui.base.Event) => {
                 this.validate();
             }
         });
@@ -45,7 +45,7 @@ export class LiveSearchPlugin extends BasePlugin {
      * @param query The text typed by the user.
      */
     protected fetchSuggestions(input: Input, query: string): void {
-        const vhConfig = this.metadata?.valueHelp as unknown as Record<string, unknown>;
+        const vhConfig = this.metadata?.valueHelp as IRemoteValueHelpConfig;
         if (!vhConfig || !vhConfig.url) {
             Logger.error("LiveSearchPlugin requires a valid valueHelp configuration with a URL.", "", "LiveSearchPlugin");
             return;
@@ -90,10 +90,17 @@ export class LiveSearchPlugin extends BasePlugin {
             });
     }
 
-    protected getValue(): any {
+    /**
+     * Retrieves the current input value.
+     * @returns {unknown} The input text.
+     */
+    protected getValue(): unknown {
         return this.control ? (this.control as Input).getValue() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             (this.control as Input).setEnabled(!this.metadata.ui?.readOnly);

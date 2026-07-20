@@ -11,7 +11,7 @@ export class SchemaValidator {
      * @param schema The schema object to validate
      * @returns An array of error strings. Empty if no errors.
      */
-    public static validateSchemaStructure(schema: any): string[] {
+    public static validateSchemaStructure(schema: unknown): string[] {
         const errors: string[] = [];
 
         if (!schema || typeof schema !== "object") {

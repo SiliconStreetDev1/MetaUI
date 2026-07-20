@@ -39,7 +39,7 @@ export default class BaseHardwareControl extends Control {
     /**
      * Updates the bound value and fires the capture event.
      */
-    protected setValueAndFire(val: unknown): void {
+    public setValueAndFire(val: unknown): void {
         this.setProperty("value", val, true); // true to suppress re-rendering if desired, but we want the binding to update
         this.fireEvent("capture", { value: val });
     }
@@ -52,7 +52,7 @@ export default class BaseHardwareControl extends Control {
     /**
      * Abstract hook for subclasses to render their specific DOM/Controls.
      */
-    protected renderContent(rm: RenderManager, control: BaseHardwareControl): void {
+    public renderContent(rm: RenderManager, control: BaseHardwareControl): void {
         // To be overridden by hardware implementations
     }
 }

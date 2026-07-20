@@ -188,12 +188,12 @@ export class Engine {
         // ------------------------------------------------------------------------
         const messageManager = Messaging;
         const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove: any[] = [];
+        const messagesToRemove: sap.ui.core.message.Message[] = [];
 
         for (const item of this.activePlugins) {
             if (this.activeModel) {
                 const targetPath = `/${item.path.replace(/^\//, "")}`;
-                const matched = existingMessages.filter((msg: any) =>
+                const matched = existingMessages.filter((msg: sap.ui.core.message.Message) =>
                     msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel.getId()
                 );
                 messagesToRemove.push(...matched);

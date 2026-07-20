@@ -61,7 +61,7 @@ export class DefaultLayoutGenerator {
      * @param basePath The absolute JSON scope path to prefix bindings.
      * @returns An array of generated layout element descriptors.
      */
-    private static generateElementsFromProperties(props: any, basePath: string): ILayoutElement[] {
+    private static generateElementsFromProperties(props: Record<string, import("../interfaces/ISchema").IPropertyMetadata>, basePath: string): ILayoutElement[] {
         const elements: ILayoutElement[] = [];
         for (const key of Object.keys(props)) {
             try {

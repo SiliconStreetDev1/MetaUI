@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Slider from "sap/m/Slider";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for numeric sliders.
@@ -30,8 +31,7 @@ export class SliderPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         
         if (!this.isEditable) {
-            (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: `{${modelName}>${bindingPath}}`
@@ -48,8 +48,8 @@ export class SliderPlugin extends BasePlugin {
             max: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 100,
             step: fieldMetadata.multipleOf !== undefined ? fieldMetadata.multipleOf : 1,
             enableTickmarks: true,
-            change: (oEvent: unknown) => {
-                const val = (oEvent as { getParameter: (s: string) => unknown }).getParameter("value");
+            change: (oEvent: sap.ui.base.Event) => {
+                const val = (oEvent as sap.ui.base.Event).getParameter("value");
                 const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -64,9 +64,9 @@ export class SliderPlugin extends BasePlugin {
 
     /**
      * Retrieves the current slider value.
-     * @returns {any} The numeric value.
+     * @returns {unknown} The numeric value.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as Slider).getValue() : 0;
     }
 

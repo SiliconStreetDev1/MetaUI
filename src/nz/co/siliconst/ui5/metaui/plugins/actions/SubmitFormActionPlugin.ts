@@ -32,16 +32,14 @@ export class SubmitFormActionPlugin extends BasePlugin {
             icon: "sap-icon://save",
             press: () => {
                 // Fire an event that the GeneratorHost or LayoutManager listens to
-                // Suppressing TS error as UI5 1.118+ EventBus signature changed but still requires global bust cast
-                // @ts-ignore
-                (Core as unknown).getEventBus().publish("MetaUI", "TriggerSubmit", {});
+                Core.getEventBus().publish("MetaUI", "TriggerSubmit", {});
             }
         });
 
         return this.control as Control;
     }
 
-    protected getValue(): any {
+    protected getValue(): unknown {
         return null;
     }
 

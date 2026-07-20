@@ -14,7 +14,7 @@ import NumberFormat from "sap/ui/core/format/NumberFormat";
  * @public
  */
 export class CurrencyFormatterPlugin implements IFormatter {
-    private currencyFormat: any;
+    private currencyFormat: NumberFormat;
 
     constructor() {
         this.currencyFormat = NumberFormat.getCurrencyInstance({
@@ -27,7 +27,7 @@ export class CurrencyFormatterPlugin implements IFormatter {
      * @param rawValue The raw numeric value from the JSON payload.
      * @returns The formatted string for the UI control.
      */
-    public format(rawValue: unknown, args?: unknown): string {
+    public format(rawValue: string | number, args?: Record<string, string>): string {
         if (rawValue === null || rawValue === undefined) {
             return "";
         }

@@ -26,8 +26,8 @@ export class ODataListBindingPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Select...",
-            change: (oEvent: unknown) => {
-                const val = (oEvent as { getParameter: (s: string) => unknown }).getParameter("selectedItem")?.getKey();
+            change: (oEvent: sap.ui.base.Event) => {
+                const val = (oEvent as sap.ui.base.Event).getParameter("selectedItem")?.getKey();
                 this.validate();
             }
         });
@@ -45,10 +45,17 @@ export class ODataListBindingPlugin extends BasePlugin {
         return this.control as Control;
     }
 
-    protected getValue(): any {
+    /**
+     * Retrieves the current selected key.
+     * @returns {unknown} The selected key.
+     */
+    protected getValue(): unknown {
         return this.control ? (this.control as ComboBox).getSelectedKey() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             (this.control as ComboBox).setEnabled(!this.metadata.ui?.readOnly);

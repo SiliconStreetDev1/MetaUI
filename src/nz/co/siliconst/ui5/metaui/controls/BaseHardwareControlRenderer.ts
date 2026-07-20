@@ -19,8 +19,8 @@ export default {
             rm.renderControl(content);
         }
         
-        if (typeof (control as unknown).renderContent === "function") {
-            (control as unknown).renderContent(rm, control);
+        if (typeof control.renderContent === "function") {
+            control.renderContent(rm, control);
         }
         
         rm.close("div");

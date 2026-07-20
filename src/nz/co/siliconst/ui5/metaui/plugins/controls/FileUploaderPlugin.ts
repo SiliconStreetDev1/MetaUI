@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import FileUploader from "sap/ui/unified/FileUploader";
 import Control from "sap/ui/core/Control";
+import LinkControl from "sap/m/Link";
 
 /**
  * Handles rendering logic for file uploads.
@@ -30,8 +31,7 @@ export class FileUploaderPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Link");
-            const LinkControl = sap.ui.require("sap/m/Link");
+            
             this.control = new LinkControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: `{${modelName}>${bindingPath}}`,
@@ -63,9 +63,9 @@ export class FileUploaderPlugin extends BasePlugin {
 
     /**
      * Retrieves the current file path.
-     * @returns {any} The file value.
+     * @returns {unknown} The file value.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as FileUploader).getValue() : null;
     }
 

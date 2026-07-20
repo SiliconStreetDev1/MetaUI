@@ -7,9 +7,9 @@ import { StateManager } from "../../../core/StateManager";
 
 export interface IHostDataSync {
     getProperty(name: string): unknown;
-    setProperty(name: string, value: unknown, suppressInvalidate?: boolean): any;
-    setBaseProperty(name: string, value: unknown, suppressInvalidate?: boolean): any;
-    getBinding(name: string): any;
+    setProperty(name: string, value: unknown, suppressInvalidate?: boolean): this;
+    setBaseProperty(name: string, value: unknown, suppressInvalidate?: boolean): this;
+    getBinding(name: string): unknown;
     invalidate(): void;
     getStateManager(): StateManager | null;
     getParsedSchema?(): Record<string, unknown> | null;
@@ -116,7 +116,7 @@ export class DataSyncDelegate {
             const msg = `Failed to hot-swap ${propertyName}: ` + (e as Error).message;
             Logger.error("[MetaUI]", msg, "DataSyncDelegate");
             if (this.host.getProperty("debugMode")) {
-                sap.ui.require(["sap/m/MessageBox"], (MessageBox: unknown) => (MessageBox as Record<string, Function>).error(msg));
+                sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => MessageBox.error(msg));
             }
         }
     }

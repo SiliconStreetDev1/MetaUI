@@ -8,6 +8,7 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import MultiComboBox from "sap/m/MultiComboBox";
 import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for selecting multiple strings from a predefined list.
@@ -32,13 +33,12 @@ export class MultiSelectPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
 
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
                     path: `${modelName}>${bindingPath}`,
-                    formatter: (val: any[]) => Array.isArray(val) ? val.join(", ") : ""
+                    formatter: (val: unknown[]) => Array.isArray(val) ? val.join(", ") : ""
                 }
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
@@ -72,9 +72,9 @@ export class MultiSelectPlugin extends BasePlugin {
 
     /**
      * Retrieves the current selection keys.
-     * @returns {any} The selected keys.
+     * @returns {unknown} The selected keys.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as MultiComboBox).getSelectedKeys() : [];
     }
 

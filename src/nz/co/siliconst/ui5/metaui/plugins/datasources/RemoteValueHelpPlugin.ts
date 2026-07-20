@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from "../controls/BasePlugin";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import ComboBox from "sap/m/ComboBox";
 import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
@@ -20,6 +20,14 @@ import { Logger } from "../../utils/Logger";
 export class RemoteValueHelpPlugin extends BasePlugin {
     private isLoaded = false;
 
+    /**
+     * Renders a `ComboBox` that simulates fetching data from a remote server.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @returns {Control} The configured ComboBox control.
+     */
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
@@ -27,9 +35,9 @@ export class RemoteValueHelpPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Select a country...",
-            change: (oEvent: unknown) => {
-                const item = (oEvent as { getParameter: (s: string) => unknown }).getParameter("selectedItem");
-                const val = item ? item.getKey() : (oEvent as { getParameter: (s: string) => unknown }).getParameter("value"); // Allow free text as well
+            change: (oEvent: sap.ui.base.Event) => {
+                const item = (oEvent as sap.ui.base.Event).getParameter("selectedItem");
+                const val = item ? item.getKey() : (oEvent as sap.ui.base.Event).getParameter("value"); // Allow free text as well
                 this.validate();
             }
         });
@@ -43,8 +51,12 @@ export class RemoteValueHelpPlugin extends BasePlugin {
         return this.control as Control;
     }
 
+    /**
+     * Executes the REST fetch for data.
+     * @param comboBox The UI5 ComboBox to populate.
+     */
     protected fetchData(comboBox: ComboBox): void {
-        const vhConfig = this.metadata?.valueHelp as unknown as Record<string, unknown>;
+        const vhConfig = this.metadata?.valueHelp as IRemoteValueHelpConfig;
         if (!vhConfig || !vhConfig.url) {
             Logger.error("RemoteValueHelpPlugin requires a valid valueHelp configuration with a URL.", "", "RemoteValueHelpPlugin");
             return;
@@ -74,10 +86,17 @@ export class RemoteValueHelpPlugin extends BasePlugin {
             });
     }
 
-    protected getValue(): any {
+    /**
+     * Retrieves the current selected key.
+     * @returns {unknown} The selected key.
+     */
+    protected getValue(): unknown {
         return this.control ? (this.control as ComboBox).getSelectedKey() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             (this.control as ComboBox).setEnabled(!this.metadata.ui?.readOnly);

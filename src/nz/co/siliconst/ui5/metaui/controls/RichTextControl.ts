@@ -67,10 +67,10 @@ export default class RichTextControl extends BaseHardwareControl {
      * to the inner RichTextEditor, we prevent TinyMCE from tearing down its iframe
      * and triggering expensive, redundant plugin boot sequences.
      *
-     * @param {any} val The new string value to bind
+     * @param {unknown} val The new string value to bind
      * @returns {this} The control instance for chaining
      */
-    public setValue(val: any): this {
+    public setValue(val: unknown): this {
         this.setProperty("value", val, true); // suppress re-rendering
         if (this.richTextEditor && val !== undefined && val !== null) {
             if (this.richTextEditor.getValue() !== val) {

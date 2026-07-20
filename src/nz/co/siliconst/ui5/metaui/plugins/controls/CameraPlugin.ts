@@ -2,6 +2,7 @@ import { BasePlugin } from "../controls/BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import CameraControl from "../../controls/CameraControl";
+import ImageControl from "sap/m/Image";
 
 export class CameraPlugin extends BasePlugin {
     /**
@@ -21,8 +22,7 @@ export class CameraPlugin extends BasePlugin {
         this.modelName = modelName;
 
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Image");
-            const ImageControl = sap.ui.require("sap/m/Image");
+            
             this.control = new ImageControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 src: `{${modelName}>${bindingPath}}`,
@@ -43,7 +43,7 @@ export class CameraPlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         // Validation mapping could be hooked into the 'capture' event if needed, but Two-Way binding updates the model naturally.
-        (this.control as unknown as { attachCapture: (fn: Function) => void }).attachCapture(() => {
+        (this.control as CameraControl).attachCapture(() => {
             const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -55,10 +55,10 @@ export class CameraPlugin extends BasePlugin {
 
     /**
      * Retrieves the current base64 image state.
-     * @returns {any} The image value.
+     * @returns {unknown} The image value.
      */
-    protected getValue(): any {
-        return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
+    protected getValue(): unknown {
+        return this.control ? (this.control as CameraControl).getValue() : null;
     }
 
     /**
@@ -67,7 +67,7 @@ export class CameraPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as unknown as { setProperty: (k: string, v: unknown) => void }).setProperty("readOnly", !!this.metadata.ui?.readOnly);
+            (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }
 }

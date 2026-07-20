@@ -86,7 +86,7 @@ export class PipelineManager {
      * @param argsMap Optional map of parameters required by specific rules (e.g. { maxLength: 50 }).
      * @returns {IValidationResult} The final result state and any associated error message.
      */
-    public executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, any>): IValidationResult {
+    public executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, unknown>): IValidationResult {
         for (const rule of requestedValidators) {
             const validator = this.validators.get(rule);
             if (validator) {

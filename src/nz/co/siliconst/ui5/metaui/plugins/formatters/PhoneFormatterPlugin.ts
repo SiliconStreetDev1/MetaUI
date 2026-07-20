@@ -12,7 +12,12 @@ import { IFormatter } from "../../interfaces/IPipeline";
  * @public
  */
 export class PhoneFormatterPlugin implements IFormatter {
-    public format(rawValue: unknown, args?: unknown): string {
+    /**
+     * Formats raw JSON model data into a masked phone number.
+     * @param rawValue The raw phone string.
+     * @returns The formatted string for the UI control.
+     */
+    public format(rawValue: string | number, args?: Record<string, string>): string {
         if (!rawValue || typeof rawValue !== "string") return rawValue || "";
         
         const cleaned = ('' + rawValue).replace(/\D/g, '');

@@ -20,7 +20,7 @@ export interface IParser {
      * @param args Optional arguments provided in the schema.
      * @returns The raw typed value for the JSON payload.
      */
-    parse(uiValue: any, args?: unknown): any;
+    parse(uiValue: unknown, args?: unknown): unknown;
 }
 
 export interface IValidationResult {

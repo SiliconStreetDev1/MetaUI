@@ -6,6 +6,7 @@
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
+import CodeEditor from "sap/ui/codeeditor/CodeEditor";
 
 /**
  * Handles rendering logic for code editing.
@@ -50,11 +51,11 @@ export class CodeEditorPlugin extends BasePlugin {
      */
     private adjustHeight(): void {
         if (!this.control) return;
-        const val = (this.control as unknown as { getValue: () => unknown }).getValue() || "";
+        const val = (this.control as CodeEditor).getValue() || "";
         const lines = val.split(/\r\n|\r|\n/).length;
         // 18px per line + 20px padding, minimum 100px
         const newHeight = Math.max(100, (lines * 18) + 20);
-        (this.control as unknown).setHeight(newHeight + "px");
+        (this.control as CodeEditor).setHeight(newHeight + "px");
     }
 
     /**
@@ -72,8 +73,7 @@ export class CodeEditorPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.replace("/", ""); // For EventBus
         
-        sap.ui.requireSync("sap/ui/codeeditor/CodeEditor");
-        const CodeEditor = sap.ui.require("sap/ui/codeeditor/CodeEditor");
+        
         
         this.control = new CodeEditor({
             id: this.generateStableId(engineScopeId, bindingPath),
@@ -90,10 +90,10 @@ export class CodeEditorPlugin extends BasePlugin {
                 
                 // If language isn't explicitly defined, try to guess it dynamically
                 if (!fieldMetadata.ui?.args) {
-                    const currentVal = (this.control as unknown as { getValue: () => unknown }).getValue();
+                    const currentVal = (this.control as CodeEditor).getValue();
                     const detectedType = this.detectLanguage(currentVal);
-                    if ((this.control as unknown).getType() !== detectedType) {
-                        (this.control as unknown).setType(detectedType);
+                    if ((this.control as CodeEditor).getType() !== detectedType) {
+                        (this.control as CodeEditor).setType(detectedType);
                     }
                 }
                 
@@ -103,14 +103,14 @@ export class CodeEditorPlugin extends BasePlugin {
 
         // Clean architecture: Wait for the model context, then attach safely to the binding itself.
         // No timeouts, no DOM hacks, pure UI5 Eventing.
-        (this.control as unknown).attachEventOnce("modelContextChange", () => {
-            const oBinding = (this.control as unknown).getBinding("value");
+        (this.control as CodeEditor).attachEventOnce("modelContextChange", () => {
+            const oBinding = (this.control as CodeEditor).getBinding("value");
             
             const initLogic = () => {
                 if (this.control) {
-                    const currentVal = (this.control as unknown as { getValue: () => unknown }).getValue();
+                    const currentVal = (this.control as CodeEditor).getValue();
                     if (!fieldMetadata.ui?.args) {
-                        (this.control as unknown).setType(this.detectLanguage(currentVal));
+                        (this.control as CodeEditor).setType(this.detectLanguage(currentVal));
                     }
                     this.adjustHeight();
                 }
@@ -132,10 +132,10 @@ export class CodeEditorPlugin extends BasePlugin {
 
     /**
      * Retrieves the current code string.
-     * @returns {any} The code value.
+     * @returns {unknown} The code value.
      */
-    protected getValue(): any {
-        return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
+    protected getValue(): unknown {
+        return this.control ? (this.control as CodeEditor).getValue() : null;
     }
 
     /**
@@ -144,7 +144,7 @@ export class CodeEditorPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as unknown).setEditable(!this.metadata.ui?.readOnly);
+            (this.control as CodeEditor).setEditable(!this.metadata.ui?.readOnly);
         }
     }
 }

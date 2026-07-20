@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import TimePicker from "sap/m/TimePicker";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering and logic for time inputs.
@@ -27,8 +28,7 @@ export class TimePlugin extends BasePlugin {
         this.metadata = fieldMetadata;
         
         if (!this.isEditable) {
-            (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
@@ -57,8 +57,8 @@ export class TimePlugin extends BasePlugin {
             displayFormat: "HH:mm:ss",
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,
-            change: (oEvent: unknown) => {
-                const val = (oEvent as { getParameter: (s: string) => unknown }).getParameter("value");
+            change: (oEvent: sap.ui.base.Event) => {
+                const val = (oEvent as sap.ui.base.Event).getParameter("value");
                 const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -73,9 +73,9 @@ export class TimePlugin extends BasePlugin {
 
     /**
      * Retrieves the current time string.
-     * @returns {any} The time string.
+     * @returns {unknown} The time string.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as TimePicker).getValue() : null;
     }
 

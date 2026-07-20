@@ -27,7 +27,7 @@ export class StateManager {
      * @param schema The normalized schema for live validation.
      * @param modelName The UI5 model alias used for isolation.
      */
-    constructor(initialData: Record<string, any> = {}, schema: ISchema, modelName: string = "meta") {
+    constructor(initialData: Record<string, unknown> = {}, schema: ISchema, modelName: string = "meta") {
         this.activeModelName = modelName;
         this.schema = schema;
         
@@ -38,7 +38,7 @@ export class StateManager {
 
         // Centralized Model-Level Validation Interceptor
         const originalSetProperty = this.model.setProperty.bind(this.model);
-        this.model.setProperty = (sPath: string, oValue: any, oContext?: any, bAsyncUpdate?: boolean) => {
+        this.model.setProperty = (sPath: string, oValue: unknown, oContext?: unknown, bAsyncUpdate?: boolean) => {
             const result = originalSetProperty(sPath, oValue, oContext, bAsyncUpdate);
             this.validatePath(sPath, oValue);
             return result;
@@ -48,7 +48,7 @@ export class StateManager {
     /**
      * Validates a specific path against the schema and updates the MessageManager.
      */
-    private validatePath(sPath: string, value: any): void {
+    private validatePath(sPath: string, value: unknown): void {
         const fieldKey = sPath.replace(/^\//, "");
         const metadata = this.findMetadataForPath(fieldKey);
         
@@ -57,7 +57,7 @@ export class StateManager {
         
         // 1. Remove existing messages (strictly for THIS model instance)
         const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove = existingMessages.filter((msg: any) => {
+        const messagesToRemove = existingMessages.filter((msg: sap.ui.core.message.Message) => {
             const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
             return isMatch;
         });
@@ -71,7 +71,7 @@ export class StateManager {
 
         // 2. Run GlobalPipeline
         const validatorsToRun: string[] = [];
-        const argsMap: Record<string, any> = {};
+        const argsMap: Record<string, unknown> = {};
 
         if (metadata.required) {
             validatorsToRun.push("required");
@@ -145,7 +145,7 @@ export class StateManager {
      * Extracts the flat JavaScript object representing the current state of the UI.
      * @returns A serialized record of the data payload, free of UI5 wrappers.
      */
-    public extractPayload(): Record<string, any> {
+    public extractPayload(): Record<string, unknown> {
         // Create a deep copy to prevent accidental mutations by the host
         const data = this.model.getData();
         return JSON.parse(JSON.stringify(data));

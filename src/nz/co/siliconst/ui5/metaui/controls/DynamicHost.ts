@@ -3,6 +3,7 @@ import RenderManager from "sap/ui/core/RenderManager";
 import GeneratorHost from "./host/GeneratorHost";
 import { Logger } from "../utils/Logger";
 import { ODataDelegate } from "./host/delegates/ODataDelegate";
+import ODataV4Context from "sap/ui/model/odata/v4/Context";
 
 /**
  * A transparent wrapper control (Facade) that automatically chooses between Explicit Schema Mode 
@@ -101,9 +102,9 @@ export default class DynamicHost extends Control {
             const oContext = this.getBindingContext("odata") || this.getBindingContext();
             if (oContext) {
                 Logger.debug("[MetaUI DynamicHost]", `Context found for delegate initialization: ${oContext.getPath()}`, "DynamicHost");
-                if (typeof (oContext as any).requestObject === "function" || typeof (oContext as any).getObject === "function") {
+                if (oContext && (oContext as ODataV4Context).requestObject && typeof (oContext as ODataV4Context).requestObject === "function") {
                     Logger.debug("[MetaUI DynamicHost]", `Context supports requestObject/getObject. Instantiating ODataDelegate.`, "DynamicHost");
-                    this.odataDelegate = new ODataDelegate(this, oContext as any);
+                    this.odataDelegate = new ODataDelegate(this, oContext as ODataV4Context);
                     this.odataDelegate.syncToEngine();
                 } else {
                     Logger.debug("[MetaUI DynamicHost]", `Context does NOT support requestObject/getObject! Keys: ${Object.keys(oContext)}`, "DynamicHost");
@@ -132,11 +133,11 @@ export default class DynamicHost extends Control {
      * Binds the element to the given path and attaches a change listener to re-evaluate
      * the OData delegate when the element binding resolves.
      * 
-     * @param {string | any} vPath The binding path or configuration object
-     * @param {object} [mParameters] Optional binding parameters
-     * @returns {this} The control instance for chaining
+     * @param {string | Record<string, unknown>} vPath The binding path or configuration object
+     * @param {object} [mParameters] Optional mapping parameters
+     * @returns {this} Reference to this instance for chaining
      */
-    public bindElement(vPath: string | any, mParameters?: object): this {
+    public bindElement(vPath: string | Record<string, unknown>, mParameters?: object): this {
         super.bindElement(vPath, mParameters);
         const sModelName = typeof vPath === "object" ? vPath.model : undefined;
         const oBinding = this.getElementBinding(sModelName);
@@ -197,7 +198,7 @@ export default class DynamicHost extends Control {
                 // and perfectly receive the inner host's submission event.
                 const events = this.getMetadata().getEvents();
                 for (const eventName in events) {
-                    this._innerHost.attachEvent(eventName, (oEvent: any) => {
+                    this._innerHost.attachEvent(eventName, (oEvent: sap.ui.base.Event) => {
                         // Natively push updated payload out to any bound Fiori Element properties.
                         // Using super.setProperty prevents an infinite loop back down to _innerHost.
                         if (eventName === "submit" || eventName === "fieldChange") {
@@ -272,7 +273,7 @@ export default class DynamicHost extends Control {
         if (!this._innerHost) {
             return false;
         }
-        return (this._innerHost as any).triggerSubmit();
+        return this._innerHost.triggerSubmit();
     }
 
     /**
@@ -280,9 +281,9 @@ export default class DynamicHost extends Control {
      * Ensures that querying the DynamicHost facade for `data` always yields the freshest payload.
      * 
      * @param {string} propertyName The name of the property to retrieve
-     * @returns {any} The property value
+     * @returns {unknown} The property value
      */
-    public getProperty(propertyName: string): any {
+    public getProperty(propertyName: string): unknown {
         if (this._innerHost && (propertyName === "data" || propertyName === "dataJson")) {
             return this._innerHost.getProperty(propertyName);
         }

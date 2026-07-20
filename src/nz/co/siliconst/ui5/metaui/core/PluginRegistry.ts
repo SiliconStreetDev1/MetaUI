@@ -18,7 +18,7 @@ export class PluginRegistry {
     private actionIndex: Record<string, string> = {};
     private layoutIndex: Record<string, string> = {};
     
-    private activePromises: Record<string, Promise<any>> = {};
+    private activePromises: Record<string, Promise<unknown>> = {};
 
     private constructor() {
         // Core Mappings
@@ -138,7 +138,9 @@ export class PluginRegistry {
                 if (prop.items && prop.items.type) {
                     try {
                         pathsToLoad.add(this.getFieldPath(prop.items.type, prop.items.ui?.widget));
-                    } catch (e) {}
+                    } catch (e) {
+                        Logger.warn(`[MetaUI LazyLoad] Could not find mapped plugin for array item type ${prop.items.type}`);
+                    }
                 }
             }
         };
@@ -168,9 +170,11 @@ export class PluginRegistry {
             if (!this.activePromises[path]) {
                 this.activePromises[path] = new Promise((resolve, reject) => {
                     sap.ui.require([path], 
-                        (Module: any) => resolve(Module), 
-                        (err: any) => {
+                        (Module: unknown) => resolve(Module), 
+                        (err: unknown) => {
                             Logger.error(`Failed to lazy load module: ${path}`);
+                            // CRITICAL: Delete from cache so future attempts can retry the network request
+                            delete this.activePromises[path];
                             reject(err);
                         }
                     );
@@ -182,7 +186,7 @@ export class PluginRegistry {
         await Promise.all(promises);
     }
 
-    private extractConstructor(Module: any): any {
+    private extractConstructor(Module: unknown): new () => IPlugin | ILayoutManager | null {
         if (!Module) return null;
         if (typeof Module === "function") return Module;
         if (Module.default && typeof Module.default === "function") return Module.default;

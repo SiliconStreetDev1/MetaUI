@@ -19,6 +19,16 @@ import { Logger } from "../../utils/Logger";
  */
 export class RemoteDropdownPlugin extends BasePlugin {
     
+    /**
+     * Renders a `Select` dropdown that fetches data remotely.
+     * 
+     * @param fieldMetadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @param onChange The callback fired on value change.
+     * @returns {Control} The configured Select control.
+     */
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
@@ -69,7 +79,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
             })
             .then(data => {
                 const arr = Array.isArray(data) ? data : (data.value || []);
-                arr.forEach((item: any) => {
+                arr.forEach((item: Record<string, unknown>) => {
                     const k = config.keyPath ? item[config.keyPath] : item;
                     const t = config.textPath ? item[config.textPath] : item;
                     select.addItem(new Item({ key: String(k), text: String(t) }));
@@ -87,10 +97,17 @@ export class RemoteDropdownPlugin extends BasePlugin {
         return this.control as Control;
     }
 
-    protected getValue(): any {
+    /**
+     * Retrieves the current selected key.
+     * @returns {unknown} The selected key.
+     */
+    protected getValue(): unknown {
         return this.control ? (this.control as Select).getSelectedKey() : null;
     }
 
+    /**
+     * Applies dynamic read-only state.
+     */
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;

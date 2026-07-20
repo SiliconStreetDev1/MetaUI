@@ -12,7 +12,13 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class PatternValidatorPlugin implements IValidator {
-    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+    /**
+     * Validates parsed data before it enters the JSON model.
+     * @param parsedValue The cleaned data to validate.
+     * @param args Optional arguments provided in the schema.
+     * @returns IValidationResult containing status and optional error message.
+     */
+    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
         if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
         if (!args || typeof args !== "string") {
             return { isValid: true }; // Invalid config, skip

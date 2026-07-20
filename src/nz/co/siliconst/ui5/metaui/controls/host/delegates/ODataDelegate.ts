@@ -1,6 +1,7 @@
 import { DynamicHost } from "../DynamicHost";
-import Context from "sap/ui/model/Context";
 import { Logger } from "../../../utils/Logger";
+import ODataV4Context from "sap/ui/model/odata/v4/Context";
+import Context from "sap/ui/model/Context";
 
 /**
  * Universal OData Delegate.
@@ -9,7 +10,7 @@ import { Logger } from "../../../utils/Logger";
  */
 export class ODataDelegate {
     private host: DynamicHost;
-    private context: Context;
+    private context: ODataV4Context | Context;
     private odataType: "V2" | "V4" | null = null;
     private isSyncing: boolean = false;
 
@@ -19,7 +20,7 @@ export class ODataDelegate {
      * @param {DynamicHost} host The parent MetaUI DynamicHost instance managing the UI generation.
      * @param {Context} context The active UI5 Model Context bound to the host.
      */
-    constructor(host: DynamicHost, context: Context) {
+    constructor(host: DynamicHost, context: ODataV4Context | Context) {
         this.host = host;
         this.context = context;
         this.detectODataType();
@@ -54,8 +55,8 @@ export class ODataDelegate {
 
         if (this.odataType === "V4") {
             // V4 uses async requestObject()
-            if (typeof (this.context as any).requestObject === "function") {
-                (this.context as any).requestObject().then((oData: any) => {
+            if (typeof this.context.requestObject === "function") {
+                this.context.requestObject().then((oData: unknown) => {
                     this.pushPayload(oData);
                 }).catch((err: Error) => {
                     Logger.error("[MetaUI]", "Failed to extract V4 Context payload: " + err.message, "ODataDelegate");
@@ -74,10 +75,10 @@ export class ODataDelegate {
      * Cleans the raw OData payload by stripping framework metadata properties (keys starting with '@' or '__')
      * and pushes the sanitized business data into the MetaUI DynamicHost state manager.
      * 
-     * @param {any} oData The raw JSON object extracted from the OData model context.
+     * @param {unknown} oData The raw JSON object extracted from the OData model context.
      * @private
      */
-    private pushPayload(oData: any): void {
+    private pushPayload(oData: unknown): void {
         if (!oData) return;
         
         // Remove OData metadata properties before pushing to MetaUI
@@ -96,7 +97,7 @@ export class ODataDelegate {
     /**
      * Intercepts a field change from the MetaUI Engine and translates it into an OData PATCH.
      */
-    public handleFieldChange(fieldPath: string, value: any): void {
+    public handleFieldChange(fieldPath: string, value: unknown): void {
         if (this.isSyncing || !this.odataType) return;
 
         try {

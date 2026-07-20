@@ -2,6 +2,7 @@ import { BasePlugin } from "../controls/BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import RichTextControl from "../../controls/RichTextControl";
+import FormattedTextControl from "sap/m/FormattedText";
 
 interface IValueAccessor {
     getValue(): unknown;
@@ -30,12 +31,11 @@ export class RichTextPlugin extends BasePlugin {
         this.modelName = modelName;
 
         if (!this.isEditable) {
-            (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/FormattedText");
-            const FormattedTextControl = sap.ui.require("sap/m/FormattedText");
+            
             this.control = new FormattedTextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 htmlText: `{${modelName}>${bindingPath}}`
-            }) as unknown as sap.ui.core.Control;
+            }) as Control;
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
         }
@@ -45,7 +45,7 @@ export class RichTextPlugin extends BasePlugin {
             value: `{${modelName}>${bindingPath}}`,
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
-        }) as unknown as sap.ui.core.Control;
+        }) as Control;
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
@@ -78,7 +78,7 @@ export class RichTextPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as unknown as { setProperty: (k: string, v: unknown) => void }).setProperty("readOnly", !!this.metadata.ui?.readOnly);
+            (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }
 }

@@ -12,7 +12,13 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class RangeValidatorPlugin implements IValidator {
-    public validate(parsedValue: unknown, args?: Record<string, unknown>): IValidationResult {
+    /**
+     * Validates parsed data before it enters the JSON model.
+     * @param parsedValue The cleaned data to validate.
+     * @param args Optional arguments provided in the schema.
+     * @returns IValidationResult containing status and optional error message.
+     */
+    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
         if (parsedValue === null || parsedValue === undefined) return { isValid: true }; 
         if (typeof parsedValue !== "number") return { isValid: true };
 

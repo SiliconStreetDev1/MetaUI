@@ -32,4 +32,18 @@ Core.initLibrary({
 });
 
 // Exporting window object safely for UI5 compatibility if needed
-export default (window as unknown)["nz"]["co"]["siliconst"]["ui5"]["metaui"];
+declare global {
+    interface Window {
+        nz: {
+            co: {
+                siliconst: {
+                    ui5: {
+                        metaui: Record<string, unknown>;
+                    };
+                };
+            };
+        };
+    }
+}
+
+export default window.nz.co.siliconst.ui5.metaui;

@@ -44,7 +44,7 @@ export class ClearFormActionPlugin extends BasePlugin {
         return this.control as Control;
     }
 
-    protected getValue(): any {
+    protected getValue(): unknown {
         return null; // Actions do not store scalar values
     }
 

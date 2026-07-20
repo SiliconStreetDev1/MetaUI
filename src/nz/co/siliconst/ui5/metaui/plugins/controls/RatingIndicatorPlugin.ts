@@ -7,6 +7,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import RatingIndicator from "sap/m/RatingIndicator";
 import Control from "sap/ui/core/Control";
+import TextControl from "sap/m/Text";
 
 /**
  * Handles rendering logic for rating feedback.
@@ -30,8 +31,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
         this.metadata = fieldMetadata;
 
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: `{${modelName}>${bindingPath}}`
@@ -61,9 +61,9 @@ export class RatingIndicatorPlugin extends BasePlugin {
 
     /**
      * Retrieves the current rating value.
-     * @returns {any} The rating value.
+     * @returns {unknown} The rating value.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.control ? (this.control as RatingIndicator).getValue() : 0;
     }
 

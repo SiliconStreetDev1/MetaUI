@@ -33,7 +33,7 @@ export class UrlNavigationActionPlugin extends BasePlugin {
         return this.control as Control;
     }
 
-    protected getValue(): any {
+    protected getValue(): unknown {
         return null;
     }
 

@@ -22,6 +22,12 @@ export default class SignatureControl extends BaseHardwareControl {
     private canvasCtx: CanvasRenderingContext2D | null = null;
     private canvasEl: HTMLCanvasElement | null = null;
 
+    private boundStartDrawing!: (e: MouseEvent) => void;
+    private boundDraw!: (e: MouseEvent) => void;
+    private boundStopDrawing!: (e: MouseEvent | TouchEvent) => void;
+    private boundStartDrawingTouch!: (e: TouchEvent) => void;
+    private boundDrawTouch!: (e: TouchEvent) => void;
+
     /**
      * Initializes the control and builds the canvas drawing surface.
      */
@@ -44,6 +50,12 @@ export default class SignatureControl extends BaseHardwareControl {
         });
 
         this.setAggregation("_content", this.vBox);
+
+        this.boundStartDrawing = this.startDrawing.bind(this);
+        this.boundDraw = this.draw.bind(this);
+        this.boundStopDrawing = this.stopDrawing.bind(this);
+        this.boundStartDrawingTouch = this.startDrawingTouch.bind(this);
+        this.boundDrawTouch = this.drawTouch.bind(this);
     }
 
     private onCanvasRendered(): void {
@@ -59,15 +71,15 @@ export default class SignatureControl extends BaseHardwareControl {
         }
 
         // Mouse events
-        this.canvasEl.addEventListener("mousedown", this.startDrawing.bind(this));
-        this.canvasEl.addEventListener("mousemove", this.draw.bind(this));
-        this.canvasEl.addEventListener("mouseup", this.stopDrawing.bind(this));
-        this.canvasEl.addEventListener("mouseout", this.stopDrawing.bind(this));
+        this.canvasEl.addEventListener("mousedown", this.boundStartDrawing);
+        this.canvasEl.addEventListener("mousemove", this.boundDraw);
+        this.canvasEl.addEventListener("mouseup", this.boundStopDrawing);
+        this.canvasEl.addEventListener("mouseout", this.boundStopDrawing);
         
         // Touch events
-        this.canvasEl.addEventListener("touchstart", this.startDrawingTouch.bind(this), { passive: false });
-        this.canvasEl.addEventListener("touchmove", this.drawTouch.bind(this), { passive: false });
-        this.canvasEl.addEventListener("touchend", this.stopDrawing.bind(this));
+        this.canvasEl.addEventListener("touchstart", this.boundStartDrawingTouch, { passive: false });
+        this.canvasEl.addEventListener("touchmove", this.boundDrawTouch, { passive: false });
+        this.canvasEl.addEventListener("touchend", this.boundStopDrawing);
 
         // Restore existing signature if any
         const val = this.getValue();
@@ -164,7 +176,7 @@ export default class SignatureControl extends BaseHardwareControl {
      * Sets the value of the control programmatically and re-draws the canvas.
      * @param value The base64 data URL string representing the signature image.
      */
-    public setValue(value: any): this {
+    public setValue(value: unknown): this {
         super.setValue(value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {
             this.loadImageOntoCanvas(value);
@@ -172,5 +184,24 @@ export default class SignatureControl extends BaseHardwareControl {
             this.canvasCtx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
         }
         return this;
+    }
+
+    /**
+     * Cleans up event listeners to prevent memory leaks when the control is destroyed.
+     */
+    public exit(): void {
+        if (this.canvasEl) {
+            this.canvasEl.removeEventListener("mousedown", this.boundStartDrawing as EventListener);
+            this.canvasEl.removeEventListener("mousemove", this.boundDraw as EventListener);
+            this.canvasEl.removeEventListener("mouseup", this.boundStopDrawing as EventListener);
+            this.canvasEl.removeEventListener("mouseout", this.boundStopDrawing as EventListener);
+            
+            this.canvasEl.removeEventListener("touchstart", this.boundStartDrawingTouch as EventListener);
+            this.canvasEl.removeEventListener("touchmove", this.boundDrawTouch as EventListener);
+            this.canvasEl.removeEventListener("touchend", this.boundStopDrawing as EventListener);
+        }
+        this.canvasEl = null;
+        this.canvasCtx = null;
+        super.exit();
     }
 }

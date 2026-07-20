@@ -4,8 +4,8 @@ import Control from "sap/ui/core/Control";
 import HBox from "sap/m/HBox";
 import Input from "sap/m/Input";
 import JSONModel from "sap/ui/model/json/JSONModel";
-// @ts-ignore
 import BarcodeScannerButton from "sap/ndc/BarcodeScannerButton";
+import TextControl from "sap/m/Text";
 
 export class BarcodeScannerPlugin extends BasePlugin {
     private inputControl!: Input;
@@ -27,8 +27,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
         this.modelName = modelName;
 
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: `{${modelName}>${bindingPath}}`
@@ -53,18 +52,14 @@ export class BarcodeScannerPlugin extends BasePlugin {
         const scannerBtn = new BarcodeScannerButton({
             id: this.generateStableId(engineScopeId, bindingPath + "-btn"),
             scanSuccess: (oEvent: sap.ui.base.Event) => {
-                const text = oEvent.getParameter("text");
+                const text = oEvent.getParameter("text") as string;
                 if (text) {
                     this.inputControl.setValue(text);
-                    // Update model explicitly since setValue doesn't always trigger two-way binding immediately
-                    const model = this.inputControl.getModel(this.modelName) as JSONModel;
-                    if (model) {
-                        model.setProperty(bindingPath, text);
-                    }
+                    // UI5's two-way data binding on the input will sync the model automatically
                     const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
-                }
+                    if (this.onChange) {
+                        this.onChange(result.isValid, this.fieldKey);
+                    }
                 }
             }
         });
@@ -82,9 +77,9 @@ export class BarcodeScannerPlugin extends BasePlugin {
 
     /**
      * Retrieves the current scanned text.
-     * @returns {any} The barcode string.
+     * @returns {unknown} The barcode string.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return this.inputControl ? this.inputControl.getValue() : null;
     }
 

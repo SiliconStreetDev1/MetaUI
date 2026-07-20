@@ -68,7 +68,7 @@ export abstract class BasePlugin implements IPlugin {
     /**
      * Extracts the current raw value from the underlying UI5 control.
      */
-    protected abstract getValue(): any;
+    protected abstract getValue(): unknown;
 
     /**
      * Universal pipeline validation.
@@ -77,14 +77,14 @@ export abstract class BasePlugin implements IPlugin {
         if (!this.control || !this.metadata) return { isValid: true };
         
         // Skip validation for hidden fields (e.g. hidden by ConditionEngine visibleOn)
-        if (typeof (this.control as unknown).getVisible === "function") {
-            if (!(this.control as unknown).getVisible()) {
+        if (typeof (this.control as Control).getVisible === "function") {
+            if (!(this.control as Control).getVisible()) {
                 return { isValid: true };
             }
         }
         
         const validatorsToRun: string[] = [];
-        const argsMap: Record<string, any> = {
+        const argsMap: Record<string, unknown> = {
             "maxLength": this.metadata.maxLength
         };
 
@@ -132,7 +132,7 @@ export abstract class BasePlugin implements IPlugin {
     /**
      * Helper to apply common UI directives (like readOnly, visibleOn) directly to any control.
      */
-    protected applyCommonDirectives(control: any, metadata: IPropertyMetadata, modelName: string = "meta"): void {
+    protected applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName: string = "meta"): void {
         if (metadata.ui?.readOnly !== undefined && typeof control.setEditable === "function") {
             control.setEditable(!metadata.ui.readOnly);
         }

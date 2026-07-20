@@ -79,6 +79,8 @@ export default class CameraControl extends BaseHardwareControl {
         const val = this.getValue();
         if (val && typeof val === "string" && val.startsWith("data:image")) {
             this.showPreview(val);
+        } else if (this.captureBtn.getVisible() && this.videoHtml.getVisible()) {
+            this.startCamera();
         }
     }
 
@@ -134,8 +136,7 @@ export default class CameraControl extends BaseHardwareControl {
         this.captureBtn.setVisible(true);
         this.retakeBtn.setVisible(false);
         
-        // Use a slight timeout to ensure DOM is ready before accessing stream again
-        setTimeout(() => this.startCamera(), 100);
+        // startCamera is now handled safely by onVideoRendered hook
     }
 
     private showPreview(dataUrl: string): void {
@@ -151,7 +152,7 @@ export default class CameraControl extends BaseHardwareControl {
      * Sets the value of the control programmatically.
      * @param value The base64 data URL string representing the image.
      */
-    public setValue(value: any): this {
+     public setValue(value: unknown): this {
         super.setValue(value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {
             this.showPreview(value);

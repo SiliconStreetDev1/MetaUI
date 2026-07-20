@@ -25,7 +25,7 @@ export class ArrayPlugin extends BasePlugin {
         this.metadata = field;
         const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
         
-        const subSchema: any = {
+        const subSchema: ISchema = {
             type: "array",
             title: field.ui?.label || propKey,
             items: field.items || {
@@ -56,7 +56,7 @@ export class ArrayPlugin extends BasePlugin {
                 
                 const nestedData = parentModel.getProperty(updatePath) || [];
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: any) => {
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: typeof import("../../controls/host/GeneratorHost").default) => {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
                         data: nestedData,
@@ -65,7 +65,7 @@ export class ArrayPlugin extends BasePlugin {
 
                     // Only attach submit event if we are not in display mode
                     if (!!this.isEditable) {
-                        host.attachSubmit((e: any) => {
+                        host.attachSubmit((e: sap.ui.base.Event) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
                         });
@@ -83,7 +83,7 @@ export class ArrayPlugin extends BasePlugin {
     /**
      * Read-only component for the engine, returns null.
      */
-    protected getValue(): any {
+    protected getValue(): unknown {
         return null;
     }
 

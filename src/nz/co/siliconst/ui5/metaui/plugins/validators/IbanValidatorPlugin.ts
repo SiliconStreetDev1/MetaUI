@@ -13,7 +13,13 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class IbanValidatorPlugin implements IValidator {
-    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+    /**
+     * Validates parsed data before it enters the JSON model.
+     * @param parsedValue The cleaned data to validate.
+     * @param args Optional arguments provided in the schema.
+     * @returns IValidationResult containing status and optional error message.
+     */
+    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
         if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
         
         // Very basic IBAN structure regex (e.g. DE89370400440532013000)

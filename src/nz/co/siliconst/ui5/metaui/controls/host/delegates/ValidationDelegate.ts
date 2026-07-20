@@ -4,10 +4,11 @@ import Control from "sap/ui/core/Control";
 import { StateManager } from "../../../core/StateManager";
 import { Logger } from "../../../utils/Logger";
 import Message from "sap/ui/core/message/Message";
+import coreLibrary from "sap/ui/core/library";
 
 export interface IHostValidation {
     getProperty(name: string): unknown;
-    setAggregation(aggregationName: string, object: any, suppressInvalidate?: boolean): any;
+    setAggregation(aggregationName: string, object: sap.ui.core.Control, suppressInvalidate?: boolean): this;
     getStateManager(): StateManager | null;
 }
 
@@ -66,12 +67,12 @@ export class ValidationDelegate {
         }
 
         if (this.host.getProperty("useMessageManager")) {
-            sap.ui.require(["sap/ui/core/message/Message"], (MessageClass: any) => {
+            sap.ui.require(["sap/ui/core/message/Message"], (MessageClass: typeof import("sap/ui/core/message/Message").default) => {
                 const messageManager = Messaging;
                 const stateManager = this.host.getStateManager();
                 messageManager.addMessages(new MessageClass({
                     message: displayText,
-                    type: "Error" as unknown,
+                    type: coreLibrary.MessageType.Error,
                     target: targetPath,
                     processor: stateManager?.getModel()
                 }));
@@ -86,11 +87,11 @@ export class ValidationDelegate {
         const useMessageManager = this.host.getProperty("useMessageManager") as boolean;
         const stateManager = this.host.getStateManager();
         if (useMessageManager && stateManager) {
-            sap.ui.require(["sap/ui/core/message/Message"], (MessageClass: any) => {
+            sap.ui.require(["sap/ui/core/message/Message"], (MessageClass: typeof import("sap/ui/core/message/Message").default) => {
                 const messageManager = Messaging;
                 messageManager.addMessages(new MessageClass({
                     message: message,
-                    type: "Error" as unknown,
+                    type: coreLibrary.MessageType.Error,
                     target: `/${fieldPath.replace(/^\//, "")}`,
                     processor: stateManager.getModel()
                 }));
@@ -109,7 +110,7 @@ export class ValidationDelegate {
             const messages = messageManager.getMessageModel().getData();
             const target = `/${fieldPath.replace(/^\//, "")}`;
 
-            const messageToRemove = messages.find((m: any) =>
+            const messageToRemove = messages.find((m: sap.ui.core.message.Message) =>
                 m.getTarget() === target && m.getMessageProcessor() && m.getMessageProcessor().getId() === stateManager.getModel().getId()
             );
             if (messageToRemove) {

@@ -7,7 +7,7 @@ import { IPlugin } from "../interfaces/IPlugin";
 import { ISchema } from "../interfaces/ISchema";
 import { Registry } from "./Registry";
 
-export type ConditionOperator = (a: any, b: any) => boolean;
+export type ConditionOperator = (a: unknown, b: unknown) => boolean;
 
 export const OperatorRegistry = new Registry<ConditionOperator>("Operators");
 

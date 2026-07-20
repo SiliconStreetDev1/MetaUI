@@ -154,7 +154,7 @@ export class FormLayout implements ILayoutManager {
             const control = engine.generateField(effectiveMeta, `/${propKey}`, modelName);
 
             if (effectiveMeta.ui?.fullWidth) {
-                sap.ui.require(["sap/ui/layout/GridData"], (GridData: any) => {
+                sap.ui.require(["sap/ui/layout/GridData"], (GridData: typeof import("sap/ui/layout/GridData").default) => {
                     control.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
                 });
             }

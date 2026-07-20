@@ -11,7 +11,7 @@ export class SchemaNormalizer {
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.
      */
-    public static normalize(rawSchema?: any, data?: any): ISchema {
+    public static normalize(rawSchema?: unknown, data?: unknown): ISchema {
         let schemaObj = rawSchema;
 
         if (typeof schemaObj === "string") {
@@ -73,7 +73,7 @@ export class SchemaNormalizer {
      * @param override The overriding inferred dictionary.
      * @returns A new deeply merged property dictionary.
      */
-    private static deepMergeProperties(base: any, override: any): any {
+    private static deepMergeProperties(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
         const merged = { ...base };
         for (const key of Object.keys(override)) {
             const overrideVal = override[key];
@@ -94,7 +94,7 @@ export class SchemaNormalizer {
      * @param properties The raw properties map.
      * @returns A map of strict IPropertyMetadata objects.
      */
-    private static normalizeProperties(properties: any): Record<string, IPropertyMetadata> {
+    private static normalizeProperties(properties: Record<string, unknown>): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         for (const key of Object.keys(properties)) {
             normalizedProps[key] = this.normalizePropertyMetadata(properties[key], key);
@@ -108,7 +108,7 @@ export class SchemaNormalizer {
      * @param keyName The string key name for generating default labels.
      * @returns A strict IPropertyMetadata instance.
      */
-    private static normalizePropertyMetadata(prop: any, keyName: string): IPropertyMetadata {
+    private static normalizePropertyMetadata(prop: Record<string, unknown>, keyName: string): IPropertyMetadata {
         const normalized: IPropertyMetadata = {
             type: prop.type || "string",
             ui: {
@@ -163,7 +163,7 @@ export class SchemaNormalizer {
     /**
      * Infers a v2 ISchema structure dynamically from a plain data payload.
      */
-    private static inferSchemaFromData(data: any): ISchema {
+    private static inferSchemaFromData(data: unknown): ISchema {
         const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
 
         if (!data || typeof data !== "object") {
@@ -191,7 +191,7 @@ export class SchemaNormalizer {
      * @param obj The raw JavaScript object.
      * @returns A dictionary of inferred IPropertyMetadata.
      */
-    private static inferPropertiesFromObject(obj: any): Record<string, IPropertyMetadata> {
+    private static inferPropertiesFromObject(obj: Record<string, unknown>): Record<string, IPropertyMetadata> {
         const properties: Record<string, IPropertyMetadata> = {};
         if (!obj || typeof obj !== "object") return properties;
 
@@ -241,7 +241,7 @@ export class SchemaNormalizer {
         }
         
         const pathSegments = scope.replace("#/properties/", "").split("/properties/");
-        let current: any = schema.properties;
+        let current: Record<string, unknown> = schema.properties;
         let meta: IPropertyMetadata | undefined;
         
         Logger.debug("[MetaUI SchemaNormalizer]", `Resolving scope '${scope}' with segments: ${JSON.stringify(pathSegments)}`, "SchemaNormalizer");

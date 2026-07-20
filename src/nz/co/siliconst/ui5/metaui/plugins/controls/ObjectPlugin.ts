@@ -5,8 +5,9 @@
 
 import { BasePlugin } from "./BasePlugin";
 import { IPluginValidationResult } from "../../interfaces/IPlugin";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { ISchema, IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
+import Event from "sap/ui/base/Event";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
 
@@ -26,7 +27,7 @@ export class ObjectPlugin extends BasePlugin {
         this.metadata = field;
         const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
         
-        const subSchema: any = {
+        const subSchema: ISchema = {
             type: "object",
             title: field.ui?.label || propKey,
             properties: field.properties || {}
@@ -40,7 +41,7 @@ export class ObjectPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             text: !this.isEditable ? "View Details" : "Edit Details",
             icon: !this.isEditable ? "sap-icon://display" : "sap-icon://form",
-            press: (oEvent: sap.ui.base.Event) => {
+            press: (oEvent: Event) => {
                 const btn = oEvent.getSource() as Button;
                 const parentModel = btn.getModel(modelName) as JSONModel;
                 if (!parentModel) return;
@@ -54,7 +55,7 @@ export class ObjectPlugin extends BasePlugin {
                 
                 const nestedData = parentModel.getProperty(updatePath) || {};
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: any) => {
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: typeof import("../../controls/host/GeneratorHost").default) => {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
                         data: nestedData,
@@ -62,8 +63,8 @@ export class ObjectPlugin extends BasePlugin {
                     });
 
                     if (!!this.isEditable) {
-                        host.attachSubmit((e: any) => {
-                            const payload = e.getParameter("payload");
+                        host.attachSubmit((e: Event) => {
+                            const payload = (e.getParameter("payload") as unknown);
                             parentModel.setProperty(updatePath, payload);
                         });
                     }
@@ -88,7 +89,7 @@ export class ObjectPlugin extends BasePlugin {
     /**
      * Read-only component for the engine, returns null.
      */
-    protected getValue(): any {
+    protected getValue(): null {
         return null;
     }
 

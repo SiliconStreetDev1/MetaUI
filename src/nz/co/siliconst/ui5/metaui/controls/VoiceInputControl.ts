@@ -6,6 +6,38 @@ import MessageToast from "sap/m/MessageToast";
 import HBox from "sap/m/HBox";
 import { Logger } from "../utils/Logger";
 
+declare global {
+    interface Window {
+        SpeechRecognition: new () => SpeechRecognition;
+        webkitSpeechRecognition: new () => SpeechRecognition;
+    }
+    interface SpeechRecognition {
+        continuous: boolean;
+        interimResults: boolean;
+        onresult: (event: SpeechRecognitionEvent) => void;
+        onstart: () => void;
+        onerror: (event: SpeechRecognitionErrorEvent) => void;
+        onend: () => void;
+        start(): void;
+        stop(): void;
+    }
+    interface SpeechRecognitionEvent {
+        resultIndex: number;
+        results: {
+            length: number;
+            [index: number]: {
+                isFinal: boolean;
+                [index: number]: {
+                    transcript: string;
+                };
+            };
+        };
+    }
+    interface SpeechRecognitionErrorEvent {
+        error: string;
+    }
+}
+
 /**
  * VoiceInputControl
  * Provides a UI to dictate text using the browser's native Web Speech API.
@@ -22,7 +54,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
     private startBtn!: Button;
     private stopBtn!: Button;
     
-    private recognition: any = null;
+    private recognition: SpeechRecognition | null = null;
     private isRecording: boolean = false;
 
     /**
@@ -68,13 +100,13 @@ export default class VoiceInputControl extends BaseHardwareControl {
     }
 
     private initSpeechRecognition(): void {
-        const SpeechRecognition = (window as unknown).SpeechRecognition || (window as unknown).webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            this.recognition = new SpeechRecognition();
+        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognitionClass) {
+            this.recognition = new SpeechRecognitionClass();
             this.recognition.continuous = true;
             this.recognition.interimResults = true;
 
-            this.recognition.onresult = (event: any) => {
+            this.recognition.onresult = (event: SpeechRecognitionEvent) => {
                 let finalTranscript = "";
                 let interimTranscript = "";
 
@@ -107,9 +139,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
                 MessageToast.show("Listening... Please speak now.");
             };
 
-            this.recognition.onerror = (event: any) => {
+            this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
                 Logger.error("Speech recognition error", event.error, "VoiceInputControl");
-                sap.ui.require(["sap/m/MessageBox"], (MessageBox: unknown) => {
+                sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => {
                     MessageBox.error("Microphone Error: " + event.error + "\n\nPlease ensure you have a working microphone attached and have not blocked access in your browser settings.");
                 });
                 this.stopDictation();
@@ -136,10 +168,11 @@ export default class VoiceInputControl extends BaseHardwareControl {
             this.startBtn.setIcon("sap-icon://stop");
             this.startBtn.setText("Requesting mic...");
             this.startBtn.setType("Reject");
-        } catch (err: any) {
-            Logger.error("Failed to start speech recognition", err.message || err, "VoiceInputControl");
-            sap.ui.require(["sap/m/MessageBox"], (MessageBox: unknown) => {
-                MessageBox.error("Failed to start dictation. Please ensure you have a working microphone and have granted browser permissions.\n\nDetails: " + (err.message || err));
+        } catch (err) {
+            const error = err as Error;
+            Logger.error("Failed to start speech recognition", error.message || String(error), "VoiceInputControl");
+            sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => {
+                MessageBox.error("Failed to start dictation. Please ensure you have a working microphone and have granted browser permissions.\n\nDetails: " + (error.message || String(error)));
             });
             this.stopDictation();
         }
@@ -150,7 +183,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
         
         try {
             this.recognition.stop();
-        } catch(e) {}
+        } catch(e) {
+            Logger.warn("Failed to gracefully stop speech recognition.", String(e), "VoiceInputControl");
+        }
         
         this.isRecording = false;
         this.startBtn.setIcon("sap-icon://microphone");

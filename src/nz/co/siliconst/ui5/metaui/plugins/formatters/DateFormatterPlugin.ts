@@ -13,13 +13,18 @@ import DateFormat from "sap/ui/core/format/DateFormat";
  * @public
  */
 export class DateFormatterPlugin implements IFormatter {
-    private dateFormat: any;
+    private dateFormat: DateFormat;
 
     constructor() {
         this.dateFormat = DateFormat.getDateInstance({ style: "medium" });
     }
 
-    public format(rawValue: unknown, args?: unknown): string {
+    /**
+     * Formats raw JSON model data into a medium-style date string.
+     * @param rawValue The raw date string.
+     * @returns The formatted string for the UI control.
+     */
+    public format(rawValue: string | number, args?: Record<string, string>): string {
         if (!rawValue) return "";
         try {
             const dateObj = new Date(rawValue as string);

@@ -2,6 +2,7 @@ import { BasePlugin } from "../controls/BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import GeolocationControl from "../../controls/GeolocationControl";
+import TextControl from "sap/m/Text";
 
 export class GeolocationPlugin extends BasePlugin {
     /**
@@ -21,8 +22,7 @@ export class GeolocationPlugin extends BasePlugin {
         this.modelName = modelName;
 
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
@@ -43,7 +43,7 @@ export class GeolocationPlugin extends BasePlugin {
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
-        (this.control as unknown as { attachCapture: (fn: Function) => void }).attachCapture(() => {
+        (this.control as GeolocationControl).attachCapture(() => {
             const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -55,10 +55,10 @@ export class GeolocationPlugin extends BasePlugin {
 
     /**
      * Retrieves the current geolocation object.
-     * @returns {any} The geolocation value.
+     * @returns {unknown} The geolocation value.
      */
-    protected getValue(): any {
-        return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
+    protected getValue(): unknown {
+        return this.control ? (this.control as GeolocationControl).getValue() : null;
     }
 
     /**
@@ -67,7 +67,7 @@ export class GeolocationPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as unknown as { setProperty: (k: string, v: unknown) => void }).setProperty("readOnly", !!this.metadata.ui?.readOnly);
+            (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
         }
     }
 }

@@ -13,7 +13,12 @@ import { IFormatter } from "../../interfaces/IPipeline";
  * @public
  */
 export class TextCaseFormatterPlugin implements IFormatter {
-    public format(rawValue: unknown, args?: unknown): string {
+    /**
+     * Formats raw JSON model data into uppercase.
+     * @param rawValue The raw string.
+     * @returns The uppercase formatted string for the UI control.
+     */
+    public format(rawValue: string | number, args?: Record<string, string>): string {
         if (typeof rawValue !== "string") return rawValue || "";
         
         // Default to uppercase if no specific arg could be easily parsed by simple formatter 

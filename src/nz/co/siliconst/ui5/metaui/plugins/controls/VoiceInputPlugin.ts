@@ -2,6 +2,7 @@ import { BasePlugin } from "../controls/BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import VoiceInputControl from "../../controls/VoiceInputControl";
+import TextControl from "sap/m/Text";
 
 export class VoiceInputPlugin extends BasePlugin {
     /**
@@ -21,8 +22,7 @@ export class VoiceInputPlugin extends BasePlugin {
         this.modelName = modelName;
 
         if (!this.isEditable) {
-            (sap.ui as unknown as { requireSync: (s: string) => unknown }).requireSync("sap/m/Text");
-            const TextControl = sap.ui.require("sap/m/Text");
+            
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
                 text: {
@@ -32,7 +32,7 @@ export class VoiceInputPlugin extends BasePlugin {
                         return val;
                     }
                 }
-            }) as unknown as sap.ui.core.Control;
+            }) as Control;
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
         }
@@ -42,11 +42,11 @@ export class VoiceInputPlugin extends BasePlugin {
             value: `{${modelName}>${bindingPath}}`,
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
-        }) as unknown as sap.ui.core.Control;
+        }) as Control;
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
-        (this.control as unknown as { attachCapture: (fn: Function) => void }).attachCapture(() => {
+        (this.control as VoiceInputControl).attachCapture(() => {
             const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -58,10 +58,10 @@ export class VoiceInputPlugin extends BasePlugin {
 
     /**
      * Retrieves the current voice transcription text.
-     * @returns {any} The text string.
+     * @returns {unknown} The text string.
      */
-    protected getValue(): any {
-        return this.control ? (this.control as unknown as { getValue: () => unknown }).getValue() : null;
+    protected getValue(): unknown {
+        return this.control ? (this.control as VoiceInputControl).getValue() : null;
     }
 
     /**
