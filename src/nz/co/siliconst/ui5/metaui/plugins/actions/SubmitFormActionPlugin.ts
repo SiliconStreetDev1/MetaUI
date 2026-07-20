@@ -19,6 +19,13 @@ export class SubmitFormActionPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
+        if (this.isDisplayMode) {
+            sap.ui.requireSync("sap/m/Text");
+            const TextControl = sap.ui.require("sap/m/Text");
+            this.control = new TextControl({ visible: false });
+            return this.control as Control;
+        }
+        
         this.control = new Button({
             text: fieldMetadata.ui?.label || "Submit",
             type: "Emphasized",
@@ -27,7 +34,7 @@ export class SubmitFormActionPlugin extends BasePlugin {
                 // Fire an event that the GeneratorHost or LayoutManager listens to
                 // Suppressing TS error as UI5 1.118+ EventBus signature changed but still requires global bust cast
                 // @ts-ignore
-                (Core as any).getEventBus().publish("MetaUI", "TriggerSubmit", {});
+                (Core as unknown).getEventBus().publish("MetaUI", "TriggerSubmit", {});
             }
         });
 
@@ -40,6 +47,7 @@ export class SubmitFormActionPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
+            if (this.isDisplayMode) return;
             (this.control as Button).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

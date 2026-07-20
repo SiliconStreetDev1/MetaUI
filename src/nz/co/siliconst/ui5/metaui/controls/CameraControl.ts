@@ -17,6 +17,7 @@ export default class CameraControl extends BaseHardwareControl {
         events: {}
     };
 
+    private startBtn!: Button;
     private vBox!: VBox;
     private captureBtn!: Button;
     private retakeBtn!: Button;
@@ -30,7 +31,7 @@ export default class CameraControl extends BaseHardwareControl {
         super.init();
 
         this.videoHtml = new HTML({
-            content: "<video width='400' height='300' autoplay playsinline style='background-color: #000; display: block;'></video>",
+            content: "<video width='400' height='300' autoplay playsinline style='background-color: #000; display: none;'></video>",
             afterRendering: this.onVideoRendered.bind(this)
         }).addStyleClass("sapUiSmallMarginBottom");
 
@@ -39,9 +40,16 @@ export default class CameraControl extends BaseHardwareControl {
             visible: false
         }).addStyleClass("sapUiSmallMarginBottom");
 
+        this.startBtn = new Button({
+            icon: "sap-icon://video",
+            text: "Start Camera",
+            press: this.handleStartCameraPress.bind(this)
+        });
+
         this.captureBtn = new Button({
             icon: "sap-icon://camera",
             text: "Capture",
+            visible: false,
             press: this.captureImage.bind(this)
         });
 
@@ -53,7 +61,7 @@ export default class CameraControl extends BaseHardwareControl {
         });
 
         this.vBox = new VBox({
-            items: [this.videoHtml, this.previewImage, this.captureBtn, this.retakeBtn]
+            items: [this.videoHtml, this.previewImage, this.startBtn, this.captureBtn, this.retakeBtn]
         });
 
         this.setAggregation("_content", this.vBox);
@@ -68,8 +76,15 @@ export default class CameraControl extends BaseHardwareControl {
         const val = this.getValue();
         if (val && typeof val === "string" && val.startsWith("data:image")) {
             this.showPreview(val);
-        } else {
-            this.startCamera();
+        }
+    }
+
+    private handleStartCameraPress(): void {
+        this.startCamera();
+        this.startBtn.setVisible(false);
+        this.captureBtn.setVisible(true);
+        if (this.videoEl) {
+            this.videoEl.style.display = "block";
         }
     }
 

@@ -21,6 +21,7 @@ import { ArrayPlugin } from "../plugins/controls/ArrayPlugin";
 import { ObjectPlugin } from "../plugins/controls/ObjectPlugin";
 import { DropdownPlugin } from "../plugins/controls/DropdownPlugin";
 import { TextAreaPlugin } from "../plugins/controls/TextAreaPlugin";
+import { CodeEditorPlugin } from "../plugins/controls/CodeEditorPlugin";
 
 // New Phase 1 Controls
 import { FileUploaderPlugin } from "../plugins/controls/FileUploaderPlugin";
@@ -41,6 +42,7 @@ import { RichTextPlugin } from "../plugins/controls/RichTextPlugin";
 import { UrlNavigationActionPlugin } from "../plugins/actions/UrlNavigationActionPlugin";
 import { SubmitFormActionPlugin } from "../plugins/actions/SubmitFormActionPlugin";
 import { ODataListBindingPlugin } from "../plugins/datasources/ODataListBindingPlugin";
+import { RemoteDropdownPlugin } from "../plugins/datasources/RemoteDropdownPlugin";
 
 /**
  * Singleton orchestrator responsible for maintaining the registry of all available UI control plugins.
@@ -72,6 +74,7 @@ export class PluginRegistry {
         this.register("boolean", SwitchPlugin, "switch");
         this.register("string", DropdownPlugin, "select");
         this.register("string", TextAreaPlugin, "textArea");
+        this.register("string", CodeEditorPlugin, "codeEditor");
         
         // Phase 1 Mappings
         this.register("string", FileUploaderPlugin, "fileUploader");
@@ -92,6 +95,7 @@ export class PluginRegistry {
         this.register("string", UrlNavigationActionPlugin, "urlButton");
         this.register("string", SubmitFormActionPlugin, "submitButton");
         this.register("string", ODataListBindingPlugin, "odataSelect");
+        this.register("string", RemoteDropdownPlugin, "remoteDropdown");
     }
 
     /**

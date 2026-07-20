@@ -6,7 +6,7 @@
 
 export class Logger {
     private static debugMode: boolean = false;
-    private static logInstance: any = null;
+    private static logInstance: unknown = null;
 
     /**
      * Toggles the global debug mode for MetaUI.
@@ -15,7 +15,7 @@ export class Logger {
     public static setDebugMode(enabled: boolean): void {
         this.debugMode = enabled;
         if (enabled && !this.logInstance) {
-            sap.ui.require(["sap/base/Log"], (Log: any) => {
+            sap.ui.require(["sap/base/Log"], (Log: Record<string, Function>) => {
                 this.logInstance = Log;
             });
         }
@@ -56,7 +56,6 @@ export class Logger {
     }
 
     public static error(message: string, details?: string, component?: string): void {
-        if (!this.debugMode) return;
         if (this.logInstance) {
             this.logInstance.error(message, details, component || "MetaUI");
         } else {
@@ -69,8 +68,8 @@ export class Logger {
      */
     public static showErrorPopup(message: string, title?: string): void {
         if (!this.debugMode) return;
-        sap.ui.require(["sap/m/MessageBox"], (MessageBox: any) => {
-            MessageBox.error(message, { title: title || "MetaUI Error" });
+        sap.ui.require(["sap/m/MessageBox"], (MessageBox: Record<string, Function>) => {
+            (MessageBox as Record<string, Function>).error(message, { title: title || "MetaUI Error" });
         });
     }
 }

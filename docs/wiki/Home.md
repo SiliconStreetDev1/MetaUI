@@ -20,6 +20,7 @@ All code is strictly typed TypeScript and follows a zero-hack, highly modular ar
 
 ### 3. Architecture & Plugin Authorship
 7. [Custom Control Plugins](07_custom_control_plugins.md)
-8. [Validators and Formatters](08_validators_and_formatters.md)
-9. [Actions and Datasources](09_actions_and_datasources.md)
-10. [Advanced Integration & Events](10_advanced_integration.md)
+8. [Data Binding Architecture](08_data_binding.md)
+9. [Validators and Formatters](09_validators_and_formatters.md)
+10. [Actions and Datasources](10_actions_and_datasources.md)
+11. [Advanced Integration & Events](11_advanced_integration.md)

@@ -25,30 +25,62 @@ export class DropdownPlugin extends BasePlugin {
      * @param modelName The UI5 JSONModel name.
      * @returns {Control} The configured Select control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+        this.onChange = onChange;
         this.metadata = fieldMetadata;
         
+        if (this.isDisplayMode) {
+            sap.ui.requireSync("sap/m/Text");
+            const TextControl = sap.ui.require("sap/m/Text");
+            
+            const valueHelpArray = fieldMetadata.valueHelp && Array.isArray(fieldMetadata.valueHelp) 
+                ? fieldMetadata.valueHelp 
+                : (fieldMetadata.enum ? fieldMetadata.enum.map(e => ({ key: String(e), text: String(e) })) : []);
+            
+            this.control = new TextControl({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                text: {
+                    path: `${modelName}>${bindingPath}`,
+                    formatter: (key: string) => {
+                        const match = valueHelpArray.find(vh => vh.key === key);
+                        return match ? match.text : key;
+                    }
+                }
+            });
+            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+            return this.control as Control;
+        }
+
         const select = new Select({
+            id: this.generateStableId(engineScopeId, bindingPath),
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             forceSelection: false,
-            change: (oEvent: any) => {
+            change: (oEvent: sap.ui.base.Event) => {
                 const item = oEvent.getParameter("selectedItem");
                 const val = item ? item.getKey() : "";
-                this.validate();
+                const result = this.validate();
+                if (this.onChange) {
+                    this.onChange(result.isValid, this.fieldKey);
+                }
             }
         });
 
-        if (fieldMetadata.valueHelp && Array.isArray(fieldMetadata.valueHelp)) {
+        const valueHelpArray = fieldMetadata.valueHelp && Array.isArray(fieldMetadata.valueHelp) 
+            ? fieldMetadata.valueHelp 
+            : (fieldMetadata.enum ? fieldMetadata.enum.map(e => ({ key: String(e), text: String(e) })) : []);
+
+        if (valueHelpArray.length > 0) {
             // Always add the empty placeholder so that 'required' checks can actually fire if the user hasn't made a choice
             select.addItem(new Item({ key: "", text: "--- Select ---" }));
             
-            fieldMetadata.valueHelp.forEach(vh => {
+            valueHelpArray.forEach(vh => {
                 select.addItem(new Item({ key: vh.key, text: vh.text }));
             });
         }
 
         this.control = select;
+        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
         return this.control as Control;
     }
 
@@ -65,6 +97,7 @@ export class DropdownPlugin extends BasePlugin {
      */
     protected applyState(): void {
         if (this.control && this.metadata) {
+            if (this.isDisplayMode) return;
             const select = this.control as Select;
             select.setEnabled(!this.metadata.ui?.readOnly);
         }

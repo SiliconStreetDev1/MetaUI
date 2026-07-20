@@ -14,6 +14,8 @@ import Text from "sap/m/Text";
 import { Registry } from "./Registry";
 import { Logger } from "../utils/Logger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
+import Core from "sap/ui/core/Core";
+import Messaging from "sap/ui/core/Messaging";
 
 /**
  * The Engine is responsible for translating a normalized schema into a physical UI5 layout.
@@ -37,18 +39,39 @@ export class Engine {
     /** Deterministic scope ID injected by the host control to prevent clone collisions. */
     public engineScopeId?: string;
     
+    private activeModel?: sap.ui.model.Model;
+    
+    /** Tracks whether the entire engine is running in Read-Only Display mode. */
+    public readonly isDisplayMode: boolean = false;
+
+    constructor(displayMode: boolean = false) {
+        this.isDisplayMode = displayMode;
+    }
+    
     /**
      * Bootstraps the layout generation process by resolving the correct layout strategy.
      * 
      * @param schema The normalized JSON schema representing the view.
-     * @param modelName The UI5 JSONModel name used for data binding (defaults to "meta").
-     * @param onSubmit Optional callback function to execute when a native submit occurs (e.g. Wizard complete).
+     * @param model The active StateManager JSONModel instance.
+     * @param modelName The UI5 model alias used for isolation.
+     * @param onSubmit Callback fired when form is submitted.
+     * @param engineScopeId Deterministic scope ID for this engine instance.
+     * @param onChange Callback fired when field values change.
      * @returns The generated root UI5 Control container.
      */
-    public build(schema: ISchema, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string): Control {
+    public build(schema: ISchema, model: sap.ui.model.Model, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.conditionEngine = new ConditionEngine(schema);
         this.activePlugins = [];
+        this.activeModel = model;
         this.engineScopeId = engineScopeId;
+        this.onChange = (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => {
+            if (this.conditionEngine && fieldKey) {
+                this.conditionEngine.handleEvent(fieldKey, isValid);
+            }
+            if (onChange) {
+                onChange(isValid, fieldKey, errorMessage, controlId);
+            }
+        };
         
         try {
             // Intercept and synthesize a default layout if the developer/backend failed to provide one
@@ -80,12 +103,13 @@ export class Engine {
     public generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate: boolean = false): Control {
         try {
             const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
+            plugin.setDisplayMode(this.isDisplayMode);
             
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });
             }
             const scopeId = isTemplate ? undefined : this.engineScopeId;
-            const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId);
+            const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange);
             
             if (this.conditionEngine) {
                 this.conditionEngine.registerPlugin(bindingPath, plugin);
@@ -151,10 +175,29 @@ export class Engine {
             this.conditionEngine = null;
         }
         
+        // ------------------------------------------------------------------------
+        // Ghost Error Prevention
+        // Flush MessageManager for active plugins before destroying their controls
+        // ------------------------------------------------------------------------
+        const messageManager = Messaging;
+        const existingMessages = messageManager.getMessageModel().getData();
+        const messagesToRemove: any[] = [];
+        
         for (const item of this.activePlugins) {
+            if (this.activeModel) {
+                const targetPath = `/${item.path.replace(/^\//, "")}`;
+                const matched = existingMessages.filter((msg: any) => 
+                    msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel.getId()
+                );
+                messagesToRemove.push(...matched);
+            }
             if (typeof item.plugin.destroy === "function") {
                 item.plugin.destroy();
             }
+        }
+        
+        if (messagesToRemove.length > 0) {
+            messageManager.removeMessages(messagesToRemove);
         }
         
         this.activePlugins = [];

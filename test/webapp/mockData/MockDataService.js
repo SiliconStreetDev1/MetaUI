@@ -19,7 +19,7 @@ sap.ui.define([
             } else if (sScenario === "wizard") {
                 sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockWizardSchema.json");
                 sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/mockWizardData.json");
-            } else if (sScenario === "basic_form") {
+            } else if (sScenario === "basic_form" || sScenario === "live_binding") {
                 sSchemaUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_form_schema.json");
                 sDataUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/basic_form_data.json");
             } else if (sScenario === "basic_table") {

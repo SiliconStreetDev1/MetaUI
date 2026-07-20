@@ -51,7 +51,7 @@ export class DefaultLayoutGenerator {
             schema.uiLayout = [
                 {
                     type: "Group",
-                    label: schema.title || "Details",
+                    label: schema.title,
                     elements: elements
                 }
             ];

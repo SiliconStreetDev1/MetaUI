@@ -26,11 +26,11 @@ export class LiveSearchPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Type to search...",
             showSuggestion: true,
-            suggest: (oEvent: any) => {
-                const query = oEvent.getParameter("suggestValue");
+            suggest: (oEvent: unknown) => {
+                const query = (oEvent as { getParameter: (s: string) => unknown }).getParameter("suggestValue");
                 this.fetchSuggestions(input, query);
             },
-            change: (oEvent: any) => {
+            change: (oEvent: unknown) => {
                 this.validate();
             }
         });
@@ -45,7 +45,7 @@ export class LiveSearchPlugin extends BasePlugin {
      * @param query The text typed by the user.
      */
     protected fetchSuggestions(input: Input, query: string): void {
-        const vhConfig = this.metadata?.valueHelp as any;
+        const vhConfig = this.metadata?.valueHelp as unknown as Record<string, unknown>;
         if (!vhConfig || !vhConfig.url) {
             Logger.error("LiveSearchPlugin requires a valid valueHelp configuration with a URL.", "", "LiveSearchPlugin");
             return;
@@ -62,7 +62,7 @@ export class LiveSearchPlugin extends BasePlugin {
         // Here, we simulate fetching and filter locally, but subclasses can override this entirely.
         fetch(vhConfig.url)
             .then(res => res.json())
-            .then((data: any[]) => {
+            .then((data: unknown[]) => {
                 const keyPath = vhConfig.keyPath || "key";
                 const textPath = vhConfig.textPath || "text";
                 

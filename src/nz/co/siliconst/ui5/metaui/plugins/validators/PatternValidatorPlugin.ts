@@ -12,15 +12,15 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class PatternValidatorPlugin implements IValidator {
-    public validate(parsedValue: any, args?: any): IValidationResult {
-        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+        if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
         if (!args || typeof args !== "string") {
             return { isValid: true }; // Invalid config, skip
         }
 
         try {
             const regex = new RegExp(args);
-            if (!regex.test(parsedValue)) {
+            if (!regex.test(parsedValue as string)) {
                 return { isValid: false, errorMessage: `Input does not match the required pattern.` };
             }
         } catch (e) {

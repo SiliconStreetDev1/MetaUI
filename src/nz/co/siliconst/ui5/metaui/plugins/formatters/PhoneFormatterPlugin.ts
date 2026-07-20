@@ -12,7 +12,7 @@ import { IFormatter } from "../../interfaces/IPipeline";
  * @public
  */
 export class PhoneFormatterPlugin implements IFormatter {
-    public format(rawValue: any, args?: any): string {
+    public format(rawValue: unknown, args?: unknown): string {
         if (!rawValue || typeof rawValue !== "string") return rawValue || "";
         
         const cleaned = ('' + rawValue).replace(/\D/g, '');
@@ -22,6 +22,6 @@ export class PhoneFormatterPlugin implements IFormatter {
             return '(' + match[1] + ') ' + match[2] + '-' + match[3];
         }
         
-        return rawValue;
+        return rawValue as string;
     }
 }

@@ -12,13 +12,12 @@ sap.ui.define([
         onNavToScenario: function (oEvent) {
             var oTile = oEvent.getSource();
             var sScenario = oTile.data("scenario");
-            this.getOwnerComponent().getRouter().navTo("playground", {
-                scenario: sScenario
-            });
-        },
-
-        onNavToMultiHost: function () {
-            this.getOwnerComponent().getRouter().navTo("multihost");
+            var oRouter = this.getOwnerComponent().getRouter();
+            
+            console.log("[MetaUI Sandbox] Navigating to scenario:", sScenario);
+            
+            // Navigate directly to the standalone scenario route
+            oRouter.navTo(sScenario);
         }
     });
 });

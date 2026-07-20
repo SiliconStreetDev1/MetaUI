@@ -39,7 +39,7 @@ export default class BaseHardwareControl extends Control {
     /**
      * Updates the bound value and fires the capture event.
      */
-    protected setValueAndFire(val: any): void {
+    protected setValueAndFire(val: unknown): void {
         this.setProperty("value", val, true); // true to suppress re-rendering if desired, but we want the binding to update
         this.fireEvent("capture", { value: val });
     }

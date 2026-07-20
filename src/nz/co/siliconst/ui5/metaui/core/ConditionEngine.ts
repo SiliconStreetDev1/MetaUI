@@ -3,10 +3,8 @@
  * @description Evaluates dynamic rules to alter the schema in real-time.
  */
 
-import { EventBus } from "./EventBus";
-import { ISchema } from "../interfaces/ISchema";
-import { IFieldChangeEvent } from "../interfaces/IEventBus";
 import { IPlugin } from "../interfaces/IPlugin";
+import { ISchema } from "../interfaces/ISchema";
 import { Registry } from "./Registry";
 
 export type ConditionOperator = (a: any, b: any) => boolean;
@@ -42,25 +40,19 @@ export class ConditionEngine {
      */
     constructor(schema: ISchema) {
         this.schema = schema;
-        this.boundHandler = this.handleEvent.bind(this);
-        this.initializeListeners();
     }
 
-    /**
-     * Subscribes to the EventBus for real-time field change interception.
-     */
-    private initializeListeners(): void {
-        EventBus.getInstance().subscribe(this.boundHandler);
-    }
+
 
     /** Internal map tracking active plugins against their binding paths for real-time state updates. */
     private plugins: Map<string, IPlugin> = new Map();
 
     /**
      * Internal handler to evaluate business rules when a field is updated.
-     * @param event The structured change event.
+     * @param fieldKey The key of the field that was changed
+     * @param isValid Whether the field is currently valid
      */
-    private handleEvent(event: IFieldChangeEvent): void {
+    public handleEvent(fieldKey: string, isValid: boolean): void {
         // Evaluate conditions via registered operators if a rule system is added later
     }
 
@@ -75,9 +67,9 @@ export class ConditionEngine {
     }
 
     /**
-     * Cleans up EventBus listeners to prevent memory leaks on destruction.
+     * Cleans up listeners to prevent memory leaks on destruction.
      */
     public destroy(): void {
-        EventBus.getInstance().unsubscribe(this.boundHandler);
+        this.plugins.clear();
     }
 }

@@ -6,11 +6,14 @@ MetaUI supports standard JSON Schema primitives. The `PluginRegistry` automatica
 
 | Type | Default Control | Supported `ui.widget` Overrides |
 |---|---|---|
-| `string` | `sap.m.Input` | `textArea`, `select`, `time`, `datetime`, `fileUploader`, `camera`, `signature`, `scanner`, `voiceInput`, `richText` |
+| `string` | `sap.m.Input` | `textArea`, `select`, `time`, `datetime`, `fileUploader`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`, `codeEditor` |
 | `number` / `integer` | `sap.m.StepInput` | `slider`, `rating` |
 | `boolean`| `sap.m.CheckBox` | `switch` |
 | `date`   | `sap.m.DatePicker` | None |
 | `object` | `sap.m.Button` (Drill-down) | `location` |
+
+## Display Mode
+By setting `displayMode: true` on the `GeneratorHost`, MetaUI transforms all editable controls into read-only native Display variants automatically (e.g. `sap.m.Input` becomes `sap.m.Text`, `sap.m.CheckBox` formats to "Yes/No" text, Camera/Signature render as `sap.m.Image`). This allows you to reuse the exact same schema definition for both editable forms and display-only tiles.
 
 ## Schema Definition Examples
 
@@ -57,7 +60,11 @@ MetaUI supports standard JSON Schema primitives. The `PluginRegistry` automatica
 ```
 
 ### Single-Select Dropdowns (type: "string")
-If you need a simple dropdown with hardcoded options, use `"type": "string"`. You can provide an `enum` or `valueHelp` array containing `key` and `text` pairs. *(For live API-driven dropdowns, see 09. Actions and Datasources).*
+If you need a simple dropdown with hardcoded options, use `"type": "string"`. You can populate it in two ways:
+1. Standard **`enum`**: A simple array of strings (e.g. `["A", "B"]`).
+2. MetaUI **`valueHelp`**: An array containing objects with explicit `key` and `text` pairs (e.g. `[{"key": "A", "text": "Option A"}]`).
+
+*(For live API-driven dropdowns, see 09. Actions and Datasources).*
 
 ```json
 {

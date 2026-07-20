@@ -1,0 +1,28 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.scenarios.StringBinding"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:layout="sap.ui.layout"
+    displayBlock="true"
+    xmlns="sap.m">
+    <Page title="Scenario: String Binding (inputDataJson)" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
+            <CheckBox text="Debug Mode" selected="{viewModel>/debugMode}" />
+            <Button text="Trigger Submit" type="Accept" icon="sap-icon://accept" press=".onTriggerSubmit" />
+        </headerContent>
+        <content>
+            <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
+                <Text text="This scenario demonstrates injecting a raw JSON string into the GeneratorHost instead of a parsed JavaScript object. The engine will natively parse the JSON string on boot." class="sapUiSmallMarginBottom" />
+                
+                <meta:DynamicHost 
+                    id="metaHost"
+                    schemaDefinition="{viewModel 
+                                            displayMode="{viewModel>/displayMode}" >/parsedSchema}" 
+                    inputDataJson="{viewModel>/rawJsonStringIn}" 
+                    debugMode="{viewModel>/debugMode}"
+                    useMessageManager="true" />
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

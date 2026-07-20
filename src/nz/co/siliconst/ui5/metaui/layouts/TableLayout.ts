@@ -52,27 +52,29 @@ export class TableLayout implements ILayoutManager {
                 content: [
                     new Title({ text: tableTitle }),
                     new ToolbarSpacer(),
-                    new Button({
-                        text: "Add Row",
-                        icon: "sap-icon://add",
-                        press: (oEvent: any) => {
-                            const btn = oEvent.getSource();
-                            const tbl = btn.getParent().getParent() as Table;
-                            const model = tbl.getModel(actualModelName) as JSONModel;
-                            const info = tbl.getBindingInfo("items");
-                            if (!info || !info.path) return;
+                    ...(engine.isDisplayMode ? [] : [
+                        new Button({
+                            text: "Add Row",
+                            icon: "sap-icon://add",
+                            press: (oEvent: sap.ui.base.Event) => {
+                                const btn = oEvent.getSource();
+                                const tbl = btn.getParent().getParent() as Table;
+                                const model = tbl.getModel(actualModelName) as JSONModel;
+                                const info = tbl.getBindingInfo("items");
+                                if (!info || !info.path) return;
 
-                            const rawData = model.getProperty(info.path);
-                            const data = Array.isArray(rawData) ? rawData : [];
-                            const newData = [...data, {}];
-                            model.setProperty(info.path, newData);
-                        }
-                    })
+                                const rawData = model.getProperty(info.path);
+                                const data = Array.isArray(rawData) ? rawData : [];
+                                const newData = [...data, {}];
+                                model.setProperty(info.path, newData);
+                            }
+                        })
+                    ])
                 ]
             }),
             fixedLayout: false,
-            mode: "Delete",
-            delete: (oEvent: any) => {
+            mode: engine.isDisplayMode ? "None" : "Delete",
+            delete: (oEvent: sap.ui.base.Event) => {
                 const item = oEvent.getParameter("listItem");
                 const path = item.getBindingContext(actualModelName).getPath();
                 const model = item.getModel(actualModelName) as JSONModel;
@@ -142,6 +144,7 @@ export class TableLayout implements ILayoutManager {
                 }
             });
         } else {
+            Logger.debug("[MetaUI TableLayout]", "No uiLayout provided. Falling back to rendering all properties as columns.", "TableLayout");
             // Fallback: If no uiLayout is provided, render all properties as columns
             Object.keys(props).forEach((key) => {
                 try {

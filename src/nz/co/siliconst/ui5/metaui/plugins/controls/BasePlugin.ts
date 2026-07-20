@@ -5,7 +5,6 @@
 
 import { IPlugin } from "../../interfaces/IPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
-import { EventBus } from "../../core/EventBus";
 import Control from "sap/ui/core/Control";
 import { GlobalPipeline } from "../../core/PipelineManager";
 
@@ -29,6 +28,20 @@ export abstract class BasePlugin implements IPlugin {
     /** The UI5 JSONModel name used for absolute binding paths. */
     protected modelName: string = "meta";
 
+    /** Indicates if the engine is enforcing a read-only display mode. */
+    protected isDisplayMode: boolean = false;
+    
+    /** Internal callback provided by GeneratorHost to signal validation/data changes upwards */
+    protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
+
+    /**
+     * Injects the global display mode context into the plugin before rendering.
+     * @param mode True if the plugin should render in a read-only display mode.
+     */
+    public setDisplayMode(mode: boolean): void {
+        this.isDisplayMode = mode;
+    }
+
     /**
      * Instantiates the raw UI5 control and binds it to the model.
      * 
@@ -36,9 +49,10 @@ export abstract class BasePlugin implements IPlugin {
      * @param bindingPath The JSON path to bind to.
      * @param modelName The UI5 model name.
      * @param engineScopeId The deterministic scope ID provided by the Engine to prevent cloning collisions.
+     * @param onChange The callback fired natively when a field value blur/change occurs.
      * @returns {Control} The generated UI5 control.
      */
-    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string): Control;
+    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control;
 
     /**
      * Generates a deterministic, globally unique ID for this control.
@@ -63,8 +77,8 @@ export abstract class BasePlugin implements IPlugin {
         if (!this.control || !this.metadata) return { isValid: true };
         
         // Skip validation for hidden fields (e.g. hidden by ConditionEngine visibleOn)
-        if (typeof (this.control as any).getVisible === "function") {
-            if (!(this.control as any).getVisible()) {
+        if (typeof (this.control as unknown).getVisible === "function") {
+            if (!(this.control as unknown).getVisible()) {
                 return { isValid: true };
             }
         }
@@ -92,21 +106,12 @@ export abstract class BasePlugin implements IPlugin {
             }
         }
 
-        if (validatorsToRun.length === 0) return { isValid: true };
+        if (validatorsToRun.length === 0) {
+            return { isValid: true, errorMessage: undefined, fieldKey: this.fieldKey };
+        }
 
         const val = this.getValue();
         const result = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
-        
-        if (typeof (this.control as any).setValueState === "function") {
-            if (!result.isValid) {
-                (this.control as any).setValueState("Error");
-                (this.control as any).setValueStateText(result.errorMessage || "Invalid value.");
-            } else {
-                (this.control as any).setValueState("None");
-                (this.control as any).setValueStateText("");
-            }
-        }
-        
         return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey };
     }
 

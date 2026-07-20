@@ -32,7 +32,7 @@ export class SchemaNormalizer {
         try {
             // It is an object. Ensure it conforms to v2 structure.
             const normalized: ISchema = {
-                title: schemaObj.title || "MetaUI Generated Form",
+                title: schemaObj.title,
                 type: schemaObj.type || (schemaObj.items ? "array" : "object"),
                 layoutStrategy: schemaObj.layoutStrategy,
                 uiLayout: schemaObj.uiLayout,
@@ -115,7 +115,8 @@ export class SchemaNormalizer {
             pattern: prop.pattern,
             precision: prop.precision,
             scale: prop.scale,
-            valueHelp: prop.valueHelp
+            valueHelp: prop.valueHelp,
+            enum: prop.enum
         };
 
         if (normalized.type === "object" && prop.properties) {
@@ -146,7 +147,7 @@ export class SchemaNormalizer {
      * Infers a v2 ISchema structure dynamically from a plain data payload.
      */
     private static inferSchemaFromData(data: any): ISchema {
-        const schema: ISchema = { type: "object", properties: {} };
+        const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
 
         if (!data || typeof data !== "object") {
             return schema;
@@ -154,8 +155,10 @@ export class SchemaNormalizer {
 
         if (Array.isArray(data)) {
             schema.type = "array";
+            schema.layoutStrategy = "table";
             schema.items = {
                 type: "object",
+                layoutStrategy: "compact",
                 properties: data.length > 0 ? this.inferPropertiesFromObject(data[0]) : {}
             };
         } else {

@@ -20,10 +20,11 @@ export interface IPlugin {
      * @param fieldMetadata The JSON Schema defining the field's constraints and UI hints.
      * @param bindingPath The specific JSON path representing the field within the payload.
      * @param modelName The UI5 JSONModel alias used for data binding (defaults to 'meta').
-     * @param engine The orchestrator instance for delegating complex sub-layouts.
+     * @param engineScopeId The deterministic scope ID provided by the Engine.
+     * @param onChange The callback fired natively when a field value blur/change occurs.
      * @returns {Control} The generated UI5 control ready to be mounted.
      */
-    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engine?: any): Control;
+    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
 
     /**
      * Triggers the internal validation pipeline for this specific plugin instance.
@@ -45,4 +46,10 @@ export interface IPlugin {
      * or embedded Dialogs to prevent memory leaks in the SAP Fiori Launchpad.
      */
     destroy?(): void;
+
+    /**
+     * Injects the global display mode context into the plugin before rendering.
+     * @param mode True if the plugin should render in a read-only display mode.
+     */
+    setDisplayMode?(mode: boolean): void;
 }

@@ -26,8 +26,8 @@ export class ODataListBindingPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Select...",
-            change: (oEvent: any) => {
-                const val = oEvent.getParameter("selectedItem")?.getKey();
+            change: (oEvent: unknown) => {
+                const val = (oEvent as { getParameter: (s: string) => unknown }).getParameter("selectedItem")?.getKey();
                 this.validate();
             }
         });

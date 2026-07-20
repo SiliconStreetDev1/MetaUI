@@ -14,7 +14,7 @@ MetaUI operates in three distinct inference modes depending on how you define yo
 
 ```mermaid
 flowchart TD
-    A[JSON Schema & Payload] --> B(GeneratorHost)
+    A[JSON Schema & Payload] --> B(DynamicHost)
     B --> C{Engine}
     C -->|Routes Primitives| D[PluginRegistry]
     C -->|Evaluates visibleOn/enabledOn| E[ConditionEngine]
@@ -22,6 +22,9 @@ flowchart TD
     D --> G[Native UI5 Controls]
     G --> H[Fiori Screen]
 ```
+
+## Data Binding & Payload Extraction
+MetaUI natively maps to standard UI5 OData or JSON Models. It provides 4 primary ways to manage your payload state, including live two-way extraction and OData context binding. See **[08. Data Binding Architecture](08_data_binding.md)** for detailed implementation examples.
 
 ## Installation
 
@@ -33,12 +36,12 @@ npm install nz.co.siliconst.ui5.metaui
 
 ## Basic Initialization (JavaScript)
 
-The core control is the `GeneratorHost`. It requires two properties:
+The core control is the `DynamicHost`. It requires two properties:
 1. `schemaDefinition`: The JSON Schema defining the fields.
-2. `initialData`: The runtime data payload.
+2. `inputData`: The runtime data payload.
 
 ```javascript
-sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (GeneratorHost) {
+sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (DynamicHost) {
     
     // 1. Define the schema
     const schema = {
@@ -56,9 +59,11 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (
     };
 
     // 3. Instantiate the host
-    const host = new GeneratorHost({
+    const host = new DynamicHost({
         schemaDefinition: schema,
-        initialData: data
+        inputData: data,
+        displayMode: false, // Set to true to render the form as a read-only native Display view
+        debugMode: true // Enables visible error popups and detailed console logging for troubleshooting
     });
 
     // 4. Open the form in a Dialog
@@ -79,4 +84,4 @@ When `openInDialog` is called, the engine processes the schema and natively gene
 
 While opening in a dialog is great for quick scripts, you'll likely want to embed the engine directly into a standard Fiori XML View. 
 
-**Continue to [02. Fiori App Integration](02_fiori_app_integration.md)** to see how to properly configure your `ui5.yaml` and inject `<GeneratorHost>` into an XML view.
+**Continue to [02. Fiori App Integration](02_fiori_app_integration.md)** to see how to properly configure your `ui5.yaml` and inject `<DynamicHost>` into an XML view.

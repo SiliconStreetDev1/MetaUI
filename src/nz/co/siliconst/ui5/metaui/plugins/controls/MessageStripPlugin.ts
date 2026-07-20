@@ -16,7 +16,8 @@ import Control from "sap/ui/core/Control";
  * @public
  */
 export class MessageStripPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+        this.onChange = onChange;
         this.metadata = fieldMetadata;
         
         // Use binding to display text if the field has a value, otherwise use the label

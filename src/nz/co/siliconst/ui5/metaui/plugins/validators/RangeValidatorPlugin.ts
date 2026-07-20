@@ -12,7 +12,7 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class RangeValidatorPlugin implements IValidator {
-    public validate(parsedValue: any, args?: any): IValidationResult {
+    public validate(parsedValue: unknown, args?: Record<string, unknown>): IValidationResult {
         if (parsedValue === null || parsedValue === undefined) return { isValid: true }; 
         if (typeof parsedValue !== "number") return { isValid: true };
 

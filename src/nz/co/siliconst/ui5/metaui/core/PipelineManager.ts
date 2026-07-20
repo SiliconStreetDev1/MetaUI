@@ -19,7 +19,7 @@ import { Logger } from "../utils/Logger";
 
 // --- Built-in Default Validators ---
 class RequiredValidator implements IValidator {
-    validate(parsedValue: any, args?: any): IValidationResult {
+    validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (parsedValue === null || parsedValue === undefined || parsedValue === "") {
             return { isValid: false, errorMessage: "This field is required." };
         }
@@ -28,7 +28,7 @@ class RequiredValidator implements IValidator {
 }
 
 class MaxLengthValidator implements IValidator {
-    validate(parsedValue: any, args?: any): IValidationResult {
+    validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof parsedValue === "string" && args && typeof args === "number") {
             if (parsedValue.length > args) {
                 return { isValid: false, errorMessage: `Maximum length is ${args} characters.` };
@@ -82,7 +82,7 @@ export class PipelineManager {
      * @param argsMap Optional map of parameters required by specific rules (e.g. { maxLength: 50 }).
      * @returns {IValidationResult} The final result state and any associated error message.
      */
-    public executeValidation(parsedValue: any, requestedValidators: string[], argsMap?: Record<string, any>): IValidationResult {
+    public executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, any>): IValidationResult {
         for (const rule of requestedValidators) {
             const validator = this.validators.get(rule);
             if (validator) {

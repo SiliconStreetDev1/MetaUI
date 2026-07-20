@@ -17,7 +17,7 @@ export interface IValueHelp {
 
 export interface IValidationRule {
     name: string;
-    args?: any;
+    args?: unknown;
 }
 
 /**
@@ -46,7 +46,7 @@ export interface IUIDirective {
     fullWidth?: boolean;
     validators?: (string | IValidationRule)[];
     formatter?: string;
-    args?: any;
+    args?: unknown;
     dialogButtonText?: string;
 }
 

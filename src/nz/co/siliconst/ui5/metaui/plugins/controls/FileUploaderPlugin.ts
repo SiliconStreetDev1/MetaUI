@@ -15,21 +15,39 @@ import Control from "sap/ui/core/Control";
  * @public
  */
 export class FileUploaderPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+        this.onChange = onChange;
         this.metadata = fieldMetadata;
         
+        if (this.isDisplayMode) {
+            sap.ui.requireSync("sap/m/Link");
+            const LinkControl = sap.ui.require("sap/m/Link");
+            this.control = new LinkControl({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                text: `{${modelName}>${bindingPath}}`,
+                href: `{${modelName}>${bindingPath}}`, // Assuming the value is a URL to the file
+                target: "_blank"
+            });
+            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+            return this.control as Control;
+        }
+
         this.control = new FileUploader({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Choose a file...",
             width: "100%",
-            change: (oEvent: any) => {
+            change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("newValue");
-                this.validate();
+                const result = this.validate();
+                if (this.onChange) {
+                    this.onChange(result.isValid, this.fieldKey);
+                }
             }
         });
 
+        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
         return this.control as Control;
     }
 
@@ -39,6 +57,7 @@ export class FileUploaderPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
+            if (this.isDisplayMode) return;
             (this.control as FileUploader).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

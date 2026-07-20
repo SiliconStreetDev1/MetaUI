@@ -33,7 +33,7 @@ export default class RichTextControl extends BaseHardwareControl {
             showGroupFont: true,
             showGroupInsert: true,
             tooltip: "Rich Text Editor",
-            change: (oEvent: any) => {
+            change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("newValue");
                 this.setValueAndFire(val);
             }

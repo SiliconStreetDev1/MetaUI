@@ -20,11 +20,18 @@ export class ClearFormActionPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
+        if (this.isDisplayMode) {
+            sap.ui.requireSync("sap/m/Text");
+            const TextControl = sap.ui.require("sap/m/Text");
+            this.control = new TextControl({ visible: false });
+            return this.control as Control;
+        }
+        
         this.control = new Button({
             text: fieldMetadata.ui?.label || "Clear Data",
             type: "Reject",
             icon: "sap-icon://delete",
-            press: (oEvent: any) => {
+            press: (oEvent: sap.ui.base.Event) => {
                 const btn = oEvent.getSource() as Button;
                 const model = btn.getModel(modelName) as JSONModel;
                 if (model) {
@@ -43,6 +50,7 @@ export class ClearFormActionPlugin extends BasePlugin {
 
     protected applyState(): void {
         if (this.control && this.metadata) {
+            if (this.isDisplayMode) return;
             (this.control as Button).setEnabled(!this.metadata.ui?.readOnly);
         }
     }

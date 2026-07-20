@@ -1,5 +1,6 @@
 {
     "FirstName": "John",
     "LastName": "Doe",
-    "Age": 30
+    "Age": 30,
+    "CustomCode": "function hello() {\n  console.log('Hello World');\n}"
 }

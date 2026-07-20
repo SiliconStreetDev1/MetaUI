@@ -1,6 +1,6 @@
 # 05. Complex Hierarchies
 
-Enterprise data payloads are rarely flat. MetaUI supports recursive generation of nested `object` and `array` structures indefinitely.
+Complex data payloads are rarely flat. MetaUI supports recursive generation of nested `object` and `array` structures indefinitely.
 
 ## Embedded Tables vs Inline Fields (Array Routing)
 
@@ -49,7 +49,7 @@ This is incredibly useful for isolating complex nested configurations without br
 
 ### Visual Mapping & Drill-Down Example
 
-Let's look at an enterprise scenario: an Employee Profile that contains a massive sub-object for `NetworkConfiguration`. 
+Let's look at an complex scenario: an Employee Profile that contains a massive sub-object for `NetworkConfiguration`. 
 
 ```json
 {

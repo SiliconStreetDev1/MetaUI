@@ -54,9 +54,10 @@ The schema supports an explicit `layoutStrategy` override at the root level, tho
 
 | Strategy | Description |
 |---|---|
-| `form` | Default for `object`. Generates a `SimpleForm`. |
+| `form` | Default for explicit `object`. Generates a `SimpleForm`. |
+| `compact` | Default for inferred `object`s. Generates a lightweight, dense `VBox` stack without form margins. Ideal for table cells. |
 | `table` | Default for `array`. Generates a `sap.m.Table` (responsive) or `sap.ui.table.Table` (analytical). |
-| `mixed` | Forces both object and array layout strategies sequentially inside a `VBox`. |
+| `wizard` | Generates a `sap.m.Wizard` stepping layout. |
 
 ### Forcing a Table Layout
 If you supply an array, MetaUI inherently uses the `table` strategy. Because massive data tables cannot be embedded inside standard Fiori Form cells without breaking responsive design, **arrays are always extracted and rendered full-width below the form.**

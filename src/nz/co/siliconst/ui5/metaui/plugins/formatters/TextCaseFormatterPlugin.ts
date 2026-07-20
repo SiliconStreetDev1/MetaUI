@@ -13,7 +13,7 @@ import { IFormatter } from "../../interfaces/IPipeline";
  * @public
  */
 export class TextCaseFormatterPlugin implements IFormatter {
-    public format(rawValue: any, args?: any): string {
+    public format(rawValue: unknown, args?: unknown): string {
         if (typeof rawValue !== "string") return rawValue || "";
         
         // Default to uppercase if no specific arg could be easily parsed by simple formatter 

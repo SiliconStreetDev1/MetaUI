@@ -62,6 +62,13 @@
                 "label": "Rich Text Details",
                 "widget": "richText"
             }
+        },
+        "CustomCode": {
+            "type": "string",
+            "ui": {
+                "label": "Custom Javascript",
+                "widget": "codeEditor"
+            }
         }
     },
     "uiLayout": [
@@ -83,7 +90,8 @@
                 { "type": "Control", "scope": "#/properties/Location" },
                 { "type": "Control", "scope": "#/properties/Barcode" },
                 { "type": "Control", "scope": "#/properties/VoiceNotes" },
-                { "type": "Control", "scope": "#/properties/RichDescription" }
+                { "type": "Control", "scope": "#/properties/RichDescription" },
+                { "type": "Control", "scope": "#/properties/CustomCode" }
             ]
         }
     ]

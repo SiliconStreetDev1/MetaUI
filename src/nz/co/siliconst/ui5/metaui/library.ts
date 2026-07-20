@@ -65,4 +65,4 @@ registry.register("array", ArrayPlugin);
 registry.register("string", LiveSearchPlugin, "liveSearch");
 
 // Exporting window object safely for UI5 compatibility if needed
-export default (window as any)["nz"]["co"]["siliconst"]["ui5"]["metaui"];
+export default (window as unknown)["nz"]["co"]["siliconst"]["ui5"]["metaui"];

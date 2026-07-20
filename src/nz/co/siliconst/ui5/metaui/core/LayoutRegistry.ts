@@ -7,6 +7,7 @@ import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { FormLayout } from "../layouts/FormLayout";
 import { TableLayout } from "../layouts/TableLayout";
 import { WizardLayout } from "../layouts/WizardLayout";
+import { CompactLayout } from "../layouts/CompactLayout";
 import { Engine } from "./Engine";
 
 /** 
@@ -20,5 +21,6 @@ export const LayoutRegistry = new Registry<ILayoutManager>("Layouts");
 LayoutRegistry.register("form", new FormLayout());
 LayoutRegistry.register("table", new TableLayout());
 LayoutRegistry.register("wizard", new WizardLayout());
+LayoutRegistry.register("compact", new CompactLayout());
 
 Engine.layoutRegistry = LayoutRegistry;

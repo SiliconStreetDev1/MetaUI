@@ -11,11 +11,11 @@
                     
                     <Panel headerText="Option 1: Declarative XML Binding (Inline)" expandable="true" expanded="true">
                         <content>
-                            <Text text="This section uses the &lt;meta:GeneratorHost&gt; tag embedded directly into the XML view, bound to JSONModels." class="sapUiSmallMarginBottom" />
-                            <meta:GeneratorHost 
+                            <Text text="This section uses the &lt;meta:DynamicHost&gt; tag embedded directly into the XML view, bound to JSONModels." class="sapUiSmallMarginBottom" />
+                            <meta:DynamicHost 
                                 id="metaHost"
                                 schemaDefinition="{schemaModel>/}" 
-                                initialData="{dataModel>/}" 
+                                inputData="{dataModel>/}" 
                                 submit=".onSubmit" />
                             <Button text="Save Inline Form" press=".onSaveInline" type="Emphasized" class="sapUiSmallMarginTop" />
                         </content>

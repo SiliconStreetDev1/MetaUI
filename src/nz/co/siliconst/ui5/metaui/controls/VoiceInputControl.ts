@@ -32,7 +32,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
             rows: 3,
             width: "100%",
             placeholder: "Dictated text will appear here...",
-            liveChange: (oEvent: any) => {
+            liveChange: (oEvent: sap.ui.base.Event) => {
                 this.setValueAndFire(oEvent.getParameter("value"));
             }
         });
@@ -65,7 +65,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
     }
 
     private initSpeechRecognition(): void {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = (window as unknown).SpeechRecognition || (window as unknown).webkitSpeechRecognition;
         if (SpeechRecognition) {
             this.recognition = new SpeechRecognition();
             this.recognition.continuous = true;
@@ -106,7 +106,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
 
             this.recognition.onerror = (event: any) => {
                 Logger.error("Speech recognition error", event.error, "VoiceInputControl");
-                sap.ui.require(["sap/m/MessageBox"], (MessageBox: any) => {
+                sap.ui.require(["sap/m/MessageBox"], (MessageBox: unknown) => {
                     MessageBox.error("Microphone Error: " + event.error + "\n\nPlease ensure you have a working microphone attached and have not blocked access in your browser settings.");
                 });
                 this.stopDictation();
@@ -135,7 +135,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
             this.startBtn.setType("Reject");
         } catch (err: any) {
             Logger.error("Failed to start speech recognition", err.message || err, "VoiceInputControl");
-            sap.ui.require(["sap/m/MessageBox"], (MessageBox: any) => {
+            sap.ui.require(["sap/m/MessageBox"], (MessageBox: unknown) => {
                 MessageBox.error("Failed to start dictation. Please ensure you have a working microphone and have granted browser permissions.\n\nDetails: " + (err.message || err));
             });
             this.stopDictation();

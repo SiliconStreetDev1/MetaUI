@@ -10,7 +10,7 @@ export interface IFormatter {
      * @param args Optional arguments provided in the schema.
      * @returns The formatted string for the UI control.
      */
-    format(rawValue: any, args?: any): string;
+    format(rawValue: unknown, args?: unknown): string;
 }
 
 export interface IParser {
@@ -20,7 +20,7 @@ export interface IParser {
      * @param args Optional arguments provided in the schema.
      * @returns The raw typed value for the JSON payload.
      */
-    parse(uiValue: any, args?: any): any;
+    parse(uiValue: any, args?: unknown): any;
 }
 
 export interface IValidationResult {
@@ -35,5 +35,5 @@ export interface IValidator {
      * @param args Optional arguments provided in the schema (e.g. max length number)
      * @returns IValidationResult containing status and optional error message.
      */
-    validate(parsedValue: any, args?: any): IValidationResult;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
 }

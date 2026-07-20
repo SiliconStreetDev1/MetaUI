@@ -84,9 +84,11 @@ export class FormLayout implements ILayoutManager {
                 const isSubLayout = meta.type === "array" && isCollectionOfRecords && !hasExplicitWidget;
 
                 if (isSubLayout) {
+                    Logger.debug("[MetaUI FormLayout]", `Routing property '${propKey}' to Table Sub-Layout.`, "FormLayout");
                     tableElements.push({ scope: propKey, meta, label: element.label });
                 } else {
                     hasFormFields = true;
+                    Logger.debug("[MetaUI FormLayout]", `Rendering scalar field '${propKey}'.`, "FormLayout");
                     this._renderScalarField(form, element, propKey, meta, modelName, engine);
                 }
             } else {

@@ -1,6 +1,6 @@
 # MetaUI Schema Specification
 
-MetaUI operates on a strict, dictionary-based JSON Schema architecture. This schema acts as the single source of truth for the `GeneratorHost`, dictating exactly how data structures are mapped into dynamic UI5 Layouts.
+MetaUI operates on a strict, dictionary-based JSON Schema architecture. This schema acts as the single source of truth for the `DynamicHost` and underlying engine, dictating exactly how data structures are mapped into dynamic UI5 Layouts.
 
 ## The Core Concept
 
@@ -14,6 +14,7 @@ A standard `FormLayout` is derived from an `object` type with scalar properties.
 {
   "title": "Customer Profile",
   "type": "object",
+  "layoutStrategy": "form",
   "uiLayout": [
     {
       "type": "Group",
@@ -56,6 +57,7 @@ If a property is of `type: "array"`, the `FormLayout` will natively orchestrate 
   "properties": {
     "PurchaseOrders": {
       "type": "array",
+      "layoutStrategy": "table",
       "ui": { "label": "Purchase Orders" },
       "items": {
         "type": "object",

@@ -59,14 +59,89 @@
           "target": "home"
         },
         {
-          "pattern": "playground/{scenario}",
-          "name": "playground",
-          "target": "playground"
-        },
-        {
           "pattern": "multihost",
           "name": "multihost",
           "target": "multihost"
+        },
+        {
+          "pattern": "playground/basic_form",
+          "name": "basic_form",
+          "target": "basic_form"
+        },
+        {
+          "pattern": "playground/basic_table",
+          "name": "basic_table",
+          "target": "basic_table"
+        },
+        {
+          "pattern": "playground/mixed_layout",
+          "name": "mixed_layout",
+          "target": "mixed_layout"
+        },
+        {
+          "pattern": "playground/everything",
+          "name": "everything",
+          "target": "everything"
+        },
+        {
+          "pattern": "playground/string",
+          "name": "string",
+          "target": "string"
+        },
+        {
+          "pattern": "playground/dialog",
+          "name": "dialog",
+          "target": "dialog"
+        },
+        {
+          "pattern": "playground/inference",
+          "name": "inference",
+          "target": "inference"
+        },
+        {
+          "pattern": "playground/partial",
+          "name": "partial",
+          "target": "partial"
+        },
+        {
+          "pattern": "playground/complex",
+          "name": "complex",
+          "target": "complex"
+        },
+        {
+          "pattern": "playground/wizard",
+          "name": "wizard",
+          "target": "wizard"
+        },
+        {
+          "pattern": "playground/live_binding",
+          "name": "live_binding",
+          "target": "live_binding"
+        },
+        {
+          "pattern": "playground/double_bind",
+          "name": "double_bind",
+          "target": "double_bind"
+        },
+        {
+          "pattern": "playground/string_double_bind",
+          "name": "string_double_bind",
+          "target": "string_double_bind"
+        },
+        {
+          "pattern": "playground/hierarchy_test",
+          "name": "hierarchy_test",
+          "target": "hierarchy_test"
+        },
+        {
+          "pattern": "playground/client_table",
+          "name": "client_table",
+          "target": "client_table"
+        },
+        {
+          "pattern": "playground/complex_client_table",
+          "name": "complex_client_table",
+          "target": "complex_client_table"
         }
       ],
       "targets": {
@@ -80,7 +155,71 @@
         },
         "multihost": {
           "viewId": "multihost",
-          "viewName": "MultiHost"
+          "viewName": "scenarios.MultiHost"
+        },
+        "basic_form": {
+          "viewId": "basic_form",
+          "viewName": "scenarios.BasicForm"
+        },
+        "basic_table": {
+          "viewId": "basic_table",
+          "viewName": "scenarios.BasicTable"
+        },
+        "mixed_layout": {
+          "viewId": "mixed_layout",
+          "viewName": "scenarios.MixedLayout"
+        },
+        "everything": {
+          "viewId": "everything",
+          "viewName": "scenarios.Everything"
+        },
+        "string": {
+          "viewId": "string",
+          "viewName": "scenarios.String"
+        },
+        "dialog": {
+          "viewId": "dialog",
+          "viewName": "scenarios.Dialog"
+        },
+        "inference": {
+          "viewId": "inference",
+          "viewName": "scenarios.Inference"
+        },
+        "partial": {
+          "viewId": "partial",
+          "viewName": "scenarios.Partial"
+        },
+        "complex": {
+          "viewId": "complex",
+          "viewName": "scenarios.Complex"
+        },
+        "wizard": {
+          "viewId": "wizard",
+          "viewName": "scenarios.Wizard"
+        },
+        "live_binding": {
+          "viewId": "live_binding",
+          "viewName": "scenarios.LiveBinding"
+        },
+        "double_bind": {
+          "viewId": "double_bind",
+          "viewName": "scenarios.DoubleBind"
+        },
+        "string_double_bind": {
+          "viewId": "string_double_bind",
+          "viewName": "scenarios.StringDoubleBind"
+        },
+        "hierarchy_test": {
+          "viewId": "hierarchy_test",
+          "viewName": "scenarios.HierarchyTest"
+        },
+        "client_table": {
+          "viewId": "client_table",
+          "viewName": "scenarios.ClientTable"
+        },
+        "complex_client_table": {
+          "viewId": "complex_client_table",
+          "viewName": "scenarios.ComplexClientTable"
         }
       }
     },

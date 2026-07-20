@@ -27,9 +27,9 @@ export class RemoteValueHelpPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Select a country...",
-            change: (oEvent: any) => {
-                const item = oEvent.getParameter("selectedItem");
-                const val = item ? item.getKey() : oEvent.getParameter("value"); // Allow free text as well
+            change: (oEvent: unknown) => {
+                const item = (oEvent as { getParameter: (s: string) => unknown }).getParameter("selectedItem");
+                const val = item ? item.getKey() : (oEvent as { getParameter: (s: string) => unknown }).getParameter("value"); // Allow free text as well
                 this.validate();
             }
         });
@@ -44,7 +44,7 @@ export class RemoteValueHelpPlugin extends BasePlugin {
     }
 
     protected fetchData(comboBox: ComboBox): void {
-        const vhConfig = this.metadata?.valueHelp as any;
+        const vhConfig = this.metadata?.valueHelp as unknown as Record<string, unknown>;
         if (!vhConfig || !vhConfig.url) {
             Logger.error("RemoteValueHelpPlugin requires a valid valueHelp configuration with a URL.", "", "RemoteValueHelpPlugin");
             return;
@@ -54,7 +54,7 @@ export class RemoteValueHelpPlugin extends BasePlugin {
         
         fetch(vhConfig.url)
             .then(res => res.json())
-            .then((data: any[]) => {
+            .then((data: unknown[]) => {
                 const keyPath = vhConfig.keyPath || "key";
                 const textPath = vhConfig.textPath || "text";
                 

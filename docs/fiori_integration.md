@@ -81,7 +81,7 @@ Embed the `GeneratorHost` inside your XML view. Enable `useMessageManager="true"
             <meta:GeneratorHost 
                 id="dynamicForm"
                 schemaDefinition="{api>/DynamicSchema}" 
-                initialData="{api>/PayloadData}" 
+                inputData="{api>/PayloadData}"
                 useMessageManager="true"
                 submit=".onPayloadSubmit" />
         </content>

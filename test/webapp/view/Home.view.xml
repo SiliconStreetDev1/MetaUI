@@ -52,7 +52,7 @@
                         </TileContent>
                     </GenericTile>
 
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="initialDataJson" press=".onNavToScenario" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="inputDataJson" press=".onNavToScenario" width="200px">
                         <customData>
                             <core:CustomData key="scenario" value="string" />
                         </customData>
@@ -102,7 +102,34 @@
                             <core:CustomData key="scenario" value="wizard" />
                         </customData>
                         <TileContent>
-                            <NumericContent value="9" icon="sap-icon://step" />
+                            <NumericContent value="9" icon="sap-icon://sys-monitor" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Live Output Binding" subheader="Real-Time JSON" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="live_binding" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="10" icon="sap-icon://synchronize" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Double Bind Test" subheader="Single Model Field" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="double_bind" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="10b" icon="sap-icon://connected" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Double Bind" subheader="Pure JSON Strings" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="string_double_bind" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="10c" icon="sap-icon://chain-link" />
                         </TileContent>
                     </GenericTile>
 
@@ -115,9 +142,30 @@
                         </TileContent>
                     </GenericTile>
                     
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Generator in Table" press=".onNavToMultiHost" width="200px">
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Generator in Table" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="multihost" />
+                        </customData>
                         <TileContent>
                             <NumericContent value="11" icon="sap-icon://table-row" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Client Table" subheader="Inference in Table" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="client_table" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="12" icon="sap-icon://table-view" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Complex Client Table" subheader="Schema in Table" press=".onNavToScenario" width="200px">
+                        <customData>
+                            <core:CustomData key="scenario" value="complex_client_table" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="13" icon="sap-icon://table-chart" />
                         </TileContent>
                     </GenericTile>
                 </HBox>

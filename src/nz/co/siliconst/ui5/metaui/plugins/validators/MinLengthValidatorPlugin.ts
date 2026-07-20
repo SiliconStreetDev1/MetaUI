@@ -12,7 +12,7 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class MinLengthValidatorPlugin implements IValidator {
-    public validate(parsedValue: any, args?: any): IValidationResult {
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
         if (typeof args !== "number") return { isValid: true }; // Invalid config
 

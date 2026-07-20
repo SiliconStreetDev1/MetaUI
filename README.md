@@ -13,8 +13,10 @@ MetaUI is designed for use cases where **CDS annotations are unavailable, imposs
 
 Built for strict UI5 architecture adherence, MetaUI enforces modularity through a Plugin-based design and explicitly avoids inline DOM manipulation.
 
+- **100% Schema Inference**: Bind raw JSON to the new `DynamicHost` and the engine will instantly infer the metadata, schema, and layout on the fly.
 - **Hybrid / Partial Schema Inference**: Supports the standard JSON-Schema `additionalProperties: true` directive. Provide a minimal "Partial Schema" to override specific UI elements (e.g. converting a string into a dropdown), and the engine will recursively deep-merge it with an automatically inferred schema generated from the rest of your data payload.
-- **Strict Array Routing**: Pure contract-based routing strictly separates sub-layouts (arrays of objects) from inline field plugins (primitive arrays), enabling flawless enterprise nested rendering without hacky edge cases.
+- **Strict Array Routing**: Pure contract-based routing strictly separates sub-layouts (arrays of objects) from inline field plugins (primitive arrays), enabling flawless complex nested rendering without hacky edge cases.
+- **True Two-Way Sync**: Safely double-bind `inputData` and `outputData` to the exact same UI5 model property. Built-in `deepEqual` loop-breakers catch UI5 data echoes, perfectly preserving user cursor focus during live model swaps.
 
 ✨ **[Play with the Live Interactive Demo Here!](https://SiliconStreetDev1.github.io/MetaUI/index.html)** ✨
 
@@ -67,8 +69,8 @@ The test suite will boot at `http://localhost:8080/index.html`.
 Import the compiled library namespace into your UI5 project. 
 
 ```javascript
-sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (GeneratorHost) {
-    const host = new GeneratorHost({
+sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (DynamicHost) {
+    const host = new DynamicHost({
         // The Schema Definition
         schemaDefinition: {
             type: "object",
@@ -88,10 +90,10 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (
             }
         },
         // The Data Payload
-        initialData: {
-            Username: "JDoe",
-            IsActive: true
-        }
+        inputData: {
+            "FirstName": "John",
+            "LastName": "Doe"
+        },
     });
 
     // Option A: Render inside an existing container
@@ -110,13 +112,32 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], function (
 
 ### Declarative XML Binding
 
+The `DynamicHost` fully supports declarative XML instantiation in traditional UI5 views:
+
+```xml
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <meta:DynamicHost 
+        id="dynamicFormHost" 
+        schemaDefinition="{backend>/SchemaDefinition}" 
+        inputData="{backend>/PayloadData}" 
+        useMessageManager="true"
+        submit=".onMetaFormSubmit" />
+        
+</mvc:View>
+```
+
+### Validation
+
 MetaUI supports client-side validation based on JSON Schema constraints natively.
 
-### Mandatory Fields
+#### Mandatory Fields
 Adding `"required": true` to any property in the schema will enforce input validation prior to the `submit` event being fired.
 
 ### Custom Validation Exits (`beforeSubmit`)
-For business logic requiring custom checks (e.g., async validation), the `GeneratorHost` provides a `beforeSubmit` event.
+For business logic requiring custom checks (e.g., async validation), the `DynamicHost` provides a `beforeSubmit` event.
 
 ```javascript
 onBeforeSubmit: function(oEvent) {
@@ -157,33 +178,17 @@ onFieldChange: function(oEvent) {
 ```
 
 ### Fiori Message Manager Integration
-By default, validation errors are shown locally. To aggregate validation errors into the global UI5 Message Popover, enable `useMessageManager` on the `GeneratorHost`:
+By default, validation errors are shown locally. To aggregate validation errors into the global UI5 Message Popover, enable `useMessageManager` on the `DynamicHost`:
 
 ```xml
-<meta:GeneratorHost
+<meta:DynamicHost
     schemaDefinition="{/mySchema}"
     useMessageManager="true"
     beforeSubmit=".onBeforeSubmit"
     submit=".onSubmit" />
 ```
 
-## Supported Features
 
-The `GeneratorHost` fully supports declarative XML instantiation in traditional UI5 views:
-
-```xml
-<mvc:View
-    xmlns:mvc="sap.ui.core.mvc"
-    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
-    
-    <meta:GeneratorHost 
-        id="metaHost"
-        schemaDefinition="{backend>/schema}" 
-        initialData="{backend>/data}" 
-        submit=".onFormSubmit" />
-        
-</mvc:View>
-```
 
 ---
 

@@ -103,3 +103,4 @@ Now, your backend simply outputs this JSON schema, and MetaUI will render your c
 1. **State Isolation:** Never store global state in your plugin instance. MetaUI creates a single instance of your plugin class and re-uses it per field (or instantiates anew via factory if required). Rely heavily on UI5 data binding.
 2. **Lifecycle:** If you create internal JSONModels or instantiate sub-controls manually, you MUST destroy them when your plugin is destroyed to prevent memory leaks in the Launchpad.
 3. **No Direct DOM Manipulation:** Strict UI5 guidelines apply. Do not use jQuery or `document.getElementById()`.
+4. **Architectural Boundary:** Never build structural containers (`Form`, `VBox`, `Table`) inside an `IPlugin`. Plugins are atomic leaf-nodes (e.g. `sap.m.Input`). Structural orchestration must be handled exclusively by creating an `ILayoutManager` (e.g. `CompactLayout`, `FormLayout`) and registering it in the `LayoutRegistry`.

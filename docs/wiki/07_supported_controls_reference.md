@@ -146,6 +146,11 @@ Mapped to `sap.ui.unified.FileUploader`. Extracts file as Base64 or posts to a U
 * **Type:** `"string"`
 * **Widget:** `"fileUploader"`
 
+### 10b. Code Editor
+Provides a `sap.ui.codeeditor.CodeEditor` for syntax-highlighted code/JSON editing.
+* **Type:** `"string"`
+* **Widget:** `"codeEditor"`
+
 ---
 
 ## Hardware & Media (Base64 Outputs)

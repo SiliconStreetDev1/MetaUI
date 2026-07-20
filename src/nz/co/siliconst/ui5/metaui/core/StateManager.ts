@@ -5,6 +5,12 @@
 
 import JSONModel from "sap/ui/model/json/JSONModel";
 import ManagedObject from "sap/ui/base/ManagedObject";
+import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
+import { GlobalPipeline } from "./PipelineManager";
+import Message from "sap/ui/core/message/Message";
+import coreLibrary from "sap/ui/core/library";
+import Core from "sap/ui/core/Core";
+import Messaging from "sap/ui/core/Messaging";
 
 
 /**
@@ -12,21 +18,99 @@ import ManagedObject from "sap/ui/base/ManagedObject";
  */
 export class StateManager {
     private model: JSONModel;
-
     private activeModelName: string;
+    private schema: ISchema;
 
     /**
      * Initializes the state manager with an optional initial payload.
      * @param initialData The initial JSON payload to populate the fields.
+     * @param schema The normalized schema for live validation.
      * @param modelName The UI5 model alias used for isolation.
      */
-    constructor(initialData: Record<string, any> = {}, modelName: string = "meta") {
+    constructor(initialData: Record<string, any> = {}, schema: ISchema, modelName: string = "meta") {
         this.activeModelName = modelName;
+        this.schema = schema;
         
         // Deep copy to ensure no reference leakage from the host application
         const safeData = JSON.parse(JSON.stringify(initialData));
         this.model = new JSONModel(safeData);
         this.model.setDefaultBindingMode("TwoWay");
+
+        // Centralized Model-Level Validation Interceptor
+        const originalSetProperty = this.model.setProperty.bind(this.model);
+        this.model.setProperty = (sPath: string, oValue: any, oContext?: any, bAsyncUpdate?: boolean) => {
+            const result = originalSetProperty(sPath, oValue, oContext, bAsyncUpdate);
+            this.validatePath(sPath, oValue);
+            return result;
+        };
+    }
+
+    /**
+     * Validates a specific path against the schema and updates the MessageManager.
+     */
+    private validatePath(sPath: string, value: any): void {
+        const fieldKey = sPath.replace(/^\//, "");
+        const metadata = this.findMetadataForPath(fieldKey);
+        
+        const messageManager = Messaging;
+        const targetPath = sPath.startsWith("/") ? sPath : `/${sPath}`; // Pure UI5: target MUST be absolute path
+        
+        // 1. Remove existing messages (strictly for THIS model instance)
+        const existingMessages = messageManager.getMessageModel().getData();
+        const messagesToRemove = existingMessages.filter((msg: any) => {
+            const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
+            return isMatch;
+        });
+        
+        
+        if (messagesToRemove.length > 0) {
+            messageManager.removeMessages(messagesToRemove);
+        }
+
+        if (!metadata) return;
+
+        // 2. Run GlobalPipeline
+        const validatorsToRun: string[] = [];
+        const argsMap: Record<string, any> = {};
+
+        if (metadata.required) {
+            validatorsToRun.push("required");
+        }
+        if (metadata.type === "string" && metadata.maxLength) {
+            validatorsToRun.push("maxLength");
+            argsMap["maxLength"] = { max: metadata.maxLength };
+        }
+        if (metadata.ui?.validators) {
+            for (const v of metadata.ui.validators) {
+                if (typeof v === "string") {
+                    validatorsToRun.push(v);
+                } else if (v && v.name) {
+                    validatorsToRun.push(v.name);
+                    if (v.args !== undefined) {
+                        argsMap[v.name] = v.args;
+                    }
+                }
+            }
+        }
+
+        if (validatorsToRun.length > 0) {
+            const validationResult = GlobalPipeline.executeValidation(value, validatorsToRun, argsMap);
+            if (!validationResult.isValid) {
+                const newMsg = new Message({
+                    message: validationResult.errorMessage || "Invalid value.",
+                    type: coreLibrary.MessageType.Error,
+                    target: targetPath,
+                    processor: this.model
+                });
+                messageManager.addMessages(newMsg);
+            }
+        }
+    }
+
+    private findMetadataForPath(path: string): IPropertyMetadata | undefined {
+        if (!this.schema || !this.schema.properties) return undefined;
+        // Basic single-level support for now. Nested object resolution would split by '.' or '/'
+        return this.schema.properties[path];
     }
 
 

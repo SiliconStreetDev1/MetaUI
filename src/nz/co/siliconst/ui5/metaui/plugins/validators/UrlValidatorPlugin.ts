@@ -12,11 +12,11 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class UrlValidatorPlugin implements IValidator {
-    public validate(parsedValue: any, args?: any): IValidationResult {
-        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+        if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
         
         try {
-            const url = new URL(parsedValue);
+            const url = new URL(parsedValue as string);
             if (url.protocol !== "http:" && url.protocol !== "https:") {
                 return { isValid: false, errorMessage: "URL must use http or https protocol." };
             }

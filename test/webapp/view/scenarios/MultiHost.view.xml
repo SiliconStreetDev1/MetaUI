@@ -1,0 +1,91 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.scenarios.MultiHost"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:codeeditor="sap.ui.codeeditor"
+    xmlns:l="sap.ui.layout"
+    xmlns="sap.m">
+    <Page title="Scenario: Multi-Host Row Form Demo" showNavButton="true" navButtonPress=".onNavBack">
+        <headerContent>
+            <Switch state="{viewModel>/displayMode}" customTextOn="Display" customTextOff="Edit" tooltip="Toggle Display Mode" />
+            <Switch state="{viewModel>/liveUpdate}" customTextOn="Live" customTextOff="Manual" tooltip="Toggle Live JSON Updates" />
+            <Button text="Add New Row" icon="sap-icon://add" press=".onAddRow" type="Emphasized" />
+            <Button text="Force Extract Data" icon="sap-icon://download" press=".onExtractData" />
+        </headerContent>
+        <content>
+            <l:Splitter height="100%" width="100%">
+                <!-- Left Pane: Source & Schema Tabs -->
+                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
+                    <layoutData>
+                        <l:SplitterLayoutData size="30%" />
+                    </layoutData>
+                    <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">
+                        <layoutData>
+                            <FlexItemData growFactor="1" />
+                        </layoutData>
+                        <items>
+                            <IconTabFilter text="Inbound Data">
+                                <codeeditor:CodeEditor type="json" value="{viewModel>/editorDataString}" change=".onInboundStringChange" height="100%" editable="true" />
+                            </IconTabFilter>
+                            <IconTabFilter text="Schema">
+                                <codeeditor:CodeEditor type="json" value="{viewModel>/schemaStringEditor}" change=".onSchemaStringChange" height="100%" editable="true" />
+                            </IconTabFilter>
+                        </items>
+                    </IconTabBar>
+                </VBox>
+
+                <!-- Center Pane: MultiHost Table -->
+                <ScrollContainer height="100%" vertical="true" width="auto">
+                    <layoutData>
+                        <l:SplitterLayoutData size="auto" />
+                    </layoutData>
+                    <VBox class="sapUiMediumMargin">
+                        <MessageStrip
+                            text="This demo proves the modularity and isolation of the GeneratorHost. Each row in this table binds a unique instance of GeneratorHost to the row context. The IDs are deterministic and will not collide, and their states are completely separated."
+                            type="Information"
+                            showIcon="true"
+                            class="sapUiSmallMarginBottom" />
+
+                        <!-- The sap.m.Table handles the cloning of the GeneratorHost -->
+                        <Table id="multiHostTable" items="{viewModel>/records}" noDataText="No records available">
+                            <columns>
+                                <Column><Text text="Dynamic Record Form (Text, Date, Time)" /></Column>
+                                <Column width="100px" hAlign="End"><Text text="Actions" /></Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <!-- Multi-Host implementation -->
+                                        <!-- The 'inputData' is bound specifically to the row's 'data' object -->
+                                        <meta:DynamicHost 
+                                            schemaDefinition="{viewModel>/parsedSchema}" 
+                                            inputData="{viewModel>data}" 
+                                            liveUpdate="{viewModel>/liveUpdate}"
+                                            fieldChange=".onFieldChange"
+                                            displayMode="{viewModel>/displayMode}" />
+                                        
+                                        <Button icon="sap-icon://delete" type="Reject" press=".onDeleteRow" />
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </VBox>
+                </ScrollContainer>
+
+                <!-- Right Pane: Output -->
+                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
+                    <layoutData>
+                        <l:SplitterLayoutData size="30%" />
+                    </layoutData>
+                    <Title text="Extracted Multi-Host Payload" level="H3" class="sapUiSmallMarginBottom" />
+                    <codeeditor:CodeEditor type="json" value="{viewModel>/liveOutputString}" height="100%" editable="false">
+                        <codeeditor:layoutData>
+                            <FlexItemData growFactor="1" />
+                        </codeeditor:layoutData>
+                    </codeeditor:CodeEditor>
+                </VBox>
+                
+            </l:Splitter>
+        </content>
+    </Page>
+</mvc:View>

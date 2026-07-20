@@ -3,14 +3,17 @@
  * @description Renders a button that opens a dialog to edit a nested object structure.
  */
 
-import { IPlugin, IPluginValidationResult } from "../../interfaces/IPlugin";
+import { BasePlugin } from "./BasePlugin";
+import { IPluginValidationResult } from "../../interfaces/IPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
 
-export class ObjectPlugin implements IPlugin {
-    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string, engineScopeId?: string): Control {
+export class ObjectPlugin extends BasePlugin {
+    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+        this.onChange = onChange;
+        this.metadata = field;
         const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
         
         const subSchema: any = {
@@ -23,10 +26,11 @@ export class ObjectPlugin implements IPlugin {
             subSchema.uiLayout = field.uiLayout;
         }
 
-        return new Button({
-            text: "View Details",
-            icon: "sap-icon://form",
-            press: (oEvent: any) => {
+        this.control = new Button({
+            id: this.generateStableId(engineScopeId, bindingPath),
+            text: this.isDisplayMode ? "View Details" : "Edit Details",
+            icon: this.isDisplayMode ? "sap-icon://display" : "sap-icon://form",
+            press: (oEvent: sap.ui.base.Event) => {
                 const btn = oEvent.getSource() as Button;
                 const parentModel = btn.getModel(modelName) as JSONModel;
                 if (!parentModel) return;
@@ -40,29 +44,38 @@ export class ObjectPlugin implements IPlugin {
                 
                 const nestedData = parentModel.getProperty(updatePath) || {};
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/GeneratorHost"], (GeneratorHost: any) => {
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost"], (GeneratorHost: any) => {
                     const host = new GeneratorHost({
                         schemaDefinition: subSchema,
-                        initialData: nestedData
+                        inputData: nestedData,
+                        displayMode: this.isDisplayMode
                     });
 
-                    host.attachSubmit((e: any) => {
-                        const payload = e.getParameter("payload");
-                        parentModel.setProperty(updatePath, payload);
-                    });
+                    if (!this.isDisplayMode) {
+                        host.attachSubmit((e: any) => {
+                            const payload = e.getParameter("payload");
+                            parentModel.setProperty(updatePath, payload);
+                        });
+                    }
 
-                    const buttonText = field.ui?.dialogButtonText || "OK";
+                    const buttonText = field.ui?.dialogButtonText || (this.isDisplayMode ? "Close" : "OK");
                     host.openInDialog(`Nested Details: ${field.ui?.label || propKey}`, buttonText);
                 });
             }
         });
+
+        return this.control as Control;
     }
 
     public validate(): IPluginValidationResult {
         return { isValid: true };
     }
 
-    public onStateChange(newMetadata: IPropertyMetadata): void {
+    protected getValue(): any {
+        return null;
+    }
+
+    protected applyState(): void {
         // No dynamic state handling needed for the button
     }
 }

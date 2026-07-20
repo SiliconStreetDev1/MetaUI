@@ -10,7 +10,7 @@ sap.ui.define([
      * MultiHost Controller
      * Demonstrates cloning multiple GeneratorHost controls inside a sap.m.Table template.
      */
-    return Controller.extend("metaui.sandbox.controller.MultiHost", {
+    return Controller.extend("metaui.sandbox.controller.scenarios.MultiHost", {
         onInit: function () {
             // Define the strict Schema requested by the Persona
             var oSchema = {
@@ -62,11 +62,15 @@ sap.ui.define([
 
             // Setup the local JSON Model
             this.viewModel = new JSONModel({
-                schemaString: JSON.stringify(oSchema, null, 2),
+                parsedSchema: oSchema,
+                schemaStringEditor: JSON.stringify(oSchema, null, 2),
                 records: aRecords,
-                dataString: JSON.stringify(aRecords, null, 2)
+                editorDataString: JSON.stringify(aRecords, null, 2),
+                liveOutputString: "",
+                liveUpdate: true,
+                displayMode: false
             });
-            this.getView().setModel(this.viewModel, "multiModel");
+            this.getView().setModel(this.viewModel, "viewModel");
         },
 
         onAddRow: function () {
@@ -79,12 +83,12 @@ sap.ui.define([
                 }
             });
             this.viewModel.setProperty("/records", aRecords);
-            this.viewModel.setProperty("/dataString", JSON.stringify(aRecords, null, 2));
+            this.viewModel.setProperty("/editorDataString", JSON.stringify(aRecords, null, 2));
         },
 
         onDeleteRow: function (oEvent) {
             var oButton = oEvent.getSource();
-            var oContext = oButton.getBindingContext("multiModel");
+            var oContext = oButton.getBindingContext("viewModel");
             var sPath = oContext.getPath();
             
             // Extract the index from the path (e.g. "/records/1")
@@ -93,7 +97,7 @@ sap.ui.define([
             var aRecords = this.viewModel.getProperty("/records");
             aRecords.splice(iIndex, 1);
             this.viewModel.setProperty("/records", aRecords);
-            this.viewModel.setProperty("/dataString", JSON.stringify(aRecords, null, 2));
+            this.viewModel.setProperty("/editorDataString", JSON.stringify(aRecords, null, 2));
         },
 
         onExtractData: function () {
@@ -101,6 +105,7 @@ sap.ui.define([
             var aItems = oTable.getItems();
             
             var aExtracted = [];
+            var bAllValid = true;
             aItems.forEach(function(oItem) {
                 var oGeneratorHost = oItem.getCells()[0];
                 
@@ -111,12 +116,39 @@ sap.ui.define([
                 if (bSuccess) {
                     aExtracted.push(oGeneratorHost.getProperty("outputData"));
                 } else {
-                    MessageToast.show("Validation failed on one or more rows.");
+                    bAllValid = false;
                 }
             });
             
-            console.log("Extracted Multi-Host Data:", aExtracted);
-            MessageToast.show("Extracted " + aExtracted.length + " records. See console.");
+            if (!bAllValid) {
+                MessageToast.show("Validation failed on one or more rows.");
+            }
+            
+            this.viewModel.setProperty("/liveOutputString", JSON.stringify(aExtracted, null, 2));
+        },
+
+        onInboundStringChange: function (oEvent) {
+            var newVal = oEvent.getParameter("value");
+            try {
+                var parsed = JSON.parse(newVal);
+                if (Array.isArray(parsed)) {
+                    this.viewModel.setProperty("/records", parsed);
+                }
+            } catch (e) {}
+        },
+
+        onSchemaStringChange: function (oEvent) {
+            var newVal = oEvent.getParameter("value");
+            try {
+                var parsed = JSON.parse(newVal);
+                this.viewModel.setProperty("/parsedSchema", parsed);
+            } catch (e) {}
+        },
+
+        onFieldChange: function () {
+            if (this.viewModel.getProperty("/liveUpdate")) {
+                this.onExtractData();
+            }
         },
 
         onNavBack: function () {

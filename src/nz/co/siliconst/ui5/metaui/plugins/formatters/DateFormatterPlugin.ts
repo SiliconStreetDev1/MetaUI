@@ -19,13 +19,13 @@ export class DateFormatterPlugin implements IFormatter {
         this.dateFormat = DateFormat.getDateInstance({ style: "medium" });
     }
 
-    public format(rawValue: any, args?: any): string {
+    public format(rawValue: unknown, args?: unknown): string {
         if (!rawValue) return "";
         try {
-            const dateObj = new Date(rawValue);
+            const dateObj = new Date(rawValue as string);
             return this.dateFormat.format(dateObj);
         } catch (e) {
-            return rawValue; // Fallback to raw string if invalid date
+            return rawValue as string; // Fallback to raw string if invalid date
         }
     }
 }

@@ -13,7 +13,7 @@ import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
  * @public
  */
 export class IbanValidatorPlugin implements IValidator {
-    public validate(parsedValue: any, args?: any): IValidationResult {
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
         
         // Very basic IBAN structure regex (e.g. DE89370400440532013000)
