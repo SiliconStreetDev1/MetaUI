@@ -109,9 +109,7 @@ export default class DynamicHost extends Control {
                 const props = this.getMetadata().getProperties();
                 for (const propName in props) {
                     const bindingInfo = this.getBindingInfo(propName);
-                    if (bindingInfo) {
-                        this._innerHost.bindProperty(propName, bindingInfo);
-                    } else {
+                    if (!bindingInfo) {
                         const val = this.getProperty(propName);
                         // don't overwrite with nulls if it's default
                         if (val !== null && val !== undefined) {
@@ -148,29 +146,9 @@ export default class DynamicHost extends Control {
         return this;
     }
 
-    /**
-     * Overrides standard UI5 bindProperty.
-     * Ensures that if a developer dynamically binds a property via Javascript after instantiation,
-     * the new two-way binding is accurately mirrored onto the inner host.
-     */
-    public bindProperty(propertyName: string, bindingInfo: any): this {
-        super.bindProperty(propertyName, bindingInfo);
-        if (this._innerHost) {
-            this._innerHost.bindProperty(propertyName, bindingInfo);
-        }
-        return this;
-    }
 
-    /**
-     * Overrides standard UI5 unbindProperty to keep the proxy synchronized.
-     */
-    public unbindProperty(propertyName: string, suppressReset?: boolean): this {
-        super.unbindProperty(propertyName, suppressReset);
-        if (this._innerHost) {
-            this._innerHost.unbindProperty(propertyName, suppressReset);
-        }
-        return this;
-    }
+
+
 
     /**
      * Programmatic API support. Routes dialog commands down to the spawned inner host.
