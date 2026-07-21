@@ -20,6 +20,7 @@
   ],
   "scripts": {
     "build": "ui5 build --clean-dest",
+    "flatten": "move dist\\resources\\nz dist\\nz && rmdir /s /q dist\\resources",
     "publish-prep": "node scripts/publish-prep.js"
   },
   "types": "index.d.ts",

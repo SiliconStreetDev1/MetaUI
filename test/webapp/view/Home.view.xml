@@ -11,16 +11,6 @@
             <VBox class="sapUiMediumMargin">
                 <Title text="Basic Layouts" level="H2" class="sapUiSmallMarginBottom" />
                 <HBox wrap="Wrap">
-                    <!-- NEW ODATA JSON FIELD TEST TILE -->
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="OData Table Test" subheader="JSON Field Integration" press=".onNavToScenario" width="200px" style="sap-ui-color-green">
-                        <customData>
-                            <core:CustomData key="scenario" value="odata_v4_rap" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="NEW" icon="sap-icon://database" />
-                        </TileContent>
-                    </GenericTile>
-
                     <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Basic Form" subheader="Standard Fields" press=".onNavToScenario" width="200px">
                         <customData>
                             <core:CustomData key="scenario" value="basic_form" />
@@ -212,6 +202,15 @@
                         </customData>
                         <TileContent>
                             <NumericContent value="15" icon="sap-icon://synchronize" />
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="OData Table Test" subheader="JSON Field Integration" press=".onNavToScenario" width="200px" style="sap-ui-color-green">
+                        <customData>
+                            <core:CustomData key="scenario" value="odata_v4_rap" />
+                        </customData>
+                        <TileContent>
+                            <NumericContent value="16" icon="sap-icon://database" />
                         </TileContent>
                     </GenericTile>
                 </HBox>

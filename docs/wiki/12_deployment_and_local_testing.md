@@ -56,7 +56,9 @@ Now, when you run `npm start` (or `ui5 serve`), your local browser will resolve 
 
 Once your local testing is complete, you need to deploy the standalone MetaUI library to the SAP backend so that all deployed Fiori apps can consume it at runtime.
 
-If you only have access to the published NPM package (and not the original source code repository or `ui5-deploy.yaml`), you can use the standalone `ui5-nwabap-deployer-cli` tool to push the pre-built `dist` folder directly to SAP.
+Because the published NPM package (`@siliconst/metaui`) is published using a custom script (`publish-prep.js`), it actually contains the fully built, transpiled Javascript files. During the publish step, the build output is renamed to the `src` folder. 
+
+This means you **can** deploy it directly from your `node_modules` without needing to rebuild it.
 
 ### Step 1: Install the Standalone CLI
 Install the community deployer tool globally on your machine:
@@ -65,11 +67,11 @@ npm install -g ui5-nwabap-deployer-cli
 ```
 
 ### Step 2: Create a Configuration File
-In the folder where you installed the NPM package, create a file named `.ui5deployrc`. Configure it to point to the `dist` folder inside `node_modules`.
+In the folder where you installed the NPM package, create a file named `.ui5deployrc`. Configure it to point to the `src` folder inside the node module.
 
 ```json
 {
-  "cwd": "./node_modules/nz.co.siliconst.ui5.metaui/dist",
+  "cwd": "./node_modules/@siliconst/metaui/src",
   "server": "https://your-sap-server.com:443",
   "client": "100",
   "package": "Z_YOUR_ABAP_PACKAGE", 
@@ -89,6 +91,10 @@ Execute the deploy command, passing your credentials inline.
 ```bash
 ui5-deployer deploy --user your_sap_username --pwd your_sap_password
 ```
+
+> [!TIP]
+> **Why `src` and not `dist` or `resources`?**
+> The `publish-prep.js` script takes the built `dist/resources` folder and renames it to `src` before publishing to NPM. By setting `cwd` to `src`, the deployer uploads the namespace folders directly to the root of the BSP application. This ensures the SAP UI5 App Index correctly calculates and registers the resource root at runtime.
 
 ### How it works:
 1. The tool reads the `dist` folder directly from the NPM package.

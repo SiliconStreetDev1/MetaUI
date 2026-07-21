@@ -113,6 +113,10 @@ export class CodeEditorPlugin extends BasePlugin {
                         (this.control as CodeEditor).setType(this.detectLanguage(currentVal));
                     }
                     this.adjustHeight();
+                    // CRITICAL: Ace Editor sometimes loses its constructor `editable` flag 
+                    // when the model asynchronously injects a new value string. 
+                    // We must forcefully re-apply the correct state after binding.
+                    this.applyState();
                 }
             };
 
