@@ -67,6 +67,12 @@ export class ObjectPlugin extends BasePlugin {
                         host.attachSubmit((e: Event) => {
                             const payload = (e.getParameter("payload") as unknown);
                             parentModel.setProperty(updatePath, payload);
+                            
+                            // CRITICAL: Notify the parent Engine that this field mutated
+                            // so it can trigger LiveUpdate syncs and validate!
+                            if (this.onChange) {
+                                this.onChange(true, propKey);
+                            }
                         });
                     }
 

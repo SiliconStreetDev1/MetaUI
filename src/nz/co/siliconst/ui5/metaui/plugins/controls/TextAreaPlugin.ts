@@ -43,19 +43,57 @@ export class TextAreaPlugin extends BasePlugin {
             value: `{${modelName}>${bindingPath}}`,
             maxLength: fieldMetadata.maxLength || 0,
             required: !!fieldMetadata.required,
-            rows: fieldMetadata.ui?.rows || 4, // Default to 4 rows for text areas
+            rows: 3, // Start with at least 3 lines
+            growing: false, // We manage height manually to maintain the +2 lines requirement
             change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as sap.ui.base.Event).getParameter("value");
+                this.updateHeight(oEvent.getSource() as TextArea);
                 const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }
+            },
+            liveChange: (oEvent: sap.ui.base.Event) => {
+                this.updateHeight(oEvent.getSource() as TextArea);
             }
+        });
+
+        // Clean architecture: Wait for the model context, then calculate initial height
+        (this.control as TextArea).attachEventOnce("modelContextChange", () => {
+            const oBinding = (this.control as TextArea).getBinding("value");
+            
+            const initLogic = () => {
+                if (this.control) {
+                    this.updateHeight(this.control as TextArea);
+                }
+            };
+
+            if (oBinding) {
+                oBinding.attachChange(initLogic);
+            }
+            // Execute immediately in case the model is synchronous (JSONModel)
+            initLogic();
         });
 
         this.applyCommonDirectives(this.control, fieldMetadata, modelName);
 
         return this.control as Control;
+    }
+
+    /**
+     * Dynamically sets the rows to the content length + 2
+     */
+    private updateHeight(oTextArea: TextArea): void {
+        const val = oTextArea.getValue() || "";
+        // Count actual newlines in the string
+        const numLines = val.split(/\r\n|\r|\n/).length;
+        // Also estimate word wrapping if they type a really long single line without pressing enter
+        // A standard character width approximation, assuming ~80 chars per line for full width
+        const wrappedLines = Math.ceil(val.length / 80);
+        
+        const totalLines = Math.max(numLines, wrappedLines);
+        
+        // Ensure there is always 2 lines of extra breathing room
+        oTextArea.setRows(Math.max(3, totalLines + 2));
     }
 
     /**

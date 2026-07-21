@@ -1,7 +1,17 @@
 [
     {
         "ID": "1",
-        "DocumentType": "Standard",
+        "DocumentType": "Standard Order",
         "ConfigPayload": "{\"type\":\"object\",\"properties\":{\"CustomerName\":{\"type\":\"string\",\"title\":\"Customer Name\"},\"OrderTotal\":{\"type\":\"number\",\"title\":\"Total Amount\"}}}"
+    },
+    {
+        "ID": "2",
+        "DocumentType": "Express Delivery",
+        "ConfigPayload": "{\"type\":\"object\",\"properties\":{\"RushFee\":{\"type\":\"boolean\",\"title\":\"Apply Rush Fee\"},\"DeliveryDate\":{\"type\":\"string\",\"format\":\"date\",\"title\":\"Delivery Date\"}}}"
+    },
+    {
+        "ID": "3",
+        "DocumentType": "International Shipment",
+        "ConfigPayload": "{\"type\":\"object\",\"properties\":{\"CustomsDeclaration\":{\"type\":\"string\",\"title\":\"Customs Form\"},\"WeightKg\":{\"type\":\"number\",\"title\":\"Weight (kg)\"}}}"
     }
 ]

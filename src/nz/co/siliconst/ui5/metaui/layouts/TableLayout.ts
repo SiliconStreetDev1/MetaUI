@@ -68,6 +68,11 @@ export class TableLayout implements ILayoutManager {
                                 const data = Array.isArray(rawData) ? rawData : [];
                                 const newData = [...data, {}];
                                 model.setProperty(info.path, newData);
+
+                                // CRITICAL: Notify the engine so it extracts payload and triggers liveUpdate
+                                if (engine.onChange) {
+                                    engine.onChange(true, actualPath.replace(/^\//, ""));
+                                }
                             }
                         })
                     ])
@@ -90,6 +95,11 @@ export class TableLayout implements ILayoutManager {
                 const newData = [...data];
                 newData.splice(index, 1);
                 model.setProperty(arrayPath, newData);
+
+                // CRITICAL: Notify the engine so it extracts payload and triggers liveUpdate
+                if (engine.onChange) {
+                    engine.onChange(true, actualPath.replace(/^\//, ""));
+                }
             }
         });
 

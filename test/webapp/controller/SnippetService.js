@@ -117,42 +117,45 @@ sap.ui.define([], function () {
 `;
 
                 case "string":
-                    return `// ==========================================
-// STRING BINDING (RAW JSON INJECTION)
-// ==========================================
-// Sometimes you don't have a JavaScript object, but rather a raw JSON string from a database or API.
-// MetaUI natively supports accepting stringified JSON directly. It will parse it internally and output a stringified result.
+                    return `<!-- ========================================== -->
+<!-- STRING BINDING (RAW JSON INJECTION) -->
+<!-- ========================================== -->
+<!-- Sometimes you don't have a JavaScript object, but rather a raw JSON string from a database or API. -->
+<!-- MetaUI natively supports accepting stringified JSON directly. -->
 
-var oHost = this.byId("metaHost");
-
-// Instead of 'data', bind to 'dataJson'
-oHost.bindProperty("dataJson", "myModel>/rawJsonStringIn");
-
-// Instead of 'data', bind to 'dataJson'
-oHost.bindProperty("dataJson", "myModel>/rawJsonStringOut");
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <meta:DynamicHost 
+        dataJson="{myModel>/rawJsonStringIn}" 
+    />
+</mvc:View>
 `;
 
                 case "dialog":
-                    return `// ==========================================
-// PROGRAMMATIC JAVASCRIPT API (DIALOGS)
-// ==========================================
-// You don't need XML to use MetaUI. You can instantiate it entirely in JavaScript 
-// and immediately open it in a responsive popup dialog.
-// Note: We use DynamicHost so it automatically figures out whether to use Explicit or Inference mode!
+                    return `<!-- ========================================== -->
+<!-- XML DIALOG INTEGRATION -->
+<!-- ========================================== -->
+<!-- You can embed MetaUI directly inside a standard sap.m.Dialog in a Fragment! -->
 
-sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(DynamicHost) {
-    const host = new DynamicHost({
-        schemaDefinition: mySchemaObject, // Optional! If omitted, it will infer from data
-        data: myDataObject,
-        submit: function(oEvent) {
-            const payload = oEvent.getParameter("payload");
-            console.log("Extracted Data:", payload);
-        }
-    });
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
     
-    // Instantly wraps the host in a responsive Dialog
-    host.openInDialog("My Dynamic Form", "Save Changes");
-});
+    <Dialog title="My Dynamic Form">
+        <content>
+            <meta:DynamicHost 
+                data="{myModel>/myDataObject}" 
+                submit=".onSubmit"
+            />
+        </content>
+        <beginButton>
+            <Button text="Save" press=".onSaveDialog" />
+        </beginButton>
+    </Dialog>
+</core:FragmentDefinition>
 `;
                 case "inference":
                 case "partial":
@@ -168,7 +171,7 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(Dyn
     submit=".onSubmit"
 />
 `;
-                
+
                 case "live_binding":
                     return `// ==========================================
 // LIVE BINDING

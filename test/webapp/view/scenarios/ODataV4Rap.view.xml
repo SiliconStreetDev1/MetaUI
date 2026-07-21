@@ -12,26 +12,25 @@
             <m:Title text="Scenario 1: JSON Config Swap (RAP Determination)" titleStyle="H3" class="sapUiTinyMarginBottom" />
             <m:Text text="Change the dropdown to trigger the V4 Mock Server's interceptor. It will patch the OData model and return a new JSON layout string, which instantly tears down and repaints the form below without any manual controller logic!" class="sapUiTinyMarginBottom" />
             
-            <m:HBox alignContent="Center" alignItems="Center" class="sapUiSmallMarginBottom">
-                <m:Label text="Document Type:" class="sapUiTinyMarginEnd" />
-                <m:ComboBox 
-                    selectedKey="{odata>/ConfigurationProfiles('1')/DocumentType}" 
-                    items="{
-                        path: 'odata>/ConfigurationProfiles'
-                    }">
-                    <core:Item key="{odata>DocumentType}" text="{odata>DocumentType}" />
-                </m:ComboBox>
-            </m:HBox>
-
-            <m:Panel headerText="Generated Form" class="sapUiSmallMarginBottom" backgroundDesign="Solid">
-                <!-- We bind dataJson straight to the OData ConfigPayload -->
-                <!-- We set liveUpdate="true" so any inputs in the form automatically get extracted -->
-                <meta:DynamicHost 
-                    schemaDefinition="{odata>/ConfigurationProfiles('1')/ConfigPayload}" 
-                    liveUpdate="true" 
-                    fieldChange=".onFieldChange" />
-            </m:Panel>
-            
+            <m:Table id="configTable" items="{odata>/ConfigurationProfiles}" class="sapUiSmallMarginBottom">
+                <m:columns>
+                    <m:Column width="20%"><m:Text text="Document Type" /></m:Column>
+                    <m:Column><m:Text text="Dynamic Configuration (JSON Field)" /></m:Column>
+                </m:columns>
+                <m:items>
+                    <m:ColumnListItem>
+                        <m:cells>
+                            <m:Text text="{odata>DocumentType}" />
+                            <!-- We embed DynamicHost in the table row and bind dataJson directly to the OData ConfigPayload -->
+                            <!-- MetaUI's OData Delegate will automatically back off because dataJson is explicitly bound -->
+                            <meta:DynamicHost 
+                                dataJson="{odata>ConfigPayload}" 
+                                liveUpdate="true" 
+                                fieldChange=".onFieldChange" />
+                        </m:cells>
+                    </m:ColumnListItem>
+                </m:items>
+            </m:Table>
             <m:Title text="Scenario 2: Object Binding" titleStyle="H3" class="sapUiTinyMarginTop sapUiTinyMarginBottom" />
             <m:Text text="This form maps directly to the standard Employee OData Entity object. The backend expects a standard JS Object. Change a field and observe how it cleanly syncs back to the OData Model." class="sapUiTinyMarginBottom" />
 

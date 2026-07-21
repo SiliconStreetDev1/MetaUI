@@ -143,8 +143,11 @@ export class CodeEditorPlugin extends BasePlugin {
      */
     protected applyState(): void {
         if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            (this.control as CodeEditor).setEditable(!this.metadata.ui?.readOnly);
+            if (!this.isEditable) {
+                (this.control as CodeEditor).setEditable(false);
+            } else {
+                (this.control as CodeEditor).setEditable(!this.metadata.ui?.readOnly);
+            }
         }
     }
 }

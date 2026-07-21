@@ -21,6 +21,13 @@
                 "label": "Age"
             }
         },
+        "Comments": {
+            "type": "string",
+            "ui": {
+                "label": "User Comments",
+                "widget": "textArea"
+            }
+        },
         "Photo": {
             "type": "string",
             "ui": {
@@ -78,7 +85,8 @@
             "elements": [
                 { "type": "Control", "scope": "#/properties/FirstName" },
                 { "type": "Control", "scope": "#/properties/LastName" },
-                { "type": "Control", "scope": "#/properties/Age" }
+                { "type": "Control", "scope": "#/properties/Age" },
+                { "type": "Control", "scope": "#/properties/Comments" }
             ]
         },
         {

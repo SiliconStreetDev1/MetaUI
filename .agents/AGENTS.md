@@ -30,3 +30,5 @@
 5. **Inference Mode**
    - \InferredGeneratorHost\ dynamically generates UI purely from \inputData\ (no schema needed). It leverages \SchemaNormalizer\ to hot-swap schemas without destroying the DOM.
 
+## 6. Documentation Synchronization
+- **CRITICAL RULE**: Whenever you make an architectural change, rename a property, or refactor a component, your final mandatory step MUST be to use grep_search across the 'docs/wiki/' folder. You must proactively find and update all stale code snippets, XML examples, and explanations to perfectly match your new code changes. Do not wait to be asked.

@@ -69,6 +69,12 @@ export class ArrayPlugin extends BasePlugin {
                         host.attachSubmit((e: sap.ui.base.Event) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
+
+                            // CRITICAL: Notify the parent Engine that this field mutated
+                            // so it can trigger LiveUpdate syncs and validate!
+                            if (this.onChange) {
+                                this.onChange(true, propKey);
+                            }
                         });
                     }
 

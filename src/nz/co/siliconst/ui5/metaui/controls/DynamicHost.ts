@@ -99,6 +99,17 @@ export default class DynamicHost extends Control {
      */
     private initODataDelegate(): void {
         if (!this.odataDelegate) {
+            // Guard: If the user explicitly bound dataJson, do not steal the context.
+            if (this.getBindingInfo("dataJson")) {
+                return;
+            }
+
+            // Guard: If the user explicitly bound 'data' to a specific property path, do not steal the context.
+            const dataBinding = this.getBindingInfo("data") as any;
+            if (dataBinding && dataBinding.path && dataBinding.path !== "") {
+                return;
+            }
+
             const oContext = this.getBindingContext("odata") || this.getBindingContext();
             if (oContext) {
                 Logger.debug("[MetaUI DynamicHost]", `Context found for delegate initialization: ${oContext.getPath()}`, "DynamicHost");

@@ -18,27 +18,55 @@ sap.ui.define([
             });
 
             const initialData = {
-                header: {
-                    id: "DOC-29384",
-                    type: "Invoice",
-                    createdBy: "admin",
-                    metadata: {
-                        region: "US-West",
-                        priority: "High"
+                companyName: "Silicon Street Development",
+                industry: "Software",
+                founded: 2026,
+                isActive: true,
+                Departments: [
+                    {
+                        departmentName: "Engineering",
+                        budget: 1500000,
+                        Employees: [
+                            {
+                                name: "John Doe",
+                                role: "Senior Developer",
+                                Projects: [
+                                    { projectName: "MetaUI Core", status: "Active" },
+                                    { projectName: "OData Plugin", status: "Planning" }
+                                ],
+                                hardwareDetails: {
+                                    laptop: "MacBook Pro M3",
+                                    monitors: 2
+                                }
+                            },
+                            {
+                                name: "Jane Smith",
+                                role: "Engineering Manager",
+                                Projects: [
+                                    { projectName: "Q3 Planning", status: "Active" }
+                                ],
+                                hardwareDetails: {
+                                    laptop: "Lenovo ThinkPad",
+                                    monitors: 1
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        departmentName: "Marketing",
+                        budget: 500000,
+                        Employees: [
+                            {
+                                name: "Sarah Jones",
+                                role: "Brand Manager",
+                                Projects: [],
+                                hardwareDetails: {
+                                    laptop: "MacBook Air",
+                                    monitors: 0
+                                }
+                            }
+                        ]
                     }
-                },
-                shipping: {
-                    address: "123 Main St",
-                    city: "San Francisco",
-                    zip: "94105",
-                    details: {
-                        instructions: "Leave at back door",
-                        requiresSignature: true
-                    }
-                },
-                Contacts: [
-                    { name: "John Doe", role: "Manager" },
-                    { name: "Jane Smith", role: "Developer" }
                 ]
             };
 

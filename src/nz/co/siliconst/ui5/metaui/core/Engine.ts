@@ -38,6 +38,9 @@ export class Engine {
 
     private activeModel?: sap.ui.model.Model;
 
+    /** Callback to notify the host that an internal field changed. */
+    public onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
+
     /** Tracks whether the entire engine is running in Editable mode. */
     public readonly isEditable: boolean = true;
 

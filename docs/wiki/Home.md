@@ -26,3 +26,4 @@ All code is strictly typed TypeScript and follows a zero-hack, highly modular ar
 11. [Validators and Formatters](09_validators_and_formatters.md)
 12. [Actions and Datasources](10_actions_and_datasources.md)
 13. [Advanced Integration & Events](11_advanced_integration.md)
+14. [Deployment and Local Testing](12_deployment_and_local_testing.md)
