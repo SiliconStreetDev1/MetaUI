@@ -24,7 +24,7 @@ export class DateFormatterPlugin implements IFormatter {
      * @param rawValue The raw date string.
      * @returns The formatted string for the UI control.
      */
-    public format(rawValue: string | number, args?: Record<string, string>): string {
+    public format(rawValue: unknown, args?: unknown): string {
         if (!rawValue) return "";
         try {
             const dateObj = new Date(rawValue as string);

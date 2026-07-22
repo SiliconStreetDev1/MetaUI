@@ -15,6 +15,12 @@ export interface IPluginValidationResult {
 
 export interface IPlugin {
     /**
+     * Instructs the plugin whether to delegate visual error states to the global MessageManager.
+     * @param useMessageManager True if the global MessageManager is active.
+     */
+    setUseMessageManager?(useMessageManager: boolean): void;
+
+    /**
      * Instantiates the raw UI5 control and binds it to the specified data model.
      * 
      * @param fieldMetadata The JSON Schema defining the field's constraints and UI hints.
@@ -39,6 +45,15 @@ export interface IPlugin {
      * @param newMetadata The mutated schema metadata.
      */
     onStateChange(newMetadata: IPropertyMetadata): void;
+
+    /**
+     * Optionally allows the plugin to natively manage its own UI control's visual ValueState (e.g., red borders).
+     * Used when the global MessageManager is disabled.
+     * 
+     * @param isValid Whether the field passed validation.
+     * @param errorMessage The error message to display if invalid.
+     */
+    setVisualValidationState?(isValid: boolean, errorMessage?: string): void;
 
     /**
      * Optional lifecycle hook executed when the parent layout is destroyed.

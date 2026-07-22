@@ -1,6 +1,6 @@
 {
   "name": "@siliconst/metaui",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "description": "Dynamic Metadata UI5 Engine",
   "author": "SiliconStreetDev1",
   "license": "MIT",
@@ -21,6 +21,7 @@
   "scripts": {
     "build": "ui5 build --clean-dest",
     "flatten": "move dist\\resources\\nz dist\\nz && rmdir /s /q dist\\resources",
+    "deploy": "npm run build && npm run flatten && ui5 deploy",
     "publish-prep": "node scripts/publish-prep.js"
   },
   "types": "index.d.ts",

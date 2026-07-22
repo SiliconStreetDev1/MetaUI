@@ -15,9 +15,7 @@ import ODataV4Context from "sap/ui/model/odata/v4/Context";
  * @namespace nz.co.siliconst.ui5.metaui.controls
  */
 export default class DynamicHost extends Control {
-    private _innerHost: GeneratorHost | null = null;
     private odataDelegate: ODataDelegate | null = null;
-    private _initializedInner: boolean = false;
 
     static readonly metadata = {
         properties: {
@@ -59,7 +57,8 @@ export default class DynamicHost extends Control {
             },
             validationStateChanged: { parameters: { isValid: { type: "boolean" } } },
             validationError: { parameters: { fieldPath: { type: "string" }, message: { type: "string" } } },
-            validationSuccess: { parameters: { fieldPath: { type: "string" } } }
+            validationSuccess: { parameters: { fieldPath: { type: "string" } } },
+            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } }
         }
     };
 
@@ -176,7 +175,11 @@ export default class DynamicHost extends Control {
             const dataJson = this.getProperty("dataJson");
             const data = this.getProperty("data");
 
-            const hasSchema = !!schema;
+            let hasSchema = !!schema;
+            if (hasSchema && typeof schema === "object" && Object.keys(schema).length === 0) {
+                hasSchema = false; // Treat empty object as no schema
+            }
+            
             const hasData = !!dataJson || !!data;
 
             Logger.debug("[MetaUI DynamicHost]", `Evaluating boot. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
@@ -215,10 +218,13 @@ export default class DynamicHost extends Control {
                         if (eventName === "submit" || eventName === "fieldChange") {
                             const params = oEvent.getParameters();
                             if (params.payload) {
-                                super.setProperty("data", params.payload, true);
+                                const isLive = this.getProperty("liveUpdate") === true;
+                                if (eventName === "submit" || isLive) {
+                                    super.setProperty("data", params.payload, true);
 
-                                const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
-                                super.setProperty("dataJson", str, true);
+                                    const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
+                                    super.setProperty("dataJson", str, true);
+                                }
                             }
                             if (eventName === "fieldChange" && this.odataDelegate) {
                                 this.odataDelegate.handleFieldChange(params.fieldPath, params.value);
@@ -266,12 +272,14 @@ export default class DynamicHost extends Control {
      * @param {string} [title="Form"] The title of the dialog
      * @param {string} [submitButtonText="OK"] The text for the primary action button
      * @param {string} [cancelButtonText="Cancel"] The text for the cancel button
+     * @param {string} [dialogWidth="800px"] The width of the dialog
+     * @param {sap.ui.core.Control} [parentView] The parent view to attach the dialog to for model inheritance.
      */
-    public openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string): void {
+    public openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): void {
         if (!this._innerHost) {
             this.onBeforeRendering(); // Force init if they bypassed UI5 rendering
         }
-        this._innerHost?.openInDialog(title, submitButtonText, cancelButtonText);
+        this._innerHost?.openInDialog(title, submitButtonText, cancelButtonText, dialogWidth, parentView);
     }
 
     /**
@@ -285,6 +293,30 @@ export default class DynamicHost extends Control {
             return false;
         }
         return this._innerHost.triggerSubmit();
+    }
+
+    /**
+     * Injects a custom error message onto a specific field.
+     * Useful for injecting custom backend validation errors.
+     * 
+     * @param {string} fieldPath The schema key path to target.
+     * @param {string} message The custom error message to display.
+     */
+    public addCustomError(fieldPath: string, message: string): void {
+        if (this._innerHost && typeof (this._innerHost as any).addCustomError === "function") {
+            (this._innerHost as any).addCustomError(fieldPath, message);
+        }
+    }
+
+    /**
+     * Clears a custom error message from a specific field.
+     * 
+     * @param {string} fieldPath The schema key path to target.
+     */
+    public clearCustomError(fieldPath: string): void {
+        if (this._innerHost && typeof (this._innerHost as any).clearCustomError === "function") {
+            (this._innerHost as any).clearCustomError(fieldPath);
+        }
     }
 
     /**

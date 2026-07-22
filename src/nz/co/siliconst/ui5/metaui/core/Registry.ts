@@ -49,7 +49,9 @@ export class Registry<T> {
     public getStrict(key: string): T {
         const item = this.get(key);
         if (!item) {
-            throw new Error(`[MetaUI] ${this.registryName}: Key '${key}' not found.`);
+            const msg = `[MetaUI] ${this.registryName}: Key '${key}' not found.`;
+            Logger.error(msg);
+            throw new Error(msg);
         }
         return item;
     }

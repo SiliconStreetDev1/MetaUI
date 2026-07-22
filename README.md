@@ -5,190 +5,17 @@
 ## MetaUI vs. Fiori Elements
 It is important to note that MetaUI is **not** an attempt to replace SAP Fiori Elements. Fiori Elements is a robust framework for building UIs driven by static OData CDS annotations. 
 
-MetaUI is designed for use cases where **CDS annotations are unavailable, impossible, or too rigid.** 
-- **Highly Dynamic**: MetaUI parses standard JSON Schemas at runtime, allowing you to generate completely dynamic layouts based on user roles, remote APIs, or NoSQL databases where the schema isn't known until execution.
-- **Backend Agnostic**: Because it relies on universal JSON rather than OData metadata, MetaUI can be plugged into virtually any tech stack (Node.js, Firebase, GraphQL, REST).
-
-## 🚀 Key Features
-
-Built for strict UI5 architecture adherence, MetaUI enforces modularity through a Plugin-based design and explicitly avoids inline DOM manipulation.
-
-- **100% Schema Inference**: Bind raw JSON to the new `DynamicHost` and the engine will instantly infer the metadata, schema, and layout on the fly.
-- **Hybrid / Partial Schema Inference**: Supports the standard JSON-Schema `additionalProperties: true` directive. Provide a minimal "Partial Schema" to override specific UI elements (e.g. converting a string into a dropdown), and the engine will recursively deep-merge it with an automatically inferred schema generated from the rest of your data payload.
-- **Strict Array Routing**: Pure contract-based routing strictly separates sub-layouts (arrays of objects) from inline field plugins (primitive arrays), enabling flawless complex nested rendering without hacky edge cases.
-- **True Two-Way Sync**: Safely double-bind `data` and `data` to the exact same UI5 model property. Built-in `deepEqual` loop-breakers catch UI5 data echoes, perfectly preserving user cursor focus during live model swaps.
+MetaUI is designed for highly dynamic use cases where CDS annotations are unavailable, impossible, or too rigid. By relying on universal JSON, MetaUI provides a flexible alternative for scenarios that demand on-the-fly layout generation.
 
 ✨ **[Play with the Live Interactive Demo Here!](https://SiliconStreetDev1.github.io/MetaUI/index.html)** ✨
 
 ---
 
-## 📚 Technical Documentation
+## 📚 Documentation
 
-For detailed information regarding the JSON Schema properties, `ui.*` orchestrations, and recursive nested arrays, consult the payload formats specification:
+All comprehensive documentation regarding JSON Schema properties, `ui.*` orchestrations, plugins, and Fiori integrations has been moved to our Wiki. 
 
-- [MetaUI Documentation Wiki](docs/wiki/Home.md)
-- [Payload Formats & Directives](docs/payload_formats.md)
-- [Fiori Integration Guide](docs/fiori_integration.md)
-- [Custom Plugin Authorship Guide](docs/plugin_authorship.md)
-
----
-
-## 🏗 Architecture & Design Tenets
-
-1. **JSON-Schema Core:** MetaUI parses standard recursive JSON Schema `properties` blocks (`Record<string, IPropertyMetadata>`).
-2. **Implicit Layout Orchestration:** The `Engine` determines standard Layouts based on payload shape. Root `object` types map to `FormLayout` clusters. Root `array` types map to `TableLayout` instances. Nested arrays trigger recursive drill-down dialogs.
-3. **ConditionEngine Compilation:** Cross-context visibility rules (e.g., `"$root.status === 'DRAFT'"`) are transpiled into native UI5 Expression Bindings to utilize native reactivity.
-4. **Universal Plugin Architecture:** The `PluginRegistry` isolates control instantiation. Core layout managers delegate to registered implementations of `IPlugin`. Plugins are rigorously segregated into:
-   - `plugins/controls/`: Visual UI components (e.g., String, Date).
-   - `plugins/validators/`: Custom business logic constraints.
-   - `plugins/formatters/`: Data transformation utilities.
-   - `plugins/actions/`: Button and execution handlers.
-   - `plugins/datasources/`: Remote value help providers.
-
----
-
-## 🚀 Quick Start (Sandbox)
-
-The repository contains an internal UI5 sandbox for testing the engine's inference logic.
-
-```bash
-# Install dependencies
-npm install
-
-# Run the UI5 development server (Sandbox application)
-npm run start
-```
-The test suite will boot at `http://localhost:8080/index.html`.
-
----
-
-## 🛠 Integration
-
-### Installation
-
-Import the compiled library namespace into your UI5 project. 
-
-```javascript
-sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (DynamicHost) {
-    const host = new DynamicHost({
-        // The Schema Definition
-        schemaDefinition: {
-            type: "object",
-            uiLayout: [
-                {
-                    type: "Group",
-                    label: "User Settings",
-                    elements: [
-                        { type: "Control", scope: "#/properties/Username" },
-                        { type: "Control", scope: "#/properties/IsActive" }
-                    ]
-                }
-            ],
-            properties: {
-                Username: { type: "string", ui: { label: "User Name" } },
-                IsActive: { type: "boolean", ui: { label: "Active", widget: "switch" } }
-            }
-        },
-        // The Data Payload
-        data: {
-            "FirstName": "John",
-            "LastName": "Doe"
-        },
-    });
-
-    // Option A: Render inside an existing container
-    myVBox.addItem(host);
-    
-    // Option B: Mount as an isolated Dialog
-    host.openInDialog("User Configuration", "OK");
-
-    // Capture the extracted JSON payload on submit
-    host.attachSubmit(function(oEvent) {
-        const payload = oEvent.getParameter("payload");
-        console.log(payload);
-    });
-});
-```
-
-### Declarative XML Binding
-
-The `DynamicHost` fully supports declarative XML instantiation in traditional UI5 views:
-
-```xml
-<mvc:View
-    xmlns:mvc="sap.ui.core.mvc"
-    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
-    
-    <meta:DynamicHost 
-        id="dynamicFormHost" 
-        schemaDefinition="{backend>/SchemaDefinition}" 
-        data="{backend>/PayloadData}" 
-        useMessageManager="true"
-        submit=".onMetaFormSubmit" />
-        
-</mvc:View>
-```
-
-### Validation
-
-MetaUI supports client-side validation based on JSON Schema constraints natively.
-
-#### Mandatory Fields
-Adding `"required": true` to any property in the schema will enforce input validation prior to the `submit` event being fired.
-
-### Custom Validation Exits (`beforeSubmit`)
-For business logic requiring custom checks (e.g., async validation), the `DynamicHost` provides a `beforeSubmit` event.
-
-```javascript
-onBeforeSubmit: function(oEvent) {
-    const payload = oEvent.getParameter("payload");
-    const preventDefault = oEvent.getParameter("preventDefault");
-    const addError = oEvent.getParameter("addError");
-
-    if (payload.CustomerName === "Reserved") {
-        addError("CustomerName", "This customer name is reserved.");
-        preventDefault();
-    }
-}
-```
-
-### Asynchronous Field Validation (`fieldChange`)
-For real-time validation (like checking if a username is taken), listen to the `fieldChange` event. You can lock the form using `setBusy(true)`, perform your async check, and imperatively paint the field red using `addCustomError()` if the check fails.
-
-```javascript
-onFieldChange: function(oEvent) {
-    const fieldPath = oEvent.getParameter("fieldPath");
-    const value = oEvent.getParameter("value");
-    const host = oEvent.getSource();
-
-    if (fieldPath === "Username") {
-        host.setBusy(true); // Lock the UI5 form
-        
-        myBackendService.checkUsername(value).then((isTaken) => {
-            if (isTaken) {
-                host.addCustomError("Username", "This username is taken.");
-            } else {
-                host.clearCustomError("Username");
-            }
-        }).finally(() => {
-            host.setBusy(false); // Unlock
-        });
-    }
-}
-```
-
-### Fiori Message Manager Integration
-By default, validation errors are shown locally. To aggregate validation errors into the global UI5 Message Popover, enable `useMessageManager` on the `DynamicHost`:
-
-```xml
-<meta:DynamicHost
-    schemaDefinition="{/mySchema}"
-    useMessageManager="true"
-    beforeSubmit=".onBeforeSubmit"
-    submit=".onSubmit" />
-```
-
-
+Please refer to the **[MetaUI Documentation Wiki](docs/wiki/Home.md)** for full implementation details, API references, and integration guides.
 
 ---
 
@@ -200,4 +27,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 > [!WARNING]
 > **Disclaimer**: This software is provided "as is", without warranty of any kind, express or implied. Use of this project in production environments is at your own risk. The authors shall not be liable for any damages or issues arising from its usage.
-

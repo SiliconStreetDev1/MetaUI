@@ -66,7 +66,7 @@ export class RemoteValueHelpPlugin extends BasePlugin {
         
         fetch(vhConfig.url)
             .then(res => res.json())
-            .then((data: unknown[]) => {
+            .then((data: Record<string, unknown>[]) => {
                 const keyPath = vhConfig.keyPath || "key";
                 const textPath = vhConfig.textPath || "text";
                 

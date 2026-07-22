@@ -17,8 +17,8 @@ export class PhoneFormatterPlugin implements IFormatter {
      * @param rawValue The raw phone string.
      * @returns The formatted string for the UI control.
      */
-    public format(rawValue: string | number, args?: Record<string, string>): string {
-        if (!rawValue || typeof rawValue !== "string") return rawValue || "";
+    public format(rawValue: unknown, args?: unknown): string {
+        if (!rawValue || typeof rawValue !== "string") return String(rawValue || "");
         
         const cleaned = ('' + rawValue).replace(/\D/g, '');
         const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);

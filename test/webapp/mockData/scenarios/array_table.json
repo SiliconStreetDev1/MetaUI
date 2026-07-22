@@ -1,0 +1,70 @@
+{
+  "key": "array_table",
+  "name": "Relational Arrays",
+  "data": [
+    {
+      "ID": "EMP-001",
+      "Name": "Alice Smith",
+      "Department": "Engineering",
+      "Salary": 120000
+    },
+    {
+      "ID": "EMP-002",
+      "Name": "Bob Johnson",
+      "Department": "Marketing",
+      "Salary": 95000
+    }
+  ],
+  "schema": {
+    "type": "array",
+    "uiLayout": [
+      {
+        "type": "Control",
+        "scope": "#/properties/ID"
+      },
+      {
+        "type": "Control",
+        "scope": "#/properties/Name"
+      },
+      {
+        "type": "Control",
+        "scope": "#/properties/Department"
+      },
+      {
+        "type": "Control",
+        "scope": "#/properties/Salary"
+      }
+    ],
+    "items": {
+      "type": "object",
+      "properties": {
+        "ID": {
+          "type": "string",
+          "ui": {
+            "label": "Employee ID",
+            "isKey": true
+          }
+        },
+        "Name": {
+          "type": "string",
+          "ui": {
+            "label": "Full Name"
+          }
+        },
+        "Department": {
+          "type": "string",
+          "ui": {
+            "label": "Department"
+          }
+        },
+        "Salary": {
+          "type": "number",
+          "ui": {
+            "label": "Salary",
+            "formatter": "currency"
+          }
+        }
+      }
+    }
+  }
+}

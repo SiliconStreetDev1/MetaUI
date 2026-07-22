@@ -1,0 +1,35 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.ODataTest"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.f"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls.host">
+    
+    <f:DynamicPage id="page" headerExpanded="true">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="OData V4 Binding Test" />
+                </f:heading>
+                <f:navigationActions>
+                    <Button icon="sap-icon://nav-back" press=".onNavBack" />
+                </f:navigationActions>
+            </f:DynamicPageTitle>
+        </f:title>
+        
+        <f:content>
+            <VBox class="sapUiSmallMargin">
+                <Title text="OData V4 GeneratorHost" class="sapUiSmallMarginBottom" />
+                <Text text="This tests binding a MetaUI form directly to an OData V4 context." class="sapUiSmallMarginBottom" />
+                
+                <!-- We bind directly to the '/Users' entity set (mocked in the mockServer) -->
+                <meta:GeneratorHost
+                    id="odataHost"
+                    data="{odata>/Users('1')}"
+                    schemaDefinition="{/odataSchema}"
+                    liveUpdate="true"
+                    useMessageManager="true" />
+            </VBox>
+        </f:content>
+    </f:DynamicPage>
+</mvc:View>

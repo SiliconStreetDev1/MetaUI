@@ -1,0 +1,16 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <!-- Authentic OData Binding: Resolving the global 'odata' model natively -->
+    <meta:DynamicHost
+        binding="{odata>/Employees('E100')}"
+        liveUpdate="{/settings/liveUpdate}"
+        editable="{/settings/editable}"
+        debugMode="{/settings/debugMode}"
+        useMessageManager="true"
+        error=".onHostError"
+        fieldChange=".onHostFieldChange"
+        submit=".onHostSubmit" />
+        
+</core:FragmentDefinition>

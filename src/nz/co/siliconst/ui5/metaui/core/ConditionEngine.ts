@@ -31,9 +31,6 @@ OperatorRegistry.register("<=", (a, b) => a <= b);
 export class ConditionEngine {
     /** The active form schema being evaluated. */
     private schema: ISchema;
-    /** The cached bound event handler reference for strict garbage collection. */
-    private boundHandler: (event: IFieldChangeEvent) => void;
-
     /**
      * Initializes the ConditionEngine with the active schema.
      * @param schema The current UI layout schema.

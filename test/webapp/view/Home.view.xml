@@ -1,220 +1,35 @@
 <mvc:View
     controllerName="metaui.sandbox.controller.Home"
     xmlns:mvc="sap.ui.core.mvc"
-    displayBlock="true"
     xmlns="sap.m"
-    xmlns:core="sap.ui.core"
+    xmlns:layout="sap.ui.layout"
     xmlns:f="sap.f">
-    
-    <Page title="MetaUI Launchpad">
-        <content>
-            <VBox class="sapUiMediumMargin">
-                <Title text="Basic Layouts" level="H2" class="sapUiSmallMarginBottom" />
-                <HBox wrap="Wrap">
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Basic Form" subheader="Standard Fields" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="basic_form" />
-                        </customData>
+    <f:DynamicPage id="page">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="MetaUI Sandbox" />
+                </f:heading>
+                <f:expandedContent>
+                    <Label text="Select a test environment below." />
+                </f:expandedContent>
+            </f:DynamicPageTitle>
+        </f:title>
+        <f:content>
+            <layout:HorizontalLayout class="sapUiContentPadding">
+                <GenericTile
+                    class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
+                    header="Main Playground"
+                    subheader="Embedded &amp; JS Dialogs"
+                    press=".onNavToPlayground">
+                    <tileContent>
                         <TileContent>
-                            <NumericContent value="1" icon="sap-icon://form" />
+                            <NumericContent value="1" icon="sap-icon://syntax" />
                         </TileContent>
-                    </GenericTile>
+                    </tileContent>
+                </GenericTile>
 
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Basic Table" subheader="Array Data" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="basic_table" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="2" icon="sap-icon://table-view" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Mixed Layout" subheader="Form &amp; Table" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="mixed_layout" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="3" icon="sap-icon://header" />
-                        </TileContent>
-                    </GenericTile>
-                </HBox>
-            </VBox>
-
-            <VBox class="sapUiMediumMargin">
-                <Title text="Complex Scenarios" level="H2" class="sapUiSmallMarginBottom" />
-                <HBox wrap="Wrap">
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="The 'Everything' Form" subheader="All Plugins" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="everything" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="4" icon="sap-icon://dimension" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <!-- Feature: OData V4 Native Binding -->
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileHover" header="RAP OData V4 Binding" subheader="Native Integration" press=".onNavToODataV4Rap">
-                        <TileContent>
-                            <ImageContent src="sap-icon://database" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <!-- Feature: Deep Structures -->
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileHover" header="Deep Structures" subheader="Nested Inference" press=".onNavToDeepStructures">
-                        <TileContent>
-                            <ImageContent src="sap-icon://chain-link" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Binding" subheader="dataJson" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="string" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="5" icon="sap-icon://syntax" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="JS API Dialog" subheader="Programmatic" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="dialog" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="6" icon="sap-icon://popup-window" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Schema Inference" subheader="No Schema Provided" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="inference" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="7" icon="sap-icon://chain-link" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Partial Schema" subheader="additionalProperties" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="partial" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="7b" icon="sap-icon://chain-link" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Complex Hierarchy" subheader="Nested Tables &amp; Dialogs" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="complex" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="8" icon="sap-icon://hierarchy" />
-                        </TileContent>
-                    </GenericTile>
-                    
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Wizard Layout" subheader="Multi-Step Forms" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="wizard" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="9" icon="sap-icon://sys-monitor" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Live Output Binding" subheader="Real-Time JSON" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="live_binding" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="10" icon="sap-icon://synchronize" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Double Bind Test" subheader="Single Model Field" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="double_bind" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="10b" icon="sap-icon://connected" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="String Double Bind" subheader="Pure JSON Strings" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="string_double_bind" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="10c" icon="sap-icon://chain-link" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Deep Hierarchy" subheader="Hardware ID Test" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="hierarchy_test" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="10" icon="sap-icon://tree" />
-                        </TileContent>
-                    </GenericTile>
-                    
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Multi-Host Demo" subheader="Host in Table" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="multihost" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="11" icon="sap-icon://table-row" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Client Table" subheader="Inference in Table" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="client_table" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="12" icon="sap-icon://table-view" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="Complex Client Table" subheader="Schema in Table" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="complex_client_table" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="13" icon="sap-icon://table-chart" />
-                        </TileContent>
-                    </GenericTile>
-                </HBox>
-            </VBox>
-            <VBox class="sapUiMediumMargin">
-                <Title text="OData Backend Integration" level="H2" class="sapUiSmallMarginBottom" />
-                <HBox wrap="Wrap">
-                    <GenericTile id="tileODataV4RAP" class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="V4 RAP Simulation" subheader="dataJson Binding" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="odata_v4_rap" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="14" icon="sap-icon://database" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile id="tileODataV4Object" class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="V4 Object Sync" subheader="Two-Way data Binding" press=".onNavToScenario" width="200px">
-                        <customData>
-                            <core:CustomData key="scenario" value="odata_v4_rap" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="15" icon="sap-icon://synchronize" />
-                        </TileContent>
-                    </GenericTile>
-
-                    <GenericTile class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout" header="OData Table Test" subheader="JSON Field Integration" press=".onNavToScenario" width="200px" style="sap-ui-color-green">
-                        <customData>
-                            <core:CustomData key="scenario" value="odata_v4_rap" />
-                        </customData>
-                        <TileContent>
-                            <NumericContent value="16" icon="sap-icon://database" />
-                        </TileContent>
-                    </GenericTile>
-                </HBox>
-            </VBox>
-        </content>
-    </Page>
+            </layout:HorizontalLayout>
+        </f:content>
+    </f:DynamicPage>
 </mvc:View>

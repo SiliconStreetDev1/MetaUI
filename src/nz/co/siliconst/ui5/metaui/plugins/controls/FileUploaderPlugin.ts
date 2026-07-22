@@ -50,7 +50,7 @@ export class FileUploaderPlugin extends BasePlugin {
             width: "100%",
             change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("newValue");
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

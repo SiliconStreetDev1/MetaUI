@@ -61,7 +61,7 @@ export class DropdownPlugin extends BasePlugin {
             change: (oEvent: sap.ui.base.Event) => {
                 const item = oEvent.getParameter("selectedItem");
                 const val = item ? item.getKey() : "";
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

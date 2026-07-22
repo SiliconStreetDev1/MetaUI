@@ -27,10 +27,10 @@ export class CurrencyFormatterPlugin implements IFormatter {
      * @param rawValue The raw numeric value from the JSON payload.
      * @returns The formatted string for the UI control.
      */
-    public format(rawValue: string | number, args?: Record<string, string>): string {
+    public format(rawValue: unknown, args?: unknown): string {
         if (rawValue === null || rawValue === undefined) {
             return "";
         }
-        return "$" + this.currencyFormat.format(rawValue);
+        return "$" + this.currencyFormat.format(rawValue as number);
     }
 }

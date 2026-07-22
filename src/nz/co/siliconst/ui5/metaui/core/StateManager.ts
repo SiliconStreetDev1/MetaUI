@@ -19,10 +19,11 @@ import Messaging from "sap/ui/core/Messaging";
 export class StateManager {
     private model: JSONModel;
     private activeModelName: string;
-    private schema: ISchema;
+    private schema: ISchema | null = null;
+    private _useMessageManager: boolean = false;
 
     /**
-     * Initializes the state manager with an optional initial payload.
+     * Initializes the state manager with an authentic SAPUI5 JSONModel.
      * @param initialData The initial JSON payload to populate the fields.
      * @param schema The normalized schema for live validation.
      * @param modelName The UI5 model alias used for isolation.
@@ -46,6 +47,13 @@ export class StateManager {
     }
 
     /**
+     * Updates the flag indicating whether this manager should push validation errors directly to the global MessageManager.
+     */
+    public setUseMessageManager(use: boolean): void {
+        this._useMessageManager = use;
+    }
+
+    /**
      * Validates a specific path against the schema and updates the MessageManager.
      */
     private validatePath(sPath: string, value: unknown): void {
@@ -56,15 +64,16 @@ export class StateManager {
         const targetPath = sPath.startsWith("/") ? sPath : `/${sPath}`; // Pure UI5: target MUST be absolute path
         
         // 1. Remove existing messages (strictly for THIS model instance)
-        const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove = existingMessages.filter((msg: sap.ui.core.message.Message) => {
-            const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
-            return isMatch;
-        });
-        
-        
-        if (messagesToRemove.length > 0) {
-            messageManager.removeMessages(messagesToRemove);
+        if (this._useMessageManager) {
+            const existingMessages = messageManager.getMessageModel().getData();
+            const messagesToRemove = existingMessages.filter((msg: sap.ui.core.message.Message) => {
+                const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
+                return isMatch;
+            });
+            
+            if (messagesToRemove.length > 0) {
+                messageManager.removeMessages(messagesToRemove);
+            }
         }
 
         if (!metadata) return;
@@ -78,7 +87,24 @@ export class StateManager {
         }
         if (metadata.type === "string" && metadata.maxLength) {
             validatorsToRun.push("maxLength");
-            argsMap["maxLength"] = { max: metadata.maxLength };
+            argsMap["maxLength"] = metadata.maxLength;
+        }
+        if (metadata.minLength) {
+            validatorsToRun.push("minLength");
+            argsMap["minLength"] = metadata.minLength;
+        }
+        if (metadata.pattern) {
+            validatorsToRun.push("pattern");
+            argsMap["pattern"] = metadata.pattern;
+        }
+        if (metadata.minimum !== undefined || metadata.maximum !== undefined) {
+            validatorsToRun.push("range");
+            argsMap["range"] = { min: metadata.minimum, max: metadata.maximum };
+        }
+        
+        const format = metadata.ui?.format;
+        if (format === "email" || format === "url" || format === "iban") {
+            validatorsToRun.push(format);
         }
         if (metadata.ui?.validators) {
             for (const v of metadata.ui.validators) {
@@ -95,7 +121,7 @@ export class StateManager {
 
         if (validatorsToRun.length > 0) {
             const validationResult = GlobalPipeline.executeValidation(value, validatorsToRun, argsMap);
-            if (!validationResult.isValid) {
+            if (!validationResult.isValid && this._useMessageManager) {
                 const newMsg = new Message({
                     message: validationResult.errorMessage || "Invalid value.",
                     type: coreLibrary.MessageType.Error,

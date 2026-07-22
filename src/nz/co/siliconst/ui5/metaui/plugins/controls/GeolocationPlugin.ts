@@ -44,7 +44,7 @@ export class GeolocationPlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         (this.control as GeolocationControl).attachCapture(() => {
-            const result = this.validate();
+            const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

@@ -115,9 +115,7 @@ export class DataSyncDelegate {
         } catch (e) {
             const msg = `Failed to hot-swap ${propertyName}: ` + (e as Error).message;
             Logger.error("[MetaUI]", msg, "DataSyncDelegate");
-            if (this.host.getProperty("debugMode")) {
-                sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => MessageBox.error(msg));
-            }
+            throw new Error(msg);
         }
     }
 }

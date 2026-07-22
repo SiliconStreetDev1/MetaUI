@@ -44,12 +44,20 @@ export class Engine {
     /** Tracks whether the entire engine is running in Editable mode. */
     public readonly isEditable: boolean = true;
 
+    /** Tracks if any fields or sub-layouts failed to render, requiring a warning strip. */
+    public hasPartialRenderingErrors: boolean = false;
+
+    /** Tracks whether the engine should delegate visual state to the global MessageManager. */
+    public readonly useMessageManager: boolean = false;
+
     /**
      * Initializes a new Engine instance.
      * @param editable Whether the engine should render form fields as editable or read-only.
+     * @param useMessageManager Whether to delegate visual state to UI5 MessageManager.
      */
-    constructor(editable: boolean = true) {
+    constructor(editable: boolean = true, useMessageManager: boolean = false) {
         this.isEditable = editable;
+        this.useMessageManager = useMessageManager;
     }
 
     /**
@@ -88,6 +96,7 @@ export class Engine {
 
             return layoutManager.render(schema, modelName, this, onSubmit);
         } catch (error) {
+            this.hasPartialRenderingErrors = true;
             const msg = (error as Error).message;
             Logger.error("[MetaUI Engine] Critical error during layout generation", msg);
             Logger.showErrorPopup(`Engine failed to generate the layout.\n\nDetails: ${msg}`);
@@ -108,6 +117,10 @@ export class Engine {
         try {
             const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
             plugin.setEditable(this.isEditable);
+            
+            if (typeof plugin.setUseMessageManager === "function") {
+                plugin.setUseMessageManager(this.useMessageManager);
+            }
 
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });
@@ -121,6 +134,7 @@ export class Engine {
 
             return control;
         } catch (error) {
+            this.hasPartialRenderingErrors = true;
             const msg = (error as Error).message;
             Logger.error(`[MetaUI Engine] Failed to generate field at ${bindingPath}`, msg);
             Logger.showErrorPopup(`Failed to generate field '${bindingPath}'.\n\nDetails: ${msg}`);
@@ -143,6 +157,7 @@ export class Engine {
             const layoutManager = PluginRegistry.getInstance().getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);
         } catch (error) {
+            this.hasPartialRenderingErrors = true;
             const msg = (error as Error).message;
             Logger.error(`[MetaUI Engine] Critical error generating sub-layout for ${bindingPath}`, msg);
             Logger.showErrorPopup(`Engine failed to generate a sub-layout.\n\nDetails: ${msg}`);
@@ -153,13 +168,18 @@ export class Engine {
     /**
      * Iterates through all active plugins and triggers their internal validation pipelines.
      * 
+     * @param applyVisualState If true, explicitly instructs the plugin to natively paint its own ValueState.
      * @returns {IPluginValidationResult[]} Array of validation error objects. Empty array if valid.
      */
-    public validateAll(): IPluginValidationResult[] {
+    public validateAll(applyVisualState: boolean = false): IPluginValidationResult[] {
         const errors: IPluginValidationResult[] = [];
         for (const item of this.activePlugins) {
             try {
                 const result = item.plugin.validate();
+                if (applyVisualState && typeof item.plugin.setVisualValidationState === "function") {
+                    item.plugin.setVisualValidationState(result.isValid, result.errorMessage);
+                }
+                
                 if (!result.isValid) {
                     // Ensure the path is bound to the error so GeneratorHost knows where to target it
                     result.fieldKey = result.fieldKey || item.path.replace(/^\//, "");
@@ -168,12 +188,23 @@ export class Engine {
                     Logger.error("[MetaUI Validation] Plugin failed validation silently:", item.path || item.plugin.constructor.name);
                 }
             } catch (error) {
-                const msg = (error as Error).message;
-                Logger.error(`[MetaUI Validation] Exception during plugin validation at path ${item.path}`, msg);
-                errors.push({ isValid: false, errorMessage: `Validation crashed: ${msg}`, fieldKey: item.path.replace(/^\//, "") });
+                Logger.error(`[MetaUI Engine] Error validating plugin at ${item.path}`, (error as Error).message);
             }
         }
         return errors;
+    }
+
+    /**
+     * Retrieves an active plugin instance by its absolute binding path.
+     * Useful for programmatic field manipulation (e.g., custom error injection).
+     * 
+     * @param path The binding path (e.g. "/General/CustomerName").
+     * @returns {IPlugin | undefined} The plugin instance, or undefined if not found.
+     */
+    public getPluginByPath(path: string): import("../interfaces/IPlugin").IPlugin | undefined {
+        const cleanPath = path.startsWith("/") ? path : `/${path}`;
+        const match = this.activePlugins.find(p => p.path === cleanPath || p.path === `/${cleanPath}`);
+        return match ? match.plugin : undefined;
     }
 
     /**

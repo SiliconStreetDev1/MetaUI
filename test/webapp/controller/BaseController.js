@@ -228,6 +228,22 @@ sap.ui.define([
                 MessageToast.show("Submit failed: Validation errors exist.");
                 Log.error("[Sandbox] Submit failed due to validation errors.");
             }
+        },
+
+        /**
+         * Generic error handler for dynamically instantiated hosts or components.
+         * Logs the error cleanly and surfaces it via a MessageToast.
+         * 
+         * @public
+         * @param {string|Error} vError The error message or error object
+         * @returns {void}
+         */
+        handleError: function (vError) {
+            var sMessage = (typeof vError === "object" && vError.message) ? vError.message : vError;
+            sap.ui.require(["sap/m/MessageToast", "sap/base/Log"], function(MessageToast, Log) {
+                Log.error("[Sandbox BaseController]", sMessage);
+                MessageToast.show("An error occurred: " + sMessage);
+            });
         }
 
     });

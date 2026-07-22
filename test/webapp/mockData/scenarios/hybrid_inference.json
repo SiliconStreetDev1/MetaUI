@@ -1,0 +1,38 @@
+{
+  "key": "hybrid_inference",
+  "name": "Hybrid Inference",
+  "data": {
+    "ProductID": "PRD-990",
+    "ProductName": "Quantum Matrix Server",
+    "InStock": true,
+    "Price": 9999.99,
+    "Category": "Server Infrastructure",
+    "Tags": [
+      "Quantum",
+      "Compute",
+      "Cloud"
+    ]
+  },
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "Category": {
+        "ui": {
+          "label": "Overridden Dropdown",
+          "widget": "select"
+        },
+        "valueHelp": [
+          {
+            "key": "Server Infrastructure",
+            "text": "Server Infrastructure"
+          },
+          {
+            "key": "Networking",
+            "text": "Networking"
+          }
+        ]
+      }
+    }
+  }
+}

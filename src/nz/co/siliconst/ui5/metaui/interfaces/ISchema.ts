@@ -68,6 +68,7 @@ export interface IPropertyMetadata {
     // Standard validations
     required?: boolean;
     maxLength?: number;
+    minLength?: number;
     minimum?: number;
     maximum?: number;
     pattern?: string;

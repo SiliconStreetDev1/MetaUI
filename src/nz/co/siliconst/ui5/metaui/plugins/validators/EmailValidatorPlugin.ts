@@ -19,10 +19,10 @@ export class EmailValidatorPlugin implements IValidator {
      * @param args Optional arguments provided in the schema.
      * @returns IValidationResult containing status and optional error message.
      */
-    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
-        if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(parsedValue as string)) {
+        if (typeof parsedValue !== "string" || !emailRegex.test(parsedValue)) {
             return { isValid: false, errorMessage: "Please enter a valid email address." };
         }
         return { isValid: true };

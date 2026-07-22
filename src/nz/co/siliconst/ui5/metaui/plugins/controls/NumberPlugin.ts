@@ -40,12 +40,12 @@ export class NumberPlugin extends BasePlugin {
         this.control = new StepInput({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: `{${modelName}>${bindingPath}}`,
-            displayValuePrecision: fieldMetadata.scale || 0,
+            displayValuePrecision: fieldMetadata.scale !== undefined ? fieldMetadata.scale : (fieldMetadata.type === "integer" ? 0 : 3),
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("value");
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

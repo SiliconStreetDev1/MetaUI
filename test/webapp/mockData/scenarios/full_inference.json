@@ -1,0 +1,26 @@
+{
+  "key": "full_inference",
+  "name": "Full Inference",
+  "data": {
+    "ConfigurationID": "CFG-2049",
+    "Enabled": true,
+    "MaxThroughput": 10000,
+    "Nodes": [
+      {
+        "NodeID": "N-1",
+        "Status": "Active",
+        "Load": 45.2
+      },
+      {
+        "NodeID": "N-2",
+        "Status": "Standby",
+        "Load": 0.1
+      }
+    ],
+    "Metrics": {
+      "LastPing": "2026-07-22T08:00:00Z",
+      "UptimeDays": 450,
+      "IsHealthy": true
+    }
+  }
+}

@@ -15,13 +15,16 @@ export class SchemaNormalizer {
         let schemaObj = rawSchema;
 
         if (typeof schemaObj === "string") {
-            try {
-                schemaObj = JSON.parse(schemaObj);
-            } catch (e) {
-                const msg = (e as Error).message;
-                Logger.error("[MetaUI SchemaNormalizer] Failed to parse schema string.", msg);
-                Logger.showErrorPopup(`Failed to parse the provided JSON schema.\n\nDetails: ${msg}`);
+            if (!schemaObj.trim()) {
                 schemaObj = null;
+            } else {
+                try {
+                    schemaObj = JSON.parse(schemaObj);
+                } catch (e) {
+                    const msg = "Failed to parse schema string: " + (e as Error).message;
+                    Logger.error("[MetaUI SchemaNormalizer]", msg);
+                    throw new Error(msg);
+                }
             }
         }
 
@@ -51,19 +54,18 @@ export class SchemaNormalizer {
             }
 
             if (normalized.type === "object") {
-                normalized.properties = this.normalizeProperties(targetProperties);
+                const requiredKeys = Array.isArray(schemaObj.required) ? schemaObj.required : [];
+                normalized.properties = this.normalizeProperties(targetProperties, requiredKeys);
             } else if (normalized.type === "array") {
                 // Future expansion: array deep merge
-                normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items");
+                normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items", false);
             }
 
             return normalized;
         } catch (error) {
-            const msg = (error as Error).message;
-            Logger.error("[MetaUI SchemaNormalizer] Critical error normalizing schema object.", msg);
-            Logger.showErrorPopup(`Schema Normalization failed.\n\nDetails: ${msg}`);
-            // Fallback to empty object to prevent hard crash downstream
-            return { type: "object", properties: {} };
+            const msg = "Critical error normalizing schema object: " + (error as Error).message;
+            Logger.error("[MetaUI SchemaNormalizer]", msg);
+            throw new Error(msg);
         }
     }
 
@@ -92,12 +94,14 @@ export class SchemaNormalizer {
     /**
      * Normalizes a collection of properties.
      * @param properties The raw properties map.
+     * @param requiredKeys An optional array of keys that are required by the parent object.
      * @returns A map of strict IPropertyMetadata objects.
      */
-    private static normalizeProperties(properties: Record<string, unknown>): Record<string, IPropertyMetadata> {
+    private static normalizeProperties(properties: Record<string, unknown>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         for (const key of Object.keys(properties)) {
-            normalizedProps[key] = this.normalizePropertyMetadata(properties[key], key);
+            const isRequired = requiredKeys.includes(key);
+            normalizedProps[key] = this.normalizePropertyMetadata(properties[key], key, isRequired);
         }
         return normalizedProps;
     }
@@ -106,9 +110,10 @@ export class SchemaNormalizer {
      * Normalizes a single property against the ISchema specification.
      * @param prop The raw property definition.
      * @param keyName The string key name for generating default labels.
+     * @param isRequired Indicates if the parent object mandated this property as required.
      * @returns A strict IPropertyMetadata instance.
      */
-    private static normalizePropertyMetadata(prop: Record<string, unknown>, keyName: string): IPropertyMetadata {
+    private static normalizePropertyMetadata(prop: Record<string, unknown>, keyName: string, isRequired: boolean = false): IPropertyMetadata {
         const normalized: IPropertyMetadata = {
             type: prop.type || "string",
             ui: {
@@ -123,24 +128,28 @@ export class SchemaNormalizer {
                 formatter: prop.ui?.formatter,
                 args: prop.ui?.args,
                 rows: prop.ui?.rows,
-                fullWidth: prop.ui?.fullWidth
+                fullWidth: prop.ui?.fullWidth,
+                dialogButtonText: prop.ui?.dialogButtonText
             },
-            required: !!prop.required,
-            maxLength: prop.maxLength,
+            required: isRequired || !!prop.required,
+            maxLength: prop.maxLength as number,
+            minLength: prop.minLength as number,
             minimum: prop.minimum,
             maximum: prop.maximum,
             pattern: prop.pattern,
             precision: prop.precision,
             scale: prop.scale,
+            multipleOf: prop.multipleOf as number,
             valueHelp: prop.valueHelp,
             enum: prop.enum
         };
 
         if (normalized.type === "object" && prop.properties) {
-            normalized.properties = this.normalizeProperties(prop.properties);
+            const requiredKeys = Array.isArray(prop.required) ? prop.required : [];
+            normalized.properties = this.normalizeProperties(prop.properties as Record<string, unknown>, requiredKeys);
             normalized.uiLayout = prop.uiLayout;
         } else if (normalized.type === "array" && prop.items) {
-            normalized.items = this.normalizePropertyMetadata(prop.items, "items");
+            normalized.items = this.normalizePropertyMetadata(prop.items as Record<string, unknown>, "items", false);
             normalized.uiLayout = prop.uiLayout;
         }
 
@@ -163,7 +172,7 @@ export class SchemaNormalizer {
     /**
      * Infers a v2 ISchema structure dynamically from a plain data payload.
      */
-    private static inferSchemaFromData(data: unknown): ISchema {
+    public static inferSchemaFromData(data: unknown): ISchema {
         const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
 
         if (!data || typeof data !== "object") {
@@ -172,12 +181,17 @@ export class SchemaNormalizer {
 
         if (Array.isArray(data)) {
             schema.type = "array";
-            schema.layoutStrategy = "table";
-            schema.items = {
-                type: "object",
-                layoutStrategy: "compact",
-                properties: data.length > 0 ? this.inferPropertiesFromObject(data[0]) : {}
-            };
+            if (data.length > 0 && typeof data[0] !== "object") {
+                schema.layoutStrategy = "compact";
+                schema.items = { type: typeof data[0] as FieldType };
+            } else {
+                schema.layoutStrategy = "table";
+                schema.items = {
+                    type: "object",
+                    layoutStrategy: "compact",
+                    properties: data.length > 0 ? this.inferPropertiesFromObject(data[0] as Record<string, unknown>) : {}
+                };
+            }
         } else {
             schema.type = "object";
             schema.properties = this.inferPropertiesFromObject(data);
@@ -207,10 +221,16 @@ export class SchemaNormalizer {
             else if (typeof val === "boolean") type = "boolean";
             else if (Array.isArray(val)) {
                 type = "array";
-                items = {
-                    type: "object",
-                    properties: val.length > 0 ? this.inferPropertiesFromObject(val[0]) : {}
-                };
+                if (val.length > 0 && typeof val[0] !== "object") {
+                    items = {
+                        type: typeof val[0] as FieldType
+                    };
+                } else {
+                    items = {
+                        type: "object",
+                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, unknown>) : {}
+                    };
+                }
             } else if (typeof val === "object") {
                 type = "object";
                 nestedProps = this.inferPropertiesFromObject(val);
@@ -223,7 +243,8 @@ export class SchemaNormalizer {
                 ui: {
                     label: this.generateLabel(key),
                     isKey: false,
-                    readOnly: false
+                    readOnly: false,
+                    widget: type === "array" && items?.type !== "object" ? "multiInput" : undefined
                 }
             };
         }
@@ -241,7 +262,7 @@ export class SchemaNormalizer {
         }
         
         const pathSegments = scope.replace("#/properties/", "").split("/properties/");
-        let current: Record<string, unknown> = schema.properties;
+        let current: Record<string, IPropertyMetadata> | undefined = schema.properties;
         let meta: IPropertyMetadata | undefined;
         
         Logger.debug("[MetaUI SchemaNormalizer]", `Resolving scope '${scope}' with segments: ${JSON.stringify(pathSegments)}`, "SchemaNormalizer");

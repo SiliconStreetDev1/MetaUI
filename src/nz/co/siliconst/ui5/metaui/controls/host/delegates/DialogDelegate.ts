@@ -27,14 +27,13 @@ export class DialogDelegate {
      * Dialog Modality: Opens the generated layout inside a sap.m.Dialog.
      * Automatically wires up customizable submit (default: 'OK') and 'Cancel' buttons.
      */
-    public openInDialog(title: string = "Form", submitButtonText: string = "OK", isGenerated: boolean): void {
-        if (!isGenerated) {
-            this.host.generate();
-        }
+    public openInDialog(title: string = "Form", submitButtonText: string = "OK", isGenerated: boolean, cancelButtonText: string = "Cancel", dialogWidth: string = "800px", parentView?: Control): void {
+        // UI5 PURITY: Do not manually force generate() here.
+        // Opening the dialog mounts the host, natively firing onBeforeRendering() which triggers generation cleanly.
 
         const dialog = new Dialog({
             title: title,
-            contentWidth: "800px",
+            contentWidth: dialogWidth,
             content: [this.host], // Mount host inside the dialog
             beginButton: new Button({
                 text: submitButtonText,
@@ -52,7 +51,7 @@ export class DialogDelegate {
                 }
             }),
             endButton: new Button({
-                text: "Cancel",
+                text: cancelButtonText,
                 press: () => {
                     this.host.fireEvent("cancel");
                     dialog.close();
@@ -62,6 +61,10 @@ export class DialogDelegate {
                 dialog.destroy();
             }
         });
+
+        if (parentView && typeof parentView.addDependent === "function") {
+            parentView.addDependent(dialog);
+        }
 
         dialog.open();
     }

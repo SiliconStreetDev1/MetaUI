@@ -81,10 +81,10 @@ export class DefaultLayoutGenerator {
                     });
                 }
             } catch (error) {
-                // If a single synthesized property fails, swallow it to prevent the entire synthesized form from crashing.
-                import("../utils/Logger").then(({ Logger }) => {
-                    Logger.error(`[MetaUI] DefaultLayoutGenerator failed to synthesize property '${key}'`, (error as Error).message);
-                });
+                // Do not swallow errors. A failure to synthesize a property is a critical failure.
+                const msg = `[MetaUI] DefaultLayoutGenerator failed to synthesize property '${key}': ${(error as Error).message}`;
+                import("../utils/Logger").then(m => m.Logger.error(msg));
+                throw new Error(msg);
             }
         }
         return elements;

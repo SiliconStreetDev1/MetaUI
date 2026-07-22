@@ -1,0 +1,30 @@
+[
+  {
+    "key": "kitchen_sink",
+    "name": "Kitchen Sink"
+  },
+  {
+    "key": "hybrid_inference",
+    "name": "Hybrid Inference"
+  },
+  {
+    "key": "full_inference",
+    "name": "Full Inference"
+  },
+  {
+    "key": "wizard",
+    "name": "Wizard Layout"
+  },
+  {
+    "key": "array_table",
+    "name": "Relational Arrays"
+  },
+  {
+    "key": "odata_v4",
+    "name": "OData V4 Mock"
+  },
+  {
+    "key": "deep_structure",
+    "name": "Deep Structure Complexity"
+  }
+]

@@ -18,7 +18,7 @@ export class MinLengthValidatorPlugin implements IValidator {
      * @param args Optional arguments provided in the schema.
      * @returns IValidationResult containing status and optional error message.
      */
-    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
         if (typeof args !== "number") return { isValid: true }; // Invalid config
 

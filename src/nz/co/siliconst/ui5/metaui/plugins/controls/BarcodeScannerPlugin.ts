@@ -42,7 +42,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
             editable: !metadata.ui?.readOnly,
             width: "100%",
             change: () => {
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }
@@ -56,7 +56,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
                 if (text) {
                     this.inputControl.setValue(text);
                     // UI5's two-way data binding on the input will sync the model automatically
-                    const result = this.validate();
+                    const result = this.validateAndApplyVisualState();
                     if (this.onChange) {
                         this.onChange(result.isValid, this.fieldKey);
                     }

@@ -50,7 +50,7 @@ export class StringPlugin extends BasePlugin {
             showValueHelp: fieldMetadata.ui?.widget === "searchHelp",
             change: (oEvent: sap.ui.base.Event) => {
                 const val = (oEvent as sap.ui.base.Event).getParameter("value");
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

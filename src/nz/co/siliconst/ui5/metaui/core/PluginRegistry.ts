@@ -41,6 +41,7 @@ export class PluginRegistry {
         // Phase 1 Mappings
         this.registerPluginPath("string", "fileUploader", "nz/co/siliconst/ui5/metaui/plugins/controls/FileUploaderPlugin");
         this.registerPluginPath("array", "multiSelect", "nz/co/siliconst/ui5/metaui/plugins/controls/MultiSelectPlugin");
+        this.registerPluginPath("array", "multiInput", "nz/co/siliconst/ui5/metaui/plugins/controls/MultiInputPlugin");
         this.registerPluginPath("number", "slider", "nz/co/siliconst/ui5/metaui/plugins/controls/SliderPlugin");
         this.registerPluginPath("number", "rating", "nz/co/siliconst/ui5/metaui/plugins/controls/RatingIndicatorPlugin");
         this.registerPluginPath("string", "messageStrip", "nz/co/siliconst/ui5/metaui/plugins/controls/MessageStripPlugin");
@@ -131,7 +132,9 @@ export class PluginRegistry {
                 try {
                     pathsToLoad.add(this.getFieldPath(prop.type || "string", prop.ui?.widget));
                 } catch (e) {
-                    Logger.warn(`[MetaUI LazyLoad] Could not find mapped plugin for field ${key}`);
+                    const msg = `[MetaUI LazyLoad] Could not find mapped plugin for field ${key}: ${(e as Error).message}`;
+                    Logger.error(msg);
+                    throw new Error(msg);
                 }
                 if (prop.properties) scanProperties(prop.properties);
                 if (prop.items && prop.items.properties) scanProperties(prop.items.properties);
@@ -139,7 +142,9 @@ export class PluginRegistry {
                     try {
                         pathsToLoad.add(this.getFieldPath(prop.items.type, prop.items.ui?.widget));
                     } catch (e) {
-                        Logger.warn(`[MetaUI LazyLoad] Could not find mapped plugin for array item type ${prop.items.type}`);
+                        const msg = `[MetaUI LazyLoad] Could not find mapped plugin for array item type ${prop.items.type}: ${(e as Error).message}`;
+                        Logger.error(msg);
+                        throw new Error(msg);
                     }
                 }
             }
@@ -186,21 +191,27 @@ export class PluginRegistry {
         await Promise.all(promises);
     }
 
+    /**
+     * Extracts a valid constructor from a dynamically required module.
+     */
     private extractConstructor(Module: unknown): new () => IPlugin | ILayoutManager | null {
         if (!Module) return null;
-        if (typeof Module === "function") return Module;
-        if (Module.default && typeof Module.default === "function") return Module.default;
+        if (typeof Module === "function") return Module as any;
+        if ((Module as any).default && typeof (Module as any).default === "function") return (Module as any).default;
         
         // Handle namespace exports (e.g. { FormLayout: class... })
-        const keys = Object.keys(Module);
+        const keys = Object.keys(Module as object);
         for (const key of keys) {
-            if (typeof Module[key] === "function") {
-                return Module[key];
+            if (typeof (Module as any)[key] === "function") {
+                return (Module as any)[key];
             }
         }
         return null;
     }
 
+    /**
+     * Instantiates the requested plugin for the given field type.
+     */
     public getPlugin(type: FieldType, widgetName?: string): IPlugin {
         const path = this.getFieldPath(type, widgetName);
         const Module = sap.ui.require(path);
@@ -213,6 +224,9 @@ export class PluginRegistry {
         return new PluginClass();
     }
 
+    /**
+     * Instantiates the requested layout manager for the given strategy.
+     */
     public getLayout(strategy: string): ILayoutManager {
         const path = this.getLayoutPath(strategy);
         const Module = sap.ui.require(path);

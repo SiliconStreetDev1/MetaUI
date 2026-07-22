@@ -51,7 +51,7 @@ export class RichTextPlugin extends BasePlugin {
 
         if (isValueAccessor(this.control) && this.control.attachCapture) {
             this.control.attachCapture(() => {
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

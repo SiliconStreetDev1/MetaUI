@@ -52,7 +52,7 @@ export class MultiSelectPlugin extends BasePlugin {
             placeholder: fieldMetadata.ui?.label || "Select items...",
             selectionChange: (oEvent: sap.ui.base.Event) => {
                 const keys = (this.control as MultiComboBox).getSelectedKeys();
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

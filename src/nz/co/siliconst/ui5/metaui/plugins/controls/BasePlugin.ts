@@ -7,6 +7,7 @@ import { IPlugin } from "../../interfaces/IPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import { GlobalPipeline } from "../../core/PipelineManager";
+import coreLibrary from "sap/ui/core/library";
 
 /**
  * Abstract class representing a standard MetaUI Plugin.
@@ -18,19 +19,22 @@ import { GlobalPipeline } from "../../core/PipelineManager";
 export abstract class BasePlugin implements IPlugin {
     /** The instantiated UI5 control for this plugin. */
     protected control: Control | null = null;
-    
+
     /** The metadata schema defining the field rules. */
     protected metadata: IPropertyMetadata | null = null;
-    
+
     /** The internal JSON path of the field relative to its parent payload. */
     protected fieldKey: string = "";
-    
+
     /** The UI5 JSONModel name used for absolute binding paths. */
     protected modelName: string = "meta";
 
     /** Indicates if the engine is enforcing an editable mode. */
     protected isEditable: boolean = true;
-    
+
+    /** Indicates if the plugin should delegate visual validation to the MessageManager. */
+    protected useMessageManager: boolean = false;
+
     /** Internal callback provided by GeneratorHost to signal validation/data changes upwards */
     protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
 
@@ -40,6 +44,14 @@ export abstract class BasePlugin implements IPlugin {
      */
     public setEditable(editable: boolean): void {
         this.isEditable = editable;
+    }
+
+    /**
+     * Injects the global MessageManager context into the plugin.
+     * @param useMessageManager True if the MessageManager is handling validation visual states.
+     */
+    public setUseMessageManager(useMessageManager: boolean): void {
+        this.useMessageManager = useMessageManager;
     }
 
     /**
@@ -75,14 +87,14 @@ export abstract class BasePlugin implements IPlugin {
      */
     public validate(): import("../../interfaces/IPlugin").IPluginValidationResult {
         if (!this.control || !this.metadata) return { isValid: true };
-        
+
         // Skip validation for hidden fields (e.g. hidden by ConditionEngine visibleOn)
         if (typeof (this.control as Control).getVisible === "function") {
             if (!(this.control as Control).getVisible()) {
                 return { isValid: true };
             }
         }
-        
+
         const validatorsToRun: string[] = [];
         const argsMap: Record<string, unknown> = {
             "maxLength": this.metadata.maxLength
@@ -92,7 +104,24 @@ export abstract class BasePlugin implements IPlugin {
             validatorsToRun.push("required");
         }
         if (this.metadata.maxLength) validatorsToRun.push("maxLength");
+        if (this.metadata.minLength) {
+            validatorsToRun.push("minLength");
+            argsMap["minLength"] = this.metadata.minLength;
+        }
+        if (this.metadata.pattern) {
+            validatorsToRun.push("pattern");
+            argsMap["pattern"] = this.metadata.pattern;
+        }
+        if (this.metadata.minimum !== undefined || this.metadata.maximum !== undefined) {
+            validatorsToRun.push("range");
+            argsMap["range"] = { min: this.metadata.minimum, max: this.metadata.maximum };
+        }
         
+        const format = this.metadata.ui?.format;
+        if (format === "email" || format === "url" || format === "iban") {
+            validatorsToRun.push(format);
+        }
+
         if (this.metadata.ui?.validators) {
             for (const v of this.metadata.ui.validators) {
                 if (typeof v === "string") {
@@ -113,6 +142,37 @@ export abstract class BasePlugin implements IPlugin {
         const val = this.getValue();
         const result = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
         return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey };
+    }
+
+    /**
+     * Natively manipulates the UI5 control's valueState if the control supports it.
+     * Uses reflection to safely apply styles without crashing on structural controls.
+     */
+    public setVisualValidationState(isValid: boolean, errorMessage?: string): void {
+        if (!this.control) return;
+
+        import("../../utils/Logger").then(m => m.Logger.error("[MetaUI]", `setVisualValidationState called on plugin: ${this.fieldKey}, isValid: ${isValid}`, "BasePlugin"));
+
+        // Use reflection to check if the control supports ValueState (e.g. sap.m.Input does, sap.m.Text does not)
+        if (typeof (this.control as any).setValueState === "function") {
+            (this.control as any).setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
+            
+            if (typeof (this.control as any).setValueStateText === "function") {
+                (this.control as any).setValueStateText(isValid ? "" : (errorMessage || ""));
+            }
+        } else {
+            import("../../utils/Logger").then(m => m.Logger.error("[MetaUI]", `Plugin ${this.fieldKey} has no setValueState function!`, "BasePlugin"));
+        }
+    }
+
+    /**
+     * Wraps standard validation and immediately applies the visual state.
+     * Ideal for 'change' events to instantly turn fields red on blur.
+     */
+    protected validateAndApplyVisualState(): import("../../interfaces/IPlugin").IPluginValidationResult {
+        const result = this.validate();
+        this.setVisualValidationState(result.isValid, result.errorMessage);
+        return result;
     }
 
     /**
@@ -148,7 +208,7 @@ export abstract class BasePlugin implements IPlugin {
             control.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false });
             control.bindProperty("visible", expr);
         }
-        
+
         if (metadata.ui?.enabledOn && typeof control.setEnabled === "function") {
             const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
             let expr = "";

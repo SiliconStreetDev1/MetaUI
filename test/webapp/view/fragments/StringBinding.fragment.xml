@@ -1,0 +1,17 @@
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <!-- Authentic String Binding: Directly injecting raw JSON text -->
+    <meta:DynamicHost
+        dataJson="{/current/data}"
+        schemaDefinition="{/current/schema}"
+        liveUpdate="{/settings/liveUpdate}"
+        editable="{/settings/editable}"
+        debugMode="{/settings/debugMode}"
+        useMessageManager="{/settings/useMessageManager}"
+        error=".onHostError"
+        fieldChange=".onHostFieldChange"
+        submit=".onHostSubmit" />
+        
+</core:FragmentDefinition>

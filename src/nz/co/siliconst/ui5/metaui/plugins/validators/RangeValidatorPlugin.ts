@@ -18,12 +18,13 @@ export class RangeValidatorPlugin implements IValidator {
      * @param args Optional arguments provided in the schema.
      * @returns IValidationResult containing status and optional error message.
      */
-    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (parsedValue === null || parsedValue === undefined) return { isValid: true }; 
         if (typeof parsedValue !== "number") return { isValid: true };
 
-        const min = args?.min;
-        const max = args?.max;
+        const rangeArgs = args as { min?: number, max?: number } | undefined;
+        const min = rangeArgs?.min;
+        const max = rangeArgs?.max;
 
         if (min !== undefined && typeof min === "number" && parsedValue < min) {
             return { isValid: false, errorMessage: `Value must be greater than or equal to ${min}.` };

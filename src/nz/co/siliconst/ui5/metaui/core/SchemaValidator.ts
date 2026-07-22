@@ -18,17 +18,18 @@ export class SchemaValidator {
             return ["Root schema must be an object."];
         }
 
-        if (schema.type !== "object" && schema.type !== "array") {
-            errors.push(`Root schema must have type 'object' or 'array'. Found: '${schema.type}'`);
+        const s = schema as Record<string, any>;
+        if (s.type !== "object" && s.type !== "array") {
+            errors.push(`Root schema must have type 'object' or 'array'. Found: '${s.type}'`);
         }
 
-        if (schema.type === "object" && !schema.properties) {
+        if (s.type === "object" && !s.properties) {
             errors.push("Object schema is missing the 'properties' node.");
         }
 
-        if (schema.properties) {
-            for (const key of Object.keys(schema.properties)) {
-                const prop = schema.properties[key];
+        if (s.properties) {
+            for (const key of Object.keys(s.properties)) {
+                const prop = s.properties[key];
                 if (!prop || typeof prop !== "object") {
                     errors.push(`Property '${key}' must be an object.`);
                     continue;

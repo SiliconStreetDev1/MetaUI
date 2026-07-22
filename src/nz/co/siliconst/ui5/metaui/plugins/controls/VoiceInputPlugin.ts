@@ -47,7 +47,7 @@ export class VoiceInputPlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         (this.control as VoiceInputControl).attachCapture(() => {
-            const result = this.validate();
+            const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

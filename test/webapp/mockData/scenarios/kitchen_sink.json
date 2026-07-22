@@ -1,0 +1,361 @@
+{
+  "key": "kitchen_sink",
+  "name": "Kitchen Sink",
+  "data": {
+    "CustomerName": "Siliconst Corp",
+    "IsActive": true,
+    "Comments": "This customer requires priority shipping.",
+    "CreditLimit": 150000,
+    "AccountType": "CORPORATE",
+    "CreationDate": "2026-07-17",
+    "MeetingTime": "14:30:00",
+    "LastLogin": "2026-07-18T09:00:00",
+    "AccessRegions": [
+      "North America",
+      "Europe"
+    ],
+    "Discount": 15,
+    "ClientRating": 4,
+    "AlertMsg": "Please upload supporting docs.",
+    "Website": "https://www.siliconst.co.nz",
+    "IBAN": "NZ89370400440532013000",
+    "LicenseCode": "ABC-123",
+    "SupportPhone": "5551234567",
+    "ContactEmail": "admin@siliconst.co.nz",
+    "Revenue": 5000000,
+    "LiveCountries": "NZ",
+    "Contacts": [
+      {
+        "ContactID": "C-001",
+        "FullName": "Alice Smith",
+        "Role": "ADMIN",
+        "HasPortalAccess": true
+      },
+      {
+        "ContactID": "C-002",
+        "FullName": "Bob Jones",
+        "Role": "BILLING",
+        "HasPortalAccess": false
+      }
+    ]
+  },
+  "schema": {
+    "title": "Customer Profile",
+    "type": "object",
+    "properties": {
+      "CustomerName": {
+        "type": "string",
+        "required": true,
+        "maxLength": 50,
+        "ui": {
+          "label": "Customer Name",
+          "isKey": true
+        }
+      },
+      "IsActive": {
+        "type": "boolean",
+        "ui": {
+          "label": "Account Active",
+          "widget": "switch"
+        }
+      },
+      "Comments": {
+        "type": "string",
+        "ui": {
+          "label": "Additional Notes",
+          "widget": "textArea",
+          "rows": 4,
+          "fullWidth": true
+        }
+      },
+      "AccountType": {
+        "type": "string",
+        "required": true,
+        "valueHelp": [
+          {
+            "key": "BASIC",
+            "text": "Basic Plan"
+          },
+          {
+            "key": "PREMIUM",
+            "text": "Premium Plan"
+          },
+          {
+            "key": "CORPORATE",
+            "text": "Corporate Plan"
+          }
+        ],
+        "ui": {
+          "label": "Account Type",
+          "widget": "select"
+        }
+      },
+      "CreditLimit": {
+        "type": "number",
+        "required": true,
+        "scale": 2,
+        "ui": {
+          "label": "Credit Limit (USD)",
+          "visibleOn": "$root.IsActive === true"
+        }
+      },
+      "CreationDate": {
+        "type": "date",
+        "ui": {
+          "label": "Creation Date",
+          "readOnly": true
+        }
+      },
+      "Attachment": {
+        "type": "string",
+        "ui": {
+          "label": "Supporting Document",
+          "widget": "fileUploader"
+        }
+      },
+      "AccessRegions": {
+        "type": "array",
+        "enum": [
+          "North America",
+          "Europe",
+          "Asia",
+          "Oceania"
+        ],
+        "ui": {
+          "label": "Access Regions",
+          "widget": "multiSelect"
+        }
+      },
+      "Discount": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 50,
+        "multipleOf": 5,
+        "ui": {
+          "label": "Discount % (Max 50%)",
+          "widget": "slider"
+        }
+      },
+      "ClientRating": {
+        "type": "number",
+        "maximum": 5,
+        "ui": {
+          "label": "Client Rating",
+          "widget": "rating"
+        }
+      },
+      "AlertMsg": {
+        "type": "string",
+        "ui": {
+          "widget": "messageStrip"
+        }
+      },
+      "Website": {
+        "type": "string",
+        "ui": {
+          "label": "Corporate Website",
+          "validators": [
+            "url"
+          ]
+        }
+      },
+      "IBAN": {
+        "type": "string",
+        "ui": {
+          "label": "Bank Account (IBAN)",
+          "validators": [
+            "iban"
+          ]
+        }
+      },
+      "LicenseCode": {
+        "type": "string",
+        "minLength": 7,
+        "pattern": "^[A-Z]{3}-\\d{3}$",
+        "ui": {
+          "label": "License Code (ABC-123)"
+        }
+      },
+      "SupportPhone": {
+        "type": "string",
+        "ui": {
+          "label": "Support Phone",
+          "formatter": "phone"
+        }
+      },
+      "ActionRow": {
+        "type": "string",
+        "ui": {
+          "label": "Navigate to Corporate",
+          "widget": "urlButton",
+          "args": "https://sap.com"
+        }
+      },
+      "ContactEmail": {
+        "type": "string",
+        "required": true,
+        "ui": {
+          "label": "Contact Email",
+          "format": "email"
+        }
+      },
+      "Revenue": {
+        "type": "number",
+        "ui": {
+          "label": "Projected Revenue",
+          "formatter": "currency"
+        }
+      },
+      "LiveCountries": {
+        "type": "string",
+        "ui": {
+          "label": "Live Country Search (Async)",
+          "widget": "remoteDropdown"
+        }
+      },
+      "ResetData": {
+        "type": "string",
+        "ui": {
+          "label": "Danger Zone",
+          "widget": "clearButton"
+        }
+      },
+      "MeetingTime": {
+        "type": "string",
+        "required": true,
+        "ui": {
+          "label": "Meeting Time",
+          "widget": "time"
+        }
+      },
+      "LastLogin": {
+        "type": "string",
+        "ui": {
+          "label": "Last Login Timestamp",
+          "readOnly": true,
+          "widget": "datetime"
+        }
+      },
+      "Contacts": {
+        "type": "array",
+        "ui": {
+          "label": "Authorized Contacts"
+        },
+        "items": {
+          "type": "object",
+          "properties": {
+            "ContactID": {
+              "type": "string",
+              "required": true,
+              "ui": {
+                "label": "ID",
+                "isKey": true,
+                "readOnly": true
+              }
+            },
+            "FullName": {
+              "type": "string",
+              "required": true,
+              "maxLength": 100,
+              "ui": {
+                "label": "Full Name"
+              }
+            },
+            "Role": {
+              "type": "string",
+              "required": true,
+              "valueHelp": [
+                {
+                  "key": "ADMIN",
+                  "text": "Administrator"
+                },
+                {
+                  "key": "BILLING",
+                  "text": "Billing Contact"
+                }
+              ],
+              "ui": {
+                "label": "Role",
+                "widget": "select"
+              }
+            },
+            "HasPortalAccess": {
+              "type": "boolean",
+              "ui": {
+                "label": "Portal Access"
+              }
+            }
+          }
+        }
+      }
+    },
+    "uiLayout": [
+      {
+        "type": "Group",
+        "label": "General Information",
+        "elements": [
+          {
+            "type": "Control",
+            "scope": "#/properties/CustomerName"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/IsActive"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/ContactEmail"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/LicenseCode"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/Comments"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/AccountType"
+          }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Financials",
+        "elements": [
+          {
+            "type": "Control",
+            "scope": "#/properties/CreditLimit"
+          }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Enterprise Controls",
+        "elements": [
+          {
+            "type": "Control",
+            "scope": "#/properties/Attachment"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/Discount"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/ClientRating"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/AlertMsg"
+          }
+        ]
+      },
+      {
+        "type": "Control",
+        "scope": "#/properties/Contacts"
+      }
+    ]
+  }
+}

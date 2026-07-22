@@ -46,7 +46,7 @@ export class SwitchPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             change: (oEvent: sap.ui.base.Event) => {
                 const val = (oEvent as sap.ui.base.Event).getParameter("state");
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

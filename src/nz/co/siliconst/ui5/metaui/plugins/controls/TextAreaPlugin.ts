@@ -47,7 +47,7 @@ export class TextAreaPlugin extends BasePlugin {
             growing: false, // We manage height manually to maintain the +2 lines requirement
             change: (oEvent: sap.ui.base.Event) => {
                 this.updateHeight(oEvent.getSource() as TextArea);
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

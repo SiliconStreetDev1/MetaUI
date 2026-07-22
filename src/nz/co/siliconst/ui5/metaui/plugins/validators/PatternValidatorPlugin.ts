@@ -18,15 +18,15 @@ export class PatternValidatorPlugin implements IValidator {
      * @param args Optional arguments provided in the schema.
      * @returns IValidationResult containing status and optional error message.
      */
-    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
-        if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
-        if (!args || typeof args !== "string") {
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
+        if (typeof args !== "string") {
             return { isValid: true }; // Invalid config, skip
         }
 
         try {
             const regex = new RegExp(args);
-            if (!regex.test(parsedValue as string)) {
+            if (typeof parsedValue !== "string" || !regex.test(parsedValue)) {
                 return { isValid: false, errorMessage: `Input does not match the required pattern.` };
             }
         } catch (e) {

@@ -44,7 +44,7 @@ export class CameraPlugin extends BasePlugin {
 
         // Validation mapping could be hooked into the 'capture' event if needed, but Two-Way binding updates the model naturally.
         (this.control as CameraControl).attachCapture(() => {
-            const result = this.validate();
+            const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

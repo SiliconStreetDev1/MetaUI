@@ -9,8 +9,10 @@ import { DataSyncDelegate } from "./delegates/DataSyncDelegate";
 import { ValidationDelegate } from "./delegates/ValidationDelegate";
 import { DialogDelegate } from "./delegates/DialogDelegate";
 import MessageBox from "sap/m/MessageBox";
+import MessageStrip from "sap/m/MessageStrip";
+import VBox from "sap/m/VBox";
 import { PluginRegistry } from "../../core/PluginRegistry";
-import { ISchema } from "../../interfaces/ISchema";
+import type { ISchema } from "../../interfaces/ISchema";
 
 /**
  * Base wrapper element for embedding the dynamic form natively via Explicit Schemas.
@@ -72,7 +74,8 @@ export default class GeneratorHost extends Control {
             },
             validationStateChanged: { parameters: { isValid: { type: "boolean" } } },
             validationError: { parameters: { fieldPath: { type: "string" }, message: { type: "string" } } },
-            validationSuccess: { parameters: { fieldPath: { type: "string" } } }
+            validationSuccess: { parameters: { fieldPath: { type: "string" } } },
+            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } }
         }
     };
 
@@ -122,6 +125,17 @@ export default class GeneratorHost extends Control {
     public setDebugMode(enabled: boolean): this {
         this.setProperty("debugMode", enabled, true);
         Logger.setDebugMode(enabled);
+        return this;
+    }
+
+    /**
+     * Intercepts property updates to dynamically forward them to active delegates/managers.
+     */
+    public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
+        super.setProperty(propertyName, value, suppressInvalidate);
+        if (propertyName === "useMessageManager" && this.stateManager) {
+            this.stateManager.setUseMessageManager(value === true);
+        }
         return this;
     }
 
@@ -220,8 +234,11 @@ export default class GeneratorHost extends Control {
 
             if (hasSchema || hasData) {
                 this.generate();
-            } else if (this.getProperty("debugMode")) {
-                Logger.debug("[MetaUI]", "GeneratorHost skipped rendering. Neither 'schemaDefinition' nor data was provided.", "GeneratorHost");
+            } else {
+                const msg = "GeneratorHost skipped rendering. Neither 'schemaDefinition' nor 'data' was provided.";
+                Logger.error("[MetaUI]", msg, "GeneratorHost");
+                this.fireEvent("error", { message: msg });
+                throw new Error(msg); // Eradicate silent errors
             }
         }
     }
@@ -237,7 +254,9 @@ export default class GeneratorHost extends Control {
 
             this.validationDelegate.removeAllMessages();
 
-            const errors = this.engine.validateAll();
+            // Only apply local fallback visual states if the global MessageManager is explicitly disabled
+            const applyVisualFallback = this.getProperty("useMessageManager") !== true;
+            const errors = this.engine.validateAll(applyVisualFallback);
             if (errors.length > 0) {
                 this.validationDelegate.pushMessage("", "One or more fields failed schema validation. Please review the highlighted fields.");
                 for (const err of errors) {
@@ -257,6 +276,12 @@ export default class GeneratorHost extends Control {
                 addError: (propertyPath: string, errorMessage: string) => {
                     isPrevented = true;
                     this.validationDelegate.pushMessage(propertyPath, errorMessage);
+                    if (applyVisualFallback && this.engine) {
+                        const plugin = this.engine.getPluginByPath(propertyPath);
+                        if (plugin && typeof plugin.setVisualValidationState === "function") {
+                            plugin.setVisualValidationState(false, errorMessage);
+                        }
+                    }
                 }
             });
 
@@ -276,6 +301,12 @@ export default class GeneratorHost extends Control {
      */
     public addCustomError(fieldPath: string, message: string): void {
         this.validationDelegate.addCustomError(fieldPath, message);
+        if (this.getProperty("useMessageManager") !== true && this.engine) {
+            const plugin = this.engine.getPluginByPath(fieldPath);
+            if (plugin && typeof plugin.setVisualValidationState === "function") {
+                plugin.setVisualValidationState(false, message);
+            }
+        }
     }
 
     /**
@@ -283,6 +314,13 @@ export default class GeneratorHost extends Control {
      */
     public clearCustomError(fieldPath: string): void {
         this.validationDelegate.clearCustomError(fieldPath);
+        if (this.getProperty("useMessageManager") !== true && this.engine) {
+            const plugin = this.engine.getPluginByPath(fieldPath);
+            if (plugin && typeof plugin.setVisualValidationState === "function") {
+                const schemaValid = plugin.validate();
+                plugin.setVisualValidationState(schemaValid.isValid, schemaValid.errorMessage);
+            }
+        }
     }
 
     /**
@@ -323,10 +361,10 @@ export default class GeneratorHost extends Control {
     }
 
     /**
-     * Internal reference to the active debounce timeout.
-     * Prevents sequential redundant layouts from being generated when properties are set rapidly.
+     * Internal reference to the active generate promise.
+     * Prevents concurrent redundant layouts from being generated when properties are set rapidly or DialogDelegate triggers it.
      */
-    private _generateTimeoutId: number | null = null;
+    private _generatePromise: Promise<void> | null = null;
 
     /**
      * The core rendering pipeline entry point.
@@ -334,13 +372,20 @@ export default class GeneratorHost extends Control {
      * @returns Promise that resolves when the layout is successfully built and mounted.
      */
     public async generate(): Promise<void> {
-        return Promise.resolve().then(async () => {
+        if (this._generatePromise) {
+            return this._generatePromise;
+        }
+        this._generatePromise = Promise.resolve().then(async () => {
             try {
                 await this._doGenerate();
             } catch (e) {
                 Logger.error("[MetaUI]", "Error in deferred generate: " + e, "GeneratorHost");
+                throw e; // Ensure it bubbles up to awaiters
+            } finally {
+                this._generatePromise = null;
             }
         });
+        return this._generatePromise;
     }
 
     /**
@@ -369,6 +414,8 @@ export default class GeneratorHost extends Control {
             }
 
             const rawSchema = this.getProperty("schemaDefinition");
+            const isSchemaEmpty = !rawSchema || (typeof rawSchema === "object" && Object.keys(rawSchema).length === 0);
+
             let inputData = this.getProperty("data");
             const inputDataJson = this.getProperty("dataJson");
 
@@ -376,20 +423,36 @@ export default class GeneratorHost extends Control {
                 try {
                     inputData = JSON.parse(inputDataJson as string);
                 } catch (e) {
-                    Logger.error("[MetaUI]", "Failed to parse inputDataJson string: " + (e as Error).message, "GeneratorHost");
+                    const msg = "Failed to parse inputDataJson string: " + (e as Error).message;
+                    Logger.error("[MetaUI]", msg, "GeneratorHost");
+                    this.fireEvent("error", { message: msg, exception: e });
+                    throw new Error(msg); // Critical error instead of silent fallback
                 }
             } else if (typeof inputData === "string") {
                 try {
                     inputData = JSON.parse(inputData);
                 } catch (e) {
-                    Logger.error("[MetaUI]", "Failed to parse inputData string: " + (e as Error).message, "GeneratorHost");
+                    const msg = "Failed to parse inputData string: " + (e as Error).message;
+                    Logger.error("[MetaUI]", msg, "GeneratorHost");
+                    this.fireEvent("error", { message: msg, exception: e });
+                    throw new Error(msg); // Critical error instead of silent fallback
                 }
             }
 
             // The internal payload represents the user's latest un-extracted edits. It must take priority.
-            const finalData = internalPayload || inputData || {};
+            const finalData = internalPayload || inputData;
 
-            const normalizedSchema = SchemaNormalizer.normalize(rawSchema, finalData);
+            if (!finalData || Object.keys(finalData).length === 0) {
+                if (isSchemaEmpty) {
+                    const msg = "No payload provided and no explicit schema defined. Cannot infer UI.";
+                    Logger.error("[MetaUI]", msg, "GeneratorHost");
+                    this.fireEvent("error", { message: msg });
+                    throw new Error(msg);
+                }
+            }
+
+            const schemaToNormalize = isSchemaEmpty ? null : rawSchema;
+            const normalizedSchema = SchemaNormalizer.normalize(schemaToNormalize, finalData);
 
             // Cache the parsed/inferred schema so DataSyncDelegate can diff against it later
             this.parsedSchema = normalizedSchema as Record<string, unknown>;
@@ -418,9 +481,14 @@ export default class GeneratorHost extends Control {
 
             this.activeModelName = "metaUI_" + this.getId();
             this.stateManager = new StateManager(finalData, normalizedSchema, this.activeModelName);
+            this.stateManager.setUseMessageManager(this.getProperty("useMessageManager") === true);
             this.setModel(this.stateManager.getModel(), this.activeModelName);
 
-            this.engine = new Engine(this.getProperty("editable") as boolean);
+            if (!this.engine) {
+                const isEditable = this.getProperty("editable") !== false;
+                const useMessageManager = this.getProperty("useMessageManager") === true;
+                this.engine = new Engine(isEditable, useMessageManager);
+            }
 
             this.generatedContent = this.engine.build(
                 normalizedSchema,
@@ -431,7 +499,35 @@ export default class GeneratorHost extends Control {
                 this.onInternalFieldChange.bind(this)
             );
 
-            this.setAggregation("_content", this.generatedContent);
+            let contentContainer = this.generatedContent;
+            
+            const hasProperties = normalizedSchema && Object.keys(normalizedSchema).length > 0;
+            
+            if (!hasProperties) {
+                const strip = new MessageStrip({
+                    text: "Warning: The generated UI is blank. Reason: The schema (or inferred schema) contains no valid properties to render.",
+                    type: "Warning",
+                    showIcon: true,
+                    showCloseButton: false
+                });
+                strip.addStyleClass("sapUiSmallMarginBottom");
+                contentContainer = new VBox({
+                    items: [strip, this.generatedContent]
+                });
+            } else if (this.engine.hasPartialRenderingErrors) {
+                const strip = new MessageStrip({
+                    text: "Layout partially rendered. Some fields failed to generate due to configuration errors.",
+                    type: "Warning",
+                    showIcon: true,
+                    showCloseButton: true
+                });
+                strip.addStyleClass("sapUiSmallMarginBottom");
+                contentContainer = new VBox({
+                    items: [strip, this.generatedContent]
+                });
+            }
+
+            this.setAggregation("_content", contentContainer);
             this.validationDelegate.registerObject(this.generatedContent);
 
             const payload = this.stateManager.extractPayload();
@@ -439,16 +535,19 @@ export default class GeneratorHost extends Control {
 
         } catch (error) {
             this.setBusy(false);
-            Logger.error("[MetaUI]", "Fatal crash during layout generation: " + (error as Error).message, "GeneratorHost");
+            const msg = "Fatal crash during layout generation: " + (error as Error).message;
+            Logger.error("[MetaUI]", msg, "GeneratorHost");
+            this.fireEvent("error", { message: msg, exception: error });
             this.validationDelegate.mountCrashBoundary(error as Error);
+            throw error; // Completely eliminate silent error swallowing
         }
     }
 
     /**
      * Programmatic API. Re-parents the generated content into a dialog and opens it.
      */
-    public openInDialog(title: string = "Form", submitButtonText: string = "OK"): void {
+    public openInDialog(title: string = "Form", submitButtonText: string = "OK", cancelButtonText: string = "Cancel", dialogWidth: string = "800px", parentView?: Control): void {
         const isGenerated = !!this.generatedContent;
-        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated);
+        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated, cancelButtonText, dialogWidth, parentView);
     }
 }

@@ -43,7 +43,7 @@ export class SignaturePlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         (this.control as SignatureControl).attachCapture(() => {
-            const result = this.validate();
+            const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

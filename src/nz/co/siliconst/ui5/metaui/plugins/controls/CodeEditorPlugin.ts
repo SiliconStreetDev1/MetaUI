@@ -83,7 +83,7 @@ export class CodeEditorPlugin extends BasePlugin {
             height: "100px", // Initial minimum height
             width: "100%",
             change: () => {
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

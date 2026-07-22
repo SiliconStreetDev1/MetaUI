@@ -59,7 +59,7 @@ export class DatePlugin extends BasePlugin {
             required: fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
                 const val = oEvent.getParameter("value");
-                const result = this.validate();
+                const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
                 }

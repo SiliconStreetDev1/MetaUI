@@ -62,7 +62,7 @@ export class LiveSearchPlugin extends BasePlugin {
         // Here, we simulate fetching and filter locally, but subclasses can override this entirely.
         fetch(vhConfig.url)
             .then(res => res.json())
-            .then((data: unknown[]) => {
+            .then((data: Record<string, unknown>[]) => {
                 const keyPath = vhConfig.keyPath || "key";
                 const textPath = vhConfig.textPath || "text";
                 

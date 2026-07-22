@@ -1,0 +1,136 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.Playground"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:f="sap.f"
+    xmlns:codeeditor="sap.ui.codeeditor"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls.host">
+    
+    <f:DynamicPage id="page" headerExpanded="true" fitContent="true" showFooter="{= ${message>/}.length > 0 }">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="MetaUI Playground" />
+                </f:heading>
+                <f:navigationActions>
+                    <Button icon="sap-icon://nav-back" press=".onNavBack" />
+                </f:navigationActions>
+            </f:DynamicPageTitle>
+        </f:title>
+        
+        <f:header>
+            <f:DynamicPageHeader pinnable="true">
+                <VBox>
+                    <Toolbar class="sapUiSmallMarginBottom">
+                        <Title text="Matrix Simulator" level="H3"/>
+                        <ToolbarSpacer/>
+                        
+                        <Label text="Data Scenario:" class="sapUiTinyMarginEnd" />
+                        <Select
+                            id="scenarioSelect"
+                            items="{/scenarios}"
+                            selectedKey="{/settings/selectedScenario}"
+                            change=".onMatrixChange"
+                            class="sapUiSmallMarginEnd">
+                            <core:Item xmlns:core="sap.ui.core" key="{key}" text="{name}" />
+                        </Select>
+
+                        <Label text="Binding Engine:" class="sapUiTinyMarginEnd" />
+                        <Select
+                            id="bindingSelect"
+                            selectedKey="{/settings/selectedBinding}"
+                            change=".onMatrixChange"
+                            class="sapUiSmallMarginEnd">
+                            <core:Item key="string" text="String Mode (dataJson)" />
+                            <core:Item key="object" text="Object Mode (data)" />
+                            <core:Item key="programmatic" text="Programmatic API (Unbound)" />
+                        </Select>
+
+                        <Label text="Render Target:" class="sapUiTinyMarginEnd" />
+                        <Select
+                            id="renderSelect"
+                            selectedKey="{/settings/selectedRender}"
+                            change=".onMatrixChange"
+                            class="sapUiSmallMarginEnd">
+                            <core:Item key="embedded" text="Embedded Inline" />
+                            <core:Item key="dialog" text="Popup Dialog" />
+                            <core:Item key="js_scratch" text="Pure JS (Inline)" />
+                            <core:Item key="js_dialog" text="Pure JS (Dialog)" />
+                        </Select>
+
+                        <Button text="Generate Form" type="Emphasized" press=".onGeneratePress" class="sapUiSmallMarginBegin" />
+                    </Toolbar>
+                    <Toolbar>
+                        <ToolbarSpacer/>
+                        <Button text="Extract Payload (Submit)" type="Accept" press=".onExtractPress" class="sapUiSmallMarginEnd" />
+                        <CheckBox text="Live Updates" selected="{/settings/liveUpdate}" tooltip="Instantly push data back to the model on field blur" class="sapUiTinyMarginEnd" select=".onToggleChange" />
+                        <CheckBox text="Global Errors" selected="{/settings/useMessageManager}" tooltip="Use the global UI5 MessageManager for centralized error popovers" class="sapUiTinyMarginEnd" select=".onToggleChange" />
+                        <CheckBox text="Editable" selected="{/settings/editable}" class="sapUiTinyMarginEnd" select=".onToggleChange" />
+                        <CheckBox text="Debug Mode" selected="{/settings/debugMode}" tooltip="Enable verbose logging and strict validations" class="sapUiTinyMarginEnd" select=".onToggleChange" />
+                        <CheckBox text="Log Field Changes" selected="{/settings/logFieldChanges}" tooltip="Show a MessageToast on every fieldChange event" class="sapUiTinyMarginEnd" select=".onToggleChange" />
+                        <CheckBox text="Force Custom Errors" selected="{/settings/forceCustomError}" tooltip="Forcefully inject custom errors on any field change" select=".onToggleChange" />
+                    </Toolbar>
+                </VBox>
+            </f:DynamicPageHeader>
+        </f:header>
+
+        <f:content>
+            <l:Splitter height="100%">
+                
+                <!-- Left Pane: Source & Schema Tabs -->
+                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
+                    <layoutData>
+                        <l:SplitterLayoutData size="33%" />
+                    </layoutData>
+                    <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">
+                        <layoutData>
+                            <FlexItemData growFactor="1" />
+                        </layoutData>
+                        <items>
+                            <IconTabFilter text="Inbound Data" key="inbound">
+                                <codeeditor:CodeEditor id="inboundEditor" type="json" syntaxHints="false" height="100%" value="{/current/data}" change=".onInboundChange" />
+                            </IconTabFilter>
+                            <IconTabFilter text="Schema" key="schema">
+                                <codeeditor:CodeEditor id="schemaEditor" type="json" syntaxHints="false" height="100%" value="{/current/schema}" change=".onSchemaChange" />
+                            </IconTabFilter>
+                            <IconTabFilter text="Code Snippet (XML)" key="xml" visible="{= !!${/current/xmlSnippet} }">
+                                <codeeditor:CodeEditor id="xmlSnippet" type="xml" syntaxHints="false" height="100%" value="{/current/xmlSnippet}" editable="false" />
+                            </IconTabFilter>
+                            <IconTabFilter text="Code Snippet (JS)" key="js" visible="{= !!${/current/jsSnippet} }">
+                                <codeeditor:CodeEditor id="jsSnippet" type="javascript" syntaxHints="false" height="100%" value="{/current/jsSnippet}" editable="false" />
+                            </IconTabFilter>
+                        </items>
+                    </IconTabBar>
+                </VBox>
+
+                <!-- Center Pane: MetaUI Engine -->
+                <ScrollContainer height="100%" vertical="true" width="auto">
+                    <layoutData>
+                        <l:SplitterLayoutData size="auto" />
+                    </layoutData>
+                    <VBox class="sapUiMediumMargin" height="100%">
+                        <Title text="Live Form Preview" level="H3" class="sapUiSmallMarginBottom" />
+                        <VBox id="hostContainer" height="100%" width="100%" />
+                    </VBox>
+                </ScrollContainer>
+
+                
+            </l:Splitter>
+        </f:content>
+
+        <f:footer>
+            <OverflowToolbar>
+                <Button 
+                    id="messagePopoverBtn"
+                    icon="sap-icon://message-popup"
+                    text="{= ${message>/}.length }"
+                    type="{= ${message>/}.length > 0 ? 'Negative' : 'Default' }"
+                    press=".onMessagePopoverPress" />
+                <ToolbarSpacer />
+            </OverflowToolbar>
+        </f:footer>
+
+    </f:DynamicPage>
+</mvc:View>

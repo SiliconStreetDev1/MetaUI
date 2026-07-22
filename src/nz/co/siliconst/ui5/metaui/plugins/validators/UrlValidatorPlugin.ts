@@ -18,11 +18,12 @@ export class UrlValidatorPlugin implements IValidator {
      * @param args Optional arguments provided in the schema.
      * @returns IValidationResult containing status and optional error message.
      */
-    public validate(parsedValue: string | number | boolean, args?: Record<string, string>): IValidationResult {
-        if (!parsedValue as string) return { isValid: true }; // Let RequiredValidator handle empty
+    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
+        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
+        if (typeof parsedValue !== "string") return { isValid: true };
         
         try {
-            const url = new URL(parsedValue as string);
+            const url = new URL(parsedValue);
             if (url.protocol !== "http:" && url.protocol !== "https:") {
                 return { isValid: false, errorMessage: "URL must use http or https protocol." };
             }

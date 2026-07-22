@@ -13,6 +13,7 @@ import "nz/co/siliconst/ui5/metaui/plugins/controls/BooleanPlugin";
 import "nz/co/siliconst/ui5/metaui/plugins/controls/ObjectPlugin";
 import "nz/co/siliconst/ui5/metaui/plugins/controls/ArrayPlugin";
 import "nz/co/siliconst/ui5/metaui/plugins/controls/DropdownPlugin";
+import "nz/co/siliconst/ui5/metaui/plugins/controls/MultiInputPlugin";
 import "nz/co/siliconst/ui5/metaui/plugins/controls/DatePlugin";
 import "nz/co/siliconst/ui5/metaui/core/DefaultLayoutGenerator";
 import "nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder";
