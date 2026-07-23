@@ -24,6 +24,7 @@
     "ContactEmail": "admin@siliconst.co.nz",
     "Revenue": 5000000,
     "LiveCountries": "NZ",
+    "CustomCode": "/**\n * A massive block of code to test the dialog's dynamic width heuristics.\n * It includes multiple functions and long lines to stretch the editor.\n */\n\nfunction calculateOptimalDialogWidth(schema) {\n    let requiresWideDialog = false;\n    const scanProperties = (props) => {\n        for (const key in props) {\n            const prop = props[key];\n            if (prop.type === 'array' || prop.ui?.fullWidth || prop.ui?.widget === 'codeEditor') {\n                requiresWideDialog = true;\n                return;\n            }\n            if (prop.properties) scanProperties(prop.properties);\n        }\n    };\n    if (schema.properties) scanProperties(schema.properties);\n    return requiresWideDialog ? '80vw' : 'auto';\n}\n\n// Simulate a heavy payload process\nasync function simulateBackendProcessing(dataPayload) {\n    console.log('Sending data:', dataPayload);\n    await new Promise(resolve => setTimeout(resolve, 2000));\n    return {\n        success: true,\n        timestamp: new Date().toISOString(),\n        message: 'Successfully processed massive payload with no visual UI snapping.'\n    };\n}\n\nexport { calculateOptimalDialogWidth, simulateBackendProcessing };\n",
     "Contacts": [
       {
         "ContactID": "C-001",
@@ -236,6 +237,13 @@
           "widget": "datetime"
         }
       },
+      "CustomCode": {
+        "type": "string",
+        "ui": {
+          "label": "Custom Sandbox Logic",
+          "widget": "codeEditor"
+        }
+      },
       "Contacts": {
         "type": "array",
         "ui": {
@@ -349,6 +357,10 @@
           {
             "type": "Control",
             "scope": "#/properties/AlertMsg"
+          },
+          {
+            "type": "Control",
+            "scope": "#/properties/CustomCode"
           }
         ]
       },

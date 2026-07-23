@@ -1,7 +1,0 @@
-{
-    "FirstName": "John",
-    "LastName": "Doe",
-    "Age": 30,
-    "Comments": "This is a standard text area.\nIt dynamically grows as you type.",
-    "CustomCode": "function hello() {\n  console.log('Hello World');\n}"
-}

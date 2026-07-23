@@ -1,9 +1,0 @@
-{
-    "ProjectName": "MetaUI Development",
-    "Budget": 50000,
-    "Country": "US",
-    "TeamMembers": [
-        { "Name": "Alice", "Role": "Lead Developer" },
-        { "Name": "Bob", "Role": "UI Designer" }
-    ]
-}
