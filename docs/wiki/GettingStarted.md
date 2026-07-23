@@ -52,9 +52,16 @@ To embed the MetaUI engine inside a standard UI5 XML view natively:
        editable="{/settings/editable}"
        debugMode="{/settings/debugMode}"
        useMessageManager="true"
-       error=".onHostError"
+       isValid="{/settings/isValid}"
+       modelName="meta"
+       beforeSubmit=".onHostBeforeSubmit"
+       submit=".onHostSubmit"
+       cancel=".onHostCancel"
        fieldChange=".onHostFieldChange"
-       submit=".onHostSubmit" />
+       validationStateChanged=".onHostValidationStateChanged"
+       validationError=".onHostValidationError"
+       validationSuccess=".onHostValidationSuccess"
+       error=".onHostError" />
    ```
 
    **Object Binding (Parsed JS Objects)**
@@ -67,9 +74,16 @@ To embed the MetaUI engine inside a standard UI5 XML view natively:
        editable="{/settings/editable}"
        debugMode="{/settings/debugMode}"
        useMessageManager="true"
-       error=".onHostError"
+       isValid="{/settings/isValid}"
+       modelName="meta"
+       beforeSubmit=".onHostBeforeSubmit"
+       submit=".onHostSubmit"
+       cancel=".onHostCancel"
        fieldChange=".onHostFieldChange"
-       submit=".onHostSubmit" />
+       validationStateChanged=".onHostValidationStateChanged"
+       validationError=".onHostValidationError"
+       validationSuccess=".onHostValidationSuccess"
+       error=".onHostError" />
    ```
 
 ---

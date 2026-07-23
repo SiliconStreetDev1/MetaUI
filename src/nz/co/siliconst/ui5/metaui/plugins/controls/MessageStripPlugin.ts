@@ -29,6 +29,7 @@ export class MessageStripPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
+        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
         
         // Use binding to display text if the field has a value, otherwise use the label
         this.control = new MessageStrip({

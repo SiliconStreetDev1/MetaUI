@@ -8,6 +8,7 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import { GlobalPipeline } from "../../core/PipelineManager";
 import coreLibrary from "sap/ui/core/library";
+import { Logger } from "../../utils/Logger";
 
 /**
  * Abstract class representing a standard MetaUI Plugin.
@@ -151,8 +152,7 @@ export abstract class BasePlugin implements IPlugin {
     public setVisualValidationState(isValid: boolean, errorMessage?: string): void {
         if (!this.control) return;
 
-        import("../../utils/Logger").then(m => m.Logger.error("[MetaUI]", `setVisualValidationState called on plugin: ${this.fieldKey}, isValid: ${isValid}`, "BasePlugin"));
-
+        
         // Use reflection to check if the control supports ValueState (e.g. sap.m.Input does, sap.m.Text does not)
         if (typeof (this.control as any).setValueState === "function") {
             (this.control as any).setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
@@ -161,7 +161,7 @@ export abstract class BasePlugin implements IPlugin {
                 (this.control as any).setValueStateText(isValid ? "" : (errorMessage || ""));
             }
         } else {
-            import("../../utils/Logger").then(m => m.Logger.error("[MetaUI]", `Plugin ${this.fieldKey} has no setValueState function!`, "BasePlugin"));
+            Logger.error("[MetaUI]", `Plugin ${this.fieldKey} has no setValueState function!`, "BasePlugin");
         }
     }
 

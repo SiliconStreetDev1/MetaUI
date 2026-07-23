@@ -1,8 +1,13 @@
-# Schemas & Data Inference
+# Schemas, Inference & OpenAPI
 
-The MetaUI Engine is driven entirely by declarative JSON structures. It supports two modes of operation: **Schema-Driven** (where you define the exact layout and rules) and **Inference Mode** (where the engine guesses the layout based on the raw data).
+The MetaUI Engine is driven entirely by declarative JSON structures. You have three primary ways to define your UI layout:
+1. **Native MetaUI Schemas**: The proprietary, fully-featured base schema for absolute control.
+2. **Swagger / OpenAPI**: Standard external API definitions dynamically converted at runtime.
+3. **Data Inference**: Zero-schema generation based purely on the raw inbound data structure.
 
 ---
+
+# Part 1: Native MetaUI Schemas
 
 ## Defining a JSON Schema
 
@@ -35,9 +40,9 @@ Every field within `properties` or `items` supports the following absolute schem
 - **`pattern`**: `(string)` Regular expression validation.
 
 #### Numeric Specifics
-- **`precision`**: `(number)` Number of significant digits.
-- **`scale`**: `(number)` Number of decimal places.
-- **`multipleOf`**: `(number)` Step interval constraint.
+- **`precision`**: `(number)` Total length of a numeric field (e.g. `precision: 10, scale: 2`).
+- **`scale`**: `(number)` Number of allowed decimal places. *(Note: Passing `scale` forces the standard `number` input to preserve exactly that many trailing zeroes. If omitted, the number input accepts up to 9 decimals dynamically without padding).*
+- **`multipleOf`**: `(number)` Step increment (mapped to StepInput natively).
 
 #### Value Selection
 - **`enum`**: `(string[] | number[])` Array of allowed primitive values.
@@ -74,7 +79,7 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 - **`rows`**: `(number)` Row count specific to the `textArea` widget.
 - **`fullWidth`**: `(boolean)` Forces a control to break to a new line and span 12 grid columns horizontally. *(Note: `codeEditor`, `textArea`, and `richText` automatically default to `fullWidth: true`. Pass `false` to explicitly disable).*
 - **`validators`**: `((string | IValidationRule)[])` Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`).
-- **`formatter`**: `(string)` The name of a custom string transformation formatter pipeline.
+- **`formatter`**: `(string)` The name of a custom string transformation formatter pipeline natively mapped in `PipelineManager` (`"date"`, `"phone"`, `"textCase"`).
 - **`args`**: `(unknown)` Configuration arguments passed to a specific Widget or Formatter (e.g. `"javascript"` for `codeEditor`).
 - **`dialogButtonText`**: `(string)` Explicit text for the configurable popup submit button (overriding the default "Submit").
 
@@ -89,6 +94,45 @@ If you want to explicitly detach the visual presentation from the nested JSON da
 - **`scope`**: `(string)` A JSON Pointer (e.g. `#/properties/CustomerName`) linking the visual control to the underlying schema property.
 - **`elements`**: `(ILayoutElement[])` Nested layout elements.
 - **`widget`**: `(string)` An optional widget override applied specifically to this visual instance of the field.
+
+---
+
+### Action Plugins (Widgets)
+
+In MetaUI, "Actions" are simply custom plugins mapped via the `ui.widget` property. They render interactive controls (like buttons) rather than data-entry fields, but they still adhere to the `BasePlugin` lifecycle.
+
+#### Built-in Actions
+- **`submitButton`**: Renders an Action Button that natively triggers the host container's submission flow (publishing a `TriggerSubmit` event).
+- **`urlButton`**: Renders a Navigation Button that opens an external link.
+
+#### Using `ui.args` for Actions
+Action plugins often require parameters. You can pass these via the `ui.args` property:
+
+```json
+"openWebsite": {
+    "type": "string",
+    "ui": {
+        "widget": "urlButton",
+        "label": "Visit SAP",
+        "args": "https://sap.com"
+    }
+}
+```
+
+#### Registering a Custom Action Plugin
+You are not limited to the built-in actions. If you create a custom `ActionPlugin` (e.g., a button that triggers a barcode scanner or a backend OData call), you register it globally using the `PluginRegistry`:
+
+```typescript
+import PluginRegistry from "@siliconst/metaui/core/PluginRegistry";
+
+// Register your custom action
+PluginRegistry.getInstance().registerPluginPath(
+    "string", 
+    "myCustomAction", 
+    "my/custom/app/plugins/MyActionPlugin"
+);
+```
+You can then trigger it in your schema simply by setting `"widget": "myCustomAction"`.
 
 ---
 
@@ -110,6 +154,7 @@ The MetaUI Engine translates schemas into SAPUI5 instances using 31 rigorously d
 | `string` | `"time"` | `sap.m.TimePicker` | TimePlugin |
 | `string` | `"datetime"` | `sap.m.DateTimePicker` | DateTimePlugin |
 | `boolean` | `"switch"` | `sap.m.Switch` | SwitchPlugin |
+| `number` | `"step"` | `sap.m.StepInput` | StepInputPlugin |
 | `string` | `"select"` | `sap.m.ComboBox` | DropdownPlugin |
 | `string` | `"textArea"` | `sap.m.TextArea` | TextAreaPlugin |
 | `string` | `"codeEditor"` | `sap.ui.codeeditor.CodeEditor` | CodeEditorPlugin |
@@ -135,7 +180,7 @@ The MetaUI Engine translates schemas into SAPUI5 instances using 31 rigorously d
 
 ---
 
-## Full Data Inference Mode
+# Part 2: Full Data Inference Mode
 
 If you bind a completely empty schema (either `null` or `{}`) to the `DynamicHost`, the engine will automatically parse the inbound `data` object and infer a schema dynamically using `SchemaNormalizer`.
 
@@ -153,3 +198,175 @@ If you bind a completely empty schema (either `null` or `{}`) to the `DynamicHos
 2. Infers `Username` as a `string` and maps it to the `StringPlugin`.
 3. Infers `IsAdmin` as a `boolean` and maps it to the `BooleanPlugin`.
 4. Infers `Score` as a `number` and maps it to the `NumberPlugin`.
+
+---
+
+# Part 3: Swagger / OpenAPI Integration
+
+You don't have to write MetaUI schemas by hand. The engine includes a `SwaggerBuilder` that can consume standard Swagger v2 or OpenAPI v3 JSON payloads directly from your backend and dynamically generate the Fiori UI.
+
+### How to Use It (Practical Guide)
+
+To use an OpenAPI specification, you simply fetch it in your controller, pass it through the `SwaggerBuilder`, and bind the resulting object to the `DynamicHost` in your XML view.
+
+**1. Your XML View**
+Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g., `viewMode>/swaggerSchema`).
+
+```xml
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+    
+    <meta:DynamicHost
+        data="{/myFormData}"
+        schemaDefinition="{viewModel>/swaggerSchema}" />
+        
+</core:FragmentDefinition>
+```
+
+**2. Your Controller (JavaScript)**
+Use the `SwaggerBuilder.fetchAndBuild()` utility to download the OpenAPI JSON and convert it into a MetaUI layout.
+
+```javascript
+sap.ui.define([
+    "sap/ui/core/mvc/Controller",
+    "sap/ui/model/json/JSONModel",
+    "nz/co/siliconst/ui5/metaui/swagger/SwaggerBuilder"
+], function (Controller, JSONModel, SwaggerBuilder) {
+    "use strict";
+
+    return Controller.extend("my.app.controller.Main", {
+        onInit: function () {
+            var oViewModel = new JSONModel({ swaggerSchema: {} });
+            this.getView().setModel(oViewModel, "viewModel");
+
+            // 1. Fetch the Swagger JSON from your API
+            // 2. Tell the builder which specific entity to extract (e.g. "CustomerProfile")
+            SwaggerBuilder.fetchAndBuild("https://api.mycorp.com/swagger.json", "CustomerProfile")
+                .then(function(oMetaUISchema) {
+                    // 3. Bind the converted schema to the XML view
+                    oViewModel.setProperty("/swaggerSchema", oMetaUISchema);
+                })
+                .catch(function(err) {
+                    console.error("Failed to load Swagger:", err);
+                });
+        }
+    });
+});
+```
+
+### What does it map automatically?
+When the `SwaggerBuilder` runs, it automatically maps OpenAPI constraints into MetaUI UI rules:
+- `format: "email"` -> Maps to `ui: { format: "email" }` (Native validation)
+- `allOf` and `$ref` -> Flattened and resolved automatically
+- `enum` arrays -> Rendered as Dropdowns (`sap.m.ComboBox`)
+- `exclusiveMinimum` / `maxLength` -> Natively bound to UI5 input constraints
+
+You can see this live in the **Playground Sandbox**! Toggle the **"Simulate Swagger Pipeline"** switch to swap out the MetaUI schema for a native Swagger schema and watch the Engine orchestrate the exact same UI layout.
+
+---
+
+# Part 4: Real-World Schema Examples
+
+To help you understand how Native MetaUI Schemas fit together, here are three complete, production-ready schema examples.
+
+### Example 1: Basic Employee Form
+This example demonstrates a standard form with custom widgets, native validation, and read-only logic.
+
+```json
+{
+  "type": "object",
+  "title": "Employee Profile",
+  "layoutStrategy": "form",
+  "properties": {
+    "employeeId": {
+      "type": "string",
+      "required": true,
+      "ui": {
+        "label": "Employee ID",
+        "readOnly": true
+      }
+    },
+    "firstName": {
+      "type": "string",
+      "required": true,
+      "maxLength": 50
+    },
+    "department": {
+      "type": "string",
+      "ui": {
+        "widget": "select"
+      },
+      "enum": ["HR", "Engineering", "Sales"]
+    },
+    "hireDate": {
+      "type": "date",
+      "ui": {
+        "widget": "datetime"
+      }
+    }
+  }
+}
+```
+
+### Example 2: Explicit Grouping (`uiLayout`)
+This example forces the Engine to render fields side-by-side using groups and horizontal layouts, completely detaching the visual presentation from the JSON structure.
+
+```json
+{
+  "type": "object",
+  "title": "Payment Settings",
+  "layoutStrategy": "form",
+  "properties": {
+    "cardNumber": { "type": "string", "pattern": "^\\d{16}$" },
+    "expiry": { "type": "string" },
+    "cvv": { "type": "string", "maxLength": 3 }
+  },
+  "uiLayout": [
+    {
+      "type": "Group",
+      "label": "Credit Card Details",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/cardNumber" },
+        {
+          "type": "HorizontalLayout",
+          "elements": [
+            { "type": "Control", "scope": "#/properties/expiry" },
+            { "type": "Control", "scope": "#/properties/cvv" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Example 3: Tabular Array with Financials (`type: "array"`)
+This example renders a Fiori Table. Notice how we use `scale` to strictly format the price to 2 decimal places, and `widget: "step"` for the quantity.
+
+```json
+{
+  "type": "array",
+  "title": "Purchase Order Items",
+  "layoutStrategy": "table",
+  "items": {
+    "type": "object",
+    "properties": {
+      "materialCode": {
+        "type": "string",
+        "required": true,
+        "ui": { "label": "Material" }
+      },
+      "quantity": {
+        "type": "integer",
+        "ui": { "widget": "step" }
+      },
+      "unitPrice": {
+        "type": "number",
+        "scale": 2,
+        "ui": { "label": "Unit Price ($)" }
+      }
+    }
+  }
+}
+```

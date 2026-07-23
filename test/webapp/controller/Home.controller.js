@@ -16,6 +16,11 @@ sap.ui.define([
         onNavToOData: function () {
             var oRouter = UIComponent.getRouterFor(this);
             oRouter.navTo("odata");
+        },
+
+        onNavToPlaypen: function () {
+            var oRouter = UIComponent.getRouterFor(this);
+            oRouter.navTo("playpen");
         }
     });
 });

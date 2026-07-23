@@ -119,3 +119,118 @@ PluginRegistry.getInstance().registerPluginPath(
     "my/custom/app/plugins/MyCustomPlugin"
 );
 ```
+
+### Creating and Registering an Action Plugin
+
+Action plugins (like custom interactive buttons or triggers) are registered exactly the same way using `registerPluginPath`. However, unlike data-entry plugins, Action Plugins typically render a `sap.m.Button` and do not extract data (`getValue` returns null).
+
+#### 1. The Action Plugin Class
+Here is an example of an Action Plugin that renders a button to trigger a custom event:
+
+```typescript
+import { BasePlugin } from "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin";
+import { IPropertyMetadata } from "nz/co/siliconst/ui5/metaui/interfaces/ISchema";
+import Button from "sap/m/Button";
+import Control from "sap/ui/core/Control";
+
+export class MyActionPlugin extends BasePlugin {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
+        this.metadata = fieldMetadata;
+
+        this.control = new Button({
+            text: fieldMetadata.ui?.label || "Execute Action",
+            icon: "sap-icon://action",
+            press: () => {
+                // Read custom arguments passed from the schema
+                const myArg = fieldMetadata.ui?.args || "Default";
+                alert(`Action Triggered with arg: ${myArg}`);
+            }
+        });
+
+        return this.control as Control;
+    }
+
+    // Actions don't extract data into the JSON payload
+    protected getValue(): unknown {
+        return null;
+    }
+
+    protected applyState(): void {
+        if (this.control && this.metadata) {
+            (this.control as Button).setEnabled(!this.metadata.ui?.readOnly);
+        }
+    }
+}
+```
+
+#### 2. Registering the Action Plugin
+Register the plugin globally before the MetaUI Engine boots:
+
+```typescript
+// Register your custom action plugin
+PluginRegistry.getInstance().registerPluginPath(
+    "string", 
+    "myCustomAction", 
+    "my/custom/app/plugins/MyActionPlugin"
+);
+```
+
+#### 3. Using it in the Schema
+You can then trigger it in your schema simply by setting `"widget": "myCustomAction"`:
+
+```json
+"triggerMyAction": {
+    "type": "string",
+    "ui": {
+        "widget": "myCustomAction",
+        "label": "Click Me",
+        "args": "My Custom Parameter"
+    }
+}
+```
+
+---
+
+## 5. Custom Validators and PipelineManager
+
+MetaUI natively supports several synchronous data validators (e.g., `maxLength`, `email`, `required`) out of the box. These are managed by the `PipelineManager` via its `validators` registry.
+
+When a field runs its `validate()` method, it delegates the value to `GlobalPipeline.executeValidation(val, validatorsToRun, argsMap)`.
+
+### Registering a Custom Validator
+
+To inject custom validation logic (e.g., a complex business rule or an asynchronous AI validator), you must register a custom programmatic validator in your app before rendering the MetaUI Form:
+
+```typescript
+// In your app's Component.js or Controller
+import { GlobalPipeline } from "nz/co/siliconst/ui5/metaui/core/PipelineManager";
+
+GlobalPipeline.validators.register("customAsyncRule", {
+    validate: function(parsedValue, args) {
+        // Evaluate the value and return an IValidationResult
+        if (parsedValue === "invalid") {
+            return { isValid: false, errorMessage: "This value is strictly forbidden." };
+        }
+        return { isValid: true };
+    }
+});
+```
+
+### Using it in your Schema
+
+Once registered, you can invoke the custom validator anywhere in your schema using the `ui.validators` array:
+
+```json
+"specialField": {
+    "type": "string",
+    "ui": {
+        "validators": [
+            "required",
+            { 
+                "name": "customAsyncRule", 
+                "args": { "limit": 10 } 
+            }
+        ]
+    }
+}
+```

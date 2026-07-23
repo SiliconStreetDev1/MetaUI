@@ -34,6 +34,7 @@ export class PluginRegistry {
         this.registerPluginPath("string", "time", "nz/co/siliconst/ui5/metaui/plugins/controls/TimePlugin");
         this.registerPluginPath("string", "datetime", "nz/co/siliconst/ui5/metaui/plugins/controls/DateTimePlugin");
         this.registerPluginPath("boolean", "switch", "nz/co/siliconst/ui5/metaui/plugins/controls/SwitchPlugin");
+        this.registerPluginPath("number", "step", "nz/co/siliconst/ui5/metaui/plugins/controls/StepInputPlugin");
         this.registerPluginPath("string", "select", "nz/co/siliconst/ui5/metaui/plugins/controls/DropdownPlugin");
         this.registerPluginPath("string", "textArea", "nz/co/siliconst/ui5/metaui/plugins/controls/TextAreaPlugin");
         this.registerPluginPath("string", "codeEditor", "nz/co/siliconst/ui5/metaui/plugins/controls/CodeEditorPlugin");

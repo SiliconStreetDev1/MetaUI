@@ -31,6 +31,7 @@ export class DropdownPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
+        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
         
         if (!this.isEditable) {
             

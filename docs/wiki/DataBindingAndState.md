@@ -21,11 +21,21 @@ If the `DynamicHost` is placed within a standard UI5 element binding context tha
 
 ---
 
+## Implicit Binding & Inferred Layouts
+
+Regardless of which of the three binding engines you use above, if you successfully bind a data payload to the `DynamicHost` but **do not provide a `schemaDefinition`** (or provide an empty object `{}`), the engine will automatically enter **Data Inference Mode**. 
+
+The engine will instantly traverse the bound dataset structure, infer the types (e.g., strings to Inputs, booleans to Checkboxes, nested objects to Form containers), and hot-swap an inferred layout schema directly into the sandbox. 
+
+This means you can throw raw JSON or OData contexts at the UI without ever writing a single line of schema definition!
+
+---
+
 ## Live Update Mode (Continuous Binding)
 
 If you prefer continuous two-way binding over a sandboxed approach, you can set `liveUpdate="true"` on the `DynamicHost`. 
 
-When enabled, every field `change` event (e.g. blurring a field or pressing Enter) completely bypasses the validation queue and forcefully synchronizes the unvalidated data directly back into the upstream `data` / `dataJson` bound models in real-time.
+When enabled, every field `change` event (e.g. blurring a field or pressing Enter) completely bypasses the validation queue and forcefully synchronizes the data directly back into the upstream `data` / `dataJson` bound models in real-time.
 
 ---
 
@@ -59,7 +69,7 @@ In Sandboxed mode, the engine intentionally suppresses visual error messages whi
 3. The framework then falls back to a **Local Visual State** implementation, directly applying red borders to the offending UI controls without relying on the global UI5 core.
 
 ### Visual Errors in Live Update Mode
-In Live Update Mode, the engine aggressively syncs data on every user interaction (keystroke, blur, selection). To provide immediate feedback, the engine natively intercepts every `change` event, runs the field's data against the schema validator, and instantly applies the **Local Visual State** (red borders) to the control if it fails.
+In Live Update Mode, the engine aggressively syncs data on standard field completions (blur, selection, pressing Enter). To provide immediate feedback without annoying the user while they type, the engine natively intercepts every `change` event, runs the field's data against the schema validator, and instantly applies the **Local Visual State** (red borders) to the control if it fails.
 
 ### Global Message Manager Integration (Centralized Errors)
 By default, validation errors are handled locally by the plugins (creating red borders, but no popups). If you want to aggregate these errors into a centralized UI (such as a standard Fiori Message Popover button in the footer), you can set `useMessageManager="true"` on the `DynamicHost`.
@@ -79,6 +89,7 @@ Because the engine acts as a sandbox, the parent data model is *not* automatical
 
 **Event Parameters:**
 - `fieldPath` *(string)*: The JSON schema key of the field that was just edited (e.g., `firstName` or `address/city`).
+- `value` *(any)*: The newly typed value of the field.
 - `isValid` *(boolean)*: Whether the *new* value the user just typed passes the schema constraints.
 - `payload` *(object)*: A deep copy of the entire current dataset inside the sandbox, including the new edit.
 

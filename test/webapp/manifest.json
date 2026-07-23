@@ -84,6 +84,11 @@
           "pattern": "odata",
           "name": "odata",
           "target": "odata"
+        },
+        {
+          "pattern": "playpen",
+          "name": "playpen",
+          "target": "playpen"
         }
       ],
       "targets": {
@@ -98,6 +103,10 @@
         "odata": {
           "viewId": "odata",
           "viewName": "ODataTest"
+        },
+        "playpen": {
+          "viewId": "playpen",
+          "viewName": "Playpen"
         }
       }
     },

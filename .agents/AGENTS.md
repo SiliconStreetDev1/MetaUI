@@ -67,3 +67,4 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 
 ## 13. AI Documentation Audits
 - **NEVER SUMMARIZE**: When auditing or writing documentation, you must never summarize or skip properties. You must systematically extract every single property from the source TypeScript interfaces and every single mapped widget from the PluginRegistry, and document them exhaustively line-by-line.
+- **Mandatory Verification Artifact**: Every single time you modify or update the Wiki documentation, you must concurrently generate or update the `wiki_verification_results.md` artifact. This artifact must cross-reference every documented property, method, and event against the exact TypeScript source file lines (e.g., `interfaces/ISchema.ts:16`) to forensically prove 100% accuracy and prevent hallucination.

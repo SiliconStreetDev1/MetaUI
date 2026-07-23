@@ -1,0 +1,43 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.Playpen"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:layout="sap.ui.layout"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:f="sap.f"
+    xmlns:codeeditor="sap.ui.codeeditor">
+    <f:DynamicPage id="page">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="Data Inference Playpen" />
+                </f:heading>
+                <f:expandedContent>
+                    <Label text="Paste raw JSON on the left. The Inference Engine will generate a Fiori form on the right dynamically." />
+                </f:expandedContent>
+            </f:DynamicPageTitle>
+        </f:title>
+        <f:content>
+            <layout:Splitter height="100%">
+                <layout:contentAreas>
+                    <VBox width="100%" height="100%" fitContainer="true" class="sapUiTinyMargin">
+                        <codeeditor:CodeEditor 
+                            id="jsonEditor" 
+                            type="json" 
+                            value="{view>/jsonString}" 
+                            width="100%" 
+                            height="100%">
+                            <codeeditor:layoutData>
+                                <FlexItemData growFactor="1" />
+                            </codeeditor:layoutData>
+                        </codeeditor:CodeEditor>
+                        <Button text="Generate Form" type="Emphasized" press=".onGenerate" width="100%" class="sapUiTinyMarginTop" />
+                    </VBox>
+                    <VBox width="100%" height="100%" class="sapUiTinyMargin">
+                        <meta:DynamicHost id="dynamicHost" data="{view>/parsedData}" liveUpdate="true" />
+                    </VBox>
+                </layout:contentAreas>
+            </layout:Splitter>
+        </f:content>
+    </f:DynamicPage>
+</mvc:View>

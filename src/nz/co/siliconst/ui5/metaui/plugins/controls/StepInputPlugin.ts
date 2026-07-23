@@ -1,32 +1,27 @@
 /**
- * @file MultiSelectPlugin.ts
- * @description Renders a sap.m.MultiComboBox for selecting multiple string values.
+ * @file StepInputPlugin.ts
+ * @description Renders a sap.m.StepInput for numeric data requiring step increments.
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
-import MultiComboBox from "sap/m/MultiComboBox";
-import Item from "sap/ui/core/Item";
+import StepInput from "sap/m/StepInput";
 import Control from "sap/ui/core/Control";
 import TextControl from "sap/m/Text";
 
 /**
- * Handles rendering logic for selecting multiple strings from a predefined list.
- * Expects the payload to be an array of strings.
- * 
- * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * Handles rendering and logic for step-based numeric inputs.
  */
-export class MultiSelectPlugin extends BasePlugin {
+export class StepInputPlugin extends BasePlugin {
     /**
-     * Renders a `sap.m.MultiComboBox` component.
+     * Renders a `sap.m.StepInput` component for numeric evaluation.
      * 
      * @param fieldMetadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
      * @param onChange The callback fired on value change.
-     * @returns {Control} The configured MultiComboBox control.
+     * @returns {Control} The configured StepInput control.
      */
     public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
         this.onChange = onChange;
@@ -37,22 +32,20 @@ export class MultiSelectPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
-                    formatter: (val: unknown[]) => Array.isArray(val) ? val.join(", ") : ""
-                }
+                text: `{${modelName}>${bindingPath}}`
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
         }
-        
-        const mcb = new MultiComboBox({
+
+        this.control = new StepInput({
             id: this.generateStableId(engineScopeId, bindingPath),
-            selectedKeys: `{${modelName}>${bindingPath}}`,
-            enabled: !fieldMetadata.ui?.readOnly,
-            placeholder: fieldMetadata.ui?.label || "Select items...",
-            selectionChange: (oEvent: sap.ui.base.Event) => {
-                const keys = (this.control as MultiComboBox).getSelectedKeys();
+            value: `{${modelName}>${bindingPath}}`,
+            displayValuePrecision: fieldMetadata.scale !== undefined ? fieldMetadata.scale : (fieldMetadata.type === "integer" ? 0 : 3),
+            editable: !fieldMetadata.ui?.readOnly,
+            required: !!fieldMetadata.required,
+            change: (oEvent: sap.ui.base.Event) => {
+                const val = oEvent.getParameter("value");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -60,23 +53,17 @@ export class MultiSelectPlugin extends BasePlugin {
             }
         });
 
-        if (fieldMetadata.enum) {
-            fieldMetadata.enum.forEach((val: string | number) => {
-                mcb.addItem(new Item({ key: val.toString(), text: val.toString() }));
-            });
-        }
-
-        this.control = mcb;
         this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+
         return this.control as Control;
     }
 
     /**
-     * Retrieves the current selection keys.
-     * @returns {unknown} The selected keys.
+     * Retrieves the current numeric state.
+     * @returns {unknown} The numeric value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as MultiComboBox).getSelectedKeys() : [];
+        return this.control ? (this.control as StepInput).getValue() : null;
     }
 
     /**
@@ -85,7 +72,9 @@ export class MultiSelectPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as MultiComboBox).setEnabled(!this.metadata.ui?.readOnly);
+            const input = this.control as StepInput;
+            input.setEditable(!this.metadata.ui?.readOnly);
+            input.setRequired(!!this.metadata.required);
         }
     }
 }
