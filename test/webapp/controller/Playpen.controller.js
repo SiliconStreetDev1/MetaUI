@@ -21,15 +21,27 @@ sap.ui.define([
         },
         
         onGenerate: function() {
+            this._syncLeftToRight();
+        },
+
+        onCodeEditorChange: function() {
+            this._syncLeftToRight();
+        },
+
+        onFieldChange: function() {
+            var oViewModel = this.getView().getModel("view");
+            var oParsed = oViewModel.getProperty("/parsedData");
+            oViewModel.setProperty("/jsonString", JSON.stringify(oParsed, null, 4));
+        },
+
+        _syncLeftToRight: function() {
             var oViewModel = this.getView().getModel("view");
             var sValue = oViewModel.getProperty("/jsonString");
             try {
                 var oParsed = JSON.parse(sValue);
                 oViewModel.setProperty("/parsedData", oParsed);
             } catch (e) {
-                sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
-                    MessageBox.error("Invalid JSON format.");
-                });
+                // Ignore parse errors while typing, allow Force Sync to show them later if needed
             }
         }
     });
