@@ -20,19 +20,22 @@
         <f:content>
             <layout:Splitter height="100%">
                 <layout:contentAreas>
-                    <VBox width="100%" height="100%" fitContainer="true" class="sapUiTinyMargin">
-                        <codeeditor:CodeEditor 
-                            id="jsonEditor" 
-                            type="json" 
-                            value="{view>/jsonString}" 
-                            width="100%" 
-                            height="100%">
-                            <codeeditor:layoutData>
-                                <FlexItemData growFactor="1" />
-                            </codeeditor:layoutData>
-                        </codeeditor:CodeEditor>
-                        <Button text="Generate Form" type="Emphasized" press=".onGenerate" width="100%" class="sapUiTinyMarginTop" />
-                    </VBox>
+                    <Page showHeader="false" class="sapUiTinyMargin">
+                        <content>
+                            <codeeditor:CodeEditor 
+                                id="jsonEditor" 
+                                type="json" 
+                                value="{view>/jsonString}" 
+                                width="100%" 
+                                height="100%" />
+                        </content>
+                        <footer>
+                            <OverflowToolbar>
+                                <ToolbarSpacer />
+                                <Button text="Generate Form" type="Emphasized" press=".onGenerate" />
+                            </OverflowToolbar>
+                        </footer>
+                    </Page>
                     <VBox width="100%" height="100%" class="sapUiTinyMargin">
                         <meta:DynamicHost id="dynamicHost" data="{view>/parsedData}" liveUpdate="true" />
                     </VBox>
