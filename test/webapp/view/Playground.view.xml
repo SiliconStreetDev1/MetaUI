@@ -81,14 +81,12 @@
             <l:Splitter height="100%">
                 
                 <!-- Left Pane: Source & Schema Tabs -->
-                <VBox class="sapUiMediumMargin" height="100%" fitContainer="true">
+                <Page showHeader="false">
                     <layoutData>
                         <l:SplitterLayoutData size="33%" />
                     </layoutData>
-                    <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">
-                        <layoutData>
-                            <FlexItemData growFactor="1" />
-                        </layoutData>
+                    <content>
+                        <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true">
                         <items>
                             <IconTabFilter text="Inbound Data" key="inbound">
                                 <codeeditor:CodeEditor id="inboundEditor" type="json" syntaxHints="false" height="100%" value="{/current/data}" change=".onInboundChange" />
@@ -104,16 +102,17 @@
                             </IconTabFilter>
                         </items>
                     </IconTabBar>
-                </VBox>
+                    </content>
+                </Page>
 
                 <!-- Center Pane: MetaUI Engine -->
                 <ScrollContainer height="100%" vertical="true" width="auto">
                     <layoutData>
                         <l:SplitterLayoutData size="auto" />
                     </layoutData>
-                    <VBox class="sapUiMediumMargin" height="100%">
+                    <VBox class="sapUiMediumMargin">
                         <Title text="Live Form Preview" level="H3" class="sapUiSmallMarginBottom" />
-                        <VBox id="hostContainer" height="100%" width="100%" />
+                        <VBox id="hostContainer" width="100%" />
                     </VBox>
                 </ScrollContainer>
 
