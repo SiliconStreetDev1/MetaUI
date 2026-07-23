@@ -35,7 +35,8 @@ sap.ui.define([
                  '    host.setProperty("schemaDefinition", sSchema ? JSON.parse(sSchema) : null);\n';
             if (render === "dialog" || render === "js_dialog") {
                 js += '    this.getView().addDependent(host);\n' +
-                      '    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "800px", this.getView());\n';
+                      '    // We pass "auto" to let MetaUI heuristically determine if 80vw is needed\n' +
+                      '    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView());\n';
             } else {
                 js += '    this.byId("hostContainer").addItem(host);\n';
             }
@@ -57,13 +58,14 @@ sap.ui.define([
             }
             if (render === "dialog" || render === "js_dialog") {
                 js += '    this.getView().addDependent(host);\n' +
-                      '    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "800px", this.getView());\n}.bind(this));';
+                      '    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView());\n}.bind(this));';
             } else {
                 js += '    this.byId("hostContainer").addItem(host);\n}.bind(this));';
             }
         } else if (render === "dialog" && binding !== "programmatic") {
             js = 'var host = this.byId("hostContainer").getItems()[0];\n' +
-                 'host.openInDialog("Matrix Dialog", "Extract Data", "Cancel", "800px", this.getView());';
+                 '// "auto" allows the Engine to automatically snap to 80vw if it detects massive controls\n' +
+                 'host.openInDialog("Matrix Dialog", "Extract Data", "Cancel", "auto", this.getView());';
         }
         return js;
     };

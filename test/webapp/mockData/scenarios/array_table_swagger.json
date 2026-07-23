@@ -1,0 +1,61 @@
+{
+  "data": [
+    {
+      "ID": "EMP-001",
+      "Name": "Alice Smith",
+      "Department": "Engineering",
+      "Salary": 120000
+    },
+    {
+      "ID": "EMP-002",
+      "Name": "Bob Johnson",
+      "Department": "Marketing",
+      "Salary": 95000
+    }
+  ],
+  "schema": {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Auto-Generated Scenario",
+      "version": "1.0.0"
+    },
+    "components": {
+      "schemas": {
+        "Root": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ID": {
+                "type": "string",
+                "ui": {
+                  "label": "Employee ID",
+                  "isKey": true
+                }
+              },
+              "Name": {
+                "type": "string",
+                "ui": {
+                  "label": "Full Name"
+                }
+              },
+              "Department": {
+                "type": "string",
+                "ui": {
+                  "label": "Department"
+                }
+              },
+              "Salary": {
+                "type": "number",
+                "ui": {
+                  "label": "Salary",
+                  "formatter": "currency"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

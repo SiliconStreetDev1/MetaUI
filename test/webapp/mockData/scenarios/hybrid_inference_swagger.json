@@ -1,0 +1,45 @@
+{
+  "data": {
+    "ProductID": "PRD-990",
+    "ProductName": "Quantum Matrix Server",
+    "InStock": true,
+    "Price": 9999.99,
+    "Category": "Server Infrastructure",
+    "Tags": [
+      "Quantum",
+      "Compute",
+      "Cloud"
+    ]
+  },
+  "schema": {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Auto-Generated Scenario",
+      "version": "1.0.0"
+    },
+    "components": {
+      "schemas": {
+        "Root": {
+          "type": "object",
+          "properties": {
+            "Category": {
+              "ui": {
+                "label": "Overridden Dropdown"
+              },
+              "valueHelp": [
+                {
+                  "key": "Server Infrastructure",
+                  "text": "Server Infrastructure"
+                },
+                {
+                  "key": "Networking",
+                  "text": "Networking"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

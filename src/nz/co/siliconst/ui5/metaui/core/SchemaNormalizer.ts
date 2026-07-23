@@ -4,9 +4,27 @@
  */
 
 import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
+import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { Logger } from "../utils/Logger";
 
-export class SchemaNormalizer {
+export class SchemaNormalizer implements ISchemaBuilderPlugin {
+
+    /**
+     * ISchemaBuilderPlugin Contract
+     */
+    public canHandle(rawSchema: any): boolean {
+        // MetaUI native schemas almost always have properties, items, or a layoutStrategy
+        // This acts as a fallback for native schemas.
+        if (rawSchema.openapi || rawSchema.swagger) return false; 
+        return true;
+    }
+
+    /**
+     * ISchemaBuilderPlugin Contract
+     */
+    public build(rawSchema: any): ISchema {
+        return SchemaNormalizer.normalize(rawSchema);
+    }
 
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.

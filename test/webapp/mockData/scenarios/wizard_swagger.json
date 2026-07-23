@@ -1,0 +1,72 @@
+{
+  "data": {
+    "FirstName": "Jane",
+    "LastName": "Smith",
+    "Email": "jane.smith@example.com",
+    "Department": "Engineering",
+    "StartDate": "2026-08-01"
+  },
+  "schema": {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Employee Onboarding",
+      "version": "1.0.0"
+    },
+    "components": {
+      "schemas": {
+        "Root": {
+          "type": "object",
+          "properties": {
+            "FirstName": {
+              "type": "string",
+              "ui": {
+                "label": "First Name"
+              }
+            },
+            "LastName": {
+              "type": "string",
+              "ui": {
+                "label": "Last Name"
+              }
+            },
+            "Email": {
+              "type": "string",
+              "ui": {
+                "label": "Work Email"
+              },
+              "format": "email"
+            },
+            "Department": {
+              "type": "string",
+              "ui": {
+                "label": "Department"
+              },
+              "valueHelp": [
+                {
+                  "key": "Engineering",
+                  "text": "Engineering"
+                },
+                {
+                  "key": "Sales",
+                  "text": "Sales"
+                }
+              ]
+            },
+            "StartDate": {
+              "type": "string",
+              "ui": {
+                "label": "Start Date"
+              },
+              "format": "date"
+            }
+          },
+          "required": [
+            "FirstName",
+            "LastName",
+            "Email"
+          ]
+        }
+      }
+    }
+  }
+}

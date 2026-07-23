@@ -153,7 +153,12 @@ export class FormLayout implements ILayoutManager {
 
             const control = engine.generateField(effectiveMeta, `/${propKey}`, modelName);
 
-            if (effectiveMeta.ui?.fullWidth) {
+            // Automatically apply fullWidth layout data if natively wide or explicitly requested
+            const widget = effectiveMeta.ui?.widget;
+            const isNativelyWide = widget === "codeEditor" || widget === "textArea" || widget === "richText";
+            const isFullWidth = effectiveMeta.ui?.fullWidth !== undefined ? effectiveMeta.ui?.fullWidth : isNativelyWide;
+
+            if (isFullWidth) {
                 sap.ui.require(["sap/ui/layout/GridData"], (GridData: typeof import("sap/ui/layout/GridData").default) => {
                     control.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
                 });

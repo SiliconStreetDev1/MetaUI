@@ -126,8 +126,8 @@ export class ValidationDelegate {
         const processorId = stateManager.getModel().getId();
         const messages = Messaging.getMessageModel().getData() as sap.ui.core.message.Message[];
 
-        const messagesToRemove = messages.filter(m => 
-            m.getTarget() === target && 
+        const messagesToRemove = messages.filter(m =>
+            m.getTarget() === target &&
             m.getCode() === "CustomError" &&
             m.getMessageProcessor()?.getId() === processorId
         );

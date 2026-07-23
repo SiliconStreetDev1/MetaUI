@@ -55,16 +55,14 @@ export class MultiInputPlugin extends BasePlugin {
             tokenUpdate: (oEvent: Event) => {
                 const params = oEvent.getParameters();
                 const type = params.type;
-                const model = mi.getModel(modelName) as JSONModel;
                 
-                // Get current array from model
-                const rawArr = model.getProperty(bindingPath);
-                const arr: string[] = Array.isArray(rawArr) ? [...rawArr] : [];
-                
-                if (type === "added") {
-                    const addedTokens = params.addedTokens as Token[];
-                    addedTokens.forEach(t => arr.push(t.getText()));
-                } else if (type === "removed") {
+                if (type === "removed") {
+                    const model = mi.getModel(modelName) as JSONModel;
+                    
+                    // Get current array from model
+                    const rawArr = model.getProperty(bindingPath);
+                    const arr: string[] = Array.isArray(rawArr) ? [...rawArr] : [];
+
                     const removedTokens = params.removedTokens as Token[];
                     removedTokens.forEach(t => {
                         const text = t.getText();
@@ -73,10 +71,32 @@ export class MultiInputPlugin extends BasePlugin {
                             arr.splice(idx, 1);
                         }
                     });
+                    
+                    // Update model
+                    model.setProperty(bindingPath, arr);
+                    
+                    // Trigger engine validation/extraction
+                    const result = this.validateAndApplyVisualState();
+                    if (this.onChange) {
+                        this.onChange(result.isValid, this.fieldKey);
+                    }
                 }
+            }
+        });
+
+        // Add validator to instantly accept typed text, update model, and clear input
+        mi.addValidator((args: { text: string }) => {
+            const text = args.text?.trim();
+            if (text) {
+                const model = mi.getModel(modelName) as JSONModel;
+                const rawArr = model.getProperty(bindingPath);
+                const arr: string[] = Array.isArray(rawArr) ? [...rawArr] : [];
                 
-                // Update model
+                arr.push(text);
                 model.setProperty(bindingPath, arr);
+                
+                // Clear the input value immediately
+                mi.setValue("");
                 
                 // Trigger engine validation/extraction
                 const result = this.validateAndApplyVisualState();
@@ -84,11 +104,8 @@ export class MultiInputPlugin extends BasePlugin {
                     this.onChange(result.isValid, this.fieldKey);
                 }
             }
-        });
-
-        // Add validator to instantly accept typed text as a token
-        mi.addValidator((args: { text: string }) => {
-            return new Token({ key: args.text, text: args.text });
+            // Return null to explicitly prevent MultiInput from modifying the bound aggregation
+            return null;
         });
 
         // Bind existing strings to tokens using a factory function

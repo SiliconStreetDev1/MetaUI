@@ -32,6 +32,7 @@ sap.ui.define([
                     selectedScenario: "kitchen_sink",
                     selectedBinding: "object",
                     selectedRender: "embedded",
+                    useSwagger: false,
                     liveUpdate: true,
                     useMessageManager: true,
                     editable: true,
@@ -75,11 +76,17 @@ sap.ui.define([
          * 
          * @public
          */
-        onMatrixChange: function () {
-            var selectedKey = this.oModel.getProperty("/settings/selectedScenario");
-            if (!selectedKey) return;
+        onMatrixChange: function() {
+            var sScenario = this.oModel.getProperty("/settings/selectedScenario");
+            if (!sScenario) return;
 
-            ScenarioManager.getScenario(selectedKey).then(function(oScenario) {
+            var bUseSwagger = this.oModel.getProperty("/settings/useSwagger");
+            
+            if (bUseSwagger && sScenario !== "inference") {
+                sScenario += "_swagger";
+            }
+
+            ScenarioManager.getScenario(sScenario).then(function(oScenario) {
                 this.oModel.setProperty("/current/data", JSON.stringify(oScenario.data, null, 2));
                 this.oModel.setProperty("/current/schema", oScenario.schema ? JSON.stringify(oScenario.schema, null, 2) : "");
                 
@@ -205,7 +212,7 @@ sap.ui.define([
                     if (oSettings.selectedRender === "dialog" || oSettings.selectedRender === "js_dialog") {
                         // CRITICAL: Must add as dependent BEFORE opening dialog so bindings resolve
                         this.getView().addDependent(host);
-                        host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "800px", this.getView());
+                        host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView());
                     } else {
                         container.addItem(host);
                     }
@@ -243,7 +250,7 @@ sap.ui.define([
                 this.getView().addDependent(oHost);
 
                 if (oSettings.selectedRender === "dialog") {
-                    oHost.openInDialog("XML Fragment Dialog", "Extract Data", "Cancel", "800px", this.getView());
+                    oHost.openInDialog("XML Fragment Dialog", "Extract Data", "Cancel", "auto", this.getView());
                 } else {
                     container.addItem(oHost);
                 }

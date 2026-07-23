@@ -1,6 +1,6 @@
 # Creating Custom Plugins
 
-MetaUI's architecture is based entirely on a decoupled **Plugin-First** philosophy. If you need a specialized UI control (e.g., a barcode scanner, an address lookup, or a complex custom composite control) that is not included in the standard 24 plugins, you can easily create and register your own.
+MetaUI's architecture is based entirely on a decoupled **Plugin-First** philosophy. If you need a specialized UI control (e.g., a barcode scanner, an address lookup, or a complex custom composite control) that is not included in the standard 31 plugins, you can easily create and register your own.
 
 Every plugin is an isolated class that handles its own UI5 control instantiation, data binding, and value extraction.
 
@@ -23,15 +23,45 @@ export class MyCustomPlugin extends BasePlugin {
 
 ---
 
-## 2. Implement the `render` Method
+## 2. Exhaustive `BasePlugin` Architecture
 
-The `render` method is called by the `Engine` when building the layout. Here, you instantiate your UI5 control and map the UI5 data binding.
+The `BasePlugin` provides a strictly defined foundation. When building a custom plugin, you have access to the following protected state properties and inherit several lifecycle methods. 
 
-**Crucial Steps:**
-1. Call `this.generateStableId()` to ensure the control ID is globally unique.
-2. Bind the control's value property using the `modelName` and `bindingPath`.
-3. Trigger the `onChange` callback when the user edits the value (so the Validation Pipeline can run).
-4. Call `this.applyCommonDirectives()` to automatically hook up standard schema rules like `visibleOn` and `readOnly`.
+### Protected State Properties
+You can access these properties directly via `this.` inside your custom plugin:
+- **`control`**: `(Control | null)` The instantiated UI5 control for this plugin.
+- **`metadata`**: `(IPropertyMetadata | null)` The metadata schema defining the field rules.
+- **`fieldKey`**: `(string)` The internal JSON path of the field relative to its parent payload.
+- **`modelName`**: `(string)` The UI5 JSONModel name used for absolute binding paths.
+- **`isEditable`**: `(boolean)` Indicates if the engine is enforcing an editable mode.
+- **`useMessageManager`**: `(boolean)` Indicates if the plugin should delegate visual validation to the MessageManager.
+- **`onChange`**: `((isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void)` Internal callback provided by GeneratorHost to signal validation/data changes upwards.
+
+### Mandatory Abstract Methods
+You **must** implement these methods in your custom plugin class:
+
+- **`render(fieldMetadata, bindingPath, modelName, engineScopeId, onChange)`**: Called by the Engine. You must instantiate your UI5 control here, bind it to the model, and return it.
+- **`getValue()`**: Extractor called by the `StateManager`. Must return the raw, unformatted value directly from your UI5 control (e.g. `this.control.getValue()`).
+- **`applyState()`**: Called automatically when a Condition Rule mutates the schema (e.g. toggling read-only). You must handle updating the physical control.
+
+### Provided Core Methods
+The `BasePlugin` provides these methods natively. You can call them, or the Engine calls them automatically during the lifecycle:
+
+- **`setEditable(editable: boolean)`**: Injects the global editable mode context into the plugin before rendering.
+- **`setUseMessageManager(useMessageManager: boolean)`**: Injects the global MessageManager context.
+- **`generateStableId(engineScopeId, bindingPath)`**: Generates a deterministic, globally unique ID for this control to prevent DOM collisions. Always use this when creating your UI5 control.
+- **`validate()`**: Universal pipeline validation. Evaluates the current value against `maxLength`, `minimum`, `ui.validators`, etc., via the `GlobalPipeline`.
+- **`setVisualValidationState(isValid: boolean, errorMessage?: string)`**: Natively manipulates the UI5 control's `valueState` using reflection if the control supports it.
+- **`validateAndApplyVisualState()`**: Wraps standard validation and immediately applies the visual state. Ideal for 'change' events to instantly turn fields red on blur.
+- **`onStateChange(newMetadata: IPropertyMetadata)`**: Executes when the condition engine pushes new schema metadata to this field. Natively calls your abstract `applyState()` method.
+- **`applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName: string)`**: Helper to apply common UI directives (like `readOnly`, `visibleOn`, `enabledOn`) directly to any control. Always call this inside your `render` method!
+- **`destroy()`**: Natively destroys the instantiated UI5 control to prevent memory leaks. Override this if you manage secondary models or sub-controls.
+
+---
+
+## 3. Implementing Your Custom Plugin
+
+Here is an exhaustive example of a custom plugin properly utilizing the `BasePlugin` lifecycle:
 
 ```typescript
 public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
@@ -39,13 +69,13 @@ public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: 
     this.metadata = fieldMetadata;
     this.fieldKey = bindingPath.replace("/", ""); // Internal path key
 
-    // 1. Create the UI5 Control
+    // 1. Create the UI5 Control using generateStableId
     this.control = new Input({
         id: this.generateStableId(engineScopeId, bindingPath),
-        value: `{${modelName}>${bindingPath}}`, // Bind to the engine's model
+        value: `{${modelName}>${bindingPath}}`, 
         change: (oEvent: sap.ui.base.Event) => {
-            // 2. Validate and notify the engine on user interaction
-            const result = this.validate();
+            // 2. Validate and notify the engine using inherited helpers
+            const result = this.validateAndApplyVisualState();
             if (this.onChange) {
                 this.onChange(result.isValid, this.fieldKey);
             }
@@ -57,30 +87,11 @@ public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: 
 
     return this.control as Control;
 }
-```
 
----
-
-## 3. Implement `getValue` and `applyState`
-
-To fully comply with the interface, you must provide methods for data extraction and dynamic state updates.
-
-### `getValue()`
-The `StateManager` calls this method when extracting the payload for validation. It must return the raw, unformatted value directly from your UI5 control.
-
-```typescript
 protected getValue(): unknown {
-    if (this.control) {
-        return (this.control as Input).getValue();
-    }
-    return null;
+    return this.control ? (this.control as Input).getValue() : null;
 }
-```
 
-### `applyState()`
-If a condition rule triggers (e.g., another field forces this field to become read-only), the engine pushes the mutated schema down to the plugin. You must handle updating the physical control.
-
-```typescript
 protected applyState(): void {
     if (this.control && this.metadata) {
         const input = this.control as Input;
@@ -94,4 +105,17 @@ protected applyState(): void {
 
 ## 4. Register the Plugin
 
-*(Note: In the current framework iteration, core plugins are statically registered inside `PluginRegistry.ts`. For custom library extensions, you will map your plugin class into the registry matching your specific `widget` or `type` string defined in your JSON Schema).*
+*(Note: Core plugins are statically registered by the framework. For your custom library extensions, you must programmatically map your plugin class into the registry before instantiating the MetaUI Engine).*
+
+```typescript
+// In your Component.js or Controller
+import PluginRegistry from "@siliconst/metaui/core/PluginRegistry";
+
+// Register your custom widget
+// Arguments: Schema Type, Custom Widget Name, Require Path to your Plugin
+PluginRegistry.getInstance().registerPluginPath(
+    "string", 
+    "myCustomWidget", 
+    "my/custom/app/plugins/MyCustomPlugin"
+);
+```

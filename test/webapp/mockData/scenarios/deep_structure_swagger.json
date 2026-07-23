@@ -1,0 +1,126 @@
+{
+  "data": {
+    "Region": "Global North",
+    "Director": "Sarah Connor",
+    "Departments": [
+      {
+        "DeptID": "D-AI",
+        "DeptName": "Artificial Intelligence",
+        "Budget": 5000000,
+        "Employees": [
+          {
+            "EmpID": "E-101",
+            "Name": "T-800",
+            "Role": "Security"
+          },
+          {
+            "EmpID": "E-102",
+            "Name": "Miles Dyson",
+            "Role": "Lead Engineer"
+          }
+        ]
+      },
+      {
+        "DeptID": "D-CY",
+        "DeptName": "Cybernetics",
+        "Budget": 3500000,
+        "Employees": [
+          {
+            "EmpID": "E-201",
+            "Name": "Marcus Wright",
+            "Role": "Test Subject"
+          }
+        ]
+      }
+    ]
+  },
+  "schema": {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Regional Overview",
+      "version": "1.0.0"
+    },
+    "components": {
+      "schemas": {
+        "Root": {
+          "type": "object",
+          "properties": {
+            "Region": {
+              "type": "string",
+              "ui": {
+                "label": "Region Name"
+              }
+            },
+            "Director": {
+              "type": "string",
+              "ui": {
+                "label": "Regional Director"
+              }
+            },
+            "Departments": {
+              "type": "array",
+              "ui": {
+                "label": "Departments"
+              },
+              "items": {
+                "type": "object",
+                "properties": {
+                  "DeptID": {
+                    "type": "string",
+                    "ui": {
+                      "label": "Dept ID",
+                      "isKey": true
+                    }
+                  },
+                  "DeptName": {
+                    "type": "string",
+                    "ui": {
+                      "label": "Department Name"
+                    }
+                  },
+                  "Budget": {
+                    "type": "number",
+                    "ui": {
+                      "label": "Allocated Budget",
+                      "formatter": "currency"
+                    }
+                  },
+                  "Employees": {
+                    "type": "array",
+                    "ui": {
+                      "label": "Employees in Dept"
+                    },
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "EmpID": {
+                          "type": "string",
+                          "ui": {
+                            "label": "Emp ID",
+                            "isKey": true
+                          }
+                        },
+                        "Name": {
+                          "type": "string",
+                          "ui": {
+                            "label": "Full Name"
+                          }
+                        },
+                        "Role": {
+                          "type": "string",
+                          "ui": {
+                            "label": "Role Title"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

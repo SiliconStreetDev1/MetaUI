@@ -14,6 +14,8 @@ export interface IHostDialog {
  */
 export class DialogDelegate {
     private host: IHostDialog & Control;
+    private activeDialog: Dialog | null = null;
+    private requestedWidth: string = "auto";
 
     /**
      * Initializes a new DialogDelegate to handle dialog-based rendering.
@@ -27,10 +29,11 @@ export class DialogDelegate {
      * Dialog Modality: Opens the generated layout inside a sap.m.Dialog.
      * Automatically wires up customizable submit (default: 'OK') and 'Cancel' buttons.
      */
-    public openInDialog(title: string = "Form", submitButtonText: string = "OK", isGenerated: boolean, cancelButtonText: string = "Cancel", dialogWidth: string = "800px", parentView?: Control): void {
+    public openInDialog(title: string = "Form", submitButtonText: string = "OK", isGenerated: boolean, cancelButtonText: string = "Cancel", dialogWidth: string = "auto", parentView?: Control): void {
         // UI5 PURITY: Do not manually force generate() here.
         // Opening the dialog mounts the host, natively firing onBeforeRendering() which triggers generation cleanly.
 
+        this.requestedWidth = dialogWidth;
         const dialog = new Dialog({
             title: title,
             contentWidth: dialogWidth,
@@ -58,14 +61,26 @@ export class DialogDelegate {
                 }
             }),
             afterClose: () => {
+                this.activeDialog = null;
                 dialog.destroy();
             }
         });
+
+        this.activeDialog = dialog;
 
         if (parentView && typeof parentView.addDependent === "function") {
             parentView.addDependent(dialog);
         }
 
         dialog.open();
+    }
+
+    /**
+     * Allows the Engine to retroactively expand the dialog once the schema is fully parsed.
+     */
+    public updateDialogWidthDynamically(optimalWidth: string): void {
+        if (this.activeDialog && this.requestedWidth === "auto" && optimalWidth !== "auto") {
+            this.activeDialog.setContentWidth(optimalWidth);
+        }
     }
 }

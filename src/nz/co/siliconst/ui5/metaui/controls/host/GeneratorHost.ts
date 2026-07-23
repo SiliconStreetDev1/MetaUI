@@ -500,9 +500,9 @@ export default class GeneratorHost extends Control {
             );
 
             let contentContainer = this.generatedContent;
-            
+
             const hasProperties = normalizedSchema && Object.keys(normalizedSchema).length > 0;
-            
+
             if (!hasProperties) {
                 const strip = new MessageStrip({
                     text: "Warning: The generated UI is blank. Reason: The schema (or inferred schema) contains no valid properties to render.",
@@ -533,6 +533,10 @@ export default class GeneratorHost extends Control {
             const payload = this.stateManager.extractPayload();
             this.dataSyncDelegate.pushToBindings(payload);
 
+            // Retroactively expand the dialog if the heuristic determines it needs more space
+            const optimalWidth = this.calculateOptimalDialogWidth(this.parsedSchema);
+            this.dialogDelegate.updateDialogWidthDynamically(optimalWidth);
+
         } catch (error) {
             this.setBusy(false);
             const msg = "Fatal crash during layout generation: " + (error as Error).message;
@@ -544,10 +548,53 @@ export default class GeneratorHost extends Control {
     }
 
     /**
+     * Helper to heuristically calculate optimal dialog width based on schema content.
+     */
+    private calculateOptimalDialogWidth(schema: Record<string, any> | null): string {
+        if (!schema) return "auto";
+        let requiresWideDialog = false;
+
+        const scanProperties = (props: Record<string, any>) => {
+            if (requiresWideDialog) return;
+            for (const key in props) {
+                const prop = props[key];
+                if (prop.type === "array") {
+                    requiresWideDialog = true;
+                    return;
+                }
+                if (prop.ui?.fullWidth === true) {
+                    requiresWideDialog = true;
+                    return;
+                }
+                if (prop.ui?.widget === "codeEditor" || prop.ui?.widget === "textArea" || prop.ui?.widget === "richText") {
+                    requiresWideDialog = true;
+                    return;
+                }
+                if (prop.properties) scanProperties(prop.properties);
+                if (prop.items && prop.items.properties) scanProperties(prop.items.properties);
+            }
+        };
+
+        if (schema.type === "array") return "80vw";
+        if (schema.properties) {
+            scanProperties(schema.properties);
+        }
+
+        return requiresWideDialog ? "80vw" : "auto";
+    }
+
+    /**
      * Programmatic API. Re-parents the generated content into a dialog and opens it.
      */
-    public openInDialog(title: string = "Form", submitButtonText: string = "OK", cancelButtonText: string = "Cancel", dialogWidth: string = "800px", parentView?: Control): void {
+    public openInDialog(title: string = "Form", submitButtonText: string = "OK", cancelButtonText: string = "Cancel", dialogWidth: string = "auto", parentView?: Control): void {
         const isGenerated = !!this.generatedContent;
-        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated, cancelButtonText, dialogWidth, parentView);
+        
+        // If we already have the schema parsed, we can calculate it instantly to prevent flicker
+        let finalWidth = dialogWidth;
+        if (finalWidth === "auto" && this.parsedSchema) {
+            finalWidth = this.calculateOptimalDialogWidth(this.parsedSchema);
+        }
+        
+        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated, cancelButtonText, finalWidth, parentView);
     }
 }

@@ -64,3 +64,6 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 ## 12. MessageManager & Validation Sandbox
 - **Do Not Register Controls to MessageManager**: The MetaUI framework handles its own model validation via `StateManager`. NEVER register controls globally with `Messaging.registerObject(control)` in an attempt to make UI5 handle `valueState` natively. Doing so causes UI5's internal binding sync to aggressively delete our custom schema errors.
 - **Manual Visual States**: Plugins must always handle their own `valueState` via `setValueState(Error)` manually.
+
+## 13. AI Documentation Audits
+- **NEVER SUMMARIZE**: When auditing or writing documentation, you must never summarize or skip properties. You must systematically extract every single property from the source TypeScript interfaces and every single mapped widget from the PluginRegistry, and document them exhaustively line-by-line.

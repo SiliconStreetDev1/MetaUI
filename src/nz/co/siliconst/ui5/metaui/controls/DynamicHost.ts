@@ -4,6 +4,7 @@ import GeneratorHost from "./host/GeneratorHost";
 import { Logger } from "../utils/Logger";
 import { ODataDelegate } from "./host/delegates/ODataDelegate";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
+import { SchemaBuilderRegistry } from "../core/SchemaBuilderRegistry";
 
 /**
  * A transparent wrapper control (Facade) that automatically chooses between Explicit Schema Mode 
@@ -84,7 +85,7 @@ export default class DynamicHost extends Control {
      * @private
      */
     private _innerHost: GeneratorHost | null = null;
-    
+
     /**
      * Flag indicating if the inner host has been initialized.
      * @private
@@ -171,7 +172,59 @@ export default class DynamicHost extends Control {
         this.initODataDelegate();
 
         if (!this._initializedInner) {
-            const schema = this.getProperty("schemaDefinition");
+            let schemaRaw = this.getProperty("schemaDefinition");
+
+            // 1. URL Detection & Fetching
+            if (typeof schemaRaw === "string" && (schemaRaw.startsWith("http://") || schemaRaw.startsWith("https://"))) {
+                if ((this as any)._fetchingSchema) return; // Prevent re-entry
+                (this as any)._fetchingSchema = true;
+                
+                sap.ui.require(["sap/ui/core/BusyIndicator", "sap/m/MessageToast"], (BusyIndicator: any, MessageToast: any) => {
+                    BusyIndicator.show(0);
+                    fetch(schemaRaw as string)
+                        .then(res => {
+                            if (!res.ok) throw new Error("HTTP " + res.status);
+                            return res.json();
+                        })
+                        .then(json => {
+                            const plugin = SchemaBuilderRegistry.getBuilderFor(json);
+                            const finalSchema = plugin ? plugin.build(json) : json;
+                            super.setProperty("schemaDefinition", finalSchema, true);
+                            (this as any)._fetchingSchema = false;
+                            BusyIndicator.hide();
+                            this.invalidate(); // Force re-render with resolved schema
+                        })
+                        .catch(err => {
+                            Logger.warn("[MetaUI DynamicHost]", "Failed to fetch remote schema: " + err, "DynamicHost");
+                            if (MessageToast) MessageToast.show("Failed to fetch remote schema");
+                            super.setProperty("schemaDefinition", null, true); // Fallback to full inference
+                            (this as any)._fetchingSchema = false;
+                            BusyIndicator.hide();
+                            this.invalidate();
+                        });
+                });
+                return; // Abort this render cycle until fetch completes
+            }
+
+            // 2. Local Plugin Detection (Stringified JSON or Raw Object)
+            let schema = schemaRaw;
+            if (schema && typeof schema === "string" && (schema as string).trim().startsWith("{")) {
+                try {
+                    schema = JSON.parse(schema);
+                } catch (e) {
+                    // Ignore, let standard validation catch it
+                }
+            }
+
+            if (schema && typeof schema === "object") {
+                const plugin = SchemaBuilderRegistry.getBuilderFor(schema);
+                if (plugin) {
+                    schema = plugin.build(schema);
+                    // Silently update the wrapper property so the inner host gets the final parsed MetaUI format
+                    super.setProperty("schemaDefinition", schema, true);
+                }
+            }
+
             const dataJson = this.getProperty("dataJson");
             const data = this.getProperty("data");
 
@@ -179,7 +232,7 @@ export default class DynamicHost extends Control {
             if (hasSchema && typeof schema === "object" && Object.keys(schema).length === 0) {
                 hasSchema = false; // Treat empty object as no schema
             }
-            
+
             const hasData = !!dataJson || !!data;
 
             Logger.debug("[MetaUI DynamicHost]", `Evaluating boot. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
@@ -272,7 +325,7 @@ export default class DynamicHost extends Control {
      * @param {string} [title="Form"] The title of the dialog
      * @param {string} [submitButtonText="OK"] The text for the primary action button
      * @param {string} [cancelButtonText="Cancel"] The text for the cancel button
-     * @param {string} [dialogWidth="800px"] The width of the dialog
+     * @param {string} [dialogWidth="auto"] The width of the dialog
      * @param {sap.ui.core.Control} [parentView] The parent view to attach the dialog to for model inheritance.
      */
     public openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): void {

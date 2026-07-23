@@ -64,6 +64,7 @@
                     </Toolbar>
                     <Toolbar>
                         <ToolbarSpacer/>
+                        <CheckBox text="Use Swagger" selected="{/settings/useSwagger}" tooltip="Load the OpenAPI 3.0 version of this scenario" class="sapUiTinyMarginEnd" select=".onMatrixChange" />
                         <Button text="Extract Payload (Submit)" type="Accept" press=".onExtractPress" class="sapUiSmallMarginEnd" />
                         <CheckBox text="Live Updates" selected="{/settings/liveUpdate}" tooltip="Instantly push data back to the model on field blur" class="sapUiTinyMarginEnd" select=".onToggleChange" />
                         <CheckBox text="Global Errors" selected="{/settings/useMessageManager}" tooltip="Use the global UI5 MessageManager for centralized error popovers" class="sapUiTinyMarginEnd" select=".onToggleChange" />

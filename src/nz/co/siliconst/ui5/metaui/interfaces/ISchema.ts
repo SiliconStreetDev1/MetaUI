@@ -82,6 +82,15 @@ export interface IPropertyMetadata {
     valueHelp?: IValueHelp[] | IRemoteValueHelpConfig;
     enum?: string[] | number[];
     
+    // OpenAPI Advanced features
+    default?: any;
+    nullable?: boolean;
+    writeOnly?: boolean;
+    example?: any;
+    deprecated?: boolean;
+    exclusiveMinimum?: boolean | number;
+    exclusiveMaximum?: boolean | number;
+    
     // Nested recursion for objects and arrays
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
