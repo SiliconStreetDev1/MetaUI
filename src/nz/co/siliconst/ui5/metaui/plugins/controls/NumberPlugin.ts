@@ -33,7 +33,7 @@ export class NumberPlugin extends BasePlugin {
         if (!this.isEditable) {
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -53,7 +53,8 @@ export class NumberPlugin extends BasePlugin {
         this.control = new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: {
-                path: `${modelName}>${bindingPath}`,
+                path: bindingPath,
+                model: modelName,
                 type: typeInstance
             },
             type: "Number",

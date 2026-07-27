@@ -32,14 +32,12 @@ export class TimePlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
-                    type: "sap.ui.model.type.Time",
+                text: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Time", {
                     formatOptions: {
                         source: { pattern: "HH:mm:ss" },
                         pattern: "HH:mm:ss"
                     }
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -47,14 +45,12 @@ export class TimePlugin extends BasePlugin {
 
         this.control = new TimePicker({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: {
-                path: `${modelName}>${bindingPath}`,
-                type: "sap.ui.model.type.Time",
+            value: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Time", {
                 formatOptions: {
                     source: { pattern: "HH:mm:ss" },
                     pattern: "HH:mm:ss"
                 }
-            },
+            }),
             displayFormat: "HH:mm:ss",
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,

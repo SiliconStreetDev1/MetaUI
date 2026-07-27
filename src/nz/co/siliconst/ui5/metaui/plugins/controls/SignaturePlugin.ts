@@ -25,7 +25,7 @@ export class SignaturePlugin extends BasePlugin {
             
             this.control = new ImageControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                src: `{${modelName}>${bindingPath}}`,
+                src: this.generateBindingInfo(bindingPath, modelName),
                 width: "400px",
                 alt: metadata.ui?.label || "Signature"
             }) as Control;
@@ -35,7 +35,7 @@ export class SignaturePlugin extends BasePlugin {
 
         this.control = new SignatureControl({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
         }) as Control;

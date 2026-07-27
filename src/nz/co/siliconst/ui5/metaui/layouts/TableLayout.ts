@@ -40,7 +40,24 @@ export class TableLayout implements ILayoutManager {
      * @throws {Error} If the provided schema is not of type 'array'.
      */
     public render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void, bindingPath: string = "/"): Control {
-        if (schema.type !== "array" || !schema.items || !schema.items.properties) {
+        let itemsSchema = schema.items;
+        if (itemsSchema && !itemsSchema.properties && itemsSchema.ui?.widget === "reference" && itemsSchema.$ref) {
+            Logger.debug(`[MetaUI] TableLayout detecting reference widget for ${bindingPath}. Resolving ${itemsSchema.$ref}`, "", "TableLayout");
+            if (engine.host && engine.host.getSchemaDefinition) {
+                const resolved = engine.host.getSchemaDefinition(itemsSchema.$ref);
+                Logger.debug(`[MetaUI] Resolved schema for ${itemsSchema.$ref}: ${!!resolved} ${resolved ? Object.keys(resolved) : ""}`, "", "TableLayout");
+                if (resolved && resolved.properties) {
+                    itemsSchema = resolved;
+                } else {
+                    Logger.error(`[MetaUI] TableLayout resolved schema but it has no properties!`, "", "TableLayout");
+                }
+            } else {
+                Logger.error(`[MetaUI] TableLayout cannot resolve ${itemsSchema.$ref} because engine.host.getSchemaDefinition is missing! host: ${engine.host?.getMetadata().getName()}`, "", "TableLayout");
+            }
+        }
+
+        if (schema.type !== "array" || !itemsSchema || !itemsSchema.properties) {
+            Logger.error(`[MetaUI] TableLayout fatal error! schema.type: ${schema.type}, itemsSchema: ${!!itemsSchema}, properties: ${itemsSchema ? !!itemsSchema.properties : false}`, "", "TableLayout");
             throw new Error("[MetaUI] TableLayout requires an array schema with items.properties.");
         }
 
@@ -104,7 +121,7 @@ export class TableLayout implements ILayoutManager {
         });
 
         const templateCells: Control[] = [];
-        const props = schema.items.properties;
+        const props = itemsSchema.properties;
         const layoutElements = schema.uiLayout;
 
         if (layoutElements && Array.isArray(layoutElements)) {

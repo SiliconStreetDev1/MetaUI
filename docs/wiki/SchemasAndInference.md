@@ -2,7 +2,7 @@
 
 The MetaUI Engine is driven entirely by declarative JSON structures. You have three primary ways to define your UI layout:
 1. **Native MetaUI Schemas**: The proprietary, fully-featured base schema for absolute control.
-2. **Swagger / OpenAPI**: Standard external API definitions dynamically converted at runtime.
+2. **OpenAPI**: Standard external API definitions dynamically converted at runtime. (See [OpenAPI Integration](OpenAPIIntegration.md) for full details).
 3. **Data Inference**: Zero-schema generation based purely on the raw inbound data structure.
 
 ---
@@ -15,53 +15,59 @@ A MetaUI JSON Schema defines the hierarchical layout of your form, the types of 
 
 ### Root `ISchema` Properties
 
-- **`type`**: `("object" | "array")` The overarching type of the root node (implicitly hints layout).
-- **`title`**: `(string)` The title of the form/schema.
-- **`layoutStrategy`**: `(string)` Defines the macro-layout behavior of the container (`"form"`, `"table"`, `"wizard"`, or `"compact"`).
-- **`properties`**: `(Record<string, IPropertyMetadata>)` The dictionary of nested fields for an object.
-- **`items`**: `(IPropertyMetadata)` The schema defining the elements within an array.
-- **`uiLayout`**: `(ILayoutElement[])` Explicitly overrides the visual hierarchy and grouping.
-- **`additionalProperties`**: `(boolean)` If true, MetaUI merges explicit properties with an inferred schema generated from bound data.
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `title` | `string` | The title of the form/schema. |
+| `layoutStrategy` | `string` | Defines the macro-layout behavior of the container (e.g. `"form"`, `"table"`, `"wizard"`, or `"compact"`). |
+| `type` | `"object" \| "array"` | The overarching type of the root node (implicitly hints layout). |
+| `properties` | `Record<string, IPropertyMetadata>` | The dictionary of nested fields for an object. |
+| `items` | `IPropertyMetadata` | The schema defining the elements within an array. |
+| `uiLayout` | `ILayoutElement[]` | Explicitly overrides the visual hierarchy and grouping. |
+| `additionalProperties` | `boolean` | If true, MetaUI merges explicit properties with an inferred schema generated from bound data. |
+| `definitions` | `Record<string, ISchema>` | A dictionary of reusable sub-schemas used for OpenAPI $ref resolution. |
 
 ### Field `IPropertyMetadata` Properties (Exhaustive)
 
 Every field within `properties` or `items` supports the following absolute schema properties:
 
-#### Type & UI
-- **`type`**: `("string" | "number" | "integer" | "boolean" | "date" | "array" | "object")` The primitive data type.
-- **`ui`**: `(IUIDirective)` MetaUI proprietary block for Fiori visual orchestration.
-
-#### Core JSON-Schema Validations
-- **`required`**: `(boolean)` Natively maps to `sap.m.InputBase` required state.
-- **`maxLength`**: `(number)` String max length constraint.
-- **`minLength`**: `(number)` String min length constraint.
-- **`minimum`**: `(number)` Numeric minimum boundary.
-- **`maximum`**: `(number)` Numeric maximum boundary.
-- **`pattern`**: `(string)` Regular expression validation.
-
-#### Numeric Specifics
-- **`precision`**: `(number)` Total length of a numeric field (e.g. `precision: 10, scale: 2`).
-- **`scale`**: `(number)` Number of allowed decimal places. *(Note: Passing `scale` forces the standard `number` input to preserve exactly that many trailing zeroes. If omitted, the number input accepts up to 9 decimals dynamically without padding).*
-- **`multipleOf`**: `(number)` Step increment (mapped to StepInput natively).
-
-#### Value Selection
-- **`enum`**: `(string[] | number[])` Array of allowed primitive values.
-- **`valueHelp`**: `(IValueHelp[] | IRemoteValueHelpConfig)` Array of static Key/Text pairs OR remote OData configuration object.
-
-#### OpenAPI Advanced Constraints
-- **`default`**: `(any)` The default value assigned if the payload is empty.
-- **`nullable`**: `(boolean)` Indicates if the property allows null values.
-- **`writeOnly`**: `(boolean)` Indicates the property is meant only for submission and should not be displayed in read-only layouts.
-- **`example`**: `(any)` A sample value for documentation/mocking.
-- **`deprecated`**: `(boolean)` Flags the property as deprecated.
-- **`exclusiveMinimum`**: `(boolean | number)` Strict boundary constraint (less than but not equal).
-- **`exclusiveMaximum`**: `(boolean | number)` Strict boundary constraint (greater than but not equal).
-
-#### Recursion & Layout
-- **`properties`**: `(Record<string, IPropertyMetadata>)` Nested recursion for objects.
-- **`items`**: `(IPropertyMetadata)` Nested recursion for arrays.
-- **`uiLayout`**: `(ILayoutElement[])` Nested visual layout overrides for complex child objects.
-- **`additionalProperties`**: `(boolean)` Nested inference flags.
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `type` | `FieldType` (`"string" \| "number" \| "integer" \| "boolean" \| "date" \| "array" \| "object"`) | The primitive data type. |
+| `$ref` | `string` | A JSON Pointer reference to a schema definition (e.g. `#/definitions/Address`). |
+| `ui` | `IUIDirective` | MetaUI proprietary block for Fiori visual orchestration. |
+| `required` | `boolean` | Natively maps to `sap.m.InputBase` required state. |
+| `maxLength` | `number` | String max length constraint. |
+| `minLength` | `number` | String min length constraint. |
+| `minimum` | `number` | Numeric minimum boundary. |
+| `maximum` | `number` | Numeric maximum boundary. |
+| `pattern` | `string` | Regular expression validation. |
+| `precision` | `number` | Total length of a numeric field (e.g. `precision: 10, scale: 2`). |
+| `scale` | `number` | Number of allowed decimal places. |
+| `multipleOf` | `number` | Step increment (mapped to StepInput natively). |
+| `valueHelp` | `IValueHelp[] \| IRemoteValueHelpConfig` | Array of static Key/Text pairs OR remote OData configuration object. |
+| `enum` | `string[] \| number[]` | Array of allowed primitive values. |
+| `default` | `unknown` | The default value assigned if the payload is empty. |
+| `nullable` | `boolean` | Indicates if the property allows null values. |
+| `writeOnly` | `boolean` | Indicates the property is meant only for submission and should not be displayed in read-only layouts. |
+| `readOnly` | `boolean` | Indicates the property is read-only. |
+| `example` | `unknown` | A sample value for documentation/mocking. |
+| `deprecated` | `boolean` | Flags the property as deprecated. |
+| `exclusiveMinimum` | `boolean \| number` | Strict boundary constraint (less than but not equal). |
+| `exclusiveMaximum` | `boolean \| number` | Strict boundary constraint (greater than but not equal). |
+| `maxItems` | `number` | Maximum items for an array. |
+| `minItems` | `number` | Minimum items for an array. |
+| `uniqueItems` | `boolean` | Requires all array items to be unique. |
+| `maxProperties` | `number` | Maximum properties for an object. |
+| `minProperties` | `number` | Minimum properties for an object. |
+| `oneOf` | `IPropertyMetadata[]` | Must match exactly one of the provided schemas. |
+| `anyOf` | `IPropertyMetadata[]` | Must match one or more of the provided schemas. |
+| `allOf` | `IPropertyMetadata[]` | Must match all of the provided schemas. |
+| `not` | `IPropertyMetadata` | Must not match the provided schema. |
+| `discriminator` | `{ propertyName: string, mapping?: Record<string, string> }` | Used for polymorphic object mapping in OpenAPI. |
+| `properties` | `Record<string, IPropertyMetadata>` | Nested recursion for objects. |
+| `items` | `IPropertyMetadata` | Nested recursion for arrays. |
+| `uiLayout` | `ILayoutElement[]` | Nested visual layout overrides for complex child objects. |
+| `additionalProperties` | `boolean \| IPropertyMetadata` | Defines rules for undeclared properties. |
 
 ---
 
@@ -69,19 +75,21 @@ Every field within `properties` or `items` supports the following absolute schem
 
 The proprietary `ui` block separates logic from presentation. It supports the following absolute properties:
 
-- **`label`**: `(string)` Overrides the schema `title` with a specific UI label.
-- **`isKey`**: `(boolean)` Marks a field as a primary key (useful for OData payload mapping).
-- **`readOnly`**: `(boolean)` Structurally locks the field (maps to `setEditable(false)`).
-- **`widget`**: `(string)` Forces a specific Plugin implementation (e.g., `"slider"` instead of the default numeric input).
-- **`visibleOn`**: `(string)` Expression string evaluated via `ExpressionBuilder` (e.g. `"{/Active} === true"` or direct JS syntax). Controls `setVisible()`.
-- **`enabledOn`**: `(string)` Expression string for enabling/disabling a control interactively.
-- **`format`**: `(string)` Specialized data formats natively mapped to validation rules (`"email"`, `"url"`, `"iban"`).
-- **`rows`**: `(number)` Row count specific to the `textArea` widget.
-- **`fullWidth`**: `(boolean)` Forces a control to break to a new line and span 12 grid columns horizontally. *(Note: `codeEditor`, `textArea`, and `richText` automatically default to `fullWidth: true`. Pass `false` to explicitly disable).*
-- **`validators`**: `((string | IValidationRule)[])` Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`).
-- **`formatter`**: `(string)` The name of a custom string transformation formatter pipeline natively mapped in `PipelineManager` (`"date"`, `"phone"`, `"textCase"`).
-- **`args`**: `(unknown)` Configuration arguments passed to a specific Widget or Formatter (e.g. `"javascript"` for `codeEditor`).
-- **`dialogButtonText`**: `(string)` Explicit text for the configurable popup submit button (overriding the default "Submit").
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `label` | `string` | Overrides the schema title with a specific UI label. |
+| `isKey` | `boolean` | Marks a field as a primary key (useful for OData payload mapping). |
+| `readOnly` | `boolean` | Structurally locks the field (maps to `setEditable(false)`). |
+| `widget` | `string` | Forces a specific Plugin implementation (e.g., `"slider"` instead of the default numeric input). |
+| `visibleOn` | `string` | Expression string evaluated via `ExpressionBuilder` (e.g. `"{/Active} === true"` or direct JS syntax). Controls `setVisible()`. |
+| `enabledOn` | `string` | Expression string for enabling/disabling a control interactively. |
+| `format` | `string` | Specialized data formats natively mapped to validation rules (`"email"`, `"url"`, `"iban"`). |
+| `rows` | `number` | Row count specific to the `textArea` widget. |
+| `fullWidth` | `boolean` | Forces a control to break to a new line and span 12 grid columns horizontally. |
+| `validators` | `(string \| IValidationRule)[]` | Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`). |
+| `formatter` | `string` | The name of a custom string transformation formatter pipeline natively mapped in `PipelineManager`. |
+| `args` | `unknown` | Configuration arguments passed to a specific Widget or Formatter (e.g. `"javascript"` for `codeEditor`). |
+| `dialogButtonText` | `string` | Explicit text for the configurable popup submit button (overriding the default "Submit"). |
 
 ---
 
@@ -89,11 +97,13 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 
 If you want to explicitly detach the visual presentation from the nested JSON data structure, use `uiLayout`. It supports these elements:
 
-- **`type`**: `("Group" | "Control" | "HorizontalLayout" | "VerticalLayout" | "WizardStep")` The type of structural UI container.
-- **`label`**: `(string)` The textual title of the container or step.
-- **`scope`**: `(string)` A JSON Pointer (e.g. `#/properties/CustomerName`) linking the visual control to the underlying schema property.
-- **`elements`**: `(ILayoutElement[])` Nested layout elements.
-- **`widget`**: `(string)` An optional widget override applied specifically to this visual instance of the field.
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `type` | `"Group" \| "Control" \| "HorizontalLayout" \| "VerticalLayout" \| "WizardStep"` | The type of structural UI container. |
+| `label` | `string` | The textual title of the container or step. |
+| `scope` | `string` | A JSON Pointer (e.g. `#/properties/CustomerName`) linking the visual control to the underlying schema property. |
+| `elements` | `ILayoutElement[]` | Nested layout elements. |
+| `widget` | `string` | An optional widget override applied specifically to this visual instance of the field. |
 
 ---
 
@@ -146,10 +156,13 @@ The MetaUI Engine translates schemas into SAPUI5 instances using 31 rigorously d
 | `string` | *(default)* | `sap.m.Input` | StringPlugin |
 | `number` | *(default)* | `sap.m.StepInput` | NumberPlugin |
 | `integer` | *(default)* | `sap.m.StepInput` | NumberPlugin |
-| `boolean` | *(default)* | `sap.m.CheckBox` | BooleanPlugin |
 | `date` | *(default)* | `sap.m.DatePicker` | DatePlugin |
-| `object` | *(default)* | `sap.ui.layout.form.FormContainer` | ObjectPlugin |
+| `boolean` | *(default)* | `sap.m.CheckBox` | BooleanPlugin |
 | `array` | *(default)* | `sap.m.Table` | ArrayPlugin |
+| `object` | *(default)* | `sap.ui.layout.form.FormContainer` | ObjectPlugin |
+| `string` | `"default"` | `sap.m.Input` | StringPlugin |
+| `object` | `"dictionary"` | Key-Value List | DictionaryMapPlugin |
+| `object` | `"reference"` | Sub-Form Container | ReferencePlugin |
 | **Widget Overrides** | | | |
 | `string` | `"time"` | `sap.m.TimePicker` | TimePlugin |
 | `string` | `"datetime"` | `sap.m.DateTimePicker` | DateTimePlugin |
@@ -201,16 +214,16 @@ If you bind a completely empty schema (either `null` or `{}`) to the `DynamicHos
 
 ---
 
-# Part 3: Swagger / OpenAPI Integration
+# Part 3: OpenAPI Integration
 
-You don't have to write MetaUI schemas by hand. The engine includes a `SwaggerBuilder` that can consume standard Swagger v2 or OpenAPI v3 JSON payloads directly from your backend and dynamically generate the Fiori UI.
+You don't have to write MetaUI schemas by hand. The engine includes a `OpenApiBuilder` that can consume standard OpenAPI v2 or OpenAPI v3 JSON payloads directly from your backend and dynamically generate the Fiori UI.
 
 ### How to Use It (Practical Guide)
 
-To use an OpenAPI specification, you simply fetch it in your controller, pass it through the `SwaggerBuilder`, and bind the resulting object to the `DynamicHost` in your XML view.
+To use an OpenAPI specification, you simply fetch it in your controller, pass it through the `OpenApiBuilder`, and bind the resulting object to the `DynamicHost` in your XML view.
 
 **1. Your XML View**
-Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g., `viewMode>/swaggerSchema`).
+Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g., `viewMode>/openApiSchema`).
 
 ```xml
 <core:FragmentDefinition
@@ -219,36 +232,36 @@ Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g
     
     <meta:DynamicHost
         data="{/myFormData}"
-        schemaDefinition="{viewModel>/swaggerSchema}" />
+        schemaDefinition="{viewModel>/openApiSchema}" />
         
 </core:FragmentDefinition>
 ```
 
 **2. Your Controller (JavaScript)**
-Use the `SwaggerBuilder.fetchAndBuild()` utility to download the OpenAPI JSON and convert it into a MetaUI layout.
+Use the `OpenApiBuilder.fetchAndBuild()` utility to download the OpenAPI JSON and convert it into a MetaUI layout.
 
 ```javascript
 sap.ui.define([
     "sap/ui/core/mvc/Controller",
     "sap/ui/model/json/JSONModel",
-    "nz/co/siliconst/ui5/metaui/swagger/SwaggerBuilder"
-], function (Controller, JSONModel, SwaggerBuilder) {
+    "nz/co/siliconst/ui5/metaui/openapi/OpenApiBuilder"
+], function (Controller, JSONModel, OpenApiBuilder) {
     "use strict";
 
     return Controller.extend("my.app.controller.Main", {
         onInit: function () {
-            var oViewModel = new JSONModel({ swaggerSchema: {} });
+            var oViewModel = new JSONModel({ openApiSchema: {} });
             this.getView().setModel(oViewModel, "viewModel");
 
-            // 1. Fetch the Swagger JSON from your API
+            // 1. Fetch the OpenAPI JSON from your API
             // 2. Tell the builder which specific entity to extract (e.g. "CustomerProfile")
-            SwaggerBuilder.fetchAndBuild("https://api.mycorp.com/swagger.json", "CustomerProfile")
+            OpenApiBuilder.fetchAndBuild("https://api.mycorp.com/openapi.json", "CustomerProfile")
                 .then(function(oMetaUISchema) {
                     // 3. Bind the converted schema to the XML view
-                    oViewModel.setProperty("/swaggerSchema", oMetaUISchema);
+                    oViewModel.setProperty("/openApiSchema", oMetaUISchema);
                 })
                 .catch(function(err) {
-                    console.error("Failed to load Swagger:", err);
+                    console.error("Failed to load OpenAPI:", err);
                 });
         }
     });
@@ -256,13 +269,13 @@ sap.ui.define([
 ```
 
 ### What does it map automatically?
-When the `SwaggerBuilder` runs, it automatically maps OpenAPI constraints into MetaUI UI rules:
+When the `OpenApiBuilder` runs, it automatically maps OpenAPI constraints into MetaUI UI rules:
 - `format: "email"` -> Maps to `ui: { format: "email" }` (Native validation)
 - `allOf` and `$ref` -> Flattened and resolved automatically
 - `enum` arrays -> Rendered as Dropdowns (`sap.m.ComboBox`)
 - `exclusiveMinimum` / `maxLength` -> Natively bound to UI5 input constraints
 
-You can see this live in the **Playground Sandbox**! Toggle the **"Simulate Swagger Pipeline"** switch to swap out the MetaUI schema for a native Swagger schema and watch the Engine orchestrate the exact same UI layout.
+You can see this live in the **Playground Sandbox**! Toggle the **"Simulate OpenAPI Pipeline"** switch to swap out the MetaUI schema for a native OpenAPI schema and watch the Engine orchestrate the exact same UI layout.
 
 ---
 

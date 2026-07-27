@@ -118,4 +118,41 @@ export class DataSyncDelegate {
             throw new Error(msg);
         }
     }
+
+    /**
+     * Recursively scans an ISchema for `default` properties and injects them into the rootData 
+     * object if those properties are currently undefined.
+     * 
+     * @param schema The MetaUI ISchema tree.
+     * @param rootData The data payload to mutate.
+     */
+    public injectSchemaDefaults(schema: unknown, rootData: unknown, depth: number = 0): void {
+        if (!schema || !rootData || typeof rootData !== "object" || depth > 8) return;
+
+        if (schema.type === "object" && schema.properties) {
+            for (const key of Object.keys(schema.properties)) {
+                const propSchema = schema.properties[key];
+                
+                if (rootData[key] === undefined) {
+                    if (propSchema.default !== undefined) {
+                        rootData[key] = propSchema.default;
+                    } else if (propSchema.type === "object") {
+                        const tempObj = {};
+                        this.injectSchemaDefaults(propSchema, tempObj, depth + 1);
+                        if (Object.keys(tempObj).length > 0) {
+                            rootData[key] = tempObj;
+                        }
+                    }
+                } else if (typeof rootData[key] === "object" && rootData[key] !== null) {
+                    this.injectSchemaDefaults(propSchema, rootData[key], depth + 1);
+                }
+            }
+        } else if (schema.type === "array" && schema.items && Array.isArray(rootData)) {
+            for (let i = 0; i < rootData.length; i++) {
+                if (typeof rootData[i] === "object" && rootData[i] !== null) {
+                    this.injectSchemaDefaults(schema.items, rootData[i], depth + 1);
+                }
+            }
+        }
+    }
 }

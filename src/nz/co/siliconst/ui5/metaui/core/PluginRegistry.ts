@@ -29,6 +29,9 @@ export class PluginRegistry {
         this.registerPluginPath("boolean", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/BooleanPlugin");
         this.registerPluginPath("array", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/ArrayPlugin");
         this.registerPluginPath("object", undefined, "nz/co/siliconst/ui5/metaui/plugins/controls/ObjectPlugin");
+        this.registerPluginPath("string", "default", "nz/co/siliconst/ui5/metaui/plugins/controls/StringPlugin");
+        this.registerPluginPath("object", "dictionary", "nz/co/siliconst/ui5/metaui/plugins/controls/DictionaryMapPlugin");
+        this.registerPluginPath("object", "reference", "nz/co/siliconst/ui5/metaui/plugins/controls/ReferencePlugin");
 
         // Widget Overrides
         this.registerPluginPath("string", "time", "nz/co/siliconst/ui5/metaui/plugins/controls/TimePlugin");

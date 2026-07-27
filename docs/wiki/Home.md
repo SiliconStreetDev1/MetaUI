@@ -26,14 +26,18 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
    - Defining a JSON Schema
    - Full Data Inference Mode
    - Supported Field Plugins
-3. [Data Binding & State Management](DataBindingAndState.md)
+3. [OpenAPI Integration](OpenAPIIntegration.md)
+   - Dynamic Target Extraction
+   - OpenAPI v2 / v3 Parsing
+   - Feature & Constraint Mapping
+4. [Data Binding & State Management](DataBindingAndState.md)
    - The Tri-Binding Interface
    - The Validation Pipeline & State Management
    - Change Handling
-4. [API Reference (DynamicHost)](APIReference.md)
+5. [API Reference (DynamicHost)](APIReference.md)
    - Properties
    - Events
    - Methods
-5. [Extensibility](CreatingPlugins.md)
+6. [Extensibility](CreatingPlugins.md)
    - Creating Custom Plugins
    - The BasePlugin Lifecycle

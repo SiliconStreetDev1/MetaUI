@@ -37,10 +37,9 @@ export class MultiSelectPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
+                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
                     formatter: (val: unknown[]) => Array.isArray(val) ? val.join(", ") : ""
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -48,7 +47,7 @@ export class MultiSelectPlugin extends BasePlugin {
         
         const mcb = new MultiComboBox({
             id: this.generateStableId(engineScopeId, bindingPath),
-            selectedKeys: `{${modelName}>${bindingPath}}`,
+            selectedKeys: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Select items...",
             selectionChange: (oEvent: sap.ui.base.Event) => {

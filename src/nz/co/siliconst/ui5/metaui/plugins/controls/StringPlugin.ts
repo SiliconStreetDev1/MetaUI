@@ -36,7 +36,7 @@ export class StringPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -44,7 +44,7 @@ export class StringPlugin extends BasePlugin {
 
         this.control = new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             maxLength: fieldMetadata.maxLength || 0,
             required: !!fieldMetadata.required,
             showValueHelp: fieldMetadata.ui?.widget === "searchHelp",

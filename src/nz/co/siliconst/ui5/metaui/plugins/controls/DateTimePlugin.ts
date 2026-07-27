@@ -32,14 +32,12 @@ export class DateTimePlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
-                    type: "sap.ui.model.type.DateTime",
+                text: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.DateTime", {
                     formatOptions: {
                         source: { pattern: "yyyy-MM-dd'T'HH:mm:ss'Z'" },
                         pattern: "yyyy-MM-dd'T'HH:mm:ss'Z'"
                     }
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -47,14 +45,12 @@ export class DateTimePlugin extends BasePlugin {
 
         this.control = new DateTimePicker({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: {
-                path: `${modelName}>${bindingPath}`,
-                type: "sap.ui.model.type.DateTime",
+            value: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.DateTime", {
                 formatOptions: {
                     source: { pattern: "yyyy-MM-dd'T'HH:mm:ss'Z'" },
                     pattern: "yyyy-MM-dd'T'HH:mm:ss'Z'"
                 }
-            },
+            }),
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {

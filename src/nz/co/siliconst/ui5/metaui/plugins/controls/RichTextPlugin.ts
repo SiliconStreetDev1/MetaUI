@@ -34,7 +34,7 @@ export class RichTextPlugin extends BasePlugin {
             
             this.control = new FormattedTextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                htmlText: `{${modelName}>${bindingPath}}`
+                htmlText: this.generateBindingInfo(bindingPath, modelName)
             }) as Control;
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
@@ -42,7 +42,7 @@ export class RichTextPlugin extends BasePlugin {
 
         this.control = new RichTextControl({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
         }) as Control;

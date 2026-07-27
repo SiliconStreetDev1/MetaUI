@@ -12,17 +12,16 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public canHandle(rawSchema: any): boolean {
-        // MetaUI native schemas almost always have properties, items, or a layoutStrategy
-        // This acts as a fallback for native schemas.
-        if (rawSchema.openapi || rawSchema.swagger) return false; 
+    public canHandle(rawSchema: unknown): boolean {
+        // Fallback for native ISchemas or data inference.
+        // It always returns true because it is the final fallback builder in the registry.
         return true;
     }
 
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public build(rawSchema: any): ISchema {
+    public build(rawSchema: unknown, targetDefinition?: string): ISchema {
         return SchemaNormalizer.normalize(rawSchema);
     }
 
@@ -133,12 +132,13 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      */
     private static normalizePropertyMetadata(prop: Record<string, unknown>, keyName: string, isRequired: boolean = false): IPropertyMetadata {
         const normalized: IPropertyMetadata = {
-            type: prop.type || "string",
+            type: (prop.type as FieldType) || "string",
+            $ref: prop.$ref as string | undefined,
             ui: {
-                label: prop.ui?.label || this.generateLabel(keyName),
-                isKey: !!prop.ui?.isKey,
-                readOnly: !!prop.ui?.readOnly,
-                widget: prop.ui?.widget || (prop.valueHelp || prop.enum ? "select" : undefined),
+                label: (prop.ui as any)?.label || this.generateLabel(keyName),
+                isKey: !!(prop.ui as any)?.isKey,
+                readOnly: !!(prop.ui as any)?.readOnly,
+                widget: (prop.ui as any)?.widget || (prop.valueHelp || prop.enum ? "select" : undefined),
                 visibleOn: prop.ui?.visibleOn,
                 enabledOn: prop.ui?.enabledOn,
                 format: prop.ui?.format,

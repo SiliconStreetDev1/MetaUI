@@ -6,12 +6,12 @@
 
 import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { SchemaNormalizer } from "./SchemaNormalizer";
-import { SwaggerBuilder } from "../swagger/SwaggerBuilder";
+import { OpenApiBuilder } from "../openapi/OpenApiBuilder";
 import { Logger } from "../utils/Logger";
 
 export class SchemaBuilderRegistry {
     private static _plugins: ISchemaBuilderPlugin[] = [
-        new SwaggerBuilder(),
+        new OpenApiBuilder(),
         new SchemaNormalizer()
     ];
 
@@ -28,7 +28,7 @@ export class SchemaBuilderRegistry {
      * @param rawSchema The raw JSON schema object to inspect.
      * @returns The matching plugin instance, or null if none match.
      */
-    public static getBuilderFor(rawSchema: any): ISchemaBuilderPlugin | null {
+    public static getBuilderFor(rawSchema: unknown): ISchemaBuilderPlugin | null {
         if (!rawSchema || typeof rawSchema !== "object") {
             return null;
         }

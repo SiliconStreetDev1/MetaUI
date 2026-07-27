@@ -30,7 +30,7 @@ export interface IPlugin {
      * @param onChange The callback fired natively when a field value blur/change occurs.
      * @returns {Control} The generated UI5 control ready to be mounted.
      */
-    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
 
     /**
      * Triggers the internal validation pipeline for this specific plugin instance.

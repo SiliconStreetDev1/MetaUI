@@ -77,7 +77,7 @@ export class CodeEditorPlugin extends BasePlugin {
         
         this.control = new CodeEditor({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             type: fieldMetadata.ui?.args || "javascript", // will be dynamically overridden if args is missing
             editable: !this.isEditable ? false : !fieldMetadata.ui?.readOnly,
             height: "100px", // Initial minimum height

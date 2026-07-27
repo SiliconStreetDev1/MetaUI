@@ -34,7 +34,7 @@ export class MessageStripPlugin extends BasePlugin {
         // Use binding to display text if the field has a value, otherwise use the label
         this.control = new MessageStrip({
             id: this.generateStableId(engineScopeId, bindingPath),
-            text: `{${modelName}>${bindingPath}}`,
+            text: this.generateBindingInfo(bindingPath, modelName),
             type: "Information", // Can be driven by schema arguments in the future
             showIcon: true,
             showCloseButton: false

@@ -9,14 +9,17 @@ The `DynamicHost` (`nz.co.siliconst.ui5.metaui.controls.DynamicHost`) is the pri
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `schemaDefinition` | `any` | `null` | The structural schema defining the UI (either JSON Schema or MetaUI object array format). Can also accept a URL string to fetch remote schemas. |
+| `schemaDefinitions` | `object` | `null` | A dictionary of shared schema definitions parsed from the root schema or OpenAPI definition, used for $ref resolution. |
+| `schemaTarget` | `string` | `null` | The specific definition or endpoint target to extract from a complex root schema (e.g. `CustomerProfile`). |
 | `data` | `object` | `null` | The underlying data model as a native JS object. Supports two-way binding. Automatically updates on `submit` or continuously if `liveUpdate="true"`. |
 | `dataJson` | `string` | `null` | The underlying data model as a stringified JSON. Supports two-way binding. Automatically updates on `submit` or continuously if `liveUpdate="true"`. |
-| `editable` | `boolean` | `true` | If false, renders the entire generated layout as read-only. |
 | `liveUpdate` | `boolean` | `false` | If true, bypasses the sandbox and forcefully pushes field `change` events up to the two-way bound data models. |
 | `isValid` | `boolean` | `true` | Tracks the global schema validation state of the entire form. |
 | `useMessageManager` | `boolean` | `false` | If true, ties the internal validation errors directly into the global SAPUI5 MessageManager for centralized error popovers. |
 | `modelName` | `string` | `"meta"` | The internal JSONModel namespace used by the Engine for absolute data bindings. |
 | `debugMode` | `boolean` | `false` | If true, prints verbose layout rendering and data extraction telemetry to the console. |
+| `editable` | `boolean` | `true` | If false, renders the entire generated layout as read-only. |
+| `inferenceStrategy` | `string` | `"RuleBased"` | Defines the fallback parsing mode when no explicit schema is provided (`"RuleBased"` or `"AI"`). |
 
 ---
 
@@ -74,12 +77,12 @@ Fired when a catastrophic failure occurs during layout generation (e.g., duplica
 
 | Method | Returns | Description |
 | :--- | :--- | :--- |
-| `setBindingContext(oContext?, sModelName?)` | `this` | Overridden to intercept OData V4 contexts and automatically initialize the `ODataDelegate`. |
-| `bindElement(vPath, mParameters?)` | `this` | Overridden to attach change listeners to Element bindings for OData synchronization. |
+| `setBindingContext(oContext: sap.ui.model.Context \| null \| undefined, sModelName?: string)` | `this` | Overridden to intercept OData V4 contexts and automatically initialize the `ODataDelegate`. |
+| `bindElement(vPath: string \| Record<string, unknown>, mParameters?: object)` | `this` | Overridden to attach change listeners to Element bindings for OData synchronization. |
 | `onBeforeRendering()` | `void` | Natively delegates properties to the internal `GeneratorHost` and boots the rendering engine. |
-| `setProperty(propertyName, value, suppressInvalidate?)` | `this` | Transparent proxy. Routes manual property updates dynamically down to the spawned internal host. |
-| `getProperty(propertyName)` | `unknown` | Transparent proxy. Automatically extracts the freshest inner data (e.g., intercepts calls to `getProperty("data")` and routes them to the sandbox payload). |
-| `openInDialog(title?, submitBtnText?, cancelBtnText?, width?, view?)` | `void` | Mounts the host inside a native `sap.m.Dialog` popup. The `submitBtnText` triggers the validation/submit pipeline when clicked. |
+| `setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean)` | `this` | Transparent proxy. Routes manual property updates dynamically down to the spawned internal host. |
+| `getProperty(propertyName: string)` | `unknown` | Transparent proxy. Automatically extracts the freshest inner data (e.g., intercepts calls to `getProperty("data")` and routes them to the sandbox payload). |
+| `openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control)` | `void` | Mounts the host inside a native `sap.m.Dialog` popup. The `submitButtonText` triggers the validation/submit pipeline when clicked. |
 | `triggerSubmit()` | `boolean` | Manually fires the validation and extraction pipeline. Returns `true` if validation passes, otherwise `false`. |
-| `addCustomError(fieldPath, message)` | `void` | Manually applies a visual error state to a specific field and blocks form submission. |
-| `clearCustomError(fieldPath)` | `void` | Clears a custom error message from a specific field. |
+| `addCustomError(fieldPath: string, message: string)` | `void` | Manually applies a visual error state to a specific field and blocks form submission. |
+| `clearCustomError(fieldPath: string)` | `void` | Clears a custom error message from a specific field. |

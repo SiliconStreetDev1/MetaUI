@@ -72,8 +72,8 @@ export class RemoteValueHelpPlugin extends BasePlugin {
                 
                 data.forEach(itemData => {
                     comboBox.addItem(new Item({ 
-                        key: itemData[keyPath], 
-                        text: itemData[textPath] || itemData[keyPath]
+                        key: String(itemData[keyPath]), 
+                        text: String(itemData[textPath] || itemData[keyPath])
                     }));
                 });
             })

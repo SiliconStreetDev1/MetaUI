@@ -21,6 +21,8 @@ export default class DynamicHost extends Control {
     static readonly metadata = {
         properties: {
             schemaDefinition: { type: "any", defaultValue: null },
+            schemaDefinitions: { type: "object", defaultValue: null },
+            schemaTarget: { type: "string", defaultValue: null },
             data: { type: "object", defaultValue: null, bindable: "bindable" },
             dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
@@ -28,7 +30,8 @@ export default class DynamicHost extends Control {
             useMessageManager: { type: "boolean", defaultValue: false },
             modelName: { type: "string", defaultValue: "meta" },
             debugMode: { type: "boolean", defaultValue: false },
-            editable: { type: "boolean", defaultValue: true }
+            editable: { type: "boolean", defaultValue: true },
+            inferenceStrategy: { type: "string", defaultValue: "RuleBased" }
         },
         aggregations: {
             _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
@@ -176,10 +179,11 @@ export default class DynamicHost extends Control {
 
             // 1. URL Detection & Fetching
             if (typeof schemaRaw === "string" && (schemaRaw.startsWith("http://") || schemaRaw.startsWith("https://"))) {
-                if ((this as any)._fetchingSchema) return; // Prevent re-entry
-                (this as any)._fetchingSchema = true;
+                const self = this as unknown as { _fetchingSchema?: boolean };
+                if (self._fetchingSchema) return; // Prevent re-entry
+                self._fetchingSchema = true;
                 
-                sap.ui.require(["sap/ui/core/BusyIndicator", "sap/m/MessageToast"], (BusyIndicator: any, MessageToast: any) => {
+                sap.ui.require(["sap/ui/core/BusyIndicator", "sap/m/MessageToast"], (BusyIndicator: { show: (n: number) => void, hide: () => void }, MessageToast: { show: (s: string) => void }) => {
                     BusyIndicator.show(0);
                     fetch(schemaRaw as string)
                         .then(res => {
@@ -188,17 +192,22 @@ export default class DynamicHost extends Control {
                         })
                         .then(json => {
                             const plugin = SchemaBuilderRegistry.getBuilderFor(json);
-                            const finalSchema = plugin ? plugin.build(json) : json;
+                            const finalSchema = plugin ? plugin.build(json, this.getProperty("schemaTarget")) : json;
                             super.setProperty("schemaDefinition", finalSchema, true);
-                            (this as any)._fetchingSchema = false;
+                            if (finalSchema.definitions) {
+                                super.setProperty("schemaDefinitions", finalSchema.definitions, true);
+                            }
+                            const self = this as unknown as { _fetchingSchema?: boolean };
+                            self._fetchingSchema = false;
                             BusyIndicator.hide();
                             this.invalidate(); // Force re-render with resolved schema
                         })
                         .catch(err => {
+                            const self = this as unknown as { _fetchingSchema?: boolean };
                             Logger.warn("[MetaUI DynamicHost]", "Failed to fetch remote schema: " + err, "DynamicHost");
                             if (MessageToast) MessageToast.show("Failed to fetch remote schema");
                             super.setProperty("schemaDefinition", null, true); // Fallback to full inference
-                            (this as any)._fetchingSchema = false;
+                            self._fetchingSchema = false;
                             BusyIndicator.hide();
                             this.invalidate();
                         });
@@ -219,9 +228,12 @@ export default class DynamicHost extends Control {
             if (schema && typeof schema === "object") {
                 const plugin = SchemaBuilderRegistry.getBuilderFor(schema);
                 if (plugin) {
-                    schema = plugin.build(schema);
+                    schema = plugin.build(schema, this.getProperty("schemaTarget"));
                     // Silently update the wrapper property so the inner host gets the final parsed MetaUI format
                     super.setProperty("schemaDefinition", schema, true);
+                    if (schema.definitions) {
+                        super.setProperty("schemaDefinitions", schema.definitions, true);
+                    }
                 }
             }
 
@@ -234,6 +246,48 @@ export default class DynamicHost extends Control {
             }
 
             const hasData = !!dataJson || !!data;
+
+            // 3. AI Schema Inference Detection
+            if (hasData && this.getProperty("inferenceStrategy") === "AI") {
+                const self = this as unknown as { _fetchingSchema?: boolean };
+                if (self._fetchingSchema) return; // Prevent re-entry
+                self._fetchingSchema = true;
+
+                let rawDataObj = data;
+                if (!rawDataObj && dataJson) {
+                    try { rawDataObj = JSON.parse(dataJson as string); } catch(e: Error) { Logger.trace("[DynamicHost] Ignored invalid dataJson parse: " + e.message); }
+                }
+
+                if (rawDataObj) {
+                    sap.ui.require([
+                        "sap/ui/core/BusyIndicator", 
+                        "sap/m/MessageToast",
+                        "nz/co/siliconst/ui5/metaui/ai/AIConfig"
+                    ], (BusyIndicator: { show: (n: number) => void, hide: () => void }, MessageToast: { show: (s: string) => void }, AIConfig: { getProxy: () => { generateSchema: (d: unknown, s?: unknown) => Promise<unknown> } }) => {
+                        BusyIndicator.show(0);
+                        const proxy = AIConfig.getProxy();
+                        
+                        proxy.generateSchema(rawDataObj, schema || undefined)
+                            .then((generatedSchema: unknown) => {
+                                const self = this as unknown as { _fetchingSchema?: boolean };
+                                super.setProperty("schemaDefinition", generatedSchema, true);
+                                self._fetchingSchema = false;
+                                BusyIndicator.hide();
+                                this.invalidate(); // Force re-render with the new schema
+                            })
+                            .catch((err: Error) => {
+                                const self = this as unknown as { _fetchingSchema?: boolean };
+                                Logger.warn("[MetaUI DynamicHost]", "AI inference failed, falling back to RuleBased. Error: " + err.message, "DynamicHost");
+                                if (MessageToast) MessageToast.show("AI Inference failed, using fallback.");
+                                super.setProperty("inferenceStrategy", "RuleBased", true); // Fallback to normal inference
+                                self._fetchingSchema = false;
+                                BusyIndicator.hide();
+                                this.invalidate(); 
+                            });
+                    });
+                    return; // Abort render cycle until AI is done
+                }
+            }
 
             Logger.debug("[MetaUI DynamicHost]", `Evaluating boot. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
 
@@ -251,9 +305,15 @@ export default class DynamicHost extends Control {
                 // Since we no longer use bindProperty, it's perfectly safe to set raw properties before mounting.
                 const props = this.getMetadata().getProperties();
                 for (const propName in props) {
+                    if (propName === "inferenceStrategy") continue;
                     const val = super.getProperty(propName);
                     if (val !== null && val !== undefined) {
+                        if (propName === "schemaDefinitions") {
+                            Logger.debug(`[MetaUI DynamicHost] Proxying schemaDefinitions: ${Object.keys(val)}`, "", "DynamicHost");
+                        }
                         this._innerHost.setProperty(propName, val);
+                    } else if (propName === "schemaDefinitions") {
+                        Logger.warn(`[MetaUI DynamicHost] Warning: schemaDefinitions is null/undefined in Wrapper. Defaulting to empty object in GeneratorHost.`, "", "DynamicHost");
                     }
                 }
 
@@ -298,15 +358,15 @@ export default class DynamicHost extends Control {
      * it instantly mirrors that value down to the inner instantiated host.
      */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
-        if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition") {
+        if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition" || propertyName === "schemaDefinitions") {
             if (this.getProperty("debugMode")) {
                 Logger.debug("[MetaUI DynamicHost]", `Wrapper received setProperty: ${propertyName}`, "DynamicHost");
             }
         }
         super.setProperty(propertyName, value, suppressInvalidate);
-        if (this._innerHost) {
+        if (this._innerHost && propertyName !== "inferenceStrategy") {
             this._innerHost.setProperty(propertyName, value, suppressInvalidate);
-        } else if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition") {
+        } else if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition" || propertyName === "schemaDefinitions") {
             if (this.getProperty("debugMode")) {
                 Logger.debug("[MetaUI DynamicHost]", `_innerHost not yet initialized when ${propertyName} was set. Booting will happen on next render.`, "DynamicHost");
             }
@@ -356,8 +416,9 @@ export default class DynamicHost extends Control {
      * @param {string} message The custom error message to display.
      */
     public addCustomError(fieldPath: string, message: string): void {
-        if (this._innerHost && typeof (this._innerHost as any).addCustomError === "function") {
-            (this._innerHost as any).addCustomError(fieldPath, message);
+        const inner = this._innerHost as unknown as { addCustomError?: (p: string, m: string) => void };
+        if (inner && typeof inner.addCustomError === "function") {
+            inner.addCustomError(fieldPath, message);
         }
     }
 
@@ -367,8 +428,9 @@ export default class DynamicHost extends Control {
      * @param {string} fieldPath The schema key path to target.
      */
     public clearCustomError(fieldPath: string): void {
-        if (this._innerHost && typeof (this._innerHost as any).clearCustomError === "function") {
-            (this._innerHost as any).clearCustomError(fieldPath);
+        const inner = this._innerHost as unknown as { clearCustomError?: (p: string) => void };
+        if (inner && typeof inner.clearCustomError === "function") {
+            inner.clearCustomError(fieldPath);
         }
     }
 

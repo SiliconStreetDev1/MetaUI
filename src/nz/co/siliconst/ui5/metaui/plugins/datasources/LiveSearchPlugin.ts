@@ -77,8 +77,8 @@ export class LiveSearchPlugin extends BasePlugin {
                 
                 filteredData.forEach(itemData => {
                     input.addSuggestionItem(new Item({ 
-                        key: itemData[keyPath], 
-                        text: itemData[textPath] || itemData[keyPath]
+                        key: String(itemData[keyPath]), 
+                        text: String(itemData[textPath] || itemData[keyPath])
                     }));
                 });
             })

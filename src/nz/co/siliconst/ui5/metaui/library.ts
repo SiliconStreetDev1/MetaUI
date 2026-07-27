@@ -24,6 +24,12 @@ import "nz/co/siliconst/ui5/metaui/layouts/TableLayout";
 import "nz/co/siliconst/ui5/metaui/layouts/WizardLayout";
 import "nz/co/siliconst/ui5/metaui/layouts/CompactLayout";
 
+// AI Inference
+import "nz/co/siliconst/ui5/metaui/ai/BaseAIGenerator";
+import "nz/co/siliconst/ui5/metaui/ai/MockLLMProxy";
+import "nz/co/siliconst/ui5/metaui/ai/RestLLMProxy";
+import "nz/co/siliconst/ui5/metaui/ai/AIConfig";
+
 // Delegate to standard library registration
 Core.initLibrary({
     name: "nz.co.siliconst.ui5.metaui",

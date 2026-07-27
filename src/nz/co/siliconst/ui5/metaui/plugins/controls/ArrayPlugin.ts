@@ -57,9 +57,22 @@ export class ArrayPlugin extends BasePlugin {
                 // Deep clone to prevent live-mutations on the parent model before 'Submit' is clicked
                 const nestedData = JSON.parse(JSON.stringify(parentModel.getProperty(updatePath) || []));
 
+                let parent = btn.getParent();
+                let parentHost = null;
+                while (parent) {
+                    if (parent.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.host.GeneratorHost" || 
+                        parent.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.DynamicHost") {
+                        parentHost = parent as any;
+                        break;
+                    }
+                    parent = parent.getParent();
+                }
+                const schemaDefs = parentHost ? parentHost.getProperty("schemaDefinitions") : null;
+
                 sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHost: typeof import("../../controls/DynamicHost").default) => {
                     const host = new DynamicHost({
                         schemaDefinition: subSchema,
+                        schemaDefinitions: schemaDefs,
                         data: nestedData,
                         editable: this.isEditable // Pass the display mode down to the child Engine!
                     });

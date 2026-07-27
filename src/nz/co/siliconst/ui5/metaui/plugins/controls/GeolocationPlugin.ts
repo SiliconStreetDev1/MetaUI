@@ -25,10 +25,9 @@ export class GeolocationPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
-                    formatter: (val: unknown) => val && val.lat !== undefined && val.lng !== undefined ? `Lat: ${val.lat}, Lng: ${val.lng}` : ""
-                }
+                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
+                    formatter: (val: Record<string, unknown>) => val && val.lat !== undefined && val.lng !== undefined ? `Lat: ${val.lat}, Lng: ${val.lng}` : ""
+                })
             });
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
@@ -36,7 +35,7 @@ export class GeolocationPlugin extends BasePlugin {
 
         this.control = new GeolocationControl({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
         });

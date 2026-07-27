@@ -4,6 +4,7 @@
  */
 
 import { ISchema, ILayoutElement } from "../interfaces/ISchema";
+import { Logger } from "../utils/Logger";
 
 /**
  * Encapsulates the logic to dynamically build a safe, default layout orchestration
@@ -68,22 +69,17 @@ export class DefaultLayoutGenerator {
                 const prop = props[key];
                 const currentPath = `${basePath}/${key}`;
 
-                if (prop.type === "object" && prop.properties) {
-                    elements.push({
-                        type: "Group",
-                        label: prop.ui?.label || key,
-                        elements: this.generateElementsFromProperties(prop.properties, `${currentPath}/properties`)
-                    });
-                } else {
-                    elements.push({
-                        type: "Control",
-                        scope: currentPath
-                    });
-                }
+                // We do not recursively inline nested objects as Groups.
+                // MetaUI handles nested objects dynamically via the ObjectPlugin drill-down dialog.
+                // This prevents duplicate Tables and infinite recursion on circular $refs.
+                elements.push({
+                    type: "Control",
+                    scope: currentPath
+                });
             } catch (error) {
                 // Do not swallow errors. A failure to synthesize a property is a critical failure.
                 const msg = `[MetaUI] DefaultLayoutGenerator failed to synthesize property '${key}': ${(error as Error).message}`;
-                import("../utils/Logger").then(m => m.Logger.error(msg));
+                Logger.error(msg);
                 throw new Error(msg);
             }
         }

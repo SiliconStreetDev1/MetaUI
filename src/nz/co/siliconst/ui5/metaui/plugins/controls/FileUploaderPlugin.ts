@@ -35,8 +35,8 @@ export class FileUploaderPlugin extends BasePlugin {
             
             this.control = new LinkControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`,
-                href: `{${modelName}>${bindingPath}}`, // Assuming the value is a URL to the file
+                text: this.generateBindingInfo(bindingPath, modelName),
+                href: this.generateBindingInfo(bindingPath, modelName), // Assuming the value is a URL to the file
                 target: "_blank"
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
@@ -45,7 +45,7 @@ export class FileUploaderPlugin extends BasePlugin {
 
         this.control = new FileUploader({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Choose a file...",
             width: "100%",

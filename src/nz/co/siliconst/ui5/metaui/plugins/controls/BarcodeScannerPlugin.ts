@@ -30,7 +30,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
@@ -38,7 +38,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
 
         this.inputControl = new Input({
             id: this.generateStableId(engineScopeId, bindingPath + "-input"),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             editable: !metadata.ui?.readOnly,
             width: "100%",
             change: () => {

@@ -42,13 +42,12 @@ export class DropdownPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
+                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
                     formatter: (key: string) => {
                         const match = valueHelpArray.find(vh => vh.key === key);
                         return match ? match.text : key;
                     }
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -56,7 +55,7 @@ export class DropdownPlugin extends BasePlugin {
 
         const select = new Select({
             id: this.generateStableId(engineScopeId, bindingPath),
-            selectedKey: `{${modelName}>${bindingPath}}`,
+            selectedKey: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             forceSelection: false,
             change: (oEvent: sap.ui.base.Event) => {

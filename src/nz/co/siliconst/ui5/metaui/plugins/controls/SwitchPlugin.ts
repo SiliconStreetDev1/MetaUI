@@ -32,10 +32,9 @@ export class SwitchPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
+                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
                     formatter: (val: boolean) => val ? "Yes" : "No"
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -43,7 +42,7 @@ export class SwitchPlugin extends BasePlugin {
 
         this.control = new Switch({
             id: this.generateStableId(engineScopeId, bindingPath),
-            state: `{${modelName}>${bindingPath}}`,
+            state: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             change: (oEvent: sap.ui.base.Event) => {
                 const val = (oEvent as sap.ui.base.Event).getParameter("state");

@@ -38,6 +38,9 @@ export class Engine {
 
     private activeModel?: sap.ui.model.Model;
 
+    /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
+    public host?: unknown;
+
     /** Callback to notify the host that an internal field changed. */
     public onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
 
@@ -116,8 +119,10 @@ export class Engine {
     public generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate: boolean = false): Control {
         try {
             const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
-            plugin.setEditable(this.isEditable);
-            
+            if (typeof plugin.setEditable === "function") {
+                plugin.setEditable(this.isEditable);
+            }
+
             if (typeof plugin.setUseMessageManager === "function") {
                 plugin.setUseMessageManager(this.useMessageManager);
             }
@@ -126,7 +131,7 @@ export class Engine {
                 this.activePlugins.push({ plugin, path: bindingPath });
             }
             const scopeId = isTemplate ? undefined : this.engineScopeId;
-            const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange);
+            const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange, this.activeModel);
 
             if (this.conditionEngine) {
                 this.conditionEngine.registerPlugin(bindingPath, plugin);
@@ -179,7 +184,7 @@ export class Engine {
                 if (applyVisualState && typeof item.plugin.setVisualValidationState === "function") {
                     item.plugin.setVisualValidationState(result.isValid, result.errorMessage);
                 }
-                
+
                 if (!result.isValid) {
                     // Ensure the path is bound to the error so GeneratorHost knows where to target it
                     result.fieldKey = result.fieldKey || item.path.replace(/^\//, "");
@@ -222,13 +227,13 @@ export class Engine {
         // ------------------------------------------------------------------------
         const messageManager = Messaging;
         const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove: sap.ui.core.message.Message[] = [];
+        const messagesToRemove: unknown[] = [];
 
         for (const item of this.activePlugins) {
             if (this.activeModel) {
                 const targetPath = `/${item.path.replace(/^\//, "")}`;
-                const matched = existingMessages.filter((msg: sap.ui.core.message.Message) =>
-                    msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel.getId()
+                const matched = (existingMessages as { getTarget: () => string, getMessageProcessor: () => { getId: () => string } }[]).filter(msg =>
+                    msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel!.getId()
                 );
                 messagesToRemove.push(...matched);
             }

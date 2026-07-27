@@ -32,14 +32,12 @@ export class DatePlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
-                    type: "sap.ui.model.type.Date",
+                text: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Date", {
                     formatOptions: {
                         source: { pattern: "yyyy-MM-dd" },
                         pattern: "yyyy-MM-dd"
                     }
-                }
+                })
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -47,14 +45,12 @@ export class DatePlugin extends BasePlugin {
 
         this.control = new DatePicker({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: {
-                path: `${modelName}>${bindingPath}`,
-                type: "sap.ui.model.type.Date",
+            value: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Date", {
                 formatOptions: {
                     source: { pattern: "yyyy-MM-dd" },
                     pattern: "yyyy-MM-dd"
                 }
-            },
+            }),
             displayFormat: "long",
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,

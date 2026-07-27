@@ -32,7 +32,7 @@ export class TextAreaPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -40,7 +40,7 @@ export class TextAreaPlugin extends BasePlugin {
 
         this.control = new TextArea({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             maxLength: fieldMetadata.maxLength || 0,
             required: !!fieldMetadata.required,
             rows: 3, // Start with at least 3 lines

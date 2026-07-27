@@ -65,7 +65,7 @@ export abstract class BasePlugin implements IPlugin {
      * @param onChange The callback fired natively when a field value blur/change occurs.
      * @returns {Control} The generated UI5 control.
      */
-    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control;
+    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void, model?: unknown): Control;
 
     /**
      * Generates a deterministic, globally unique ID for this control.
@@ -82,6 +82,25 @@ export abstract class BasePlugin implements IPlugin {
      * Extracts the current raw value from the underlying UI5 control.
      */
     protected abstract getValue(): unknown;
+
+    /**
+     * Generates a standardized programmatic binding configuration object.
+     * Ensures perfect architectural consistency across all plugins instead of relying on string parsing.
+     * 
+     * @param bindingPath The relative or absolute path.
+     * @param modelName The target model name.
+     * @param typeInstance An optional UI5 Type instance (e.g. Integer, Float).
+     * @param additionalOptions Optional extra configurations (e.g. formatOptions, constraints).
+     * @returns A configuration object ready to be assigned to 'value', 'text', 'state', etc.
+     */
+    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): { path: string, model: string, type?: unknown, [key: string]: unknown } {
+        return {
+            path: bindingPath,
+            model: modelName,
+            ...(typeInstance ? { type: typeInstance } : {}),
+            ...(additionalOptions || {})
+        };
+    }
 
     /**
      * Universal pipeline validation.
@@ -154,11 +173,16 @@ export abstract class BasePlugin implements IPlugin {
 
         
         // Use reflection to check if the control supports ValueState (e.g. sap.m.Input does, sap.m.Text does not)
-        if (typeof (this.control as any).setValueState === "function") {
-            (this.control as any).setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
+        type StateControl = {
+            setValueState?: (state: string) => void;
+            setValueStateText?: (text: string) => void;
+        };
+        const ctrl = this.control as unknown as StateControl;
+        if (typeof ctrl.setValueState === "function") {
+            ctrl.setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
             
-            if (typeof (this.control as any).setValueStateText === "function") {
-                (this.control as any).setValueStateText(isValid ? "" : (errorMessage || ""));
+            if (typeof ctrl.setValueStateText === "function") {
+                ctrl.setValueStateText(isValid ? "" : (errorMessage || ""));
             }
         } else {
             Logger.error("[MetaUI]", `Plugin ${this.fieldKey} has no setValueState function!`, "BasePlugin");
@@ -193,8 +217,9 @@ export abstract class BasePlugin implements IPlugin {
      * Helper to apply common UI directives (like readOnly, visibleOn) directly to any control.
      */
     protected applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName: string = "meta"): void {
-        if (metadata.ui?.readOnly !== undefined && typeof control.setEditable === "function") {
-            control.setEditable(!metadata.ui.readOnly);
+        const ctrl = control as unknown as { setEditable?: (b: boolean) => void, setEnabled?: (b: boolean) => void };
+        if (metadata.ui?.readOnly !== undefined && typeof ctrl.setEditable === "function") {
+            ctrl.setEditable(!metadata.ui.readOnly);
         }
 
         if (metadata.ui?.visibleOn) {
@@ -209,7 +234,7 @@ export abstract class BasePlugin implements IPlugin {
             control.bindProperty("visible", expr);
         }
 
-        if (metadata.ui?.enabledOn && typeof control.setEnabled === "function") {
+        if (metadata.ui?.enabledOn && typeof ctrl.setEnabled === "function") {
             const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
             let expr = "";
             if (ExpressionBuilder) {

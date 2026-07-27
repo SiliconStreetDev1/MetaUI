@@ -35,7 +35,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -43,7 +43,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
         
         this.control = new RatingIndicator({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             maxValue: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 5,
             change: (oEvent: sap.ui.base.Event) => {

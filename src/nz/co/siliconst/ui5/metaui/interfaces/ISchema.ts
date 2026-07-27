@@ -61,6 +61,7 @@ export interface IRemoteValueHelpConfig {
  */
 export interface IPropertyMetadata {
     type: FieldType;
+    $ref?: string;
     
     // MetaUI specific orchestration
     ui?: IUIDirective;
@@ -83,19 +84,36 @@ export interface IPropertyMetadata {
     enum?: string[] | number[];
     
     // OpenAPI Advanced features
-    default?: any;
+    default?: unknown;
     nullable?: boolean;
     writeOnly?: boolean;
-    example?: any;
+    readOnly?: boolean;
+    example?: unknown;
     deprecated?: boolean;
     exclusiveMinimum?: boolean | number;
     exclusiveMaximum?: boolean | number;
+    
+    // Array Validation
+    maxItems?: number;
+    minItems?: number;
+    uniqueItems?: boolean;
+
+    // Object Validation
+    maxProperties?: number;
+    minProperties?: number;
+
+    // Polymorphism and Composition
+    oneOf?: IPropertyMetadata[];
+    anyOf?: IPropertyMetadata[];
+    allOf?: IPropertyMetadata[];
+    not?: IPropertyMetadata;
+    discriminator?: { propertyName: string, mapping?: Record<string, string> };
     
     // Nested recursion for objects and arrays
     properties?: Record<string, IPropertyMetadata>;
     items?: IPropertyMetadata;
     uiLayout?: ILayoutElement[];
-    additionalProperties?: boolean;
+    additionalProperties?: boolean | IPropertyMetadata;
 }
 
 /**
@@ -109,4 +127,5 @@ export interface ISchema {
     items?: IPropertyMetadata;
     uiLayout?: ILayoutElement[];
     additionalProperties?: boolean;
+    definitions?: Record<string, ISchema>;
 }

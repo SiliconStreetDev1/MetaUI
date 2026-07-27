@@ -25,13 +25,12 @@ export class VoiceInputPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: {
-                    path: `${modelName}>${bindingPath}`,
+                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
                     formatter: (val: unknown) => {
                         if (!val || val === "undefined" || val === "null") return "";
                         return val;
                     }
-                }
+                })
             }) as Control;
             this.applyCommonDirectives(this.control, metadata, modelName);
             return this.control as Control;
@@ -39,7 +38,7 @@ export class VoiceInputPlugin extends BasePlugin {
 
         this.control = new VoiceInputControl({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             schemaMetadata: metadata,
             readOnly: !!metadata.ui?.readOnly
         }) as Control;

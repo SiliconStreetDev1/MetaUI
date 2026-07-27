@@ -12,12 +12,13 @@ export interface ISchemaBuilderPlugin {
      * @param rawSchema The unparsed JSON object.
      * @returns True if this plugin can handle the schema format.
      */
-    canHandle(rawSchema: any): boolean;
+    canHandle(rawSchema: unknown): boolean;
 
     /**
      * Converts the raw schema payload into a strict MetaUI ISchema.
      * @param rawSchema The raw schema JSON object.
+     * @param targetDefinition Optional target root definition.
      * @returns A strict MetaUI ISchema.
      */
-    build(rawSchema: any): ISchema;
+    build(rawSchema: unknown, targetDefinition?: string): ISchema;
 }

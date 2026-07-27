@@ -1,37 +1,41 @@
 /**
- * @file SwaggerUIMapper.ts
+ * @file OpenApiUIMapper.ts
  * @description Utility class for mapping OpenAPI properties and formats into MetaUI IUIDirectives.
  */
 import { IUIDirective } from "../interfaces/ISchema";
 
-export class SwaggerUIMapper {
+/**
+ * Utility class responsible for evaluating OpenAPI metadata and generating the corresponding 
+ * MetaUI UI rendering directives. This isolates all visual layout assumptions from the parsing engine.
+ * 
+ * @public
+ */
+export class OpenApiUIMapper {
     /**
      * Evaluates an OpenAPI property definition and constructs a MetaUI IUIDirective block.
      * Extracts labels from title/description, maps readOnly state, and assigns 
-     * specific Fiori widgets based on the OpenAPI 'format' property.
+     * specific UI5 Fiori widgets based on the OpenAPI 'format' property.
      * 
-     * @param {any} swaggerProp The raw OpenAPI property schema.
+     * @param {any} swaggerProp The raw OpenAPI property schema chunk.
      * @param {string} keyName The technical JSON key of the property.
      * @returns {IUIDirective} The constructed MetaUI UI orchestration directive.
      */
-    public static build(swaggerProp: any, keyName: string): IUIDirective {
+    public static build(swaggerProp: unknown, keyName: string): IUIDirective {
         const ui: IUIDirective = {};
 
-        // Labeling
+        // Label Synthesis
         if (swaggerProp.title) {
             ui.label = swaggerProp.title;
-        } else if (swaggerProp.description) {
-            ui.label = swaggerProp.description;
         } else {
             ui.label = this.generateLabel(keyName);
         }
 
-        // State
+        // State Mapping
         if (swaggerProp.readOnly === true) {
             ui.readOnly = true;
         }
 
-        // Formats to Widgets
+        // Format to Widget Translation
         if (swaggerProp.format) {
             switch (swaggerProp.format) {
                 case "date-time":
@@ -49,6 +53,10 @@ export class SwaggerUIMapper {
                 case "uri":
                     ui.format = "url";
                     break;
+                case "binary":
+                case "byte":
+                    ui.widget = "fileUploader";
+                    break;
                 case "uuid":
                 case "ipv4":
                 case "ipv6":
@@ -63,10 +71,11 @@ export class SwaggerUIMapper {
     }
 
     /**
-     * Generates a human-readable Title Case label from camelCase or snake_case technical keys.
+     * Synthesizes a human-readable Title Case label from camelCase or snake_case technical keys.
      * 
-     * @param {string} name The technical property key.
-     * @returns {string} The formatted human-readable label.
+     * @param {string} name The raw technical property key (e.g., 'creationTimestamp').
+     * @returns {string} The formatted human-readable label (e.g., 'Creation Timestamp').
+     * @private
      */
     private static generateLabel(name: string): string {
         if (!name) return "";

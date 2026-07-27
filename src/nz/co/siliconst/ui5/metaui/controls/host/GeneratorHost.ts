@@ -37,6 +37,8 @@ export default class GeneratorHost extends Control {
     static readonly metadata = {
         properties: {
             schemaDefinition: { type: "any", defaultValue: null },
+            schemaDefinitions: { type: "object", defaultValue: {} },
+            schemaTarget: { type: "string", defaultValue: null },
             data: { type: "object", defaultValue: null, bindable: "bindable" },
             dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
@@ -144,6 +146,23 @@ export default class GeneratorHost extends Control {
      */
     public getStateManager(): StateManager | null {
         return this.stateManager;
+    }
+
+    /**
+     * Resolves a reference pointer against the global schema definitions dictionary.
+     * @param refPath The string reference path (e.g., "#/definitions/User")
+     * @returns The resolved ISchema or undefined
+     */
+    public getSchemaDefinition(refPath: string): ISchema | undefined {
+        const defs = this.getProperty("schemaDefinitions") as Record<string, ISchema>;
+        if (!defs || !refPath) return undefined;
+        let key = refPath;
+        if (key.startsWith("#/definitions/")) {
+            key = key.substring(14);
+        } else if (key.startsWith("#/components/schemas/")) {
+            key = key.substring(21);
+        }
+        return defs[key];
     }
 
     /**
@@ -341,7 +360,7 @@ export default class GeneratorHost extends Control {
             return this;
         }
 
-        if (propertyName === "editable" || propertyName === "debugMode" || propertyName === "schemaDefinition") {
+        if (propertyName === "editable" || propertyName === "debugMode" || propertyName === "schemaDefinition" || propertyName === "schemaTarget") {
             const currentVal = this.getProperty(propertyName);
             if (currentVal !== value) {
                 super.setProperty(propertyName, value, suppressInvalidate);
@@ -479,6 +498,11 @@ export default class GeneratorHost extends Control {
                 this.setBusy(false);
             }
 
+            // Inject defaults into empty payload values
+            if (normalizedSchema && finalData) {
+                this.dataSyncDelegate.injectSchemaDefaults(normalizedSchema, finalData);
+            }
+
             this.activeModelName = "metaUI_" + this.getId();
             this.stateManager = new StateManager(finalData, normalizedSchema, this.activeModelName);
             this.stateManager.setUseMessageManager(this.getProperty("useMessageManager") === true);
@@ -488,6 +512,7 @@ export default class GeneratorHost extends Control {
                 const isEditable = this.getProperty("editable") !== false;
                 const useMessageManager = this.getProperty("useMessageManager") === true;
                 this.engine = new Engine(isEditable, useMessageManager);
+                this.engine.host = this;
             }
 
             this.generatedContent = this.engine.build(

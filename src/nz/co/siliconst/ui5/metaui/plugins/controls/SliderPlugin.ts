@@ -35,7 +35,7 @@ export class SliderPlugin extends BasePlugin {
             
             this.control = new TextControl({
                 id: this.generateStableId(engineScopeId, bindingPath),
-                text: `{${modelName}>${bindingPath}}`
+                text: this.generateBindingInfo(bindingPath, modelName)
             });
             this.applyCommonDirectives(this.control, fieldMetadata, modelName);
             return this.control as Control;
@@ -43,7 +43,7 @@ export class SliderPlugin extends BasePlugin {
 
         this.control = new Slider({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             min: fieldMetadata.minimum !== undefined ? fieldMetadata.minimum : 0,
             max: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 100,

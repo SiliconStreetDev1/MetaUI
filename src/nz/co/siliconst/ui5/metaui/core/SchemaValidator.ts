@@ -38,7 +38,7 @@ export class SchemaValidator {
                 if (!prop.type) {
                     errors.push(`Property '${key}' is missing 'type'.`);
                 } else {
-                    const allowedTypes: FieldType[] = ["string", "number", "boolean", "date", "object", "array"];
+                    const allowedTypes: FieldType[] = ["string", "number", "integer", "boolean", "date", "object", "array"];
                     if (!allowedTypes.includes(prop.type)) {
                         errors.push(`Property '${key}' has invalid type '${prop.type}'. Allowed: ${allowedTypes.join(", ")}`);
                     }
