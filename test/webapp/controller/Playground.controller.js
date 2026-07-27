@@ -1,143 +1,120 @@
 sap.ui.define([
     "metaui/sandbox/controller/BaseController",
     "sap/ui/model/json/JSONModel",
-    "metaui/sandbox/util/ScenarioManager",
-    "metaui/sandbox/util/SnippetGenerator",
-    "sap/m/MessageToast"
-], function (BaseController, JSONModel, ScenarioManager, SnippetGenerator, MessageToast) {
+    "sap/m/MessageToast",
+    "sap/ui/core/routing/History",
+    "nz/co/siliconst/ui5/metaui/swagger/OpenApiExtractor",
+    "nz/co/siliconst/ui5/metaui/controls/DynamicHost",
+    "sap/base/Log"
+], function (BaseController, JSONModel, MessageToast, History, OpenApiExtractor, DynamicHost, Log) {
     "use strict";
 
     /**
      * @class
-     * Controller for the Playground Sandbox view.
-     * Orchestrates UI bindings and delegates logic to specific utility modules.
-     * Authentic Testing: This controller loads genuine XML fragments or authentic JS programmatic paths to prove functionality.
+     * Controller for the isolated MetaUI Playground.
+     * Provides a completely blank slate for manually typing or pasting JSON schemas and payloads
+     * to test the engine's inference and generation capabilities.
      * 
      * @extends metaui.sandbox.controller.BaseController
+     * @alias metaui.sandbox.controller.Playground
      */
     return BaseController.extend("metaui.sandbox.controller.Playground", {
         
         /**
-         * Lifecycle hook initializing the view model and loading the scenario index.
+         * Lifecycle hook.
+         * Initializes the local view model with blank payload and schema states to ensure a pristine playground environment.
          * 
          * @public
          */
         onInit: function () {
-            // Call base controller setup
             this.setupViewModel();
 
             this.oModel = new JSONModel({
-                scenarios: [], // Populated dynamically
                 settings: {
-                    selectedScenario: "kitchen_sink",
-                    selectedBinding: "object",
-                    selectedRender: "embedded",
-                    useSwagger: false,
+                    useOpenApi: false,
                     liveUpdate: true,
                     useMessageManager: true,
                     editable: true,
                     debugMode: false,
                     logFieldChanges: false,
-                    forceCustomError: false
+                    forceCustomError: false,
+                    schemaTarget: "",
+                    schemaTargets: []
                 },
                 current: {
-                    data: "{}",
-                    schema: "{}",
-                    xmlSnippet: "",
-                    jsSnippet: ""
+                    data: "",
+                    schema: ""
                 }
             });
             this.getView().setModel(this.oModel);
-            this.getView().setModel(this.oModel, "settings"); // Named model for direct programmatic bindings
+            this.getView().setModel(this.oModel, "settings");
 
-            // Set global MessageManager model to the view for the footer button
             var oMessageManager = sap.ui.getCore().getMessageManager();
             this.getView().setModel(oMessageManager.getMessageModel(), "message");
-
-            // Fetch scenarios asynchronously
-            ScenarioManager.getIndex().then(function(aScenarios) {
-                // Hardcode hide OData V4 Mock for now
-                var filteredScenarios = aScenarios.filter(function(s) {
-                    return s.key !== "odata_v4";
-                });
-                this.oModel.setProperty("/scenarios", filteredScenarios);
-                
-                // Ensure we don't try to default to a hidden scenario
-                if (this.oModel.getProperty("/settings/selectedScenario") === "odata_v4" && filteredScenarios.length > 0) {
-                    this.oModel.setProperty("/settings/selectedScenario", filteredScenarios[0].key);
-                }
-                this.onMatrixChange();
-            }.bind(this)).catch(this.handleError.bind(this));
         },
 
         /**
-         * Triggered when the user changes the selected scenario dropdown.
-         * Fetches the new scenario payload and updates the snippets.
+         * Dynamically spawns a configuration settings dialog natively using the MetaUI engine itself.
+         * This allows developers to test MetaUI's ability to render complex forms inside popups dynamically.
          * 
          * @public
          */
-        onMatrixChange: function() {
-            var sScenario = this.oModel.getProperty("/settings/selectedScenario");
-            if (!sScenario) return;
-
-            var bUseSwagger = this.oModel.getProperty("/settings/useSwagger");
-            
-            if (bUseSwagger && sScenario !== "inference") {
-                sScenario += "_swagger";
-            }
-
-            ScenarioManager.getScenario(sScenario).then(function(oScenario) {
-                this.oModel.setProperty("/current/data", JSON.stringify(oScenario.data, null, 2));
-                this.oModel.setProperty("/current/schema", oScenario.schema ? JSON.stringify(oScenario.schema, null, 2) : "");
-                
-                try {
-                    this.oModel.setProperty("/current/dataObj", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
-                    var sSchema = this.oModel.getProperty("/current/schema");
-                    this.oModel.setProperty("/current/schemaObj", sSchema ? JSON.parse(sSchema) : null);
-                } catch(e) {
-                    // Ignore parse errors while typing, but valid JSON is required for generation
+        onSettingsPress: function () {
+            var settingsSchema = {
+                type: "object",
+                layoutStrategy: "form",
+                properties: {
+                    useOpenApi: { title: "Parse as OpenAPI", type: "boolean" },
+                    liveUpdate: { title: "Live Updates", type: "boolean" },
+                    useMessageManager: { title: "Global Errors", type: "boolean" },
+                    editable: { title: "Editable", type: "boolean" },
+                    debugMode: { title: "Debug Mode", type: "boolean" },
+                    logFieldChanges: { title: "Log Field Changes", type: "boolean" },
+                    forceCustomError: { title: "Force Custom Errors", type: "boolean" }
                 }
+            };
 
-                this.updateCodeSnippets();
-            }.bind(this)).catch(this.handleError.bind(this));
+            var settingsHost = new DynamicHost({
+                schemaDefinition: settingsSchema,
+                liveUpdate: true
+            });
+
+            this.getView().addDependent(settingsHost);
+            settingsHost.bindProperty("data", { path: "settings>/settings" });
+
+            settingsHost.openInDialog("Configuration Settings", "Apply", "Cancel", "auto", this.getView());
         },
 
         /**
-         * Triggered when binding or render mode changes.
+         * Monitors real-time typing in the schema editor.
+         * Dynamically detects Swagger/OpenAPI structures and surfaces available generation targets in the toolbar.
          * 
          * @public
          */
-        onToggleChange: function() {
-            this.updateCodeSnippets();
-            
-            // If the user turns off the global message manager, we must flush it immediately
-            // to hide the footer popover button and clear old ghost errors.
-            if (!this.oModel.getProperty("/settings/useMessageManager")) {
-                sap.ui.getCore().getMessageManager().removeAllMessages();
+        onSchemaChange: function () {
+            var sSchema = this.oModel.getProperty("/current/schema");
+            try {
+                var oSchemaObj = sSchema ? JSON.parse(sSchema) : null;
+                var aTargets = OpenApiExtractor.extractTargets(oSchemaObj);
+                this.oModel.setProperty("/settings/schemaTargets", aTargets);
+                
+                // If a targets array exists and current target is empty or invalid, select the first one
+                var sCurrentTarget = this.oModel.getProperty("/settings/schemaTarget");
+                if (aTargets.length > 0) {
+                    var bExists = aTargets.some(function(t) { return t.key === sCurrentTarget; });
+                    if (!bExists) {
+                        this.oModel.setProperty("/settings/schemaTarget", aTargets[0].key);
+                    }
+                    this.oModel.setProperty("/settings/useOpenApi", true); // Auto-toggle openapi mode for convenience
+                }
+            } catch(e) {
+                Log.trace("[Playground] Ignored invalid schema JSON during typing: " + e.message);
             }
         },
 
         /**
-         * Delegates snippet generation to the SnippetGenerator module.
-         * 
-         * @private
-         */
-        updateCodeSnippets: function() {
-            var oSettings = this.oModel.getProperty("/settings");
-            
-            // Generate Authentic JS synchronously
-            var js = SnippetGenerator.generateJS(oSettings);
-            this.oModel.setProperty("/current/jsSnippet", js);
-
-            // Fetch Authentic XML asynchronously
-            SnippetGenerator.fetchXML(oSettings.selectedBinding).then(function(xml) {
-                this.oModel.setProperty("/current/xmlSnippet", xml);
-            }.bind(this));
-        },
-
-        /**
-         * Main event handler to instantiate and mount the DynamicHost.
-         * Authentic Testing: Directly loads the scenario's authentic fragment or tests the JS API.
+         * Parses the manually typed schema and payload strings and orchestrates the programmatic instantiation 
+         * of a fresh MetaUI DynamicHost instance.
          * 
          * @public
          */
@@ -145,9 +122,7 @@ sap.ui.define([
             var oSettings = this.oModel.getProperty("/settings");
             var container = this.byId("hostContainer");
             
-            // CRITICAL MEMORY LEAK FIX:
-            // Ensure destroyed items are fully removed from the View's dependents aggregation
-            // to prevent UI5 element ID collisions and corrupted bindings.
+            // Teardown the previously running host instance
             var items = container.getItems();
             items.forEach(function(item) {
                 this.getView().removeDependent(item);
@@ -155,115 +130,37 @@ sap.ui.define([
             }.bind(this));
             container.removeAllItems();
 
-            // Bridge parse for object mode in case user edited inbound JSON
             try {
-                this.oModel.setProperty("/current/dataObj", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
-                var sSchema = this.oModel.getProperty("/current/schema");
-                this.oModel.setProperty("/current/schemaObj", sSchema ? JSON.parse(sSchema) : null);
-            } catch(e) {
-                MessageToast.show("Invalid JSON in Editor: Cannot parse.");
-                return;
-            }
-
-            if (oSettings.selectedBinding === "programmatic" || oSettings.selectedRender === "js_scratch" || oSettings.selectedRender === "js_dialog") {
-                this._instantiateProgrammaticHost(oSettings, container);
-            } else {
-                this._instantiateFragmentHost(oSettings, container);
-            }
-        },
-
-        /**
-         * Instantiates the host programmatically based on the active JS scratch settings.
-         * 
-         * @private
-         * @param {object} oSettings Active view settings
-         * @param {sap.m.VBox} container The container to mount the host in
-         */
-        _instantiateProgrammaticHost: function(oSettings, container) {
-            sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(DynamicHost) {
-                try {
-                    var host = new DynamicHost({
-                        error: this.onHostError.bind(this),
-                        fieldChange: this.onHostFieldChange.bind(this),
-                        submit: this.onHostSubmit.bind(this)
-                    });
-                    
-                    // Natively bind settings so that toggling the toolbar switches instantly applies to programmatic tests
-                    host.bindProperty("liveUpdate", { path: "settings>/settings/liveUpdate" });
-                    host.bindProperty("editable", { path: "settings>/settings/editable" });
-                    host.bindProperty("debugMode", { path: "settings>/settings/debugMode" });
-                    host.bindProperty("useMessageManager", { path: "settings>/settings/useMessageManager" });
-                    
-                    if (oSettings.selectedBinding === "programmatic") {
-                        host.setProperty("data", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
-                        host.setProperty("schemaDefinition", JSON.parse(this.oModel.getProperty("/current/schema") || "{}"));
-                    } else { // js_scratch or js_dialog
-                        if (oSettings.selectedBinding === "string") {
-                            host.bindProperty("dataJson", { path: "/current/data" });
-                            host.bindProperty("schemaDefinition", { path: "/current/schema" });
-                        } else if (oSettings.selectedBinding === "object") {
-                            host.bindProperty("data", { path: "/current/dataObj" });
-                            host.bindProperty("schemaDefinition", { path: "/current/schemaObj" });
-                        } else if (oSettings.selectedBinding === "odata") {
-                            host.bindElement({ path: "/Employees('E100')", model: "odata" });
-                        }
-                    }
-
-                    if (oSettings.selectedRender === "dialog" || oSettings.selectedRender === "js_dialog") {
-                        // CRITICAL: Must add as dependent BEFORE opening dialog so bindings resolve
-                        this.getView().addDependent(host);
-                        host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView());
-                    } else {
-                        container.addItem(host);
-                    }
-                } catch (e) {
-                    MessageToast.show("Fatal error instantiating programmatic host: " + e.message);
+                var host = new DynamicHost({
+                    error: this.onHostError.bind(this),
+                    fieldChange: this.onHostFieldChange.bind(this),
+                    submit: this.onHostSubmit.bind(this)
+                });
+                
+                host.bindProperty("liveUpdate", { path: "settings>/settings/liveUpdate" });
+                host.bindProperty("editable", { path: "settings>/settings/editable" });
+                host.bindProperty("debugMode", { path: "settings>/settings/debugMode" });
+                host.bindProperty("useMessageManager", { path: "settings>/settings/useMessageManager" });
+                
+                host.bindProperty("dataJson", { path: "/current/data" });
+                host.setProperty("schemaDefinition", this.oModel.getProperty("/current/schema"));
+                
+                if (oSettings.useOpenApi) {
+                    host.bindProperty("schemaTarget", { path: "settings>/settings/schemaTarget" });
                 }
-            }.bind(this), function(err) {
-                MessageToast.show("Failed to require DynamicHost: " + err.message);
-            });
-        },
 
-        /**
-         * Loads the authentic XML fragment.
-         * 
-         * @private
-         * @param {object} oSettings Active view settings
-         * @param {sap.m.VBox} container The container to mount the host in
-         */
-        _instantiateFragmentHost: function(oSettings, container) {
-            var fragmentMap = {
-                "string": "StringBinding",
-                "object": "ObjectBinding",
-                "odata": "ODataBinding"
-            };
-            var sFragmentName = fragmentMap[oSettings.selectedBinding];
-            if (!sFragmentName) {
-                MessageToast.show("Unknown binding mode for fragment.");
-                return;
+                container.addItem(host);
+            } catch (e) {
+                Log.error("[Playground] Fatal error instantiating programmatic host: " + e.message);
+                MessageToast.show("Fatal error instantiating programmatic host: " + e.message);
             }
-
-            sap.ui.core.Fragment.load({
-                name: "metaui.sandbox.view.fragments." + sFragmentName,
-                controller: this
-            }).then(function(oHost) {
-                this.getView().addDependent(oHost);
-
-                if (oSettings.selectedRender === "dialog") {
-                    oHost.openInDialog("XML Fragment Dialog", "Extract Data", "Cancel", "auto", this.getView());
-                } else {
-                    container.addItem(oHost);
-                }
-            }.bind(this)).catch(function(err) {
-                MessageToast.show("Failed to load authentic fragment: " + err.message);
-            });
         },
 
         /**
-         * Event handler for engine validation errors.
+         * Generic error handler to surface engine crashes cleanly.
          * 
          * @public
-         * @param {sap.ui.base.Event} oEvent The UI5 Event object
+         * @param {sap.ui.base.Event} oEvent The error event from DynamicHost.
          */
         onHostError: function (oEvent) {
             var msg = oEvent.getParameter("message") || "An error occurred in the engine.";
@@ -273,10 +170,11 @@ sap.ui.define([
         },
 
         /**
-         * Event handler for live updates from the engine.
+         * Intercepts individual field changes to test custom validation error injection
+         * and to synchronize live payloads back to the code editor.
          * 
          * @public
-         * @param {sap.ui.base.Event} oEvent The UI5 Event object
+         * @param {sap.ui.base.Event} oEvent The fieldChange event.
          */
         onHostFieldChange: function (oEvent) {
             var sPath = oEvent.getParameter("fieldPath");
@@ -286,7 +184,6 @@ sap.ui.define([
             
             var oSettings = this.oModel.getProperty("/settings");
 
-            // Custom Error Injection Test
             if (sPath) {
                 if (oSettings.forceCustomError) {
                     host.addCustomError(sPath, "Forced custom error from toggle.");
@@ -295,9 +192,7 @@ sap.ui.define([
                 }
             }
 
-            // Example: Log or act on specific field interactions without waiting for submit
             if (oSettings.logFieldChanges && sPath) {
-                // We use MessageToast just to visually demonstrate the event firing in the test app
                 sap.ui.require(["sap/m/MessageToast"], function(MessageToast) {
                     MessageToast.show("Field modified: " + sPath + "\nValid: " + bIsValid);
                 });
@@ -309,10 +204,10 @@ sap.ui.define([
         },
 
         /**
-         * Event handler for successful extraction pipeline.
+         * Surfaces the natively extracted JSON payload from a valid submit event.
          * 
          * @public
-         * @param {sap.ui.base.Event} oEvent The UI5 Event object
+         * @param {sap.ui.base.Event} oEvent The submit event containing the payload.
          */
         onHostSubmit: function (oEvent) {
             var payload = oEvent.getParameter("payload");
@@ -322,7 +217,8 @@ sap.ui.define([
         },
 
         /**
-         * Forces programmatic extraction of the active engine instance.
+         * Programmatically triggers a mock extraction on the running DynamicHost.
+         * Evaluates structural integrity before allowing submission.
          * 
          * @public
          */
@@ -344,10 +240,24 @@ sap.ui.define([
         },
 
         /**
-         * Toggles the Message Popover in the footer.
+         * Event handler for navigating back.
          * 
          * @public
-         * @param {sap.ui.base.Event} oEvent The press event
+         */
+        onNavBack: function () {
+            var sPreviousHash = History.getInstance().getPreviousHash();
+            if (sPreviousHash !== undefined) {
+                window.history.go(-1);
+            } else {
+                this.getOwnerComponent().getRouter().navTo("home", {}, true);
+            }
+        },
+
+        /**
+         * Toggles the UI5 core MessagePopover dynamically instantiated on demand.
+         * 
+         * @public
+         * @param {sap.ui.base.Event} oEvent The button press event.
          */
         onMessagePopoverPress: function (oEvent) {
             var oSourceControl = oEvent.getSource();

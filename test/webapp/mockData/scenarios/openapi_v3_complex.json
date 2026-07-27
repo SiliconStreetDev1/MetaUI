@@ -1,0 +1,190 @@
+{
+  "key": "openapi_v3_complex",
+  "name": "OpenApi V3 Complex",
+  "data": {
+    "ApplicationId": "APP-9988-XYZ",
+    "ApplicantType": "Corporate",
+    "BaseDetails": {
+      "ContactEmail": "treasury@megacorp.com",
+      "Phone": "+1-555-0198"
+    },
+    "CorporateDetails": {
+      "CompanyName": "MegaCorp Inc",
+      "TaxId": "99-9999999",
+      "IncorporationDate": "2010-05-12T00:00:00Z"
+    },
+    "LoanRequest": {
+      "Amount": 5000000,
+      "Currency": "USD",
+      "TermMonths": 60,
+      "Purpose": "Expansion"
+    },
+    "CoSigner": null,
+    "Guarantors": [
+      {
+        "Name": "John Smith",
+        "NetWorth": 15000000
+      }
+    ],
+    "Metadata": {
+      "riskScore": "A+",
+      "originatingBranch": "NY-01"
+    },
+    "DocumentLink": "https://vault.megacorp.com/docs/loan123"
+  },
+  "schema": {
+    "openapi": "3.0.0",
+    "info": {
+      "version": "2.0.0",
+      "title": "Fintech Loan Application API"
+    },
+    "paths": {},
+    "components": {
+      "schemas": {
+        "CorporateApplication": {
+          "allOf": [
+            {
+              "type": "object",
+              "required": [
+                "ApplicationId",
+                "ApplicantType",
+                "BaseDetails",
+                "CorporateDetails",
+                "LoanRequest"
+              ],
+              "properties": {
+                "ApplicationId": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "System-generated application ID"
+                },
+                "ApplicantType": {
+                  "type": "string",
+                  "enum": [
+                    "Retail",
+                    "Corporate"
+                  ]
+                },
+                "BaseDetails": {
+                  "$ref": "#/components/schemas/ContactInfo"
+                },
+                "CorporateDetails": {
+                  "$ref": "#/components/schemas/CorporateInfo"
+                },
+                "LoanRequest": {
+                  "$ref": "#/components/schemas/LoanDetails"
+                },
+                "CoSigner": {
+                  "$ref": "#/components/schemas/ContactInfo",
+                  "nullable": true,
+                  "description": "Optional co-signer details"
+                },
+                "Guarantors": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Guarantor"
+                  }
+                },
+                "Metadata": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "DocumentLink": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          ]
+        },
+        "ContactInfo": {
+          "type": "object",
+          "required": [
+            "ContactEmail"
+          ],
+          "properties": {
+            "ContactEmail": {
+              "type": "string",
+              "format": "email"
+            },
+            "Phone": {
+              "type": "string",
+              "pattern": "^\\+?[1-9]\\d{1,14}$"
+            }
+          }
+        },
+        "CorporateInfo": {
+          "type": "object",
+          "required": [
+            "CompanyName",
+            "TaxId"
+          ],
+          "properties": {
+            "CompanyName": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            },
+            "TaxId": {
+              "type": "string",
+              "pattern": "^\\d{2}-\\d{7}$"
+            },
+            "IncorporationDate": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "LoanDetails": {
+          "type": "object",
+          "required": [
+            "Amount",
+            "Currency",
+            "TermMonths"
+          ],
+          "properties": {
+            "Amount": {
+              "type": "number",
+              "minimum": 10000,
+              "maximum": 50000000
+            },
+            "Currency": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            },
+            "TermMonths": {
+              "type": "integer",
+              "minimum": 12,
+              "maximum": 360,
+              "multipleOf": 12
+            },
+            "Purpose": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "Guarantor": {
+          "type": "object",
+          "required": [
+            "Name",
+            "NetWorth"
+          ],
+          "properties": {
+            "Name": {
+              "type": "string"
+            },
+            "NetWorth": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemaTarget": "#/components/schemas/CorporateApplication"
+}

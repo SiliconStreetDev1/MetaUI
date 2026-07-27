@@ -1,0 +1,56 @@
+{
+    "openapi": "3.0.0",
+    "info": { "title": "Complex OA3 Test", "version": "1.0.0" },
+    "components": {
+        "schemas": {
+            "Product": {
+                "type": "object",
+                "required": ["id", "name"],
+                "properties": {
+                    "id": { "type": "string", "format": "uuid", "readOnly": true },
+                    "name": { "type": "string", "maxLength": 100, "nullable": true },
+                    "price": { "type": "number", "exclusiveMaximum": 10000, "exclusiveMinimum": 0 },
+                    "hiddenSecret": { "type": "string", "writeOnly": true },
+                    "legacyField": { "type": "string", "deprecated": true },
+                    "document": { "type": "string", "format": "binary" },
+                    "paymentMethod": {
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "card": "#/components/schemas/CreditCard",
+                                "bank": "#/components/schemas/BankAccount"
+                            }
+                        },
+                        "oneOf": [
+                            { "$ref": "#/components/schemas/CreditCard" },
+                            { "$ref": "#/components/schemas/BankAccount" }
+                        ]
+                    },
+                    "flexibleConfig": {
+                        "anyOf": [
+                            { "type": "string" },
+                            { "type": "object", "additionalProperties": { "type": "number" } }
+                        ]
+                    },
+                    "blacklistedItem": {
+                        "not": { "type": "string", "pattern": "^restricted.*$" }
+                    }
+                }
+            },
+            "CreditCard": {
+                "type": "object",
+                "properties": {
+                    "type": { "type": "string" },
+                    "cardNumber": { "type": "string" }
+                }
+            },
+            "BankAccount": {
+                "type": "object",
+                "properties": {
+                    "type": { "type": "string" },
+                    "accountNumber": { "type": "string" }
+                }
+            }
+        }
+    }
+}

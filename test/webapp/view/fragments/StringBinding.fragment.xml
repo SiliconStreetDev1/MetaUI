@@ -5,7 +5,7 @@
     <!-- Authentic String Binding: Directly injecting raw JSON text -->
     <meta:DynamicHost
         dataJson="{/current/data}"
-        schemaDefinition="{/current/schema}"
+        schemaDefinition="{ path: '/current/schema', mode: 'OneWay' }"
         liveUpdate="{/settings/liveUpdate}"
         editable="{/settings/editable}"
         debugMode="{/settings/debugMode}"

@@ -2,102 +2,149 @@
   "key": "wizard",
   "name": "Wizard Layout",
   "data": {
-    "FirstName": "Jane",
-    "LastName": "Smith",
-    "Email": "jane.smith@example.com",
-    "Department": "Engineering",
-    "StartDate": "2026-08-01"
+    "ApplicationID": "MORT-2026-X99",
+    "LoanAmount": 500000,
+    "LoanTermYears": 30,
+    "InterestRate": 6.5,
+    "PropertyAddress": "",
+    "Applicant": {
+      "FirstName": "",
+      "LastName": "",
+      "DOB": "",
+      "SSN": ""
+    },
+    "Employment": {
+      "EmployerName": "",
+      "JobTitle": "",
+      "YearsEmployed": 0,
+      "MonthlyIncome": 0
+    },
+    "Assets": [],
+    "Declarations": {
+      "IsFirstTimeBuyer": false,
+      "HasBankruptcies": false,
+      "AgreesToTerms": false
+    }
   },
   "schema": {
-    "title": "Employee Onboarding",
+    "title": "Enterprise Mortgage Application",
     "type": "object",
     "layoutStrategy": "wizard",
     "properties": {
-      "FirstName": {
+      "ApplicationID": {
         "type": "string",
-        "required": true,
-        "ui": {
-          "label": "First Name"
-        }
+        "ui": { "label": "Application ID", "readOnly": true }
       },
-      "LastName": {
-        "type": "string",
+      "LoanAmount": {
+        "type": "number",
         "required": true,
-        "ui": {
-          "label": "Last Name"
-        }
+        "minimum": 50000,
+        "ui": { "label": "Requested Loan Amount", "formatter": "currency" }
       },
-      "Email": {
-        "type": "string",
+      "LoanTermYears": {
+        "type": "number",
         "required": true,
-        "ui": {
-          "label": "Work Email",
-          "validators": [
-            "email"
-          ]
-        }
-      },
-      "Department": {
-        "type": "string",
-        "ui": {
-          "label": "Department",
-          "widget": "select"
-        },
+        "ui": { "label": "Loan Term (Years)", "widget": "select" },
         "valueHelp": [
-          {
-            "key": "Engineering",
-            "text": "Engineering"
-          },
-          {
-            "key": "Sales",
-            "text": "Sales"
-          }
+          { "key": "15", "text": "15 Years" },
+          { "key": "20", "text": "20 Years" },
+          { "key": "30", "text": "30 Years" }
         ]
       },
-      "StartDate": {
-        "type": "date",
-        "ui": {
-          "label": "Start Date"
+      "InterestRate": {
+        "type": "number",
+        "ui": { "label": "Estimated Interest Rate (%)", "readOnly": true }
+      },
+      "PropertyAddress": {
+        "type": "string",
+        "required": true,
+        "ui": { "label": "Subject Property Address", "widget": "textArea", "rows": 2 }
+      },
+      "Applicant": {
+        "type": "object",
+        "properties": {
+          "FirstName": { "type": "string", "required": true, "ui": { "label": "First Name" } },
+          "LastName": { "type": "string", "required": true, "ui": { "label": "Last Name" } },
+          "DOB": { "type": "date", "required": true, "ui": { "label": "Date of Birth" } },
+          "SSN": { "type": "string", "required": true, "ui": { "label": "Social Security Number" } }
+        }
+      },
+      "Employment": {
+        "type": "object",
+        "properties": {
+          "EmployerName": { "type": "string", "required": true, "ui": { "label": "Employer Name" } },
+          "JobTitle": { "type": "string", "ui": { "label": "Job Title" } },
+          "YearsEmployed": { "type": "number", "required": true, "ui": { "label": "Years at Company" } },
+          "MonthlyIncome": { "type": "number", "required": true, "ui": { "label": "Gross Monthly Income", "formatter": "currency" } }
+        }
+      },
+      "Assets": {
+        "type": "array",
+        "ui": { "label": "Liquid Assets & Accounts" },
+        "items": {
+          "type": "object",
+          "properties": {
+            "Institution": { "type": "string", "required": true, "ui": { "label": "Bank / Institution" } },
+            "AccountType": { 
+              "type": "string", 
+              "ui": { "widget": "select" },
+              "valueHelp": [
+                { "key": "Checking", "text": "Checking" },
+                { "key": "Savings", "text": "Savings" },
+                { "key": "Investment", "text": "Investment" }
+              ]
+            },
+            "Balance": { "type": "number", "ui": { "label": "Account Balance", "formatter": "currency" } }
+          }
+        }
+      },
+      "Declarations": {
+        "type": "object",
+        "properties": {
+          "IsFirstTimeBuyer": { "type": "boolean", "ui": { "label": "Are you a first-time homebuyer?", "widget": "switch" } },
+          "HasBankruptcies": { "type": "boolean", "ui": { "label": "Have you declared bankruptcy in the last 7 years?", "widget": "switch" } },
+          "AgreesToTerms": { "type": "boolean", "required": true, "ui": { "label": "I agree to the terms and conditions" } }
         }
       }
     },
     "uiLayout": [
       {
         "type": "Group",
-        "label": "Personal Information",
+        "label": "Loan Details",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/FirstName"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/LastName"
-          }
+          { "type": "Control", "scope": "#/properties/ApplicationID" },
+          { "type": "Control", "scope": "#/properties/PropertyAddress" },
+          { "type": "Control", "scope": "#/properties/LoanAmount" },
+          { "type": "Control", "scope": "#/properties/LoanTermYears" },
+          { "type": "Control", "scope": "#/properties/InterestRate" }
         ]
       },
       {
         "type": "Group",
-        "label": "Contact Details",
+        "label": "Applicant Information",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/Email"
-          }
+          { "type": "Control", "scope": "#/properties/Applicant" }
         ]
       },
       {
         "type": "Group",
-        "label": "Role Specifics",
+        "label": "Income & Employment",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/Department"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/StartDate"
-          }
+          { "type": "Control", "scope": "#/properties/Employment" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Assets",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/Assets" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Declarations & Signatures",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/Declarations" }
         ]
       }
     ]

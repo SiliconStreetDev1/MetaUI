@@ -24,7 +24,7 @@ sap.ui.define([
         var render = oSettings.selectedRender;
         
         var js = "";
-        if (binding === "programmatic") {
+             if (binding === "programmatic") {
             js = 'sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function(DynamicHost) {\n' +
                  '    var host = new DynamicHost({\n' +
                  '        liveUpdate: ' + oSettings.liveUpdate + ',\n' +
@@ -33,6 +33,11 @@ sap.ui.define([
                  '    host.setProperty("data", JSON.parse(this.oModel.getProperty("/current/data")));\n' +
                  '    var sSchema = this.oModel.getProperty("/current/schema");\n' +
                  '    host.setProperty("schemaDefinition", sSchema ? JSON.parse(sSchema) : null);\n';
+                 
+            if (oSettings.schemaTarget) {
+                js += '    host.setProperty("schemaTarget", "' + oSettings.schemaTarget + '");\n';
+            }
+
             if (render === "dialog" || render === "js_dialog") {
                 js += '    this.getView().addDependent(host);\n' +
                       '    // We pass "auto" to let MetaUI heuristically determine if 80vw is needed\n' +

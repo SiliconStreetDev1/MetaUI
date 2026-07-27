@@ -2,36 +2,105 @@
   "key": "hybrid_inference",
   "name": "Hybrid Inference",
   "data": {
-    "ProductID": "PRD-990",
-    "ProductName": "Quantum Matrix Server",
-    "InStock": true,
-    "Price": 9999.99,
-    "Category": "Server Infrastructure",
-    "Tags": [
-      "Quantum",
-      "Compute",
-      "Cloud"
-    ]
+    "ProjectID": "PRJ-9042",
+    "DeploymentName": "Core Infrastructure Stack",
+    "Environment": "Production",
+    "BillingAccount": "BILL-XYZ-123",
+    "IsActive": true,
+    "ClusterConfig": {
+      "Region": "us-west-2",
+      "AvailabilityZones": ["us-west-2a", "us-west-2b"],
+      "KubernetesVersion": "1.28",
+      "NetworkSetup": {
+        "VpcId": "vpc-0abc123def",
+        "Subnets": ["subnet-1", "subnet-2"],
+        "EnableNatGateway": true
+      }
+    },
+    "NodePools": [
+      {
+        "PoolName": "system-pool",
+        "InstanceType": "m5.large",
+        "MinNodes": 3,
+        "MaxNodes": 5,
+        "Labels": {
+          "role": "system",
+          "tier": "critical"
+        }
+      },
+      {
+        "PoolName": "worker-pool",
+        "InstanceType": "c5.xlarge",
+        "MinNodes": 5,
+        "MaxNodes": 20,
+        "Labels": {
+          "role": "compute",
+          "tier": "spot"
+        }
+      }
+    ],
+    "Tags": ["compliance:hipaa", "cost-center:engineering", "owner:devops"]
   },
   "schema": {
     "type": "object",
+    "title": "Cloud Infrastructure Provisioning (Hybrid Inference)",
     "additionalProperties": true,
     "properties": {
-      "Category": {
+      "Environment": {
+        "type": "string",
         "ui": {
-          "label": "Overridden Dropdown",
+          "label": "Deployment Environment",
           "widget": "select"
         },
         "valueHelp": [
-          {
-            "key": "Server Infrastructure",
-            "text": "Server Infrastructure"
-          },
-          {
-            "key": "Networking",
-            "text": "Networking"
-          }
+          { "key": "Development", "text": "Development" },
+          { "key": "Staging", "text": "Staging" },
+          { "key": "Production", "text": "Production" }
         ]
+      },
+      "ClusterConfig": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "Region": {
+            "type": "string",
+            "ui": {
+              "widget": "select"
+            },
+            "valueHelp": [
+              { "key": "us-east-1", "text": "US East (N. Virginia)" },
+              { "key": "us-west-2", "text": "US West (Oregon)" },
+              { "key": "eu-central-1", "text": "EU (Frankfurt)" }
+            ]
+          }
+        }
+      },
+      "NodePools": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "InstanceType": {
+              "type": "string",
+              "ui": {
+                "widget": "select"
+              },
+              "valueHelp": [
+                { "key": "m5.large", "text": "General Purpose - m5.large" },
+                { "key": "c5.xlarge", "text": "Compute Optimized - c5.xlarge" },
+                { "key": "r5.2xlarge", "text": "Memory Optimized - r5.2xlarge" }
+              ]
+            },
+            "Labels": {
+              "type": "object",
+              "properties": {
+                "role": { "type": "string" },
+                "tier": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     }
   }

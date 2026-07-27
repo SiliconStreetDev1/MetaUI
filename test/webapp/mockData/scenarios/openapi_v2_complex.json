@@ -1,0 +1,143 @@
+{
+  "key": "openapi_v2_complex",
+  "name": "OpenApi V2 Complex",
+  "data": {
+    "UserId": "USR-899123",
+    "EmployeeProfile": {
+      "FirstName": "Jane",
+      "LastName": "Doe",
+      "Email": "jane.doe@enterprise.com",
+      "Age": 32,
+      "Salary": 125000,
+      "Status": "Active"
+    },
+    "Addresses": [
+      {
+        "Street": "123 Corporate Blvd",
+        "City": "San Francisco",
+        "ZipCode": "94105",
+        "Country": "USA"
+      }
+    ],
+    "AssignedRoles": [
+      "sys_admin",
+      "db_reader"
+    ],
+    "CustomTags": {
+      "department": "Engineering",
+      "clearance": "Level 4"
+    }
+  },
+  "schema": {
+    "swagger": "2.0",
+    "info": {
+      "version": "1.0.0",
+      "title": "Enterprise User Provisioning API"
+    },
+    "paths": {},
+    "definitions": {
+      "UserPayload": {
+        "type": "object",
+        "required": [
+          "UserId",
+          "EmployeeProfile"
+        ],
+        "properties": {
+          "UserId": {
+            "type": "string",
+            "description": "Unique immutable identifier for the user",
+            "minLength": 5,
+            "maxLength": 20
+          },
+          "EmployeeProfile": {
+            "$ref": "#/definitions/EmployeeProfile"
+          },
+          "Addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/Address"
+            }
+          },
+          "AssignedRoles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3
+            }
+          },
+          "CustomTags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EmployeeProfile": {
+        "type": "object",
+        "required": [
+          "FirstName",
+          "LastName",
+          "Email"
+        ],
+        "properties": {
+          "FirstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "LastName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "Email": {
+            "type": "string",
+            "format": "email"
+          },
+          "Age": {
+            "type": "integer",
+            "minimum": 18,
+            "maximum": 120
+          },
+          "Salary": {
+            "type": "number",
+            "minimum": 30000,
+            "multipleOf": 1000
+          },
+          "Status": {
+            "type": "string",
+            "enum": [
+              "Active",
+              "Suspended",
+              "Terminated"
+            ]
+          }
+        }
+      },
+      "Address": {
+        "type": "object",
+        "required": [
+          "City",
+          "Country"
+        ],
+        "properties": {
+          "Street": {
+            "type": "string"
+          },
+          "City": {
+            "type": "string"
+          },
+          "ZipCode": {
+            "type": "string",
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "Country": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "schemaTarget": "#/definitions/UserPayload"
+}

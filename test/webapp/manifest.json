@@ -76,14 +76,14 @@
           "target": "home"
         },
         {
+          "pattern": "scenario/{mode}",
+          "name": "scenario",
+          "target": "scenarioRunner"
+        },
+        {
           "pattern": "playground",
           "name": "playground",
           "target": "playground"
-        },
-        {
-          "pattern": "odata",
-          "name": "odata",
-          "target": "odata"
         },
         {
           "pattern": "playpen",
@@ -96,13 +96,13 @@
           "viewId": "home",
           "viewName": "Home"
         },
+        "scenarioRunner": {
+          "viewId": "scenarioRunner",
+          "viewName": "ScenarioRunner"
+        },
         "playground": {
           "viewId": "playground",
           "viewName": "Playground"
-        },
-        "odata": {
-          "viewId": "odata",
-          "viewName": "ODataTest"
         },
         "playpen": {
           "viewId": "playpen",

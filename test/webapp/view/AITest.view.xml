@@ -1,0 +1,78 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.AITest"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.f"
+    xmlns:layout="sap.ui.layout"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    xmlns:ce="sap.ui.codeeditor">
+
+    <f:DynamicPage id="page" headerExpanded="true">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="Generative AI Inference" />
+                </f:heading>
+                <f:navigationActions>
+                    <Button icon="sap-icon://nav-back" press="onNavBack" />
+                </f:navigationActions>
+                <f:actions>
+                    <Button text="Trigger Inference" type="Emphasized" press="onTriggerInference" />
+                </f:actions>
+            </f:DynamicPageTitle>
+        </f:title>
+
+        <f:header>
+            <f:DynamicPageHeader pinnable="true">
+                <layout:HorizontalLayout>
+                    <layout:VerticalLayout class="sapUiMediumMarginEnd">
+                        <Label text="Inference Strategy" />
+                        <Select id="inferenceStrategySelect" selectedKey="{/inferenceStrategy}">
+                            <core:Item xmlns:core="sap.ui.core" key="RuleBased" text="RuleBased (Fast &amp; Basic)" />
+                            <core:Item xmlns:core="sap.ui.core" key="AI" text="AI (Semantic &amp; Rich)" />
+                        </Select>
+                    </layout:VerticalLayout>
+                    <layout:VerticalLayout class="sapUiMediumMarginEnd">
+                        <Label text="AI Proxy Type" />
+                        <Select id="proxySelect" selectedKey="{/proxyType}">
+                            <core:Item xmlns:core="sap.ui.core" key="mock" text="Mock Proxy (Local Delay)" />
+                            <core:Item xmlns:core="sap.ui.core" key="rest" text="REST Proxy (External Backend)" />
+                        </Select>
+                    </layout:VerticalLayout>
+                </layout:HorizontalLayout>
+            </f:DynamicPageHeader>
+        </f:header>
+
+        <f:content>
+            <layout:Splitter>
+                <layout:SplitPane>
+                    <layout:Splitter orientation="Vertical">
+                        <layout:SplitPane>
+                            <Page title="Data Payload (JSON)" showHeader="true" enableScrolling="false">
+                                <ce:CodeEditor id="dataEditor" type="json" value="{/dataJson}" width="100%" height="100%" />
+                            </Page>
+                        </layout:SplitPane>
+                        <layout:SplitPane>
+                            <Page title="Partial Schema Override (JSON)" showHeader="true" enableScrolling="false">
+                                <ce:CodeEditor id="schemaEditor" type="json" value="{/schemaJson}" width="100%" height="100%" />
+                            </Page>
+                        </layout:SplitPane>
+                    </layout:Splitter>
+                </layout:SplitPane>
+
+                <layout:SplitPane>
+                    <Page title="Generated Fiori Output" enableScrolling="true">
+                        <VBox class="sapUiSmallMargin">
+                            <meta:DynamicHost 
+                                id="dynamicHost"
+                                inferenceStrategy="{/inferenceStrategy}"
+                                dataJson="{/dataJson}"
+                                schemaDefinition="{/schemaDefinition}"
+                                liveUpdate="true" />
+                        </VBox>
+                    </Page>
+                </layout:SplitPane>
+            </layout:Splitter>
+        </f:content>
+    </f:DynamicPage>
+</mvc:View>

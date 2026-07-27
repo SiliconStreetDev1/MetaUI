@@ -4,7 +4,23 @@ sap.ui.define([
 ], function (Controller, JSONModel) {
     "use strict";
 
+    /**
+     * @class
+     * Controller for the experimental Playpen view.
+     * Serves as a scratchpad for testing pure bidirectional data binding synchronization
+     * between raw JSON strings and dynamically bound Fiori objects.
+     * 
+     * @extends sap.ui.core.mvc.Controller
+     * @alias metaui.sandbox.controller.Playpen
+     */
     return Controller.extend("metaui.sandbox.controller.Playpen", {
+        
+        /**
+         * Lifecycle hook.
+         * Bootstraps the local view model with an initial payload to test live sync capabilities.
+         * 
+         * @public
+         */
         onInit: function () {
             var initialData = {
                 username: "admin123",
@@ -20,20 +36,42 @@ sap.ui.define([
             this.getView().setModel(oViewModel, "view");
         },
         
+        /**
+         * Explicitly triggers a one-way sync from the CodeEditor string over to the parsed object model.
+         * 
+         * @public
+         */
         onGenerate: function() {
             this._syncLeftToRight();
         },
 
+        /**
+         * Event handler attached to the CodeEditor to support live-typing synchronization.
+         * 
+         * @public
+         */
         onCodeEditorChange: function() {
             this._syncLeftToRight();
         },
 
+        /**
+         * Intercepts updates bubbled up from the dynamically generated MetaUI form 
+         * and serializes them back into the CodeEditor as a formatted string.
+         * 
+         * @public
+         */
         onFieldChange: function() {
             var oViewModel = this.getView().getModel("view");
             var oParsed = oViewModel.getProperty("/parsedData");
             oViewModel.setProperty("/jsonString", JSON.stringify(oParsed, null, 4));
         },
 
+        /**
+         * Private utility to parse the current raw string payload into an object.
+         * Silently catches syntax errors to prevent the UI from crashing mid-keystroke.
+         * 
+         * @private
+         */
         _syncLeftToRight: function() {
             var oViewModel = this.getView().getModel("view");
             var sValue = oViewModel.getProperty("/jsonString");

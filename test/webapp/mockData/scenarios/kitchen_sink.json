@@ -2,372 +2,214 @@
   "key": "kitchen_sink",
   "name": "Kitchen Sink",
   "data": {
-    "CustomerName": "Siliconst Corp",
-    "IsActive": true,
-    "Comments": "This customer requires priority shipping.",
-    "CreditLimit": 150000,
-    "AccountType": "CORPORATE",
-    "CreationDate": "2026-07-17",
-    "MeetingTime": "14:30:00",
-    "LastLogin": "2026-07-18T09:00:00",
-    "AccessRegions": [
-      "North America",
-      "Europe"
-    ],
-    "Discount": 15,
-    "ClientRating": 4,
-    "AlertMsg": "Please upload supporting docs.",
-    "Website": "https://www.siliconst.co.nz",
-    "IBAN": "NZ89370400440532013000",
-    "LicenseCode": "ABC-123",
-    "SupportPhone": "5551234567",
-    "ContactEmail": "admin@siliconst.co.nz",
-    "Revenue": 5000000,
-    "LiveCountries": "NZ",
-    "CustomCode": "/**\n * A massive block of code to test the dialog's dynamic width heuristics.\n * It includes multiple functions and long lines to stretch the editor.\n */\n\nfunction calculateOptimalDialogWidth(schema) {\n    let requiresWideDialog = false;\n    const scanProperties = (props) => {\n        for (const key in props) {\n            const prop = props[key];\n            if (prop.type === 'array' || prop.ui?.fullWidth || prop.ui?.widget === 'codeEditor') {\n                requiresWideDialog = true;\n                return;\n            }\n            if (prop.properties) scanProperties(prop.properties);\n        }\n    };\n    if (schema.properties) scanProperties(schema.properties);\n    return requiresWideDialog ? '80vw' : 'auto';\n}\n\n// Simulate a heavy payload process\nasync function simulateBackendProcessing(dataPayload) {\n    console.log('Sending data:', dataPayload);\n    await new Promise(resolve => setTimeout(resolve, 2000));\n    return {\n        success: true,\n        timestamp: new Date().toISOString(),\n        message: 'Successfully processed massive payload with no visual UI snapping.'\n    };\n}\n\nexport { calculateOptimalDialogWidth, simulateBackendProcessing };\n",
-    "Contacts": [
-      {
-        "ContactID": "C-001",
-        "FullName": "Alice Smith",
-        "Role": "ADMIN",
-        "HasPortalAccess": true
-      },
-      {
-        "ContactID": "C-002",
-        "FullName": "Bob Jones",
-        "Role": "BILLING",
-        "HasPortalAccess": false
-      }
-    ]
+    "Str": "Simple String",
+    "Num": 1234,
+    "DateVal": "2026-12-31",
+    "BoolVal": true,
+    "Arr": [{"Col1": "Val1"}, {"Col1": "Val2"}],
+    "Obj": { "Key": "Value" },
+    "PolyVal": {
+      "type": "string",
+      "value": "Polymorphic String Data"
+    },
+    "RefVal": "REF-89021",
+    "TimeVal": "15:45:00",
+    "DateTimeVal": "2026-12-31T15:45:00Z",
+    "SwitchVal": false,
+    "StepVal": 5,
+    "SelectVal": "OPT_2",
+    "TextAreaVal": "Line 1\nLine 2\nLine 3",
+    "CodeVal": "function test() { return true; }",
+    "FileVal": "https://example.com/doc.pdf",
+    "MultiSelVal": ["OPT_1", "OPT_3"],
+    "MultiInpVal": ["Tag1", "Tag2"],
+    "SliderVal": 75,
+    "RatingVal": 4,
+    "MsgVal": "System is operating normally",
+    "CameraVal": "",
+    "SigVal": "",
+    "LocVal": { "lat": -36.8485, "lng": 174.7633 },
+    "ScanVal": "9300000000012",
+    "VoiceVal": "Recorded speech text",
+    "RichTextVal": "<b>Bold</b> and <i>Italic</i>",
+    "UrlVal": "Launch SAP",
+    "SubmitVal": "Save Record",
+    "ODataVal": "ID_500",
+    "RemoteDropVal": "NZ",
+    "LiveSearchVal": "Siliconst",
+    "RemoteValHelpVal": "PROD-99",
+    "CurrencyVal": 1999.50,
+    "PhoneVal": "5551234567",
+    "EmailVal": "admin@siliconst.com",
+    "UrlFormatVal": "https://www.siliconst.com",
+    "IBANVal": "NZ89370400440532013000",
+    "RequiredString": "Must not be empty",
+    "RegexString": "ABC-1234"
   },
   "schema": {
-    "title": "Customer Profile",
+    "title": "Kitchen Sink (All Plugins & Validations)",
     "type": "object",
+    "required": ["RequiredString", "Num", "EmailVal"],
     "properties": {
-      "CustomerName": {
+      "RequiredString": { 
+        "type": "string", 
+        "required": true,
+        "ui": { "label": "Mandatory String" } 
+      },
+      "EmailVal": { 
         "type": "string",
         "required": true,
-        "maxLength": 50,
-        "ui": {
-          "label": "Customer Name",
-          "isKey": true
-        }
+        "ui": { "label": "Email Validation", "format": "email" } 
       },
-      "IsActive": {
-        "type": "boolean",
-        "ui": {
-          "label": "Account Active",
-          "widget": "switch"
-        }
+      "UrlFormatVal": { 
+        "type": "string", 
+        "ui": { "label": "URL Validation", "validators": ["url"] } 
       },
-      "Comments": {
-        "type": "string",
-        "ui": {
-          "label": "Additional Notes",
-          "widget": "textArea",
-          "rows": 4,
-          "fullWidth": true
-        }
+      "IBANVal": { 
+        "type": "string", 
+        "ui": { "label": "IBAN Validation", "validators": ["iban"] } 
       },
-      "AccountType": {
-        "type": "string",
-        "required": true,
-        "valueHelp": [
-          {
-            "key": "BASIC",
-            "text": "Basic Plan"
-          },
-          {
-            "key": "PREMIUM",
-            "text": "Premium Plan"
-          },
-          {
-            "key": "CORPORATE",
-            "text": "Corporate Plan"
-          }
-        ],
-        "ui": {
-          "label": "Account Type",
-          "widget": "select"
-        }
+      "RegexString": { 
+        "type": "string", 
+        "pattern": "^[A-Z]{3}-\\d{4}$",
+        "minLength": 8,
+        "maxLength": 8,
+        "ui": { "label": "Regex Pattern (ABC-1234)" } 
       },
-      "CreditLimit": {
-        "type": "number",
-        "required": true,
-        "scale": 2,
-        "ui": {
-          "label": "Credit Limit (USD)",
-          "visibleOn": "$root.IsActive === true"
-        }
-      },
-      "CreationDate": {
-        "type": "date",
-        "ui": {
-          "label": "Creation Date",
-          "readOnly": true
-        }
-      },
-      "Attachment": {
-        "type": "string",
-        "ui": {
-          "label": "Supporting Document",
-          "widget": "fileUploader"
-        }
-      },
-      "AccessRegions": {
-        "type": "array",
-        "enum": [
-          "North America",
-          "Europe",
-          "Asia",
-          "Oceania"
-        ],
-        "ui": {
-          "label": "Access Regions",
-          "widget": "multiSelect"
-        }
-      },
-      "Discount": {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 50,
-        "multipleOf": 5,
-        "ui": {
-          "label": "Discount % (Max 50%)",
-          "widget": "slider"
-        }
-      },
-      "ClientRating": {
-        "type": "number",
-        "maximum": 5,
-        "ui": {
-          "label": "Client Rating",
-          "widget": "rating"
-        }
-      },
-      "AlertMsg": {
-        "type": "string",
-        "ui": {
-          "widget": "messageStrip"
-        }
-      },
-      "Website": {
-        "type": "string",
-        "ui": {
-          "label": "Corporate Website",
-          "validators": [
-            "url"
-          ]
-        }
-      },
-      "IBAN": {
-        "type": "string",
-        "ui": {
-          "label": "Bank Account (IBAN)",
-          "validators": [
-            "iban"
-          ]
-        }
-      },
-      "LicenseCode": {
-        "type": "string",
-        "minLength": 7,
-        "pattern": "^[A-Z]{3}-\\d{3}$",
-        "ui": {
-          "label": "License Code (ABC-123)"
-        }
-      },
-      "SupportPhone": {
-        "type": "string",
-        "ui": {
-          "label": "Support Phone",
-          "formatter": "phone"
-        }
-      },
-      "ActionRow": {
-        "type": "string",
-        "ui": {
-          "label": "Navigate to Corporate",
-          "widget": "urlButton",
-          "args": "https://sap.com"
-        }
-      },
-      "ContactEmail": {
-        "type": "string",
-        "required": true,
-        "ui": {
-          "label": "Contact Email",
-          "format": "email"
-        }
-      },
-      "Revenue": {
-        "type": "number",
-        "ui": {
-          "label": "Projected Revenue",
-          "formatter": "currency"
-        }
-      },
-      "LiveCountries": {
-        "type": "string",
-        "ui": {
-          "label": "Live Country Search (Async)",
-          "widget": "remoteDropdown"
-        }
-      },
-      "ResetData": {
-        "type": "string",
-        "ui": {
-          "label": "Danger Zone",
-          "widget": "clearButton"
-        }
-      },
-      "MeetingTime": {
-        "type": "string",
-        "required": true,
-        "ui": {
-          "label": "Meeting Time",
-          "widget": "time"
-        }
-      },
-      "LastLogin": {
-        "type": "string",
-        "ui": {
-          "label": "Last Login Timestamp",
-          "readOnly": true,
-          "widget": "datetime"
-        }
-      },
-      "CustomCode": {
-        "type": "string",
-        "ui": {
-          "label": "Custom Sandbox Logic",
-          "widget": "codeEditor"
-        }
-      },
-      "Contacts": {
-        "type": "array",
-        "ui": {
-          "label": "Authorized Contacts"
-        },
-        "items": {
-          "type": "object",
-          "properties": {
-            "ContactID": {
-              "type": "string",
-              "required": true,
-              "ui": {
-                "label": "ID",
-                "isKey": true,
-                "readOnly": true
-              }
-            },
-            "FullName": {
-              "type": "string",
-              "required": true,
-              "maxLength": 100,
-              "ui": {
-                "label": "Full Name"
-              }
-            },
-            "Role": {
-              "type": "string",
-              "required": true,
-              "valueHelp": [
-                {
-                  "key": "ADMIN",
-                  "text": "Administrator"
-                },
-                {
-                  "key": "BILLING",
-                  "text": "Billing Contact"
-                }
-              ],
-              "ui": {
-                "label": "Role",
-                "widget": "select"
-              }
-            },
-            "HasPortalAccess": {
-              "type": "boolean",
-              "ui": {
-                "label": "Portal Access"
-              }
-            }
-          }
-        }
-      }
+      "Str": { "type": "string", "minLength": 2, "maxLength": 50, "ui": { "label": "String Plugin (Min 2, Max 50)" } },
+      "Num": { "type": "number", "minimum": 100, "maximum": 5000, "required": true, "ui": { "label": "Number Plugin (Min 100, Max 5000)" } },
+      "DateVal": { "type": "date", "ui": { "label": "Date Plugin" } },
+      "BoolVal": { "type": "boolean", "ui": { "label": "Boolean Plugin" } },
+      "Arr": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "type": "object", "properties": { "Col1": { "type": "string" } } }, "ui": { "label": "Array Plugin" } },
+      "Obj": { "type": "object", "ui": { "label": "Object Plugin" }, "properties": { "Key": { "type": "string" } } },
+      "PolyVal": { "type": "object", "ui": { "label": "Polymorphic Plugin", "widget": "polymorphic" }, "properties": { "type": { "type": "string" }, "value": { "type": "string" } } },
+      "RefVal": { "type": "object", "$ref": "#/definitions/MockReference", "ui": { "label": "Reference Plugin", "widget": "reference" } },
+      "TimeVal": { "type": "string", "ui": { "label": "Time Plugin", "widget": "time" } },
+      "DateTimeVal": { "type": "string", "ui": { "label": "DateTime Plugin", "widget": "datetime" } },
+      "SwitchVal": { "type": "boolean", "ui": { "label": "Switch Plugin", "widget": "switch" } },
+      "StepVal": { "type": "number", "minimum": 0, "maximum": 10, "multipleOf": 1, "ui": { "label": "Step Input Plugin (0-10)", "widget": "step" } },
+      "SelectVal": { "type": "string", "required": true, "ui": { "label": "Select Plugin (Required)", "widget": "select" }, "valueHelp": [{ "key": "OPT_1", "text": "Option 1" }, { "key": "OPT_2", "text": "Option 2" }, { "key": "OPT_3", "text": "Option 3" }] },
+      "TextAreaVal": { "type": "string", "ui": { "label": "TextArea Plugin", "widget": "textArea", "rows": 3 } },
+      "CodeVal": { "type": "string", "ui": { "label": "Code Editor Plugin", "widget": "codeEditor" } },
+      "FileVal": { "type": "string", "ui": { "label": "File Uploader Plugin", "widget": "fileUploader" } },
+      "MultiSelVal": { "type": "array", "ui": { "label": "Multi Select Plugin", "widget": "multiSelect" }, "enum": ["OPT_1", "OPT_2", "OPT_3"] },
+      "MultiInpVal": { "type": "array", "items": { "type": "string" }, "ui": { "label": "Multi Input Plugin", "widget": "multiInput" } },
+      "SliderVal": { "type": "number", "minimum": 0, "maximum": 100, "multipleOf": 5, "ui": { "label": "Slider Plugin (Step 5)", "widget": "slider" } },
+      "RatingVal": { "type": "number", "maximum": 5, "ui": { "label": "Rating Indicator Plugin", "widget": "rating" } },
+      "MsgVal": { "type": "string", "ui": { "widget": "messageStrip" } },
+      "CameraVal": { "type": "string", "ui": { "label": "Camera Plugin", "widget": "camera" } },
+      "SigVal": { "type": "string", "ui": { "label": "Signature Plugin", "widget": "signature" } },
+      "LocVal": { "type": "object", "ui": { "label": "Geolocation Plugin", "widget": "location" }, "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } } },
+      "ScanVal": { "type": "string", "ui": { "label": "Scanner Plugin", "widget": "scanner" } },
+      "VoiceVal": { "type": "string", "ui": { "label": "Voice Input Plugin", "widget": "voiceInput" } },
+      "RichTextVal": { "type": "string", "ui": { "label": "Rich Text Plugin", "widget": "richText" } },
+      "UrlVal": { "type": "string", "ui": { "label": "URL Action Plugin", "widget": "urlButton", "args": "https://sap.com" } },
+      "SubmitVal": { "type": "string", "ui": { "label": "Submit Action Plugin", "widget": "submitButton" } },
+      "ODataVal": { "type": "string", "ui": { "label": "OData Select Plugin", "widget": "odataSelect" } },
+      "RemoteDropVal": { "type": "string", "ui": { "label": "Remote Dropdown Plugin", "widget": "remoteDropdown" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
+      "LiveSearchVal": { "type": "string", "ui": { "label": "Live Search Plugin", "widget": "liveSearch" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
+      "RemoteValHelpVal": { "type": "string", "ui": { "label": "Remote Value Help Plugin", "widget": "remoteValueHelp" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
+      "CurrencyVal": { "type": "number", "ui": { "label": "Currency Formatter", "formatter": "currency" } },
+      "PhoneVal": { "type": "string", "ui": { "label": "Phone Formatter", "formatter": "phone" } }
     },
     "uiLayout": [
       {
         "type": "Group",
-        "label": "General Information",
+        "label": "Strict Validations",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/CustomerName"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/IsActive"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/ContactEmail"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/LicenseCode"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/Comments"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/AccountType"
-          }
+          { "type": "Control", "scope": "#/properties/RequiredString" },
+          { "type": "Control", "scope": "#/properties/EmailVal" },
+          { "type": "Control", "scope": "#/properties/UrlFormatVal" },
+          { "type": "Control", "scope": "#/properties/IBANVal" },
+          { "type": "Control", "scope": "#/properties/RegexString" }
         ]
       },
       {
         "type": "Group",
-        "label": "Financials",
+        "label": "Basic Inputs",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/CreditLimit"
-          }
+          { "type": "Control", "scope": "#/properties/Str" },
+          { "type": "Control", "scope": "#/properties/Num" },
+          { "type": "Control", "scope": "#/properties/DateVal" },
+          { "type": "Control", "scope": "#/properties/BoolVal" }
         ]
       },
       {
         "type": "Group",
-        "label": "Enterprise Controls",
+        "label": "Complex Structures",
         "elements": [
-          {
-            "type": "Control",
-            "scope": "#/properties/Attachment"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/Discount"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/ClientRating"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/AlertMsg"
-          },
-          {
-            "type": "Control",
-            "scope": "#/properties/CustomCode"
-          }
+          { "type": "Control", "scope": "#/properties/Arr" },
+          { "type": "Control", "scope": "#/properties/Obj" },
+          { "type": "Control", "scope": "#/properties/PolyVal" },
+          { "type": "Control", "scope": "#/properties/RefVal" }
         ]
       },
       {
-        "type": "Control",
-        "scope": "#/properties/Contacts"
+        "type": "Group",
+        "label": "UI & Input Enhancements",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/TimeVal" },
+          { "type": "Control", "scope": "#/properties/DateTimeVal" },
+          { "type": "Control", "scope": "#/properties/SwitchVal" },
+          { "type": "Control", "scope": "#/properties/StepVal" },
+          { "type": "Control", "scope": "#/properties/SelectVal" },
+          { "type": "Control", "scope": "#/properties/MultiSelVal" },
+          { "type": "Control", "scope": "#/properties/MultiInpVal" },
+          { "type": "Control", "scope": "#/properties/SliderVal" },
+          { "type": "Control", "scope": "#/properties/RatingVal" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Text & Code Editors",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/TextAreaVal" },
+          { "type": "Control", "scope": "#/properties/CodeVal" },
+          { "type": "Control", "scope": "#/properties/RichTextVal" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Hardware & Devices",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/FileVal" },
+          { "type": "Control", "scope": "#/properties/CameraVal" },
+          { "type": "Control", "scope": "#/properties/SigVal" },
+          { "type": "Control", "scope": "#/properties/LocVal" },
+          { "type": "Control", "scope": "#/properties/ScanVal" },
+          { "type": "Control", "scope": "#/properties/VoiceVal" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Formatters & Remote Data",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/CurrencyVal" },
+          { "type": "Control", "scope": "#/properties/PhoneVal" },
+          { "type": "Control", "scope": "#/properties/ODataVal" },
+          { "type": "Control", "scope": "#/properties/RemoteDropVal" },
+          { "type": "Control", "scope": "#/properties/LiveSearchVal" },
+          { "type": "Control", "scope": "#/properties/RemoteValHelpVal" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Actions & Messaging",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/MsgVal" },
+          { "type": "Control", "scope": "#/properties/UrlVal" },
+          { "type": "Control", "scope": "#/properties/SubmitVal" }
+        ]
       }
-    ]
+    ],
+    "definitions": {
+      "MockReference": {
+        "title": "Nested Reference Schema",
+        "type": "object",
+        "properties": {
+          "NestedString": { "type": "string", "ui": { "label": "Nested Field" } }
+        }
+      }
+    }
   }
 }

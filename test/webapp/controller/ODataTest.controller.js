@@ -10,6 +10,7 @@ sap.ui.define([
      * Inherits from BaseController to gain generic routing.
      * 
      * @extends metaui.sandbox.controller.BaseController
+     * @alias metaui.sandbox.controller.ODataTest
      */
     return BaseController.extend("metaui.sandbox.controller.ODataTest", {
         

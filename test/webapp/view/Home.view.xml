@@ -8,10 +8,10 @@
         <f:title>
             <f:DynamicPageTitle>
                 <f:heading>
-                    <Title text="MetaUI Sandbox" />
+                    <Title text="MetaUI Launchpad" />
                 </f:heading>
                 <f:expandedContent>
-                    <Label text="Select a test environment below." />
+                    <Label text="Select a test environment below to explore MetaUI capabilities." />
                 </f:expandedContent>
             </f:DynamicPageTitle>
         </f:title>
@@ -19,28 +19,40 @@
             <layout:HorizontalLayout class="sapUiContentPadding">
                 <GenericTile
                     class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
-                    header="Main Playground"
-                    subheader="Embedded &amp; JS Dialogs"
-                    press=".onNavToPlayground">
+                    header="Schema Scenarios"
+                    subheader="Kitchen Sink, Wizard, etc."
+                    press=".onNavToKitchenSink">
                     <tileContent>
                         <TileContent>
-                            <NumericContent value="1" icon="sap-icon://syntax" />
+                            <NumericContent value="1" icon="sap-icon://form" />
+                        </TileContent>
+                    </tileContent>
+                </GenericTile>
+
+                <GenericTile
+                    class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
+                    header="OpenApi Integration"
+                    subheader="OpenAPI v2 and v3 Tests"
+                    press=".onNavToOpenApi">
+                    <tileContent>
+                        <TileContent>
+                            <NumericContent value="3" icon="sap-icon://api" />
                         </TileContent>
                     </tileContent>
                 </GenericTile>
                 <GenericTile
                     class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
-                    header="Data Inference Playpen"
-                    subheader="Raw JSON to UI"
-                    press=".onNavToPlaypen">
+                    header="Freeform Sandbox"
+                    subheader="Ad-Hoc JSON Testing"
+                    press=".onNavToSandbox">
                     <tileContent>
                         <TileContent>
-                            <NumericContent value="2" icon="sap-icon://json" />
+                            <NumericContent value="4" icon="sap-icon://syntax" />
                         </TileContent>
                     </tileContent>
                 </GenericTile>
-
             </layout:HorizontalLayout>
         </f:content>
     </f:DynamicPage>
 </mvc:View>
+

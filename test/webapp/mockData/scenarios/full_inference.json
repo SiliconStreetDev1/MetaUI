@@ -2,25 +2,65 @@
   "key": "full_inference",
   "name": "Full Inference",
   "data": {
-    "ConfigurationID": "CFG-2049",
-    "Enabled": true,
-    "MaxThroughput": 10000,
-    "Nodes": [
+    "EmployeeID": "EMP-827391",
+    "Active": true,
+    "PersonalDetails": {
+      "FirstName": "Samantha",
+      "LastName": "Carter",
+      "DateOfBirth": "1985-11-23",
+      "Gender": "Female",
+      "ContactInfo": {
+        "Email": "samantha.carter@stargate.cmd",
+        "Phone": "+1-555-0198",
+        "Address": {
+          "Street": "123 Cheyenne Mtn Blvd",
+          "City": "Colorado Springs",
+          "State": "CO",
+          "ZipCode": "80906",
+          "Country": "USA"
+        }
+      }
+    },
+    "Employment": {
+      "JobTitle": "Lead Astrophysicist",
+      "Department": "Science Division",
+      "ClearanceLevel": 7,
+      "HireDate": "2018-05-10",
+      "BaseSalary": 145000,
+      "BonusEligibility": true,
+      "Managers": ["EMP-100001", "EMP-100002"]
+    },
+    "PerformanceReviews": [
       {
-        "NodeID": "N-1",
-        "Status": "Active",
-        "Load": 45.2
+        "Year": 2024,
+        "Rating": 5,
+        "Comments": "Exceptional work on the naquadah reactor.",
+        "Promoted": false
       },
       {
-        "NodeID": "N-2",
-        "Status": "Standby",
-        "Load": 0.1
+        "Year": 2025,
+        "Rating": 5,
+        "Comments": "Saved the planet again.",
+        "Promoted": true
       }
     ],
-    "Metrics": {
-      "LastPing": "2026-07-22T08:00:00Z",
-      "UptimeDays": 450,
-      "IsHealthy": true
+    "EmergencyContacts": [
+      {
+        "Name": "Jack O'Neill",
+        "Relationship": "Colleague",
+        "Phone": "+1-555-8888"
+      },
+      {
+        "Name": "Daniel Jackson",
+        "Relationship": "Friend",
+        "Phone": "+1-555-9999"
+      }
+    ],
+    "SystemMetadata": {
+      "LastModifiedBy": "SYSTEM_ADMIN",
+      "LastModifiedTime": "2026-07-26T10:00:00Z",
+      "SyncStatus": "SUCCESS"
     }
-  }
+  },
+  "schema": {}
 }

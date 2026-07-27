@@ -1,0 +1,112 @@
+<mvc:View
+    controllerName="metaui.sandbox.controller.ScenarioRunner"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout"
+    xmlns:f="sap.f"
+    xmlns:codeeditor="sap.ui.codeeditor">
+    
+    <f:DynamicPage id="page" headerExpanded="true" fitContent="true" showFooter="{= ${message>/}.length > 0 }">
+        <f:title>
+            <f:DynamicPageTitle>
+                <f:heading>
+                    <Title text="{/ui/title}" />
+                </f:heading>
+                <f:navigationActions>
+                    <Button icon="sap-icon://nav-back" press=".onNavBack" />
+                </f:navigationActions>
+                <f:actions>
+                    <Button icon="sap-icon://action-settings" text="Settings" press=".onSettingsPress" tooltip="Configure Engine Binding &amp; Behaviors" />
+                </f:actions>
+            </f:DynamicPageTitle>
+        </f:title>
+        
+        <f:header>
+            <f:DynamicPageHeader pinnable="true">
+                <Toolbar>
+                    <Label text="OpenAPI Target:" visible="{= ${settings>/settings/schemaTargets} !== undefined &amp;&amp; ${settings>/settings/schemaTargets}.length > 0 }" class="sapUiTinyMarginEnd" />
+                    <Select
+                        id="schemaTargetSelect"
+                        items="{settings>/settings/schemaTargets}"
+                        selectedKey="{settings>/settings/schemaTarget}"
+                        change=".onGeneratePress"
+                        visible="{= ${settings>/settings/schemaTargets} !== undefined &amp;&amp; ${settings>/settings/schemaTargets}.length > 0 }"
+                        class="sapUiSmallMarginEnd"
+                        width="350px">
+                        <core:Item key="{settings>key}" text="{settings>text}" />
+                    </Select>
+                    <ToolbarSpacer/>
+                    <Button text="Generate Form" type="Emphasized" press=".onGeneratePress" class="sapUiSmallMarginEnd" />
+                    <Button text="Extract Payload (Submit)" type="Accept" press=".onExtractPress" />
+                </Toolbar>
+            </f:DynamicPageHeader>
+        </f:header>
+
+        <f:content>
+            <f:FlexibleColumnLayout layout="ThreeColumnsMidExpanded" id="fcl">
+                <f:beginColumnPages>
+                    <Page title="Scenarios">
+                        <content>
+                            <List
+                                id="scenarioList"
+                                items="{/scenarios}"
+                                mode="SingleSelectMaster"
+                                selectionChange=".onMatrixChange">
+                                <StandardListItem title="{name}" description="{key}" />
+                            </List>
+                        </content>
+                    </Page>
+                </f:beginColumnPages>
+
+                <f:midColumnPages>
+                    <Page showHeader="false">
+                        <content>
+                            <IconTabBar stretchContentHeight="true" applyContentPadding="false" expanded="true" headerMode="Inline">
+                                <items>
+                                    <IconTabFilter text="Inbound Data" key="inbound">
+                                        <codeeditor:CodeEditor id="inboundEditor" type="json" syntaxHints="false" height="100%" value="{/current/data}" change=".onInboundChange" />
+                                    </IconTabFilter>
+                                    <IconTabFilter text="Schema" key="schema">
+                                        <codeeditor:CodeEditor id="schemaEditor" type="json" syntaxHints="false" height="100%" value="{/current/schema}" change=".onSchemaChange" />
+                                    </IconTabFilter>
+                                    <IconTabFilter text="Code Snippet (XML)" key="xml" visible="{= !!${/current/xmlSnippet} }">
+                                        <codeeditor:CodeEditor id="xmlSnippet" type="xml" syntaxHints="false" height="100%" value="{/current/xmlSnippet}" editable="false" />
+                                    </IconTabFilter>
+                                    <IconTabFilter text="Code Snippet (JS)" key="js" visible="{= !!${/current/jsSnippet} }">
+                                        <codeeditor:CodeEditor id="jsSnippet" type="javascript" syntaxHints="false" height="100%" value="{/current/jsSnippet}" editable="false" />
+                                    </IconTabFilter>
+                                </items>
+                            </IconTabBar>
+                        </content>
+                    </Page>
+                </f:midColumnPages>
+
+                <f:endColumnPages>
+                    <Page showHeader="false">
+                        <content>
+                            <ScrollContainer height="100%" vertical="true" width="auto">
+                                <VBox class="sapUiMediumMargin">
+                                    <Title text="Live Form Preview" level="H3" class="sapUiSmallMarginBottom" />
+                                    <VBox id="hostContainer" width="100%" />
+                                </VBox>
+                            </ScrollContainer>
+                        </content>
+                    </Page>
+                </f:endColumnPages>
+            </f:FlexibleColumnLayout>
+        </f:content>
+
+        <f:footer>
+            <OverflowToolbar>
+                <Button 
+                    id="messagePopoverBtn"
+                    icon="sap-icon://message-popup"
+                    text="{= ${message>/}.length }"
+                    type="{= ${message>/}.length > 0 ? 'Negative' : 'Default' }"
+                    press=".onMessagePopoverPress" />
+                <ToolbarSpacer />
+            </OverflowToolbar>
+        </f:footer>
+    </f:DynamicPage>
+</mvc:View>

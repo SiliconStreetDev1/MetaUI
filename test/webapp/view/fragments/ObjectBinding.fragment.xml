@@ -5,7 +5,7 @@
     <!-- Authentic Object Binding: Both Data and Schema are parsed JS objects -->
     <meta:DynamicHost
         data="{/current/dataObj}"
-        schemaDefinition="{/current/schemaObj}"
+        schemaDefinition="{ path: '/current/schemaObj', mode: 'OneWay' }"
         liveUpdate="{/settings/liveUpdate}"
         editable="{/settings/editable}"
         debugMode="{/settings/debugMode}"
