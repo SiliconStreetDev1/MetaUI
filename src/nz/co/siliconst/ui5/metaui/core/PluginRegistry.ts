@@ -41,6 +41,9 @@ export class PluginRegistry {
         this.registerPluginPath("string", "select", "nz/co/siliconst/ui5/metaui/plugins/controls/DropdownPlugin");
         this.registerPluginPath("string", "textArea", "nz/co/siliconst/ui5/metaui/plugins/controls/TextAreaPlugin");
         this.registerPluginPath("string", "codeEditor", "nz/co/siliconst/ui5/metaui/plugins/controls/CodeEditorPlugin");
+        this.registerPluginPath("string", "link", "nz/co/siliconst/ui5/metaui/plugins/controls/LinkPlugin");
+        this.registerPluginPath("string", "password", "nz/co/siliconst/ui5/metaui/plugins/controls/PasswordPlugin");
+        this.registerPluginPath("string", "email", "nz/co/siliconst/ui5/metaui/plugins/controls/EmailPlugin");
         
         // Phase 1 Mappings
         this.registerPluginPath("string", "fileUploader", "nz/co/siliconst/ui5/metaui/plugins/controls/FileUploaderPlugin");

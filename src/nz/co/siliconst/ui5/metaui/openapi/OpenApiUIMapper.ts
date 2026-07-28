@@ -45,13 +45,16 @@ export class OpenApiUIMapper {
                     ui.widget = "date";
                     break;
                 case "password":
-                    ui.format = "password";
+                    ui.widget = "password";
+                    ui.format = "password"; // Kept for schema validation
                     break;
                 case "email":
-                    ui.format = "email";
+                    ui.widget = "email";
+                    ui.format = "email"; // Kept for schema validation
                     break;
                 case "uri":
-                    ui.format = "url";
+                    ui.widget = "link";
+                    ui.format = "url"; // Kept for schema validation
                     break;
                 case "binary":
                 case "byte":

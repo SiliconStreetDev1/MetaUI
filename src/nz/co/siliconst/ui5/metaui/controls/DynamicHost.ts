@@ -23,6 +23,8 @@ export default class DynamicHost extends Control {
             schemaDefinition: { type: "any", defaultValue: null },
             schemaDefinitions: { type: "object", defaultValue: null },
             schemaTarget: { type: "string", defaultValue: null },
+            pluginRegistry: { type: "object", defaultValue: null },
+            schemaBuilderRegistry: { type: "object", defaultValue: null },
             data: { type: "object", defaultValue: null, bindable: "bindable" },
             dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
@@ -338,9 +340,6 @@ export default class DynamicHost extends Control {
                                     const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
                                     super.setProperty("dataJson", str, true);
                                 }
-                            }
-                            if (eventName === "fieldChange" && this.odataDelegate) {
-                                this.odataDelegate.handleFieldChange(params.fieldPath, params.value);
                             }
                         }
                         this.fireEvent(eventName, oEvent.getParameters());

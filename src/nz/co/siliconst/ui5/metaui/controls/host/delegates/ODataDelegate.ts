@@ -24,6 +24,19 @@ export class ODataDelegate {
         this.host = host;
         this.context = context;
         this.detectODataType();
+        
+        // Natively subscribe to the host's field changes to decouple from DynamicHost internals
+        this.host.attachEvent("fieldChange", this.onFieldChange, this);
+    }
+
+    /**
+     * Event listener wrapper for field changes emitted by the host.
+     */
+    private onFieldChange(oEvent: sap.ui.base.Event): void {
+        const params = oEvent.getParameters();
+        if (params.fieldPath && params.value !== undefined) {
+            this.handleFieldChange(params.fieldPath, params.value);
+        }
     }
 
     /**

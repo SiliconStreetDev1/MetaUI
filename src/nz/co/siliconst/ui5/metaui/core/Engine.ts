@@ -53,14 +53,19 @@ export class Engine {
     /** Tracks whether the engine should delegate visual state to the global MessageManager. */
     public readonly useMessageManager: boolean = false;
 
+    /** The injected PluginRegistry instance */
+    public readonly pluginRegistry: PluginRegistry;
+
     /**
      * Initializes a new Engine instance.
      * @param editable Whether the engine should render form fields as editable or read-only.
      * @param useMessageManager Whether to delegate visual state to UI5 MessageManager.
+     * @param pluginRegistry Optional injected plugin registry. Defaults to singleton.
      */
-    constructor(editable: boolean = true, useMessageManager: boolean = false) {
+    constructor(editable: boolean = true, useMessageManager: boolean = false, pluginRegistry?: PluginRegistry) {
         this.isEditable = editable;
         this.useMessageManager = useMessageManager;
+        this.pluginRegistry = pluginRegistry || PluginRegistry.getInstance();
     }
 
     /**
@@ -95,7 +100,7 @@ export class Engine {
             }
 
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
-            const layoutManager = PluginRegistry.getInstance().getLayout(layoutStrategy);
+            const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
 
             return layoutManager.render(schema, modelName, this, onSubmit);
         } catch (error) {
@@ -118,7 +123,7 @@ export class Engine {
      */
     public generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate: boolean = false): Control {
         try {
-            const plugin = PluginRegistry.getInstance().getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
+            const plugin = this.pluginRegistry.getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
             if (typeof plugin.setEditable === "function") {
                 plugin.setEditable(this.isEditable);
             }
@@ -159,7 +164,7 @@ export class Engine {
     public generateLayout(schema: ISchema, modelName: string, bindingPath?: string): Control {
         try {
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
-            const layoutManager = PluginRegistry.getInstance().getLayout(layoutStrategy);
+            const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);
         } catch (error) {
             this.hasPartialRenderingErrors = true;

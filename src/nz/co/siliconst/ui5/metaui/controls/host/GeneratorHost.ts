@@ -39,6 +39,8 @@ export default class GeneratorHost extends Control {
             schemaDefinition: { type: "any", defaultValue: null },
             schemaDefinitions: { type: "object", defaultValue: {} },
             schemaTarget: { type: "string", defaultValue: null },
+            pluginRegistry: { type: "object", defaultValue: null },
+            schemaBuilderRegistry: { type: "object", defaultValue: null },
             data: { type: "object", defaultValue: null, bindable: "bindable" },
             dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
             liveUpdate: { type: "boolean", defaultValue: false },
@@ -489,12 +491,14 @@ export default class GeneratorHost extends Control {
                 }
             }
 
-            const pathsToLoad = PluginRegistry.getInstance().getPathsToLoad(normalizedSchema as ISchema);
-            const needsNetworkLoad = Array.from(pathsToLoad).some(path => !sap.ui.require(path));
+            const activePluginRegistry = this.getProperty("pluginRegistry") || PluginRegistry.getInstance();
+            
+            const pathsToLoad = activePluginRegistry.getPathsToLoad(normalizedSchema as ISchema);
+            const needsNetworkLoad = Array.from(pathsToLoad).some((path: string) => !sap.ui.require(path));
 
             if (needsNetworkLoad) {
                 this.setBusy(true);
-                await PluginRegistry.getInstance().preloadDependencies(normalizedSchema as ISchema);
+                await activePluginRegistry.preloadDependencies(normalizedSchema as ISchema);
                 this.setBusy(false);
             }
 
@@ -511,7 +515,8 @@ export default class GeneratorHost extends Control {
             if (!this.engine) {
                 const isEditable = this.getProperty("editable") !== false;
                 const useMessageManager = this.getProperty("useMessageManager") === true;
-                this.engine = new Engine(isEditable, useMessageManager);
+                const activePluginRegistry = this.getProperty("pluginRegistry") || PluginRegistry.getInstance();
+                this.engine = new Engine(isEditable, useMessageManager, activePluginRegistry);
                 this.engine.host = this;
             }
 
