@@ -36,6 +36,10 @@
                         width="350px">
                         <core:Item key="{settings>key}" text="{settings>text}" />
                     </Select>
+                    <ToolbarSeparator />
+                    <Label text="Layout Budget:" class="sapUiTinyMarginEnd" />
+                    <Slider id="budgetSlider" min="0" max="100" value="{settings>/settings/layoutBudget}" width="100px" class="sapUiSmallMarginEnd" change=".onGeneratePress" />
+                    <Input id="budgetInput" value="{settings>/settings/layoutBudget}" type="Number" width="60px" change=".onGeneratePress" />
                     <ToolbarSpacer/>
                     <Button text="Generate Form" type="Emphasized" press=".onGeneratePress" class="sapUiSmallMarginEnd" />
                     <Button text="Extract Payload (Submit)" type="Accept" press=".onExtractPress" />

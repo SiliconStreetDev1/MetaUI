@@ -50,7 +50,8 @@ sap.ui.define([
                     logFieldChanges: false,
                     forceCustomError: false,
                     schemaTarget: "",
-                    schemaTargets: []
+                    schemaTargets: [],
+                    layoutBudget: 50
                 },
                 current: {
                     data: "",
@@ -106,7 +107,7 @@ sap.ui.define([
                     if (sMode === "openapi") {
                         return s.key.startsWith("openapi");
                     } else if (sMode === "kitchen_sink") {
-                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "complex_nested"];
+                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "complex_nested", "deep_structure", "ultra_complex_structure"];
                         return whitelist.indexOf(s.key) !== -1;
                     }
                     return false;
@@ -236,6 +237,13 @@ sap.ui.define([
          */
         onGeneratePress: function () {
             var oSettings = this.oModel.getProperty("/settings");
+            
+            // UI5 inputs cast to string, ensure layoutBudget is strictly an integer for the Engine
+            if (typeof oSettings.layoutBudget === "string") {
+                oSettings.layoutBudget = parseInt(oSettings.layoutBudget, 10) || 0;
+                this.oModel.setProperty("/settings/layoutBudget", oSettings.layoutBudget);
+            }
+
             var container = this.byId("hostContainer");
             
             var items = container.getItems();
@@ -275,6 +283,7 @@ sap.ui.define([
                 host.bindProperty("editable", { path: "settings>/settings/editable" });
                 host.bindProperty("debugMode", { path: "settings>/settings/debugMode" });
                 host.bindProperty("useMessageManager", { path: "settings>/settings/useMessageManager" });
+                host.bindProperty("layoutBudget", { path: "settings>/settings/layoutBudget" });
                 
                 if (oSettings.selectedBinding === "programmatic") {
                     host.setProperty("data", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));

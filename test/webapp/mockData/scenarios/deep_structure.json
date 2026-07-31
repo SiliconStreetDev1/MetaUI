@@ -1,0 +1,104 @@
+{
+  "key": "deep_structure",
+  "name": "Deep Budget Structure",
+  "schema": {
+    "type": "object",
+    "title": "Corporate Structure",
+    "properties": {
+      "companyName": {
+        "type": "string",
+        "ui": {
+          "label": "Company Name"
+        }
+      },
+      "headquarters": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "ui": {
+              "label": "City"
+            }
+          },
+          "country": {
+            "type": "string",
+            "ui": {
+              "label": "Country"
+            }
+          }
+        },
+        "ui": {
+          "label": "HQ Location"
+        }
+      },
+      "departments": {
+        "type": "object",
+        "properties": {
+          "engineering": {
+            "type": "object",
+            "properties": {
+              "vp": {
+                "type": "string",
+                "ui": {
+                  "label": "VP of Engineering"
+                }
+              },
+              "teams": {
+                "type": "object",
+                "properties": {
+                  "frontend": {
+                    "type": "object",
+                    "properties": {
+                      "lead": {
+                        "type": "string",
+                        "ui": {
+                          "label": "Guild Lead"
+                        }
+                      },
+                      "framework": {
+                        "type": "string",
+                        "ui": {
+                          "label": "Framework"
+                        }
+                      }
+                    },
+                    "ui": {
+                      "label": "Frontend Guild"
+                    }
+                  }
+                },
+                "ui": {
+                  "label": "Agile Teams"
+                }
+              }
+            },
+            "ui": {
+              "label": "Engineering Division"
+            }
+          }
+        },
+        "ui": {
+          "label": "Departments"
+        }
+      }
+    }
+  },
+  "data": {
+    "companyName": "TechCorp Inc.",
+    "headquarters": {
+      "city": "San Francisco",
+      "country": "USA"
+    },
+    "departments": {
+      "engineering": {
+        "vp": "Jane Doe",
+        "teams": {
+          "frontend": {
+            "lead": "Alice",
+            "framework": "React"
+          }
+        }
+      }
+    }
+  }
+}

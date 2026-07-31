@@ -180,6 +180,9 @@
             "NetWorth": {
               "type": "number",
               "minimum": 0
+            },
+            "Spouse": {
+              "$ref": "#/components/schemas/Guarantor"
             }
           }
         }

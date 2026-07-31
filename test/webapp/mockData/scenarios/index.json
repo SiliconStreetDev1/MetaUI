@@ -9,6 +9,14 @@
       {
         "key": "wizard",
         "name": "Wizard Layout"
+      },
+      {
+        "key": "deep_structure",
+        "name": "Deep Budget Structure"
+      },
+      {
+        "key": "ultra_complex_structure",
+        "name": "Global Supply Chain Logistics"
       }
     ]
   },

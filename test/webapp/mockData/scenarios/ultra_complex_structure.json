@@ -1,0 +1,321 @@
+{
+  "key": "ultra_complex_structure",
+  "name": "Global Supply Chain Logistics",
+  "description": "An ultra-complex, heavily nested schema featuring arrays, deep object trees, and strict validation to heavily pressure-test the LayoutScorer budget heuristics.",
+  "schema": {
+    "title": "Global Supply Chain Network",
+    "type": "object",
+    "required": ["networkId", "headquarters"],
+    "properties": {
+      "networkId": {
+        "type": "string",
+        "ui": {
+          "label": "Network ID",
+          "isKey": true
+        }
+      },
+      "status": {
+        "type": "string",
+        "ui": { "label": "Operational Status", "widget": "select" },
+        "enum": ["ACTIVE", "MAINTENANCE", "CRITICAL", "OFFLINE"]
+      },
+      "launchDate": {
+        "type": "date",
+        "ui": { "label": "Network Launch Date" }
+      },
+      "auditTime": {
+        "type": "string",
+        "ui": { "label": "Last Audit Time", "widget": "time" }
+      },
+      "globalBudget": {
+        "type": "number",
+        "minimum": 0,
+        "ui": { "label": "Global Budget (USD)" }
+      },
+      "isPublic": {
+        "type": "boolean",
+        "ui": { "label": "Is Publicly Traded?" }
+      },
+      "headquarters": {
+        "type": "object",
+        "ui": {
+          "label": "Global Headquarters"
+        },
+        "required": ["ceo", "location"],
+        "properties": {
+          "ceo": {
+            "type": "string",
+            "ui": {
+              "label": "Chief Executive Officer"
+            }
+          },
+          "cfo": {
+            "type": "string",
+            "ui": { "label": "Chief Financial Officer" }
+          },
+          "cto": {
+            "type": "string",
+            "ui": { "label": "Chief Technology Officer" }
+          },
+          "contactEmail": {
+            "type": "string",
+            "ui": { "label": "Corporate Contact Email", "format": "email" }
+          },
+          "website": {
+            "type": "string",
+            "ui": { "label": "Corporate Website", "validators": ["url"] }
+          },
+          "location": {
+            "type": "object",
+            "ui": {
+              "label": "Location Data"
+            },
+            "properties": {
+              "country": {
+                "type": "string",
+                "ui": { "label": "Country" }
+              },
+              "city": {
+                "type": "string",
+                "ui": { "label": "City" }
+              },
+              "postalCode": {
+                "type": "string",
+                "ui": { "label": "Postal Code" }
+              },
+              "address": {
+                "type": "string",
+                "ui": { "label": "Full Address", "widget": "textArea" }
+              },
+              "coordinates": {
+                "type": "object",
+                "ui": { "label": "GPS Coordinates" },
+                "properties": {
+                  "latitude": { "type": "number", "ui": { "label": "Latitude" } },
+                  "longitude": { "type": "number", "ui": { "label": "Longitude" } }
+                }
+              }
+            }
+          }
+        }
+      },
+      "divisions": {
+        "type": "object",
+        "ui": {
+          "label": "Corporate Divisions"
+        },
+        "properties": {
+          "logistics": {
+            "type": "object",
+            "ui": {
+              "label": "Logistics & Transport"
+            },
+            "properties": {
+              "head": {
+                "type": "string",
+                "ui": { "label": "Head of Logistics" }
+              },
+              "regions": {
+                "type": "object",
+                "ui": {
+                  "label": "Operating Regions"
+                },
+                "properties": {
+                  "emea": {
+                    "type": "object",
+                    "ui": {
+                      "label": "EMEA Region"
+                    },
+                    "properties": {
+                      "director": {
+                        "type": "string",
+                        "ui": { "label": "Regional Director" }
+                      },
+                      "budget": {
+                        "type": "number",
+                        "ui": { "label": "Regional Budget (EUR)" }
+                      },
+                      "primaryWarehouse": {
+                        "type": "object",
+                        "ui": { "label": "Primary Warehouse Hub" },
+                        "properties": {
+                          "facilityId": { "type": "string", "ui": { "label": "Facility ID" } },
+                          "managerName": { "type": "string", "ui": { "label": "Facility Manager" } },
+                          "capacityMetrics": {
+                            "type": "object",
+                            "ui": { "label": "Capacity Metrics" },
+                            "properties": {
+                              "maxTonnage": { "type": "number", "ui": { "label": "Maximum Tonnage" } },
+                              "currentUtilization": { "type": "number", "ui": { "label": "Utilization (%)" }, "minimum": 0, "maximum": 100 },
+                              "overflowAvailable": { "type": "boolean", "ui": { "label": "Overflow Available" } },
+                              "safetyAudit": {
+                                "type": "object",
+                                "ui": { "label": "Latest Safety Audit" },
+                                "properties": {
+                                  "passed": { "type": "boolean", "ui": { "label": "Audit Passed" } },
+                                  "inspectorId": { "type": "string", "ui": { "label": "Inspector ID" } },
+                                  "auditDate": { "type": "date", "ui": { "label": "Date of Audit" } },
+                                  "score": { "type": "number", "ui": { "label": "Audit Score (0-10)", "widget": "step" }, "minimum": 0, "maximum": 10, "multipleOf": 1 },
+                                  "notes": { "type": "string", "ui": { "label": "Inspector Notes", "widget": "textArea" } }
+                                }
+                              }
+                            }
+                          },
+                          "fleet": {
+                            "type": "array",
+                            "ui": { "label": "Transport Fleet" },
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "vehicleId": { "type": "string", "ui": { "label": "Vehicle ID" } },
+                                "type": { "type": "string", "ui": { "label": "Vehicle Type" } },
+                                "active": { "type": "boolean", "ui": { "label": "Is Active" } },
+                                "lastServiceDate": { "type": "date", "ui": { "label": "Last Service" } },
+                                "mileage": { "type": "number", "ui": { "label": "Mileage" } }
+                              }
+                            }
+                          },
+                          "inventoryCategories": {
+                            "type": "array",
+                            "ui": { "label": "Inventory Categories", "widget": "multiInput" },
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "manufacturing": {
+            "type": "object",
+            "ui": {
+              "label": "Manufacturing & Production"
+            },
+            "properties": {
+              "vp": { "type": "string", "ui": { "label": "VP of Manufacturing" } },
+              "plants": {
+                "type": "array",
+                "ui": { "label": "Production Plants" },
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "plantId": { "type": "string", "ui": { "label": "Plant ID" } },
+                    "location": { "type": "string", "ui": { "label": "Location" } },
+                    "iso9001": { "type": "boolean", "ui": { "label": "ISO 9001 Certified" } },
+                    "outputUnits": { "type": "number", "ui": { "label": "Daily Output Units" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "compliance": {
+        "type": "object",
+        "ui": {
+          "label": "Global Compliance"
+        },
+        "properties": {
+          "isoCertified": { "type": "boolean", "ui": { "label": "ISO Certified Globally" } },
+          "regulatoryBody": { "type": "string", "ui": { "label": "Governing Body" } },
+          "environmentalRating": { "type": "string", "ui": { "label": "Environmental Rating" } }
+        }
+      }
+    }
+  },
+  "data": {
+    "networkId": "NET-993-X",
+    "status": "ACTIVE",
+    "launchDate": "2015-05-12",
+    "auditTime": "14:30:00",
+    "globalBudget": 450000000,
+    "isPublic": true,
+    "headquarters": {
+      "ceo": "Dr. Alan Turing",
+      "cfo": "Ada Lovelace",
+      "cto": "Grace Hopper",
+      "contactEmail": "contact@techcorp.example.com",
+      "website": "https://www.techcorp.example.com",
+      "location": {
+        "country": "Germany",
+        "city": "Berlin",
+        "postalCode": "10115",
+        "address": "123 Tech Avenue, Berlin, Germany 10115",
+        "coordinates": {
+          "latitude": 52.52,
+          "longitude": 13.405
+        }
+      }
+    },
+    "divisions": {
+      "logistics": {
+        "head": "John Smith",
+        "regions": {
+          "emea": {
+            "director": "Sarah Connor",
+            "budget": 125000000,
+            "primaryWarehouse": {
+              "facilityId": "WH-BER-01",
+              "managerName": "Michael Scott",
+              "capacityMetrics": {
+                "maxTonnage": 50000,
+                "currentUtilization": 84.2,
+                "overflowAvailable": true,
+                "safetyAudit": {
+                  "passed": true,
+                  "inspectorId": "INS-772",
+                  "auditDate": "2026-07-28",
+                  "score": 9,
+                  "notes": "Excellent safety protocols observed. Minor issue with fire extinguisher tag in sector 4."
+                }
+              },
+              "fleet": [
+                {
+                  "vehicleId": "TRK-001",
+                  "type": "Heavy Freight",
+                  "active": true,
+                  "lastServiceDate": "2026-01-15",
+                  "mileage": 124500
+                },
+                {
+                  "vehicleId": "TRK-002",
+                  "type": "Light Delivery",
+                  "active": false,
+                  "lastServiceDate": "2025-11-20",
+                  "mileage": 85000
+                }
+              ],
+              "inventoryCategories": ["Electronics", "Automotive", "Medical Supplies"]
+            }
+          }
+        }
+      },
+      "manufacturing": {
+        "vp": "Elon Musk",
+        "plants": [
+          {
+            "plantId": "PLT-01",
+            "location": "Stuttgart",
+            "iso9001": true,
+            "outputUnits": 5000
+          },
+          {
+            "plantId": "PLT-02",
+            "location": "Munich",
+            "iso9001": true,
+            "outputUnits": 8500
+          }
+        ]
+      }
+    },
+    "compliance": {
+      "isoCertified": true,
+      "regulatoryBody": "Global Transport Authority",
+      "environmentalRating": "A+"
+    }
+  }
+}

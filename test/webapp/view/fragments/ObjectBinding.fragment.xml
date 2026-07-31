@@ -10,6 +10,7 @@
         editable="{/settings/editable}"
         debugMode="{/settings/debugMode}"
         useMessageManager="{/settings/useMessageManager}"
+        layoutBudget="{/settings/layoutBudget}"
         error=".onHostError"
         fieldChange=".onHostFieldChange"
         submit=".onHostSubmit" />
