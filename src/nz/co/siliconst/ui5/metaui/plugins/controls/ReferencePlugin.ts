@@ -12,6 +12,7 @@ import Event from "sap/ui/base/Event";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import { GlobalPipeline } from "../../core/PipelineManager";
+import { Logger } from "../../utils/Logger";
 
 export class ReferencePlugin extends BasePlugin {
     /**
@@ -45,7 +46,7 @@ export class ReferencePlugin extends BasePlugin {
                     return;
                 }
                 
-                const parentHost = this.findParentHost(btn);
+                const parentHost = this.findParentHost(btn) as any;
                 if (!parentHost) {
                     Logger.error("[ReferencePlugin] FATAL: Could not locate parent GeneratorHost via duck typing `getSchemaDefinition`.");
                     return;
@@ -92,7 +93,7 @@ export class ReferencePlugin extends BasePlugin {
                     });
 
                     if (!!this.isEditable) {
-                        host.attachSubmit((e: Event) => {
+                        host.attachEvent("submit", (e: any) => {
                             const payload = (e.getParameter("payload") as unknown);
                             parentModel.setProperty(updatePath, payload);
                             

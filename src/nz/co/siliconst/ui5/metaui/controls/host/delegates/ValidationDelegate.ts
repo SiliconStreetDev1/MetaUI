@@ -8,7 +8,7 @@ import coreLibrary from "sap/ui/core/library";
 
 export interface IHostValidation {
     getProperty(name: string): unknown;
-    setAggregation(aggregationName: string, object: sap.ui.core.Control, suppressInvalidate?: boolean): this;
+    setAggregation(aggregationName: string, object: Control, suppressInvalidate?: boolean): this;
     getStateManager(): StateManager | null;
 }
 
@@ -47,7 +47,7 @@ export class ValidationDelegate {
         if (stateManager && this.host.getProperty("useMessageManager")) {
             const messageManager = Messaging;
             const messages = messageManager.getMessageModel().getData();
-            const messagesToRemove = messages.filter((m: sap.ui.core.message.Message) =>
+            const messagesToRemove = messages.filter((m: Message) =>
                 m.getMessageProcessor() && m.getMessageProcessor().getId() === stateManager.getModel().getId()
             );
             if (messagesToRemove && messagesToRemove.length > 0) {
@@ -124,7 +124,7 @@ export class ValidationDelegate {
 
         const target = `/${fieldPath.replace(/^\//, "")}`;
         const processorId = stateManager.getModel().getId();
-        const messages = Messaging.getMessageModel().getData() as sap.ui.core.message.Message[];
+        const messages = Messaging.getMessageModel().getData() as Message[];
 
         const messagesToRemove = messages.filter(m =>
             m.getTarget() === target &&

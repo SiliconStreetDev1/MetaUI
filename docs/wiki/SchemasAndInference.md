@@ -383,3 +383,39 @@ This example renders a Fiori Table. Notice how we use `scale` to strictly format
   }
 }
 ```
+
+---
+
+# Part 5: Layout Budget Scaling Heuristics
+
+MetaUI includes a dynamic `LayoutScorer` that mathematically evaluates the "footprint" of your nested arrays and objects to determine if they should be rendered **inline** (expanded fully on the screen) or collapsed into a **dialog button** (e.g., an "Edit Details" or "Edit Records" popup). 
+
+This is controlled via the `layoutBudget` property, which represents the maximum number of UI controls you are willing to display concurrently on a single screen without overwhelming the user.
+
+### How Scoring Works
+By default, every standard primitive field (String, Number, Boolean) is assigned a `layoutScore` of `1`. 
+
+For arrays and objects, the `LayoutScorer` calculates a total footprint:
+- **Object Footprint**: Base score of 1 + the sum of all nested property scores.
+- **Array Footprint**: Base score of 1 + the sum of all columns (properties) inside `items`. (A 4-column table scores a `5`).
+
+### Example: The Ultra Complex Structure
+Imagine an overarching form bounded by a `layoutBudget` of **50 points**. The form contains several nested structures:
+
+1. **`inventoryCategories`** (Primitive Array):
+   Configured with `"widget": "multiInput"`, this array of strings does not generate a table. It is simply a tag-input field. It scores `1` point. Because `1 <= 50`, it renders **inline**.
+
+2. **`capacityMetrics`** (Deep Object):
+   Contains nested metrics (currentUtilization, historicalTrends) adding up to a footprint of e.g. `15` points. Because `15 <= 50`, the Engine dynamically mutates the layout to render this object **inline** as a native Fiori `Group` containing its fields.
+
+3. **`fleet`** (Complex Array / Table):
+   Contains 20 columns (properties) per item. Its footprint score is `21` points. Because `21 <= 50`, it renders **inline** as a full `sap.m.Table`.
+
+#### Hitting the Budget Limits
+If the developer drops the parent `layoutBudget` to **20 points** (e.g. for a mobile device context):
+- The `fleet` array (score `21`) now exceeds the budget (`21 > 20`). 
+- The `LayoutScorer` automatically intercepts it and injects `"renderMode": "dialog"` into its metadata.
+- Instead of rendering a massive table on a small screen, the Engine renders a single `sap.m.Button` ("Edit Records") which only costs `1` point.
+- Clicking the button launches a recursive `DynamicHost` in a popup Dialog, passing the layout budget downwards so the nested records can compute their own localized footprints!
+
+This strictly enforced metric system allows a single JSON schema to gracefully degrade from a massive desktop multi-column layout down to a concise, thumb-friendly mobile form purely by adjusting the `layoutBudget` integer.

@@ -20,7 +20,7 @@ export class OpenApiRefResolver {
      * @param {number} depth The current recursive depth count, used to prevent infinite loops.
      * @returns {any} The resolved schema object, or null if unresolvable.
      */
-    public static resolve(refUrl: string, openApiRoot: unknown, depth: number = 0): unknown {
+    public static resolve(refUrl: string, openApiRoot: any, depth: number = 0): any {
         if (!refUrl || !refUrl.startsWith("#/")) {
             Logger.debug(`[MetaUI OpenApiBuilder] Ignoring non-local or empty $ref: ${refUrl}`, "OpenApiBuilder");
             return null; // Ignore external URLs per architectural rules

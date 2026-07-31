@@ -18,7 +18,7 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * 
      * @param {any} openApiRoot The entire OpenAPI root document.
      */
-    public apply(openApiRoot: unknown): void {
+    public apply(openApiRoot: any): void {
         if (!openApiRoot) return;
 
         // In OpenAPI 2.0, scan definitions
@@ -51,7 +51,7 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * @returns {boolean} True if the structure matches a Protobuf variant pattern.
      * @private
      */
-    private _isProtobufVariant(key: string, definition: unknown): boolean {
+    private _isProtobufVariant(key: string, definition: any): boolean {
         if (definition.type !== "object" || !definition.properties) {
             return false;
         }
@@ -82,7 +82,7 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * @param {any} definition The target variant object schema.
      * @private
      */
-    private _mutateToOneOf(definition: unknown): void {
+    private _mutateToOneOf(definition: any): void {
         const propKeys = Object.keys(definition.properties);
         const oneOfArray: unknown[] = [];
 

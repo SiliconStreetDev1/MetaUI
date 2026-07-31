@@ -7,6 +7,7 @@
 import RenderManager from "sap/ui/core/RenderManager";
 import BaseHardwareControl from "./BaseHardwareControl";
 
+import Control from "sap/ui/core/Control";
 export default {
     apiVersion: 2,
     render: function (rm: RenderManager, control: BaseHardwareControl) {
@@ -14,7 +15,7 @@ export default {
         rm.class("sapUiSmallMarginBottom");
         rm.openEnd();
         
-        const content = control.getAggregation("_content") as sap.ui.core.Control;
+        const content = control.getAggregation("_content") as Control;
         if (content) {
             rm.renderControl(content);
         }

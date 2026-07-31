@@ -3,7 +3,8 @@
  * @description A custom datasource plugin that binds a ComboBox to an OData EntitySet.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
+import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import ComboBox from "sap/m/ComboBox";
 import Item from "sap/ui/core/Item";
@@ -20,14 +21,14 @@ export class ODataListBindingPlugin extends BasePlugin {
     public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
         this.metadata = fieldMetadata;
         
-        const args = fieldMetadata.ui?.args || { path: "/", key: "ID", text: "Name" };
+        const args = (fieldMetadata.ui?.args as any) || { path: "/", key: "ID", text: "Name" };
         
         this.control = new ComboBox({
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: fieldMetadata.ui?.label || "Select...",
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as sap.ui.base.Event).getParameter("selectedItem")?.getKey();
+            change: (oEvent: Event) => {
+                const val = ((oEvent as any).getParameter("selectedItem") as any)?.getKey();
                 this.validate();
             }
         });

@@ -7,7 +7,7 @@ import { IPlugin } from "../../interfaces/IPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import { GlobalPipeline } from "../../core/PipelineManager";
-import coreLibrary from "sap/ui/core/library";
+import * as coreLibrary from "sap/ui/core/library";
 import { Logger } from "../../utils/Logger";
 
 /**
@@ -93,7 +93,7 @@ export abstract class BasePlugin implements IPlugin {
      * @param additionalOptions Optional extra configurations (e.g. formatOptions, constraints).
      * @returns A configuration object ready to be assigned to 'value', 'text', 'state', etc.
      */
-    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): { path: string, model: string, type?: unknown, [key: string]: unknown } {
+    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): any {
         return {
             path: bindingPath,
             model: modelName,

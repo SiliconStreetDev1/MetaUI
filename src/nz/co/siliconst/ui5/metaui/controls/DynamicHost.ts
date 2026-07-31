@@ -33,6 +33,7 @@ export default class DynamicHost extends Control {
             modelName: { type: "string", defaultValue: "meta" },
             debugMode: { type: "boolean", defaultValue: false },
             editable: { type: "boolean", defaultValue: true },
+            layoutBudget: { type: "int", defaultValue: 0 },
             inferenceStrategy: { type: "string", defaultValue: "RuleBased" }
         },
         aggregations: {
@@ -138,7 +139,7 @@ export default class DynamicHost extends Control {
      * @param {string} [sModelName] Optional model name
      * @returns {this} The control instance for chaining
      */
-    public setBindingContext(oContext: sap.ui.model.Context | null | undefined, sModelName?: string): this {
+    public setBindingContext(oContext: any, sModelName?: string): this {
         super.setBindingContext(oContext, sModelName);
         this.initODataDelegate();
         return this;
@@ -153,7 +154,7 @@ export default class DynamicHost extends Control {
      * @param {object} [mParameters] Optional mapping parameters
      * @returns {this} Reference to this instance for chaining
      */
-    public bindElement(vPath: string | Record<string, unknown>, mParameters?: object): this {
+    public bindElement(vPath: any, mParameters?: object): this {
         super.bindElement(vPath, mParameters);
         const sModelName = typeof vPath === "object" ? vPath.model : undefined;
         const oBinding = this.getElementBinding(sModelName);
@@ -194,7 +195,7 @@ export default class DynamicHost extends Control {
                         })
                         .then(json => {
                             const plugin = SchemaBuilderRegistry.getBuilderFor(json);
-                            const finalSchema = plugin ? plugin.build(json, this.getProperty("schemaTarget")) : json;
+                            const finalSchema = plugin ? plugin.build(json, this.getProperty("schemaTarget") as string | undefined) : json;
                             super.setProperty("schemaDefinition", finalSchema, true);
                             if (finalSchema.definitions) {
                                 super.setProperty("schemaDefinitions", finalSchema.definitions, true);
@@ -230,11 +231,11 @@ export default class DynamicHost extends Control {
             if (schema && typeof schema === "object") {
                 const plugin = SchemaBuilderRegistry.getBuilderFor(schema);
                 if (plugin) {
-                    schema = plugin.build(schema, this.getProperty("schemaTarget"));
+                    schema = plugin.build(schema, this.getProperty("schemaTarget") as string | undefined);
                     // Silently update the wrapper property so the inner host gets the final parsed MetaUI format
                     super.setProperty("schemaDefinition", schema, true);
-                    if (schema.definitions) {
-                        super.setProperty("schemaDefinitions", schema.definitions, true);
+                    if ((schema as any).definitions) {
+                        super.setProperty("schemaDefinitions", (schema as any).definitions, true);
                     }
                 }
             }
@@ -243,7 +244,7 @@ export default class DynamicHost extends Control {
             const data = this.getProperty("data");
 
             let hasSchema = !!schema;
-            if (hasSchema && typeof schema === "object" && Object.keys(schema).length === 0) {
+            if (hasSchema && typeof schema === "object" && Object.keys(schema as any).length === 0) {
                 hasSchema = false; // Treat empty object as no schema
             }
 
@@ -257,7 +258,7 @@ export default class DynamicHost extends Control {
 
                 let rawDataObj = data;
                 if (!rawDataObj && dataJson) {
-                    try { rawDataObj = JSON.parse(dataJson as string); } catch(e: Error) { Logger.trace("[DynamicHost] Ignored invalid dataJson parse: " + e.message); }
+                    try { rawDataObj = JSON.parse(dataJson as string); } catch(e: any) { Logger.debug("[DynamicHost] Ignored invalid dataJson parse: " + e.message); }
                 }
 
                 if (rawDataObj) {
@@ -327,7 +328,7 @@ export default class DynamicHost extends Control {
                 // and perfectly receive the inner host's submission event.
                 const events = this.getMetadata().getEvents();
                 for (const eventName in events) {
-                    this._innerHost.attachEvent(eventName, (oEvent: sap.ui.base.Event) => {
+                    this._innerHost.attachEvent(eventName, (oEvent: any) => {
                         // Natively push updated payload out to any bound Fiori Element properties.
                         // Using super.setProperty prevents an infinite loop back down to _innerHost.
                         if (eventName === "submit" || eventName === "fieldChange") {

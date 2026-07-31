@@ -16,10 +16,10 @@ OperatorRegistry.register("==", (a, b) => a == b);
 OperatorRegistry.register("===", (a, b) => a === b);
 OperatorRegistry.register("!=", (a, b) => a != b);
 OperatorRegistry.register("!==", (a, b) => a !== b);
-OperatorRegistry.register(">", (a, b) => a > b);
-OperatorRegistry.register("<", (a, b) => a < b);
-OperatorRegistry.register(">=", (a, b) => a >= b);
-OperatorRegistry.register("<=", (a, b) => a <= b);
+OperatorRegistry.register(">", (a, b) => (a as any) > (b as any));
+OperatorRegistry.register("<", (a, b) => (a as any) < (b as any));
+OperatorRegistry.register(">=", (a, b) => (a as any) >= (b as any));
+OperatorRegistry.register("<=", (a, b) => (a as any) <= (b as any));
 
 /**
  * Engine that listens to the EventBus and evaluates cross-field dependencies (e.g. visibleOn, enabledOn).

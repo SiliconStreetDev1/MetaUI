@@ -66,7 +66,7 @@ export class StateManager {
         // 1. Remove existing messages (strictly for THIS model instance)
         if (this._useMessageManager) {
             const existingMessages = messageManager.getMessageModel().getData();
-            const messagesToRemove = existingMessages.filter((msg: sap.ui.core.message.Message) => {
+            const messagesToRemove = existingMessages.filter((msg: Message) => {
                 const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
                 return isMatch;
             });

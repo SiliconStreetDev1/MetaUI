@@ -51,7 +51,7 @@ export class CodeEditorPlugin extends BasePlugin {
      */
     private adjustHeight(): void {
         if (!this.control) return;
-        const val = (this.control as CodeEditor).getValue() || "";
+        const val = (this.control as CodeEditor).getProperty('value') || "";
         const lines = val.split(/\r\n|\r|\n/).length;
         // 18px per line + 20px padding, minimum 100px
         const newHeight = Math.max(100, (lines * 18) + 20);
@@ -90,7 +90,7 @@ export class CodeEditorPlugin extends BasePlugin {
                 
                 // If language isn't explicitly defined, try to guess it dynamically
                 if (!fieldMetadata.ui?.args) {
-                    const currentVal = (this.control as CodeEditor).getValue();
+                    const currentVal = (this.control as CodeEditor).getProperty('value');
                     const detectedType = this.detectLanguage(currentVal);
                     if ((this.control as CodeEditor).getType() !== detectedType) {
                         (this.control as CodeEditor).setType(detectedType);
@@ -108,7 +108,7 @@ export class CodeEditorPlugin extends BasePlugin {
             
             const initLogic = () => {
                 if (this.control) {
-                    const currentVal = (this.control as CodeEditor).getValue();
+                    const currentVal = (this.control as CodeEditor).getProperty('value');
                     if (!fieldMetadata.ui?.args) {
                         (this.control as CodeEditor).setType(this.detectLanguage(currentVal));
                     }
@@ -139,7 +139,7 @@ export class CodeEditorPlugin extends BasePlugin {
      * @returns {unknown} The code value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as CodeEditor).getValue() : null;
+        return this.control ? (this.control as CodeEditor).getProperty('value') : null;
     }
 
     /**

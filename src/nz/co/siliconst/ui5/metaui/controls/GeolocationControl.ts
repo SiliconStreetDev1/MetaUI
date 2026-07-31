@@ -13,17 +13,11 @@ import VBox from "sap/m/VBox";
 import MessageToast from "sap/m/MessageToast";
 
 export default class GeolocationControl extends BaseHardwareControl {
-    private vBox: VBox;
-    private locationBtn: Button;
-    private resultInput: Input;
+    private vBox!: VBox;
+    private locationBtn!: Button;
+    private resultInput!: Input;
 
     static readonly renderer = BaseHardwareControlRenderer;
-
-    static readonly metadata = {
-        aggregations: {
-            _content: { type: "sap.m.VBox", multiple: false, visibility: "hidden" }
-        }
-    };
 
     /**
      * Initializes the control and builds the internal UI components.

@@ -41,7 +41,7 @@ export class LinkPlugin extends BasePlugin {
     protected getValue(): unknown {
         if (!this.control) return null;
         if (this.control.getMetadata().getName() === "sap.m.Input") {
-            return (this.control as Input).getValue();
+            return (this.control as Input).getProperty('value');
         }
         return (this.control as Link).getHref();
     }

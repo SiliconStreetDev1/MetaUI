@@ -7,7 +7,7 @@
 
 import Control from "sap/ui/core/Control";
 import RenderManager from "sap/ui/core/RenderManager";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
 
 /**

@@ -59,7 +59,7 @@ export class DropdownPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             forceSelection: false,
             change: (oEvent: sap.ui.base.Event) => {
-                const item = oEvent.getParameter("selectedItem");
+                const item = (oEvent as any).getParameter("selectedItem");
                 const val = item ? item.getKey() : "";
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {

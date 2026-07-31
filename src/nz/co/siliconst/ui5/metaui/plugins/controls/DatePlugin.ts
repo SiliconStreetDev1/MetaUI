@@ -55,7 +55,7 @@ export class DatePlugin extends BasePlugin {
             editable: !fieldMetadata.ui?.readOnly,
             required: fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("value");
+                const val = (oEvent as any).getParameter("value");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -71,7 +71,7 @@ export class DatePlugin extends BasePlugin {
      * @returns {unknown} The date value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as DatePicker).getValue() : null;
+        return this.control ? (this.control as DatePicker).getProperty('value') : null;
     }
 
     /**

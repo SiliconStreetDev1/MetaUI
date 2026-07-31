@@ -1,8 +1,9 @@
-import { DynamicHost } from "../DynamicHost";
+import DynamicHost from "../../DynamicHost";
 import { Logger } from "../../../utils/Logger";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import Context from "sap/ui/model/Context";
 
+import Event from "sap/ui/base/Event";
 /**
  * Universal OData Delegate.
  * Natively detects and manages two-way synchronization for both OData V2 and V4 contexts
@@ -32,8 +33,8 @@ export class ODataDelegate {
     /**
      * Event listener wrapper for field changes emitted by the host.
      */
-    private onFieldChange(oEvent: sap.ui.base.Event): void {
-        const params = oEvent.getParameters();
+    private onFieldChange(oEvent: Event): void {
+        const params = oEvent.getParameters() as any;
         if (params.fieldPath && params.value !== undefined) {
             this.handleFieldChange(params.fieldPath, params.value);
         }
@@ -68,8 +69,8 @@ export class ODataDelegate {
 
         if (this.odataType === "V4") {
             // V4 uses async requestObject()
-            if (typeof this.context.requestObject === "function") {
-                this.context.requestObject().then((oData: unknown) => {
+            if (typeof (this.context as any).requestObject === "function") {
+                (this.context as any).requestObject().then((oData: unknown) => {
                     this.pushPayload(oData);
                 }).catch((err: Error) => {
                     Logger.error("[MetaUI]", "Failed to extract V4 Context payload: " + err.message, "ODataDelegate");
@@ -116,11 +117,11 @@ export class ODataDelegate {
         try {
             if (this.odataType === "V4") {
                 // V4 sets property directly on context
-                this.context.setProperty(fieldPath, value);
+                (this.context as any).setProperty(fieldPath, value);
             } else if (this.odataType === "V2") {
                 // V2 sets property on model, specifying the context path
                 const model = this.context.getModel();
-                model.setProperty(fieldPath, value, this.context);
+                (model as any).setProperty(fieldPath, value, this.context);
             }
             if (this.host.getProperty("debugMode")) {
                 Logger.debug("[MetaUI]", `ODataDelegate Patched ${fieldPath} = ${value} via ${this.odataType}`, "ODataDelegate");

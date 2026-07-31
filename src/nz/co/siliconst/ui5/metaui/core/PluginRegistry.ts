@@ -201,7 +201,7 @@ export class PluginRegistry {
     /**
      * Extracts a valid constructor from a dynamically required module.
      */
-    private extractConstructor(Module: unknown): new () => IPlugin | ILayoutManager | null {
+    private extractConstructor(Module: unknown): any {
         if (!Module) return null;
         if (typeof Module === "function") return Module as any;
         if ((Module as any).default && typeof (Module as any).default === "function") return (Module as any).default;
@@ -214,6 +214,34 @@ export class PluginRegistry {
             }
         }
         return null;
+    }
+
+    public getPluginScore(type: FieldType, widgetName?: string): number {
+        try {
+            const path = this.getFieldPath(type, widgetName);
+            const Module = sap.ui.require(path);
+            const Constructor = this.extractConstructor(Module) as any;
+            if (Constructor && typeof Constructor.layoutScore === "number") {
+                return Constructor.layoutScore;
+            }
+        } catch (e) {
+            // Ignore if module not loaded or mapping missing, fallback to 1
+        }
+        return 1;
+    }
+
+    public isPluginNativelyWide(type: FieldType, widgetName?: string): boolean {
+        try {
+            const path = this.getFieldPath(type, widgetName);
+            const Module = sap.ui.require(path);
+            const Constructor = this.extractConstructor(Module) as any;
+            if (Constructor && typeof Constructor.isNativelyWide === "boolean") {
+                return Constructor.isNativelyWide;
+            }
+        } catch (e) {
+            // Ignore errors, default false
+        }
+        return false;
     }
 
     /**

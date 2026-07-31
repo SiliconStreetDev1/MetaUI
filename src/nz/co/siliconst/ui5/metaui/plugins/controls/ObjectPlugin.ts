@@ -56,16 +56,17 @@ export class ObjectPlugin extends BasePlugin {
                 // Deep clone to prevent live-mutations on the parent model before 'Submit' is clicked
                 const nestedData = JSON.parse(JSON.stringify(parentModel.getProperty(updatePath) || {}));
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHost: typeof import("../../controls/DynamicHost").default) => {
-                    const host = new DynamicHost({
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHostClass: typeof import("../../controls/DynamicHost").default) => {
+                    const host = new DynamicHostClass({
                         schemaDefinition: subSchema,
                         data: nestedData,
-                        editable: this.isEditable
-                    });
+                        editable: this.isEditable,
+                        layoutBudget: this.metadata?.ui?.layoutBudget || 0
+                    } as object);
 
                     if (!!this.isEditable) {
-                        host.attachSubmit((e: Event) => {
-                            const payload = (e.getParameter("payload") as unknown);
+                        host.attachEvent("submit", (e: Event) => {
+                            const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
                             
                             // CRITICAL: Notify the parent Engine that this field mutated

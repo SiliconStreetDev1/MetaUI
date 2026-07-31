@@ -6,7 +6,7 @@
 
 export class Logger {
     private static debugMode: boolean = false;
-    private static logInstance: unknown = null;
+    private static logInstance: any = null;
 
     /**
      * Toggles the global debug mode for MetaUI.

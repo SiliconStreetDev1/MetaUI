@@ -12,6 +12,9 @@ import MessageBox from "sap/m/MessageBox";
 import MessageStrip from "sap/m/MessageStrip";
 import VBox from "sap/m/VBox";
 import { PluginRegistry } from "../../core/PluginRegistry";
+import { LayoutScorer } from "../../core/LayoutScorer";
+import { LayoutMutator } from "../../core/LayoutMutator";
+import { DefaultLayoutGenerator } from "../../core/DefaultLayoutGenerator";
 import type { ISchema } from "../../interfaces/ISchema";
 
 /**
@@ -48,7 +51,9 @@ export default class GeneratorHost extends Control {
             useMessageManager: { type: "boolean", defaultValue: false },
             modelName: { type: "string", defaultValue: "meta" },
             debugMode: { type: "boolean", defaultValue: false },
-            editable: { type: "boolean", defaultValue: true }
+            editable: { type: "boolean", defaultValue: true },
+            layoutBudget: { type: "int", defaultValue: 0 },
+            engineScopeId: { type: "string", defaultValue: null }
         },
         aggregations: {
             _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
@@ -104,7 +109,7 @@ export default class GeneratorHost extends Control {
      * Standard UI5 Constructor.
      */
     constructor(idOrSettings?: string | object, settings?: object) {
-        super(idOrSettings, settings);
+        super(idOrSettings as string, settings);
     }
 
     /**
@@ -118,7 +123,7 @@ export default class GeneratorHost extends Control {
         // Initialize Composition Delegates
         this.dataSyncDelegate = new DataSyncDelegate(this);
         this.validationDelegate = new ValidationDelegate(this);
-        this.dialogDelegate = new DialogDelegate(this);
+        this.dialogDelegate = new DialogDelegate(this as any);
 
         this.onInternalFieldChange = this.onInternalFieldChange.bind(this);
     }
@@ -132,16 +137,6 @@ export default class GeneratorHost extends Control {
         return this;
     }
 
-    /**
-     * Intercepts property updates to dynamically forward them to active delegates/managers.
-     */
-    public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
-        super.setProperty(propertyName, value, suppressInvalidate);
-        if (propertyName === "useMessageManager" && this.stateManager) {
-            this.stateManager.setUseMessageManager(value === true);
-        }
-        return this;
-    }
 
     /**
      * Returns the active state manager instance managing the JSON payload.
@@ -357,6 +352,10 @@ export default class GeneratorHost extends Control {
      * or forces a full UI teardown if it's a structural property change (like schemaDefinition).
      */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
+        if (propertyName === "useMessageManager" && this.stateManager) {
+            this.stateManager.setUseMessageManager(value === true);
+        }
+
         if (propertyName === "dataJson" || propertyName === "data") {
             this.dataSyncDelegate.handleInputDataHotSwap(propertyName, value, suppressInvalidate);
             return this;
@@ -491,10 +490,50 @@ export default class GeneratorHost extends Control {
                 }
             }
 
+            const rawDefinitions = this.getProperty("schemaDefinitions") as Record<string, any> || {};
+            
+            // Extract any definitions embedded inside the root schema definition
+            let parsedRawSchema = rawSchema;
+            if (typeof rawSchema === "string" && rawSchema.trim() !== "") {
+                try {
+                    parsedRawSchema = JSON.parse(rawSchema);
+                } catch (e) {
+                    // Ignore parse errors here; SchemaNormalizer will throw loudly later if invalid.
+                }
+            }
+
+            if (parsedRawSchema && typeof parsedRawSchema === "object" && (parsedRawSchema as any).definitions) {
+                Object.assign(rawDefinitions, (parsedRawSchema as any).definitions);
+                this.setProperty("schemaDefinitions", rawDefinitions, true);
+            }
+
+            let normalizedDefinitions: Record<string, ISchema> | undefined;
+            if (Object.keys(rawDefinitions).length > 0) {
+                normalizedDefinitions = {};
+                for (const key in rawDefinitions) {
+                    try {
+                        normalizedDefinitions[key] = SchemaNormalizer.normalize(rawDefinitions[key]) as ISchema;
+                    } catch (e) {
+                        Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+                    }
+                }
+            }
+
+            const budget = this.getProperty("layoutBudget") as number;
+
+            // Ensure we have a uiLayout synthesized before applying scoring and mutation 
+            // (crucial for inferred/swagger schemas)
+            if (DefaultLayoutGenerator.ensureLayout(normalizedSchema as ISchema)) {
+                Logger.warn("[MetaUI GeneratorHost] Missing 'uiLayout' array in schema. Synthesized a default layout mapping to prevent a blank render.");
+            }
+
+            LayoutScorer.apply(normalizedSchema as ISchema, budget, normalizedDefinitions);
+            LayoutMutator.apply(normalizedSchema as ISchema);
+
             const activePluginRegistry = this.getProperty("pluginRegistry") || PluginRegistry.getInstance();
             
             const pathsToLoad = activePluginRegistry.getPathsToLoad(normalizedSchema as ISchema);
-            const needsNetworkLoad = Array.from(pathsToLoad).some((path: string) => !sap.ui.require(path));
+            const needsNetworkLoad = Array.from(pathsToLoad).some((path: any) => !sap.ui.require(path));
 
             if (needsNetworkLoad) {
                 this.setBusy(true);

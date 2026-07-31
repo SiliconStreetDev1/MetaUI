@@ -16,6 +16,7 @@ import Control from "sap/ui/core/Control";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
+import GeneratorHost from "../controls/host/GeneratorHost";
 import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 
@@ -43,8 +44,10 @@ export class TableLayout implements ILayoutManager {
         let itemsSchema = schema.items;
         if (itemsSchema && !itemsSchema.properties && itemsSchema.ui?.widget === "reference" && itemsSchema.$ref) {
             Logger.debug(`[MetaUI] TableLayout detecting reference widget for ${bindingPath}. Resolving ${itemsSchema.$ref}`, "", "TableLayout");
-            if (engine.host && engine.host.getSchemaDefinition) {
-                const resolved = engine.host.getSchemaDefinition(itemsSchema.$ref);
+            
+            const host = engine.host as unknown as GeneratorHost;
+            if (host && typeof host.getSchemaDefinition === "function") {
+                const resolved = host.getSchemaDefinition(itemsSchema.$ref);
                 Logger.debug(`[MetaUI] Resolved schema for ${itemsSchema.$ref}: ${!!resolved} ${resolved ? Object.keys(resolved) : ""}`, "", "TableLayout");
                 if (resolved && resolved.properties) {
                     itemsSchema = resolved;
@@ -52,7 +55,7 @@ export class TableLayout implements ILayoutManager {
                     Logger.error(`[MetaUI] TableLayout resolved schema but it has no properties!`, "", "TableLayout");
                 }
             } else {
-                Logger.error(`[MetaUI] TableLayout cannot resolve ${itemsSchema.$ref} because engine.host.getSchemaDefinition is missing! host: ${engine.host?.getMetadata().getName()}`, "", "TableLayout");
+                Logger.error(`[MetaUI] TableLayout cannot resolve ${itemsSchema.$ref} because engine.host.getSchemaDefinition is missing! host: ${host?.getMetadata().getName()}`, "", "TableLayout");
             }
         }
 
@@ -75,8 +78,8 @@ export class TableLayout implements ILayoutManager {
                             text: "Add Row",
                             icon: "sap-icon://add",
                             press: (oEvent: sap.ui.base.Event) => {
-                                const btn = oEvent.getSource();
-                                const tbl = btn.getParent().getParent() as Table;
+                                const btn = oEvent.getSource() as Button;
+                                const tbl = btn.getParent()?.getParent() as Table;
                                 const model = tbl.getModel(actualModelName) as JSONModel;
                                 const info = tbl.getBindingInfo("items");
                                 if (!info || !info.path) return;
@@ -98,8 +101,9 @@ export class TableLayout implements ILayoutManager {
             fixedLayout: false,
             mode: !engine.isEditable ? "None" : "Delete",
             delete: (oEvent: sap.ui.base.Event) => {
-                const item = oEvent.getParameter("listItem");
-                const path = item.getBindingContext(actualModelName).getPath();
+                const item = oEvent.getParameter("listItem") as ColumnListItem;
+                const path = item.getBindingContext(actualModelName)?.getPath();
+                if (!path) return;
                 const model = item.getModel(actualModelName) as JSONModel;
 
                 const splitPaths = path.split("/");

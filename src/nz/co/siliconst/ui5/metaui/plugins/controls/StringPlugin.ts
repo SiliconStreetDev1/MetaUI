@@ -67,7 +67,7 @@ export class StringPlugin extends BasePlugin {
      * @returns {unknown} The string value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as Input).getValue() : null;
+        return this.control ? (this.control as Input).getProperty('value') : null;
     }
 
     /**

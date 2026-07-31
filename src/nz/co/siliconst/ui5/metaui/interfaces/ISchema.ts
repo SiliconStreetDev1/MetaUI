@@ -5,7 +5,9 @@
  * with a proprietary 'ui' directive block for Fiori visual orchestration.
  */
 
-export type FieldType = "string" | "number" | "integer" | "boolean" | "date" | "array" | "object";
+import { RenderModeType, SchemaTypeType } from "../constants/MetaUIConstants";
+
+export type FieldType = SchemaTypeType | "date";
 
 /**
  * Value help structure mapping SAP Key/Text pairs.
@@ -48,6 +50,8 @@ export interface IUIDirective {
     formatter?: string;
     args?: unknown;
     dialogButtonText?: string;
+    layoutBudget?: number;
+    renderMode?: RenderModeType;
 }
 
 export interface IRemoteValueHelpConfig {

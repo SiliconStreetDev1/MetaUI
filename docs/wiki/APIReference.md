@@ -20,6 +20,8 @@ The `DynamicHost` (`nz.co.siliconst.ui5.metaui.controls.DynamicHost`) is the pri
 | `debugMode` | `boolean` | `false` | If true, prints verbose layout rendering and data extraction telemetry to the console. |
 | `editable` | `boolean` | `true` | If false, renders the entire generated layout as read-only. |
 | `inferenceStrategy` | `string` | `"RuleBased"` | Defines the fallback parsing mode when no explicit schema is provided (`"RuleBased"` or `"AI"`). |
+| `layoutBudget` | `number` | `0` | Controls how many nested fields can be recursively rendered inline before overflowing into a dialog. `0` disables inline sub-layouts. |
+| `engineScopeId` | `string` | `""` | A deterministic internal prefix passed down recursively to prevent DOM ID collisions between multiple engines. |
 
 ---
 

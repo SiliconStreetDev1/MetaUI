@@ -42,7 +42,7 @@ export class GeolocationPlugin extends BasePlugin {
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
-        (this.control as GeolocationControl).attachCapture(() => {
+        (this.control as GeolocationControl).attachEvent('capture', () => {
             const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -57,7 +57,7 @@ export class GeolocationPlugin extends BasePlugin {
      * @returns {unknown} The geolocation value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as GeolocationControl).getValue() : null;
+        return this.control ? (this.control as GeolocationControl).getProperty('value') : null;
     }
 
     /**

@@ -68,7 +68,7 @@ export class SliderPlugin extends BasePlugin {
      * @returns {unknown} The numeric value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as Slider).getValue() : 0;
+        return this.control ? (this.control as Slider).getProperty('value') : 0;
     }
 
     /**

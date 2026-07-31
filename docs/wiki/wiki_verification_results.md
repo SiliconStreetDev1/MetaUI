@@ -17,8 +17,10 @@ This artifact provides the mandatory forensic proof required by the `persona.md`
 | `useMessageManager` | `controls/DynamicHost.ts` | 30 |
 | `modelName` | `controls/DynamicHost.ts` | 31 |
 | `debugMode` | `controls/DynamicHost.ts` | 32 |
-| `editable` | `controls/DynamicHost.ts` | 33 |
-| `inferenceStrategy` | `controls/DynamicHost.ts` | 34 |
+| `editable` | `controls/DynamicHost.ts` | 35 |
+| `inferenceStrategy` | `controls/DynamicHost.ts` | 36 |
+| `layoutBudget` | `controls/DynamicHost.ts` | 37 |
+| `engineScopeId` | `controls/DynamicHost.ts` | 38 |
 | **Events** | | |
 | `beforeSubmit` | `controls/DynamicHost.ts` | 39 |
 | `submit` | `controls/DynamicHost.ts` | 42 |
@@ -103,6 +105,8 @@ This artifact provides the mandatory forensic proof required by the `persona.md`
 | `formatter` | `interfaces/ISchema.ts` | 48 |
 | `args` | `interfaces/ISchema.ts` | 49 |
 | `dialogButtonText` | `interfaces/ISchema.ts` | 50 |
+| `layoutBudget` | `interfaces/ISchema.ts` | 51 |
+| `renderMode` | `interfaces/ISchema.ts` | 52 |
 | **ILayoutElement** | | |
 | `type` | `interfaces/ISchema.ts` | 27 |
 | `label` | `interfaces/ISchema.ts` | 28 |
@@ -118,6 +122,10 @@ This artifact provides the mandatory forensic proof required by the `persona.md`
 | Phase 1 Mappings (`fileUploader`, `multiSelect`, etc.) | `core/PluginRegistry.ts` | 46-51 |
 | Phase 5 Mappings (`camera`, `signature`, etc.) | `core/PluginRegistry.ts` | 54-59 |
 | Actions & Datasources (`urlButton`, `submitButton`, `odataSelect`, etc.) | `core/PluginRegistry.ts` | 62-67 |
+| **LayoutScorer (Scaling Heuristics)** | | |
+| `LayoutScorer.apply` (Budget API) | `core/LayoutScorer.ts` | 18 |
+| Node Scoring Logic (`layoutScore = 1`) | `core/LayoutScorer.ts` | 126 |
+| Auto-switching `renderMode` to `"dialog"` | `core/LayoutScorer.ts` | 127-133 |
 
 ## `OpenAPIIntegration.md` Verification
 

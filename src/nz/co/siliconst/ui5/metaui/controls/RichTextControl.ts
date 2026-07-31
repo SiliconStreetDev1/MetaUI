@@ -4,6 +4,7 @@ import RenderManager from "sap/ui/core/RenderManager";
 import VBox from "sap/m/VBox";
 import RichTextEditor from "sap/ui/richtexteditor/RichTextEditor";
 
+import Event from "sap/ui/base/Event";
 /**
  * @file RichTextControl.ts
  * @description Native UI5 Control for rich text input.
@@ -16,14 +17,6 @@ export default class RichTextControl extends BaseHardwareControl {
 
     static readonly renderer = BaseHardwareControlRenderer;
 
-    static readonly metadata = {
-        properties: {},
-        events: {},
-        aggregations: {
-            _content: { type: "sap.m.VBox", multiple: false, visibility: "hidden" }
-        }
-    };
-
     public init(): void {
         super.init();
 
@@ -33,7 +26,7 @@ export default class RichTextControl extends BaseHardwareControl {
             showGroupFont: true,
             showGroupInsert: true,
             tooltip: "Rich Text Editor",
-            change: (oEvent: sap.ui.base.Event) => {
+            change: (oEvent: Event) => {
                 const val = oEvent.getParameter("newValue");
                 this.setValueAndFire(val);
             }

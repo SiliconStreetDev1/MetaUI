@@ -42,7 +42,7 @@ export class SignaturePlugin extends BasePlugin {
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
-        (this.control as SignatureControl).attachCapture(() => {
+        (this.control as SignatureControl).attachEvent('capture', () => {
             const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -57,7 +57,7 @@ export class SignaturePlugin extends BasePlugin {
      * @returns {unknown} The signature image value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as SignatureControl).getValue() : null;
+        return this.control ? (this.control as SignatureControl).getProperty('value') : null;
     }
 
     /**

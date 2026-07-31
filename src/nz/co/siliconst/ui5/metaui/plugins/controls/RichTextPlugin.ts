@@ -50,7 +50,7 @@ export class RichTextPlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         if (isValueAccessor(this.control) && this.control.attachCapture) {
-            this.control.attachCapture(() => {
+            this.control.attachEvent('capture', () => {
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -67,7 +67,7 @@ export class RichTextPlugin extends BasePlugin {
      */
     protected getValue(): unknown {
         if (isValueAccessor(this.control)) {
-            return this.control.getValue();
+            return this.control.getProperty('value');
         }
         return null;
     }

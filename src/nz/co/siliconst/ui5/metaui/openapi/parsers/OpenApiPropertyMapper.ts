@@ -17,7 +17,7 @@ export class OpenApiPropertyMapper {
     /**
      * Recursively traverses and translates an OpenAPI properties block into a MetaUI IPropertyMetadata dictionary.
      * 
-     * @param {Record<string, any>} properties The OpenAPI properties block.
+     * @param {any} properties The OpenAPI properties block.
      * @param {string[]} requiredKeys Array of required property keys.
      * @param {any} openApiRoot The OpenAPI root document for resolving references.
      * @param {"2.0" | "3.0"} version The OpenAPI version.
@@ -25,9 +25,9 @@ export class OpenApiPropertyMapper {
      * @returns {Record<string, IPropertyMetadata>} The normalized MetaUI properties mapping.
      */
     public static mapProperties(
-        properties: Record<string, any>, 
+        properties: any, 
         requiredKeys: string[], 
-        openApiRoot: unknown, 
+        openApiRoot: any, 
         version: "2.0" | "3.0", 
         depth: number = 0
     ): Record<string, IPropertyMetadata> {
@@ -65,14 +65,14 @@ export class OpenApiPropertyMapper {
      * @returns {IPropertyMetadata} The normalized MetaUI property metadata.
      */
     public static mapPropertyMetadata(
-        swaggerProp: unknown, 
+        swaggerProp: any, 
         keyName: string, 
         isRequired: boolean, 
-        openApiRoot: unknown, 
+        openApiRoot: any, 
         version: "2.0" | "3.0", 
         depth: number = 0
     ): IPropertyMetadata {
-        let currentProp = swaggerProp;
+        let currentProp = swaggerProp as any;
 
         // 1. Resolve References
         const refResult = this._resolveReference(currentProp, keyName, isRequired, openApiRoot, version, depth);
@@ -131,10 +131,10 @@ export class OpenApiPropertyMapper {
      * @private
      */
     private static _resolveReference(
-        currentProp: unknown, 
+        currentProp: any, 
         keyName: string, 
         isRequired: boolean, 
-        openApiRoot: unknown, 
+        openApiRoot: any, 
         version: "2.0" | "3.0", 
         depth: number
     ): IPropertyMetadata | null {
@@ -143,10 +143,10 @@ export class OpenApiPropertyMapper {
         }
 
         const resolved = OpenApiRefResolver.resolve(currentProp.$ref, openApiRoot);
-        const resolvedType = currentProp.type || (resolved && resolved.type);
+        const resolvedType = currentProp.type || (resolved && (resolved as any).type);
         
         if (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType)) {
-            const inlineProp = { ...resolved, ...currentProp };
+            const inlineProp = { ...(resolved as any), ...currentProp };
             delete inlineProp.$ref;
             return this.mapPropertyMetadata(inlineProp, keyName, isRequired, openApiRoot, version, depth + 1);
         }
@@ -167,7 +167,7 @@ export class OpenApiPropertyMapper {
      * @returns {any} A flattened and merged schema entity.
      * @private
      */
-    private static _resolveAllOf(currentProp: unknown, openApiRoot: unknown): unknown {
+    private static _resolveAllOf(currentProp: any, openApiRoot: any): unknown {
         if (!Array.isArray(currentProp.allOf)) {
             return currentProp;
         }
@@ -192,7 +192,7 @@ export class OpenApiPropertyMapper {
      * @param {"2.0" | "3.0"} version The version, utilized for nuanced boundary matching.
      * @private
      */
-    private static _applyConstraints(metaProp: IPropertyMetadata, currentProp: unknown, version: "2.0" | "3.0"): void {
+    private static _applyConstraints(metaProp: IPropertyMetadata, currentProp: any, version: "2.0" | "3.0"): void {
         // String Constraints
         if (typeof currentProp.maxLength === "number") metaProp.maxLength = currentProp.maxLength;
         if (typeof currentProp.minLength === "number") metaProp.minLength = currentProp.minLength;
@@ -237,7 +237,7 @@ export class OpenApiPropertyMapper {
      * @param {any} currentProp Source raw schema payload.
      * @private
      */
-    private static _applyStateModifiers(metaProp: IPropertyMetadata, currentProp: unknown): void {
+    private static _applyStateModifiers(metaProp: IPropertyMetadata, currentProp: any): void {
         if (currentProp.readOnly === true) metaProp.readOnly = true;
         if (currentProp.writeOnly === true) metaProp.writeOnly = true;
         if (currentProp.nullable === true) metaProp.nullable = true;
@@ -256,8 +256,8 @@ export class OpenApiPropertyMapper {
      */
     private static _applyPolymorphism(
         metaProp: IPropertyMetadata, 
-        currentProp: unknown, 
-        openApiRoot: unknown, 
+        currentProp: any, 
+        openApiRoot: any, 
         version: "2.0" | "3.0", 
         depth: number
     ): void {
@@ -310,8 +310,8 @@ export class OpenApiPropertyMapper {
      */
     private static _applyNestedTypes(
         metaProp: IPropertyMetadata, 
-        currentProp: unknown, 
-        openApiRoot: unknown, 
+        currentProp: any, 
+        openApiRoot: any, 
         version: "2.0" | "3.0", 
         depth: number,
         type: string
@@ -353,8 +353,8 @@ export class OpenApiPropertyMapper {
      * @param {any} source The source object providing override details.
      * @returns {any} The synthesized output object.
      */
-    public static deepMergeSchemas(target: unknown, source: unknown): unknown {
-        const output = Object.assign({}, target);
+    public static deepMergeSchemas(target: any, source: any): any {
+        const output: any = Object.assign({}, target);
         if (source === null || typeof source !== "object") return output;
 
         Object.keys(source).forEach(key => {

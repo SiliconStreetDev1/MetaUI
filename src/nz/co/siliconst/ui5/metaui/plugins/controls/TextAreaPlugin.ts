@@ -83,7 +83,7 @@ export class TextAreaPlugin extends BasePlugin {
      * Dynamically sets the rows to the content length + 2
      */
     private updateHeight(oTextArea: TextArea): void {
-        const val = oTextArea.getValue() || "";
+        const val = oTextArea.getProperty('value') || "";
         // Count actual newlines in the string
         const numLines = val.split(/\r\n|\r|\n/).length;
         // Also estimate word wrapping if they type a really long single line without pressing enter
@@ -101,7 +101,7 @@ export class TextAreaPlugin extends BasePlugin {
      * @returns {unknown} The text string.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as TextArea).getValue() : null;
+        return this.control ? (this.control as TextArea).getProperty('value') : null;
     }
 
     /**

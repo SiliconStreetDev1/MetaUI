@@ -70,13 +70,13 @@ export default class CameraControl extends BaseHardwareControl {
         this.setAggregation("_content", this.vBox);
     }
 
-    private async onVideoRendered(): void {
+    private async onVideoRendered(): Promise<void> {
         const domRef = this.videoHtml.getDomRef() as HTMLElement;
         if (!domRef) return;
         
         this.videoEl = domRef as HTMLVideoElement;
         
-        const val = this.getValue();
+        const val = this.getProperty("value");
         if (val && typeof val === "string" && val.startsWith("data:image")) {
             this.showPreview(val);
         } else if (this.captureBtn.getVisible() && this.videoHtml.getVisible()) {
@@ -153,7 +153,7 @@ export default class CameraControl extends BaseHardwareControl {
      * @param value The base64 data URL string representing the image.
      */
      public setValue(value: unknown): this {
-        super.setValue(value);
+        super.setProperty("value", value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {
             this.showPreview(value);
         } else if (!value) {

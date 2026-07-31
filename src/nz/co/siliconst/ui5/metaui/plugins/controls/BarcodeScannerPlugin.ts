@@ -52,7 +52,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
         const scannerBtn = new BarcodeScannerButton({
             id: this.generateStableId(engineScopeId, bindingPath + "-btn"),
             scanSuccess: (oEvent: sap.ui.base.Event) => {
-                const text = oEvent.getParameter("text") as string;
+                const text = (oEvent as any).getParameter("text") as string;
                 if (text) {
                     this.inputControl.setValue(text);
                     // UI5's two-way data binding on the input will sync the model automatically
@@ -80,7 +80,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
      * @returns {unknown} The barcode string.
      */
     protected getValue(): unknown {
-        return this.inputControl ? this.inputControl.getValue() : null;
+        return this.inputControl ? this.inputControl.getProperty('value') : null;
     }
 
     /**

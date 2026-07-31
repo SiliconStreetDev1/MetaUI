@@ -73,7 +73,7 @@ export class TimePlugin extends BasePlugin {
      * @returns {unknown} The time string.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as TimePicker).getValue() : null;
+        return this.control ? (this.control as TimePicker).getProperty('value') : null;
     }
 
     /**

@@ -46,7 +46,7 @@ export class BooleanPlugin extends BasePlugin {
             selected: this.generateBindingInfo(bindingPath, modelName),
             enabled: !fieldMetadata.ui?.readOnly,
             select: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("selected");
+                const val = (oEvent as any).getParameter("selected");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);

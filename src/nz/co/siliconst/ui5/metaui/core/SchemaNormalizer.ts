@@ -12,7 +12,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public canHandle(rawSchema: unknown): boolean {
+    public canHandle(rawSchema: any): boolean {
         // Fallback for native ISchemas or data inference.
         // It always returns true because it is the final fallback builder in the registry.
         return true;
@@ -21,14 +21,14 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public build(rawSchema: unknown, targetDefinition?: string): ISchema {
+    public build(rawSchema: any, targetDefinition?: string): ISchema {
         return SchemaNormalizer.normalize(rawSchema);
     }
 
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.
      */
-    public static normalize(rawSchema?: unknown, data?: unknown): ISchema {
+    public static normalize(rawSchema?: any, data?: any): ISchema {
         let schemaObj = rawSchema;
 
         if (typeof schemaObj === "string") {
@@ -55,7 +55,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 title: schemaObj.title,
                 type: schemaObj.type || (schemaObj.items ? "array" : "object"),
                 layoutStrategy: schemaObj.layoutStrategy,
-                uiLayout: schemaObj.uiLayout,
+                uiLayout: schemaObj.uiLayout ? JSON.parse(JSON.stringify(schemaObj.uiLayout)) : undefined,
                 additionalProperties: schemaObj.additionalProperties
             };
 
@@ -114,7 +114,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param requiredKeys An optional array of keys that are required by the parent object.
      * @returns A map of strict IPropertyMetadata objects.
      */
-    private static normalizeProperties(properties: Record<string, unknown>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
+    private static normalizeProperties(properties: Record<string, any>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         for (const key of Object.keys(properties)) {
             const isRequired = requiredKeys.includes(key);
@@ -130,7 +130,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param isRequired Indicates if the parent object mandated this property as required.
      * @returns A strict IPropertyMetadata instance.
      */
-    private static normalizePropertyMetadata(prop: Record<string, unknown>, keyName: string, isRequired: boolean = false): IPropertyMetadata {
+    private static normalizePropertyMetadata(prop: any, keyName: string, isRequired: boolean = false): IPropertyMetadata {
         const normalized: IPropertyMetadata = {
             type: (prop.type as FieldType) || "string",
             $ref: prop.$ref as string | undefined,
@@ -190,7 +190,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * Infers a v2 ISchema structure dynamically from a plain data payload.
      */
-    public static inferSchemaFromData(data: unknown): ISchema {
+    public static inferSchemaFromData(data: any): ISchema {
         const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
 
         if (!data || typeof data !== "object") {
@@ -207,8 +207,8 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 schema.items = {
                     type: "object",
                     layoutStrategy: "compact",
-                    properties: data.length > 0 ? this.inferPropertiesFromObject(data[0] as Record<string, unknown>) : {}
-                };
+                    properties: data.length > 0 ? this.inferPropertiesFromObject(data[0] as Record<string, any>) : {}
+                } as any;
             }
         } else {
             schema.type = "object";
@@ -223,7 +223,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param obj The raw JavaScript object.
      * @returns A dictionary of inferred IPropertyMetadata.
      */
-    private static inferPropertiesFromObject(obj: Record<string, unknown>): Record<string, IPropertyMetadata> {
+    private static inferPropertiesFromObject(obj: Record<string, any>): Record<string, IPropertyMetadata> {
         const properties: Record<string, IPropertyMetadata> = {};
         if (!obj || typeof obj !== "object") return properties;
 
@@ -246,7 +246,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 } else {
                     items = {
                         type: "object",
-                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, unknown>) : {}
+                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, any>) : {}
                     };
                 }
             } else if (typeof val === "object") {

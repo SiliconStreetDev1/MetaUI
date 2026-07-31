@@ -3,7 +3,8 @@
  * @description Renders a sap.m.Select that fetches valueHelp remotely via a JSON URL.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
+import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import Select from "sap/m/Select";
 import Item from "sap/ui/core/Item";
@@ -12,7 +13,7 @@ import { Logger } from "../../utils/Logger";
 
 /**
  * Handles rendering logic for dropdown inputs fetching data remotely.
- * Maps a URL response array to `sap.ui.core.Item` elements.
+ * Maps a URL response array to `Item` elements.
  * 
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
  * @public
@@ -36,11 +37,11 @@ export class RemoteDropdownPlugin extends BasePlugin {
         const config = fieldMetadata.valueHelp as IRemoteValueHelpConfig;
         if (!config || !config.url) {
             Logger.warn("[MetaUI RemoteDropdownPlugin] No valid URL provided for remoteDropdown.");
-            return new sap.m.Text({ text: "Error: No URL provided" }) as Control;
+            return new (sap as any).m.Text({ text: "Error: No URL provided" }) as Control;
         }
         
         if (!this.isEditable) {
-            sap.ui.requireSync("sap/m/Text");
+            (sap.ui as any).requireSync("sap/m/Text");
             const TextControl = sap.ui.require("sap/m/Text");
             
             this.control = new TextControl({
@@ -50,7 +51,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
             
             // Optionally, we could fetch data and update the text formatter here
             
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+            this.applyCommonDirectives(this.control!, fieldMetadata, modelName);
             return this.control as Control;
         }
 
@@ -60,7 +61,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             forceSelection: false,
             busy: true, // Show busy indicator while fetching
-            change: (oEvent: sap.ui.base.Event) => {
+            change: (oEvent: Event) => {
                 const result = this.validate();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -93,7 +94,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
             });
 
         this.control = select;
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
+        this.applyCommonDirectives(this.control!, fieldMetadata, modelName);
         return this.control as Control;
     }
 

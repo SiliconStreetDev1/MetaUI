@@ -57,12 +57,12 @@ export class MultiInputPlugin extends BasePlugin {
             placeholder: fieldMetadata.ui?.label || "Type and press Enter...",
             showValueHelp: false, // We don't have a list of options for primitive tags
             tokenUpdate: (oEvent: Event) => {
-                const type = oEvent.getParameter("type");
+                const type = (oEvent as any).getParameter("type");
                 const sourceMi = oEvent.getSource() as MultiInput;
                 
                 // Native UI5 tokens removed via the 'x' icon. We sync this directly back to the model.
                 if (type === "removed") {
-                    const removedTokens = oEvent.getParameter("removedTokens") as Token[];
+                    const removedTokens = (oEvent as any).getParameter("removedTokens") as Token[];
                     const removedTexts = removedTokens.map(t => t.getText());
                     
                     const bindingInfo = plugin.getNativeBindingContext(sourceMi);
@@ -84,7 +84,7 @@ export class MultiInputPlugin extends BasePlugin {
         if (typeof mi.attachSubmit === "function") {
             mi.attachSubmit((oEvent: Event) => {
                 const sourceMi = oEvent.getSource() as MultiInput;
-                const val = (oEvent.getParameter("value") as string || sourceMi.getValue()).trim();
+                const val = ((oEvent as any).getParameter("value") as string || sourceMi.getProperty('value')).trim();
                 
                 if (val) {
                     const bindingInfo = plugin.getNativeBindingContext(sourceMi);

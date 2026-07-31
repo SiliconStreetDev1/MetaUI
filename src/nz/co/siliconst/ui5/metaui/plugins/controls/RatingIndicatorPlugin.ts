@@ -47,7 +47,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             maxValue: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 5,
             change: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("value");
+                const val = (oEvent as any).getParameter("value");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -65,7 +65,7 @@ export class RatingIndicatorPlugin extends BasePlugin {
      * @returns {unknown} The rating value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as RatingIndicator).getValue() : 0;
+        return this.control ? (this.control as RatingIndicator).getProperty('value') : 0;
     }
 
     /**

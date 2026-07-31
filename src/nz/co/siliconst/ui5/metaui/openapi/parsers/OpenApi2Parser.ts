@@ -24,7 +24,7 @@ export class OpenApi2Parser implements IOpenApiParserPlugin {
      * @returns {ISchema} The synthesized MetaUI schema structure.
      * @throws {Error} If the target definition cannot be found in the provided Swagger document.
      */
-    public parse(openApiRoot: unknown, targetDefinition?: string): ISchema {
+    public parse(openApiRoot: any, targetDefinition?: string): ISchema {
         let targetObject = openApiRoot;
 
         if (!targetDefinition) {

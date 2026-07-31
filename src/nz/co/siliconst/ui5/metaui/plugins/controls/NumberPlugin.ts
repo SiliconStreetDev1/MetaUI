@@ -61,7 +61,7 @@ export class NumberPlugin extends BasePlugin {
             editable: !fieldMetadata.ui?.readOnly,
             required: !!fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("value");
+                const val = (oEvent as any).getParameter("value");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -80,14 +80,14 @@ export class NumberPlugin extends BasePlugin {
      */
     protected getValue(): unknown {
         if (!this.control) return null;
-        // In UI5, Input.getValue() returns a string. We must parse it if it's bound.
+        // In UI5, Input.getProperty('value') returns a string. We must parse it if it's bound.
         // However, we can also extract it directly from the binding.
         const input = this.control as Input;
         const binding = input.getBinding("value");
         if (binding) {
-            return binding.getValue();
+            return binding.getProperty('value');
         }
-        return input.getValue();
+        return input.getProperty('value');
     }
 
     /**

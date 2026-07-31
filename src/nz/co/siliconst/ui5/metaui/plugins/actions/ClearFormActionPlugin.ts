@@ -9,6 +9,7 @@ import Button from "sap/m/Button";
 import Control from "sap/ui/core/Control";
 import JSONModel from "sap/ui/model/json/JSONModel";
 
+import Event from "sap/ui/base/Event";
 /**
  * A custom action plugin that renders a Button to reset the model data.
  * Demonstrates how to create functional action plugins that interact with the bound model.
@@ -31,7 +32,7 @@ export class ClearFormActionPlugin extends BasePlugin {
             text: fieldMetadata.ui?.label || "Clear Data",
             type: "Reject",
             icon: "sap-icon://delete",
-            press: (oEvent: sap.ui.base.Event) => {
+            press: (oEvent: Event) => {
                 const btn = oEvent.getSource() as Button;
                 const model = btn.getModel(modelName) as JSONModel;
                 if (model) {

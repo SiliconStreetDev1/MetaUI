@@ -9,11 +9,7 @@ import MessageToast from "sap/m/MessageToast";
  * Provides an HTML5 Canvas for capturing signatures.
  */
 export default class SignatureControl extends BaseHardwareControl {
-    static readonly renderer = "nz.co.siliconst.ui5.metaui.controls.BaseHardwareControlRenderer";
-    static readonly metadata = {
-        properties: {},
-        events: {}
-    };
+
 
     private vBox!: VBox;
     private clearBtn!: Button;
@@ -82,7 +78,7 @@ export default class SignatureControl extends BaseHardwareControl {
         this.canvasEl.addEventListener("touchend", this.boundStopDrawing);
 
         // Restore existing signature if any
-        const val = this.getValue();
+        const val = this.getProperty("value");
         if (val && typeof val === "string" && val.startsWith("data:image")) {
             this.loadImageOntoCanvas(val);
         }
@@ -177,7 +173,7 @@ export default class SignatureControl extends BaseHardwareControl {
      * @param value The base64 data URL string representing the signature image.
      */
     public setValue(value: unknown): this {
-        super.setValue(value);
+        super.setProperty("value", value);
         if (value && typeof value === "string" && value.startsWith("data:image")) {
             this.loadImageOntoCanvas(value);
         } else if (!value && this.canvasCtx && this.canvasEl) {

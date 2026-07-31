@@ -36,7 +36,7 @@ export class EmailPlugin extends BasePlugin {
     }
 
     protected getValue(): unknown {
-        return this.control && this.control.getMetadata().getName() === "sap.m.Input" ? (this.control as Input).getValue() : null;
+        return this.control && this.control.getMetadata().getName() === "sap.m.Input" ? (this.control as Input).getProperty('value') : null;
     }
 
     protected applyState(): void {

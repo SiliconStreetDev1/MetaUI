@@ -71,3 +71,7 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 
 ## 14. Library Utility Boundaries
 - **Core vs Sandbox**: Any utility, parser, or extractor built for the test Sandbox that provides generic parsing, detection, or capability useful to external consumers (e.g. dynamic Swagger endpoint extractors) MUST be built as a TypeScript module within the core src/ library and exposed as a public API, rather than hidden inside the 	est/webapp/util/ sandbox.
+
+## 15. Keep It Simple (Anti-Overengineering Rule)
+- **No Massive Flattening Algorithms**: Do not overcomplicate recursive tree parsing or layout manipulation just because you assume a framework (like UI5) can't handle it. 
+- **Basic Swaps Only**: When modifying a layout array, apply the simplest possible transformation (e.g., swapping a Control for a Group). Never write convoluted logic that destroys the original structure.

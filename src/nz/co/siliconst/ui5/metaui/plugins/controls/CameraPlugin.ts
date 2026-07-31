@@ -43,7 +43,7 @@ export class CameraPlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         // Validation mapping could be hooked into the 'capture' event if needed, but Two-Way binding updates the model naturally.
-        (this.control as CameraControl).attachCapture(() => {
+        (this.control as CameraControl).attachEvent('capture', () => {
             const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -58,7 +58,7 @@ export class CameraPlugin extends BasePlugin {
      * @returns {unknown} The image value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as CameraControl).getValue() : null;
+        return this.control ? (this.control as CameraControl).getProperty('value') : null;
     }
 
     /**

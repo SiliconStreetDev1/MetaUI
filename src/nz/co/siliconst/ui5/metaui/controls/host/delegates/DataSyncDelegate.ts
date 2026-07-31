@@ -1,5 +1,5 @@
 import deepEqual from "sap/base/util/deepEqual";
-import extend from "sap/base/util/extend";
+import deepExtend from "sap/base/util/deepExtend";
 import { Logger } from "../../../utils/Logger";
 import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
 import PropertyBinding from "sap/ui/model/PropertyBinding";
@@ -87,7 +87,7 @@ export class DataSyncDelegate {
             return;
         }
 
-        this._lastReceivedInputObj = extend(true, {}, incomingObj) as Record<string, unknown>;
+        this._lastReceivedInputObj = deepExtend({}, incomingObj) as Record<string, unknown>;
 
         if (this.host.getProperty("debugMode")) {
             Logger.debug("[MetaUI]", `Accepted external injection for ${propertyName}`, "DataSyncDelegate");
@@ -126,7 +126,7 @@ export class DataSyncDelegate {
      * @param schema The MetaUI ISchema tree.
      * @param rootData The data payload to mutate.
      */
-    public injectSchemaDefaults(schema: unknown, rootData: unknown, depth: number = 0): void {
+    public injectSchemaDefaults(schema: any, rootData: any, depth: number = 0): void {
         if (!schema || !rootData || typeof rootData !== "object" || depth > 8) return;
 
         if (schema.type === "object" && schema.properties) {

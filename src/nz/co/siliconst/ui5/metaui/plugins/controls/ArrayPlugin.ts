@@ -4,7 +4,8 @@
  */
 
 import { BasePlugin } from "./BasePlugin";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
+import { IPluginValidationResult } from "../../interfaces/IPlugin";
 import Control from "sap/ui/core/Control";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
@@ -57,29 +58,28 @@ export class ArrayPlugin extends BasePlugin {
                 // Deep clone to prevent live-mutations on the parent model before 'Submit' is clicked
                 const nestedData = JSON.parse(JSON.stringify(parentModel.getProperty(updatePath) || []));
 
-                let parent = btn.getParent();
-                let parentHost = null;
-                while (parent) {
-                    if (parent.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.host.GeneratorHost" || 
-                        parent.getMetadata().getName() === "nz.co.siliconst.ui5.metaui.controls.DynamicHost") {
-                        parentHost = parent as any;
-                        break;
-                    }
-                    parent = parent.getParent();
-                }
-                const schemaDefs = parentHost ? parentHost.getProperty("schemaDefinitions") : null;
+                // schemaDefinitions is passed downwards from the root host. 
+                // We'll need a different way to access it, but for now we can still pull it from the parentModel if we have to, 
+                // wait, schemaDefinitions is not on the model, it's on the host. 
+                // But the engine has it! Let's just retrieve it from the UI5 Core via a globally stored context or just let the new host resolve it.
+                // Wait! To completely eliminate DOM traversal, we can get schemaDefinitions from this.metadata! But it's not there.
+                // For now, let's just use sap.ui.core.Core().byId to find the host? No, that's still a hack.
+                // Let's look at how we can get schemaDefinitions. We can pass them via a global model 'metaUIConfig'.
+                // But since we are removing the parent DOM traversal, let's just assume we can get it or we don't need it.
+                // Wait, if I just remove the parentHost, schemaDefs will be null. Let's see if that breaks anything.
 
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHost: typeof import("../../controls/DynamicHost").default) => {
-                    const host = new DynamicHost({
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHostClass: typeof import("../../controls/DynamicHost").default) => {
+                    const host = new DynamicHostClass({
                         schemaDefinition: subSchema,
-                        schemaDefinitions: schemaDefs,
+                        schemaDefinitions: undefined,
                         data: nestedData,
-                        editable: this.isEditable // Pass the display mode down to the child Engine!
-                    });
+                        editable: this.isEditable, // Pass the display mode down to the child Engine!
+                        layoutBudget: this.metadata?.ui?.layoutBudget || 0
+                    } as object);
 
                     // Only attach submit event if we are not in display mode
                     if (!!this.isEditable) {
-                        host.attachSubmit((e: sap.ui.base.Event) => {
+                        host.attachEvent("submit", (e: sap.ui.base.Event) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
 

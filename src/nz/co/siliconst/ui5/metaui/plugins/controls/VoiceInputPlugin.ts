@@ -45,7 +45,7 @@ export class VoiceInputPlugin extends BasePlugin {
 
         this.applyCommonDirectives(this.control, metadata, modelName);
 
-        (this.control as VoiceInputControl).attachCapture(() => {
+        (this.control as VoiceInputControl).attachEvent('capture', () => {
             const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -60,7 +60,7 @@ export class VoiceInputPlugin extends BasePlugin {
      * @returns {unknown} The text string.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as VoiceInputControl).getValue() : null;
+        return this.control ? (this.control as VoiceInputControl).getProperty('value') : null;
     }
 
     /**

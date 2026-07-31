@@ -3,7 +3,8 @@
  * @description A custom datasource plugin that provides asynchronous live search (autocomplete) functionality.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
+import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Item from "sap/ui/core/Item";
@@ -26,11 +27,11 @@ export class LiveSearchPlugin extends BasePlugin {
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Type to search...",
             showSuggestion: true,
-            suggest: (oEvent: sap.ui.base.Event) => {
-                const query = (oEvent as sap.ui.base.Event).getParameter("suggestValue");
+            suggest: (oEvent: Event) => {
+                const query = (oEvent as Event).getParameter("suggestValue");
                 this.fetchSuggestions(input, query);
             },
-            change: (oEvent: sap.ui.base.Event) => {
+            change: (oEvent: Event) => {
                 this.validate();
             }
         });

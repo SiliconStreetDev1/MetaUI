@@ -36,7 +36,7 @@ export class Engine {
     /** Deterministic scope ID injected by the host control to prevent clone collisions. */
     public engineScopeId?: string;
 
-    private activeModel?: sap.ui.model.Model;
+    private activeModel?: any;
 
     /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
     public host?: unknown;
@@ -79,7 +79,7 @@ export class Engine {
      * @param onChange Callback fired when field values change.
      * @returns The generated root UI5 Control container.
      */
-    public build(schema: ISchema, model: sap.ui.model.Model, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
+    public build(schema: ISchema, model: any, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.conditionEngine = new ConditionEngine(schema);
         this.activePlugins = [];
         this.activeModel = model;
@@ -94,11 +94,6 @@ export class Engine {
         };
 
         try {
-            // Intercept and synthesize a default layout if the developer/backend failed to provide one
-            if (DefaultLayoutGenerator.ensureLayout(schema)) {
-                Logger.warn("[MetaUI Engine] Missing 'uiLayout' array in schema. Synthesized a default layout mapping to prevent a blank render.");
-            }
-
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
 
@@ -163,6 +158,10 @@ export class Engine {
      */
     public generateLayout(schema: ISchema, modelName: string, bindingPath?: string): Control {
         try {
+            if (DefaultLayoutGenerator.ensureLayout(schema)) {
+                Logger.warn(`[MetaUI Engine] Missing 'uiLayout' array in sub-schema for ${bindingPath}. Synthesized a default layout mapping.`);
+            }
+
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);

@@ -50,7 +50,7 @@ export class FileUploaderPlugin extends BasePlugin {
             placeholder: fieldMetadata.ui?.label || "Choose a file...",
             width: "100%",
             change: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("newValue");
+                const val = (oEvent as any).getParameter("newValue");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -67,7 +67,7 @@ export class FileUploaderPlugin extends BasePlugin {
      * @returns {unknown} The file value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as FileUploader).getValue() : null;
+        return this.control ? (this.control as FileUploader).getProperty('value') : null;
     }
 
     /**

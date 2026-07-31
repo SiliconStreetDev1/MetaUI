@@ -35,8 +35,8 @@ export class OpenApiHeuristicEngine {
         for (const plugin of this.plugins) {
             try {
                 plugin.apply(openApiRoot);
-            } catch (error: Error) {
-                throw new Error(`[MetaUI HeuristicEngine] Plugin execution failed: ${error.message}`);
+            } catch (e: any) {
+                throw new Error(`[MetaUI HeuristicEngine] Plugin execution failed: ${e.message}`);
             }
         }
     }

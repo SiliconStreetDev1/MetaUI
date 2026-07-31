@@ -45,7 +45,7 @@ export class StepInputPlugin extends BasePlugin {
             editable: !fieldMetadata.ui?.readOnly,
             required: !!fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
-                const val = oEvent.getParameter("value");
+                const val = (oEvent as any).getParameter("value");
                 const result = this.validateAndApplyVisualState();
                 if (this.onChange) {
                     this.onChange(result.isValid, this.fieldKey);
@@ -63,7 +63,7 @@ export class StepInputPlugin extends BasePlugin {
      * @returns {unknown} The numeric value.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as StepInput).getValue() : null;
+        return this.control ? (this.control as StepInput).getProperty('value') : null;
     }
 
     /**

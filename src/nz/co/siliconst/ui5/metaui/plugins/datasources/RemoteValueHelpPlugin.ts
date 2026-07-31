@@ -3,7 +3,8 @@
  * @description A custom datasource plugin that simulates fetching data from a remote server.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
+import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import ComboBox from "sap/m/ComboBox";
 import Item from "sap/ui/core/Item";
@@ -35,9 +36,9 @@ export class RemoteValueHelpPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             placeholder: "Select a country...",
-            change: (oEvent: sap.ui.base.Event) => {
-                const item = (oEvent as sap.ui.base.Event).getParameter("selectedItem");
-                const val = item ? item.getKey() : (oEvent as sap.ui.base.Event).getParameter("value"); // Allow free text as well
+            change: (oEvent: Event) => {
+                const item = (oEvent as Event).getParameter("selectedItem");
+                const val = item ? item.getKey() : (oEvent as Event).getParameter("value"); // Allow free text as well
                 this.validate();
             }
         });

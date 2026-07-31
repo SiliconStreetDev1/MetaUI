@@ -13,6 +13,7 @@ import { Engine } from "../core/Engine";
 import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
 import Control from "sap/ui/core/Control";
+import { PluginRegistry } from "../core/PluginRegistry";
 
 /**
  * Layout Manager responsible for generating a fully responsive SAP Fiori SimpleForm.
@@ -81,9 +82,9 @@ export class FormLayout implements ILayoutManager {
                 // Collections of primitives, or explicitly assigned widgets (like multiSelect), remain in the Form as Field Plugins.
                 const isCollectionOfRecords = meta.items?.type === "object" || meta.items?.properties;
                 const hasExplicitWidget = !!meta.ui?.widget;
-                const isSubLayout = meta.type === "array" && isCollectionOfRecords && !hasExplicitWidget;
+                const isTableSubLayout = meta.type === "array" && isCollectionOfRecords && !hasExplicitWidget;
 
-                if (isSubLayout) {
+                if (isTableSubLayout) {
                     Logger.debug("[MetaUI FormLayout]", `Routing property '${propKey}' to Table Sub-Layout.`, "FormLayout");
                     tableElements.push({ scope: bindingPath, meta, label: element.label });
                 } else {
@@ -154,8 +155,7 @@ export class FormLayout implements ILayoutManager {
             const control = engine.generateField(effectiveMeta, `/${propKey}`, modelName);
 
             // Automatically apply fullWidth layout data if natively wide or explicitly requested
-            const widget = effectiveMeta.ui?.widget;
-            const isNativelyWide = widget === "codeEditor" || widget === "textArea" || widget === "richText";
+            const isNativelyWide = PluginRegistry.getInstance().isPluginNativelyWide(effectiveMeta.type || "string", effectiveMeta.ui?.widget);
             const isFullWidth = effectiveMeta.ui?.fullWidth !== undefined ? effectiveMeta.ui?.fullWidth : isNativelyWide;
 
             if (isFullWidth) {

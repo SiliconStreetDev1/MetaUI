@@ -20,7 +20,7 @@ export class OpenApiUIMapper {
      * @param {string} keyName The technical JSON key of the property.
      * @returns {IUIDirective} The constructed MetaUI UI orchestration directive.
      */
-    public static build(swaggerProp: unknown, keyName: string): IUIDirective {
+    public static build(swaggerProp: any, keyName: string): IUIDirective {
         const ui: IUIDirective = {};
 
         // Label Synthesis

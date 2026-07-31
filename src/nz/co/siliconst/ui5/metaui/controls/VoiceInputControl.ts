@@ -6,6 +6,7 @@ import MessageToast from "sap/m/MessageToast";
 import HBox from "sap/m/HBox";
 import { Logger } from "../utils/Logger";
 
+import Event from "sap/ui/base/Event";
 declare global {
     interface Window {
         SpeechRecognition: new () => SpeechRecognition;
@@ -43,11 +44,7 @@ declare global {
  * Provides a UI to dictate text using the browser's native Web Speech API.
  */
 export default class VoiceInputControl extends BaseHardwareControl {
-    static readonly renderer = "nz.co.siliconst.ui5.metaui.controls.BaseHardwareControlRenderer";
-    static readonly metadata = {
-        properties: {},
-        events: {}
-    };
+
 
     private vBox!: VBox;
     private textArea!: TextArea;
@@ -67,8 +64,8 @@ export default class VoiceInputControl extends BaseHardwareControl {
             rows: 3,
             width: "100%",
             placeholder: "Dictated text will appear here...",
-            liveChange: (oEvent: sap.ui.base.Event) => {
-                this.setValueAndFire(oEvent.getParameter("value"));
+            liveChange: (oEvent: Event) => {
+                this.setValueAndFire((oEvent.getParameter("value") as any));
             }
         });
 
@@ -119,7 +116,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
                 }
 
                 // Append the new final transcript to whatever was already in the textarea
-                const currentVal = this.getValue() || "";
+                const currentVal = this.getProperty("value") as string || "";
                 const newVal = currentVal ? currentVal + " " + finalTranscript : finalTranscript;
                 
                 if (finalTranscript) {
@@ -219,10 +216,10 @@ export default class VoiceInputControl extends BaseHardwareControl {
     public exit(): void {
         this.stopDictation();
         if (this.recognition) {
-            this.recognition.onstart = null;
-            this.recognition.onresult = null;
-            this.recognition.onerror = null;
-            this.recognition.onend = null;
+            (this.recognition as any).onstart = null;
+            (this.recognition as any).onresult = null;
+            (this.recognition as any).onerror = null;
+            (this.recognition as any).onend = null;
             this.recognition = null;
         }
         super.exit();

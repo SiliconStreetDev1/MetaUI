@@ -37,6 +37,11 @@ You can access these properties directly via `this.` inside your custom plugin:
 - **`useMessageManager`**: `(boolean)` Indicates if the plugin should delegate visual validation to the MessageManager.
 - **`onChange`**: `((isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void)` Internal callback provided by GeneratorHost to signal validation/data changes upwards.
 
+### Static Architectural Contracts
+You can optionally define static properties to participate in the dynamic layout pipeline:
+- **`public static layoutScore: number`**: (Default `1`). Represents the layout footprint complexity of the plugin. Used by the `LayoutScorer` to determine if a deeply nested schema should be rendered inline or pushed into a dialog.
+- **`public static isNativelyWide: boolean`**: (Default `false`). If true, instructs the declarative FormLayout to allocate 100% column width (`XL12 L12 M12 S12`) instead of stacking it next to a label. Ideal for complex editors like `CodeEditor` or `TextArea`.
+
 ### Mandatory Abstract Methods
 You **must** implement these methods in your custom plugin class:
 
