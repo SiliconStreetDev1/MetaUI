@@ -17,6 +17,10 @@
       {
         "key": "ultra_complex_structure",
         "name": "Global Supply Chain Logistics"
+      },
+      {
+        "key": "control_props",
+        "name": "Generic Control Props"
       }
     ]
   },

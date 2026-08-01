@@ -86,13 +86,25 @@ sap.ui.define([
         },
 
         /**
+         * Pushes live data changes from the CodeEditor back to the model since TwoWay binding 
+         * isn't default for CodeEditor.
+         */
+        onInboundChange: function(oEvent) {
+            var sNewValue = oEvent.getParameter("value");
+            this.oModel.setProperty("/current/data", sNewValue);
+        },
+
+        /**
          * Monitors real-time typing in the schema editor.
          * Dynamically detects Swagger/OpenAPI structures and surfaces available generation targets in the toolbar.
          * 
          * @public
          */
-        onSchemaChange: function () {
-            var sSchema = this.oModel.getProperty("/current/schema");
+        onSchemaChange: function (oEvent) {
+            var sNewValue = oEvent.getParameter("value");
+            this.oModel.setProperty("/current/schema", sNewValue);
+            
+            var sSchema = sNewValue;
             try {
                 var oSchemaObj = sSchema ? JSON.parse(sSchema) : null;
                 var aTargets = OpenApiExtractor.extractTargets(oSchemaObj);

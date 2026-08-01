@@ -12,7 +12,9 @@
       "type": "string",
       "value": "Polymorphic String Data"
     },
-    "RefVal": "REF-89021",
+    "RefVal": {
+      "NestedString": "REF-89021"
+    },
     "TimeVal": "15:45:00",
     "DateTimeVal": "2026-12-31T15:45:00Z",
     "SwitchVal": false,
@@ -76,7 +78,7 @@
         "maxLength": 8,
         "ui": { "label": "Regex Pattern (ABC-1234)" } 
       },
-      "Str": { "type": "string", "minLength": 2, "maxLength": 50, "ui": { "label": "String Plugin (Min 2, Max 50)" } },
+      "Str": { "type": "string", "minLength": 2, "maxLength": 50, "ui": { "label": "String Plugin (Min 2, Max 50)", "controlProps": { "showClearIcon": true } } },
       "Num": { "type": "number", "minimum": 100, "maximum": 5000, "required": true, "ui": { "label": "Number Plugin (Min 100, Max 5000)" } },
       "DateVal": { "type": "date", "ui": { "label": "Date Plugin" } },
       "BoolVal": { "type": "boolean", "ui": { "label": "Boolean Plugin" } },

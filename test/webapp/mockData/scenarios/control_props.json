@@ -1,0 +1,88 @@
+{
+  "key": "control_props",
+  "name": "Generic Control Props",
+  "data": {
+    "SearchQuery": "",
+    "AgreeTerms": false,
+    "Comments": "",
+    "ToggleState": true
+  },
+  "schema": {
+    "title": "Generic Control Properties Demo",
+    "type": "object",
+    "properties": {
+      "SearchQuery": {
+        "type": "string",
+        "ui": {
+          "label": "Search (Static Props)",
+          "controlProps": {
+            "placeholder": "Search something...",
+            "showClearIcon": true,
+            "maxLength": 50,
+            "description": "Optional search"
+          }
+        }
+      },
+      "AgreeTerms": {
+        "type": "boolean",
+        "ui": {
+          "label": "I agree to terms",
+          "controlProps": {
+            "text": "Yes, I agree",
+            "wrapping": true
+          }
+        }
+      },
+      "Comments": {
+        "type": "string",
+        "ui": {
+          "label": "Dynamic Expression Example",
+          "widget": "textArea",
+          "rows": 4,
+          "controlProps": {
+            "placeholder": "{= ${meta>/AgreeTerms} ? 'Thank you! Leave a comment...' : 'You must agree to terms first' }"
+          }
+        }
+      },
+      "ToggleState": {
+        "type": "boolean",
+        "ui": {
+          "label": "Toggle Feature",
+          "widget": "switch",
+          "controlProps": {
+            "customTextOn": "Active",
+            "customTextOff": "Inactive"
+          }
+        }
+      },
+      "ExternalBinding": {
+        "type": "string",
+        "ui": {
+          "label": "External Global Model Demo",
+          "controlProps": {
+            "placeholder": "{= ${settings>/settings/liveUpdate} ? 'Live Update is ON in Sandbox Settings' : 'Live Update is OFF' }"
+          }
+        }
+      }
+    },
+    "uiLayout": [
+      {
+        "type": "Group",
+        "label": "Static Properties",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/SearchQuery" },
+          { "type": "Control", "scope": "#/properties/ToggleState" }
+        ]
+      },
+      {
+        "type": "Group",
+        "label": "Dynamic Expression Binding",
+        "elements": [
+          { "type": "Control", "scope": "#/properties/AgreeTerms" },
+          { "type": "Control", "scope": "#/properties/Comments" },
+          { "type": "Control", "scope": "#/properties/ExternalBinding" }
+        ]
+      }
+    ]
+  }
+}

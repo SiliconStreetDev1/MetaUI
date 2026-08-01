@@ -107,7 +107,7 @@ sap.ui.define([
                     if (sMode === "openapi") {
                         return s.key.startsWith("openapi");
                     } else if (sMode === "kitchen_sink") {
-                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "complex_nested", "deep_structure", "ultra_complex_structure"];
+                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "complex_nested", "deep_structure", "ultra_complex_structure", "control_props"];
                         return whitelist.indexOf(s.key) !== -1;
                     }
                     return false;
