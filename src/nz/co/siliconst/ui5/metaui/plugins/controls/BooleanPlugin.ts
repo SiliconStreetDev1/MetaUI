@@ -6,6 +6,7 @@
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import CheckBox from "sap/m/CheckBox";
+import Switch from "sap/m/Switch";
 import Control from "sap/ui/core/Control";
 import TextControl from "sap/m/Text";
 
@@ -24,7 +25,10 @@ export class BooleanPlugin extends BasePlugin {
      * @param modelName The UI5 JSONModel name.
      * @returns {Control} The configured CheckBox control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
+        // text is safe for Boolean controls
+        this.BLOCKED_PROPS = this.BLOCKED_PROPS.filter(p => p !== "text");
+
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -41,18 +45,30 @@ export class BooleanPlugin extends BasePlugin {
             return this.control as Control;
         }
 
-        this.control = new CheckBox({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            selected: this.generateBindingInfo(bindingPath, modelName),
-            enabled: !fieldMetadata.ui?.readOnly,
-            select: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as any).getParameter("selected");
-                const result = this.validateAndApplyVisualState();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
-                }
+        const onChangeFn = (oEvent: sap.ui.base.Event) => {
+            const val = (oEvent as any).getParameter("state") ?? (oEvent as any).getParameter("selected");
+            const result = this.validate();
+            if (this.onChange) {
+                this.onChange(result.isValid, this.fieldKey, result.errorMessage);
             }
-        });
+        };
+
+        if (fieldMetadata.ui?.widget === "switch") {
+            this.control = new Switch({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                state: this.generateBindingInfo(bindingPath, modelName),
+                enabled: !fieldMetadata.ui?.readOnly,
+                change: onChangeFn
+            });
+        } else {
+            this.control = new CheckBox({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                width: "100%",
+                selected: this.generateBindingInfo(bindingPath, modelName),
+                enabled: !fieldMetadata.ui?.readOnly,
+                select: onChangeFn
+            });
+        }
 
         this.applyCommonDirectives(this.control, fieldMetadata, modelName);
 
@@ -64,7 +80,11 @@ export class BooleanPlugin extends BasePlugin {
      * @returns {boolean} The selected state.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as CheckBox).getSelected() : false;
+        if (!this.control) return false;
+        if (this.control instanceof Switch) {
+            return (this.control as Switch).getState();
+        }
+        return (this.control as CheckBox).getSelected();
     }
 
     /**
@@ -73,7 +93,11 @@ export class BooleanPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            (this.control as CheckBox).setEnabled(!this.metadata.ui?.readOnly);
+            if (this.control instanceof Switch) {
+                (this.control as Switch).setEnabled(!this.metadata.ui?.readOnly);
+            } else {
+                (this.control as CheckBox).setEnabled(!this.metadata.ui?.readOnly);
+            }
         }
     }
 }

@@ -35,8 +35,8 @@ export class RestLLMProxy extends BaseAIGenerator {
             const schema: ISchema = await response.json();
             Logger.info("[RestLLMProxy]", "Successfully received schema from backend.");
             return schema;
-        } catch (e: Error) {
-            Logger.error("[RestLLMProxy]", `Failed to fetch LLM schema: ${e.message}`);
+        } catch (e: unknown) {
+            Logger.error("[RestLLMProxy]", `Failed to fetch LLM schema: ${(e as Error).message}`);
             // Fallback to empty schema on error so the app doesn't crash completely
             return { type: "object", properties: {} };
         }

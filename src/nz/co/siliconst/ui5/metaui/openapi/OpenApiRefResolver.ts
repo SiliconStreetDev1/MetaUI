@@ -20,7 +20,7 @@ export class OpenApiRefResolver {
      * @param {number} depth The current recursive depth count, used to prevent infinite loops.
      * @returns {any} The resolved schema object, or null if unresolvable.
      */
-    public static resolve(refUrl: string, openApiRoot: any, depth: number = 0): any {
+    public static resolve(refUrl: string, openApiRoot: unknown, depth: number = 0): unknown {
         if (!refUrl || !refUrl.startsWith("#/")) {
             Logger.debug(`[MetaUI OpenApiBuilder] Ignoring non-local or empty $ref: ${refUrl}`, "OpenApiBuilder");
             return null; // Ignore external URLs per architectural rules
@@ -42,7 +42,7 @@ export class OpenApiRefResolver {
 
         for (const segment of pathSegments) {
             if (current && typeof current === "object" && segment in current) {
-                current = current[segment];
+                current = (current as Record<string, unknown>)[segment];
             } else {
                 Logger.error(`[MetaUI OpenApiBuilder] Failed to resolve local $ref: ${refUrl}`, null, "OpenApiBuilder");
                 return null;
@@ -52,8 +52,8 @@ export class OpenApiRefResolver {
         // Deep Resolution Recursion:
         // If the resolved target is itself a reference pointer, recursively resolve again
         // until we reach a terminal structure or hit the recursion depth limit.
-        if (current && typeof current === "object" && current.$ref) {
-            return this.resolve(current.$ref, openApiRoot, depth + 1);
+        if (current && typeof current === "object" && (current as Record<string, unknown>).$ref) {
+            return this.resolve((current as Record<string, unknown>).$ref as string, openApiRoot, depth + 1);
         }
 
         return current;

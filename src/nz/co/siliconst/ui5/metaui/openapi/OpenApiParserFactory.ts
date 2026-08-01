@@ -23,17 +23,18 @@ export class OpenApiParserFactory {
      * @param {any} rawSchema The raw, unparsed OpenAPI root JSON structure.
      * @returns {IOpenApiParserPlugin} An initialized instance of the correct concrete parser plugin.
      */
-    public static getParser(rawSchema: any): IOpenApiParserPlugin {
+    public static getParser(rawSchema: unknown): IOpenApiParserPlugin {
         if (!rawSchema || typeof rawSchema !== "object") {
             Logger.error("[MetaUI OpenApiParserFactory] Invalid OpenAPI document provided.");
             return new OpenApi3Parser(); // Fallback
         }
 
-        if (rawSchema.swagger === "2.0") {
+        const schema = rawSchema as Record<string, unknown>;
+        if (schema.swagger === "2.0") {
             return new OpenApi2Parser();
         }
 
-        if (rawSchema.openapi && typeof rawSchema.openapi === "string" && rawSchema.openapi.startsWith("3")) {
+        if (schema.openapi && typeof schema.openapi === "string" && schema.openapi.startsWith("3")) {
             return new OpenApi3Parser();
         }
 

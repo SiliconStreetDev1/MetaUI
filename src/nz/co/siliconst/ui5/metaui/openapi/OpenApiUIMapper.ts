@@ -20,12 +20,13 @@ export class OpenApiUIMapper {
      * @param {string} keyName The technical JSON key of the property.
      * @returns {IUIDirective} The constructed MetaUI UI orchestration directive.
      */
-    public static build(swaggerProp: any, keyName: string): IUIDirective {
+    public static build(rawProp: unknown, keyName: string): IUIDirective {
+        const swaggerProp = (rawProp || {}) as Record<string, unknown>;
         const ui: IUIDirective = {};
 
         // Label Synthesis
         if (swaggerProp.title) {
-            ui.label = swaggerProp.title;
+            ui.label = swaggerProp.title as string;
         } else {
             ui.label = this.generateLabel(keyName);
         }
@@ -65,7 +66,7 @@ export class OpenApiUIMapper {
                 case "ipv6":
                 case "hostname":
                     if (!ui.validators) ui.validators = [];
-                    ui.validators.push(swaggerProp.format);
+                    ui.validators.push(swaggerProp.format as string);
                     break;
             }
         }

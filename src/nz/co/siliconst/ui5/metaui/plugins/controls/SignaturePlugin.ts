@@ -15,7 +15,7 @@ export class SignaturePlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured SignatureControl.
      */
-    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
         this.fieldKey = bindingPath.replace('/', '');
@@ -43,9 +43,9 @@ export class SignaturePlugin extends BasePlugin {
         this.applyCommonDirectives(this.control, metadata, modelName);
 
         (this.control as SignatureControl).attachEvent('capture', () => {
-            const result = this.validateAndApplyVisualState();
+            const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
         });
 

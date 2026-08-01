@@ -10,6 +10,7 @@ import Control from "sap/ui/core/Control";
 import TextControl from "sap/m/Text";
 import Float from "sap/ui/model/type/Float";
 import Integer from "sap/ui/model/type/Integer";
+import StepInput from "sap/m/StepInput";
 
 /**
  * Handles rendering and logic for dynamic numeric inputs.
@@ -25,7 +26,7 @@ export class NumberPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Input control.
      */
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -50,24 +51,40 @@ export class NumberPlugin extends BasePlugin {
             });
         }
 
-        this.control = new Input({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            value: {
-                path: bindingPath,
-                model: modelName,
-                type: typeInstance
-            },
-            type: "Number",
-            editable: !fieldMetadata.ui?.readOnly,
-            required: !!fieldMetadata.required,
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as any).getParameter("value");
-                const result = this.validateAndApplyVisualState();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
-                }
+        const onChangeFn = (oEvent: sap.ui.base.Event) => {
+            const val = (oEvent as any).getParameter("value");
+            const result = this.validate();
+            if (this.onChange) {
+                this.onChange(result.isValid, this.fieldKey, result.errorMessage);
             }
-        });
+        };
+
+        if (fieldMetadata.ui?.widget === "stepInput") {
+            this.control = new StepInput({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                value: {
+                    path: bindingPath,
+                    model: modelName,
+                    type: typeInstance
+                },
+                editable: !fieldMetadata.ui?.readOnly,
+                required: !!fieldMetadata.required,
+                change: onChangeFn
+            });
+        } else {
+            this.control = new Input({
+                id: this.generateStableId(engineScopeId, bindingPath),
+                value: {
+                    path: bindingPath,
+                    model: modelName,
+                    type: typeInstance
+                },
+                type: "Number",
+                editable: !fieldMetadata.ui?.readOnly,
+                required: !!fieldMetadata.required,
+                change: onChangeFn
+            });
+        }
 
         this.applyCommonDirectives(this.control, fieldMetadata, modelName);
 
@@ -82,10 +99,10 @@ export class NumberPlugin extends BasePlugin {
         if (!this.control) return null;
         // In UI5, Input.getProperty('value') returns a string. We must parse it if it's bound.
         // However, we can also extract it directly from the binding.
-        const input = this.control as Input;
+        const input = this.control as any;
         const binding = input.getBinding("value");
-        if (binding) {
-            return binding.getProperty('value');
+        if (binding && typeof binding.getValue === "function") {
+            return binding.getValue();
         }
         return input.getProperty('value');
     }
@@ -96,7 +113,7 @@ export class NumberPlugin extends BasePlugin {
     protected applyState(): void {
         if (this.control && this.metadata) {
             if (!this.isEditable) return;
-            const input = this.control as Input;
+            const input = this.control as any;
             input.setEditable(!this.metadata.ui?.readOnly);
             input.setRequired(!!this.metadata.required);
         }

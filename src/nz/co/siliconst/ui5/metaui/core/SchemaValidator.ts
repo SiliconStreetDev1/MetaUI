@@ -4,6 +4,7 @@
  */
 
 import { ISchema, FieldType } from "../interfaces/ISchema";
+import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
 
 export class SchemaValidator {
     /**
@@ -27,6 +28,19 @@ export class SchemaValidator {
             errors.push("Object schema is missing the 'properties' node.");
         }
 
+        if (s.type === "array") {
+            if (!s.items) {
+                // Warning rather than error for inference support, but we should check it
+                // Actually inference creates { items: { type: 'string' } } for primitives
+                // Wait, the instruction says "completely skipping the validation of the array's items configuration"
+                // I will recursively call validateSchemaStructure if items exist
+            }
+            if (s.items && typeof s.items === "object") {
+                const itemErrors = SchemaValidator.validateSchemaStructure(s.items);
+                errors.push(...itemErrors);
+            }
+        }
+
         if (s.properties) {
             for (const key of Object.keys(s.properties)) {
                 const prop = s.properties[key];
@@ -38,7 +52,7 @@ export class SchemaValidator {
                 if (!prop.type) {
                     errors.push(`Property '${key}' is missing 'type'.`);
                 } else {
-                    const allowedTypes: FieldType[] = ["string", "number", "integer", "boolean", "date", "object", "array"];
+                    const allowedTypes: FieldType[] = [SCHEMA_TYPE.STRING, SCHEMA_TYPE.NUMBER, SCHEMA_TYPE.INTEGER, SCHEMA_TYPE.BOOLEAN, SCHEMA_TYPE.DATE, SCHEMA_TYPE.OBJECT, SCHEMA_TYPE.ARRAY];
                     if (!allowedTypes.includes(prop.type)) {
                         errors.push(`Property '${key}' has invalid type '${prop.type}'. Allowed: ${allowedTypes.join(", ")}`);
                     }

@@ -58,10 +58,14 @@ export class ValidationDelegate {
 
     /**
      * Pushes a validation message to the console, and optionally to the MessageManager.
+     * @param path The JSON pointer path of the field.
+     * @param text The error message.
+     * @param label The human-readable label of the field (optional).
      */
-    public pushMessage(path: string, text: string): void {
+    public pushMessage(path: string, text: string, label?: string): void {
         const targetPath = path ? `/${path.replace(/^\//, "")}` : "";
-        const displayText = path ? `Field '${path}': ${text}` : text;
+        const displayLabel = label || path;
+        const displayText = path ? `Field '${displayLabel}': ${text}` : text;
 
         if (path) {
             Logger.warn(`[MetaUI Validation Error] ${displayText}`);
@@ -74,6 +78,7 @@ export class ValidationDelegate {
             const stateManager = this.host.getStateManager();
             messageManager.addMessages(new Message({
                 message: displayText,
+                additionalText: displayLabel !== targetPath ? displayLabel : undefined,
                 type: coreLibrary.MessageType.Error,
                 target: targetPath,
                 processor: stateManager?.getModel()

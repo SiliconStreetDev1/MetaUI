@@ -24,7 +24,7 @@ export class RichTextPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured RichTextControl.
      */
-    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
         this.fieldKey = bindingPath.replace('/', '');
@@ -51,9 +51,9 @@ export class RichTextPlugin extends BasePlugin {
 
         if (isValueAccessor(this.control) && this.control.attachCapture) {
             this.control.attachEvent('capture', () => {
-                const result = this.validateAndApplyVisualState();
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             });
         }

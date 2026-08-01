@@ -23,7 +23,7 @@ export class StepInputPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured StepInput control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -45,10 +45,10 @@ export class StepInputPlugin extends BasePlugin {
             editable: !fieldMetadata.ui?.readOnly,
             required: !!fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as any).getParameter("value");
-                const result = this.validateAndApplyVisualState();
+                const val = (oEvent.getParameter("value") as unknown) as number;
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             }
         });

@@ -21,6 +21,10 @@
       {
         "key": "control_props",
         "name": "Generic Control Props"
+      },
+      {
+        "key": "pbre_scenario",
+        "name": "Policy-Based Rules"
       }
     ]
   },

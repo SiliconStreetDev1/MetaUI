@@ -3,7 +3,8 @@
  * @description Renders a sap.m.Select that fetches valueHelp remotely via a JSON URL.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+import { BasePlugin } from "../controls/BasePlugin";
+import Event from "sap/ui/base/Event";
 
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import Select from "sap/m/Select";
@@ -30,7 +31,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Select control.
      */
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
 
@@ -60,12 +61,16 @@ export class RemoteDropdownPlugin extends BasePlugin {
             selectedKey: `{${modelName}>${bindingPath}}`,
             enabled: !fieldMetadata.ui?.readOnly,
             forceSelection: false,
-            busy: true, // Show busy indicator while fetching
-            change: (oEvent: Event) => {
-                const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
-                }
+            busy: true // Show busy indicator while fetching
+        });
+
+        select.attachChange(() => {
+            const result = this.validate();
+            if (this.onChange) {
+                this.onChange(result.isValid, this.fieldKey, result.errorMessage, this.control?.getId());
+            }
+            if (this.useMessageManager) {
+                this.setVisualValidationState(result.isValid, result.errorMessage);
             }
         });
 
@@ -79,6 +84,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
                 return res.json();
             })
             .then(data => {
+                if ((select as any).bIsDestroyed) return;
                 const arr = Array.isArray(data) ? data : (data.value || []);
                 arr.forEach((item: Record<string, unknown>) => {
                     const k = config.keyPath ? item[config.keyPath] : item;
@@ -88,6 +94,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
                 select.setBusy(false);
             })
             .catch(err => {
+                if ((select as any).bIsDestroyed) return;
                 Logger.error(`[MetaUI RemoteDropdownPlugin] Failed to fetch remote data from ${config.url}`, err.message);
                 select.addItem(new Item({ key: "", text: "Error loading data" }));
                 select.setBusy(false);
@@ -103,7 +110,27 @@ export class RemoteDropdownPlugin extends BasePlugin {
      * @returns {unknown} The selected key.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as Select).getSelectedKey() : null;
+        if (!this.control) return null;
+        
+        const select = this.control as Select;
+        if (select.getBusy()) {
+            // Prevent false negatives during fast form submissions: 
+            // If still fetching items, getSelectedKey() is blank, so fallback to raw model data.
+            const binding = select.getBinding("selectedKey");
+            if (binding && typeof (binding as any).getValue === "function") {
+                return (binding as any).getValue();
+            }
+        }
+        
+        let val: unknown = select.getSelectedKey();
+        
+        // Defect #8: Dropdown Type Coercion Crash
+        if (this.metadata && (this.metadata.type === "number" || this.metadata.type === "integer")) {
+            if (val === "" || val === null || val === undefined) return null;
+            return Number(val);
+        }
+        
+        return val;
     }
 
     /**

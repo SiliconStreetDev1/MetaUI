@@ -281,8 +281,8 @@ sap.ui.define([
                             template: new MessageItem({
                                 type: "{message>type}",
                                 title: "{message>message}",
-                                description: "{message>target}",
-                                subtitle: "{message>additionalText}"
+                                subtitle: "{message>additionalText}",
+                                description: "{message>description}"
                             })
                         }
                     });

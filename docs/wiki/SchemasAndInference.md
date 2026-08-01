@@ -85,7 +85,9 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 | `enabledOn` | `string` | Expression string for enabling/disabling a control interactively. |
 | `format` | `string` | Specialized data formats natively mapped to validation rules (`"email"`, `"url"`, `"iban"`). |
 | `rows` | `number` | Row count specific to the `textArea` widget. |
+| `expandable` | `boolean` | Allows disabling the full-screen expand button for `textArea` and `codeEditor`. Defaults to true. |
 | `fullWidth` | `boolean` | Forces a control to break to a new line and span 12 grid columns horizontally. |
+| `controlProps` | `Record<string, unknown>` | **Advanced:** Directly applies static UI5 properties or dynamic expression bindings (using `{...}`) to the underlying UI5 widget via reflection. Core data properties (`value`, `text`, `visible`, etc.) are blocked by the Sandbox. |
 | `validators` | `(string \| IValidationRule)[]` | Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`). |
 | `formatter` | `string` | The name of a custom string transformation formatter pipeline natively mapped in `PipelineManager`. |
 | `args` | `unknown` | Configuration arguments passed to a specific Widget or Formatter (e.g. `"javascript"` for `codeEditor`). |

@@ -11,9 +11,21 @@ export interface IPluginValidationResult {
     isValid: boolean;
     errorMessage?: string;
     fieldKey?: string;
+    fieldLabel?: string;
 }
 
-export interface IPlugin {
+/**
+ * Standardized hooks for the Policy-Based Rule Engine (PBRE) to dynamically mutate visual state.
+ */
+export interface IPluginStateReceiver {
+    applyError?(errorMessage: string): void;
+    clearError?(): void;
+    applyVisibility?(isVisible: boolean): void;
+    applyRequired?(isRequired: boolean): void;
+    applyEditable?(isEditable: boolean): void;
+}
+
+export interface IPlugin extends IPluginStateReceiver {
     /**
      * Instructs the plugin whether to delegate visual error states to the global MessageManager.
      * @param useMessageManager True if the global MessageManager is active.

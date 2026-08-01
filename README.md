@@ -26,4 +26,4 @@ Please refer to the **[MetaUI Documentation Wiki](docs/wiki/Home.md)** for full 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 > [!WARNING]
-> **Disclaimer**: This software is provided "as is", without warranty of any kind, express or implied. Use of this project in production environments is at your own risk. The authors shall not be liable for any damages or issues arising from its usage.
+> **Disclaimer**: This software is provided "as is", without warranty of any kind, express or implied. Use of this project is at your own risk. The authors shall not be liable for any damages or issues arising from its usage.

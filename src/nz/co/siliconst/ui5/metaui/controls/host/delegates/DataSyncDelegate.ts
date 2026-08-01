@@ -1,5 +1,4 @@
-import deepEqual from "sap/base/util/deepEqual";
-import deepExtend from "sap/base/util/deepExtend";
+
 import { Logger } from "../../../utils/Logger";
 import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
 import PropertyBinding from "sap/ui/model/PropertyBinding";
@@ -21,9 +20,7 @@ export interface IHostDataSync {
  */
 export class DataSyncDelegate {
     private host: IHostDataSync;
-    private _lastPushedPayloadJson: string | null = null;
-    private _lastPushedPayloadObj: Record<string, unknown> | null = null;
-    private _lastReceivedInputObj: Record<string, unknown> | null = null;
+    private _isSyncing: boolean = false;
 
     /**
      * Initializes a new DataSyncDelegate to handle data payload binding extraction.
@@ -37,14 +34,13 @@ export class DataSyncDelegate {
      * Natively forces the UI5 framework to push updated properties back up to any bound ViewModels.
      */
     public pushToBindings(payload: Record<string, unknown>): void {
+        this._isSyncing = true;
         const payloadStr = JSON.stringify(payload, null, 2);
-
-        // Cache exact payload output to catch echoes on the inbound side
-        this._lastPushedPayloadJson = payloadStr;
-        this._lastPushedPayloadObj = deepEqual({}, payload) ? null : JSON.parse(JSON.stringify(payload)); // Safe clone
 
         this.host.setProperty("data", payload, true);
         this.host.setProperty("dataJson", payloadStr, true);
+        
+        this._isSyncing = false;
     }
 
     /**
@@ -57,7 +53,7 @@ export class DataSyncDelegate {
             try {
                 incomingObj = JSON.parse(value) as Record<string, unknown>;
             } catch (e) {
-                this.host.setBaseProperty(propertyName, value, true);
+                this.host.setBaseProperty(propertyName, value, false); // Invalidate to force rendering engine to display the error strip
                 return;
             }
         } else {
@@ -69,25 +65,13 @@ export class DataSyncDelegate {
             return;
         }
 
-        // Loop Breaker 1: Stale Data Injection
-        if (this._lastReceivedInputObj && deepEqual(incomingObj, this._lastReceivedInputObj)) {
+        if (this._isSyncing) {
             if (this.host.getProperty("debugMode")) {
-                Logger.debug("[MetaUI]", `Dropped stale data injection for ${propertyName}`, "DataSyncDelegate");
+                Logger.debug("[MetaUI]", `Dropped echo for ${propertyName} due to active sync lock`, "DataSyncDelegate");
             }
             this.host.setBaseProperty(propertyName, value, suppressInvalidate);
             return;
         }
-
-        // Loop Breaker 2: Two-Way Data Echoes
-        if (this._lastPushedPayloadObj && deepEqual(incomingObj, this._lastPushedPayloadObj)) {
-            if (this.host.getProperty("debugMode")) {
-                Logger.debug("[MetaUI]", `Dropped echo for ${propertyName}`, "DataSyncDelegate");
-            }
-            this.host.setBaseProperty(propertyName, value, suppressInvalidate);
-            return;
-        }
-
-        this._lastReceivedInputObj = deepExtend({}, incomingObj) as Record<string, unknown>;
 
         if (this.host.getProperty("debugMode")) {
             Logger.debug("[MetaUI]", `Accepted external injection for ${propertyName}`, "DataSyncDelegate");
@@ -105,9 +89,9 @@ export class DataSyncDelegate {
             stateManager.getModel().setData(incomingObj, false);
 
             if (!this.host.getProperty("schemaDefinition") && typeof this.host.getParsedSchema === "function") {
-                const newInferredSchema = SchemaNormalizer.inferSchemaFromData(incomingObj);
                 const parsedSchema = this.host.getParsedSchema();
-                if (!deepEqual(newInferredSchema, parsedSchema)) {
+                const newInferredSchema = SchemaNormalizer.inferSchemaFromData(incomingObj);
+                if (!this.deepEquals(newInferredSchema, parsedSchema)) {
                     this.host.tearDownGeneratedLayout();
                     this.host.invalidate();
                 }
@@ -120,37 +104,61 @@ export class DataSyncDelegate {
     }
 
     /**
+     * Recursively compares two objects for equality, ignoring key order.
+     */
+    private deepEquals(a: any, b: any): boolean {
+        if (a === b) return true;
+        if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+        if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+
+        for (const key of keysA) {
+            if (!keysB.includes(key)) return false;
+            if (!this.deepEquals(a[key], b[key])) return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Recursively scans an ISchema for `default` properties and injects them into the rootData 
      * object if those properties are currently undefined.
      * 
      * @param schema The MetaUI ISchema tree.
      * @param rootData The data payload to mutate.
      */
-    public injectSchemaDefaults(schema: any, rootData: any, depth: number = 0): void {
+    public injectSchemaDefaults(schema: unknown, rootData: unknown, depth: number = 0): void {
         if (!schema || !rootData || typeof rootData !== "object" || depth > 8) return;
 
-        if (schema.type === "object" && schema.properties) {
-            for (const key of Object.keys(schema.properties)) {
-                const propSchema = schema.properties[key];
+        const typedSchema = schema as Record<string, unknown>;
+        const typedRootData = rootData as Record<string, unknown>;
+
+        if (typedSchema.type === "object" && typedSchema.properties) {
+            const properties = typedSchema.properties as Record<string, unknown>;
+            for (const key of Object.keys(properties)) {
+                const propSchema = properties[key] as Record<string, unknown>;
                 
-                if (rootData[key] === undefined) {
+                if (typedRootData[key] === undefined) {
                     if (propSchema.default !== undefined) {
-                        rootData[key] = propSchema.default;
+                        typedRootData[key] = propSchema.default;
                     } else if (propSchema.type === "object") {
                         const tempObj = {};
                         this.injectSchemaDefaults(propSchema, tempObj, depth + 1);
                         if (Object.keys(tempObj).length > 0) {
-                            rootData[key] = tempObj;
+                            typedRootData[key] = tempObj;
                         }
                     }
-                } else if (typeof rootData[key] === "object" && rootData[key] !== null) {
-                    this.injectSchemaDefaults(propSchema, rootData[key], depth + 1);
+                } else if (typeof typedRootData[key] === "object" && typedRootData[key] !== null) {
+                    this.injectSchemaDefaults(propSchema, typedRootData[key], depth + 1);
                 }
             }
-        } else if (schema.type === "array" && schema.items && Array.isArray(rootData)) {
-            for (let i = 0; i < rootData.length; i++) {
-                if (typeof rootData[i] === "object" && rootData[i] !== null) {
-                    this.injectSchemaDefaults(schema.items, rootData[i], depth + 1);
+        } else if (typedSchema.type === "array" && typedSchema.items && Array.isArray(typedRootData)) {
+            for (let i = 0; i < typedRootData.length; i++) {
+                if (typeof typedRootData[i] === "object" && typedRootData[i] !== null) {
+                    this.injectSchemaDefaults(typedSchema.items, typedRootData[i], depth + 1);
                 }
             }
         }

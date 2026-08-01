@@ -28,7 +28,7 @@ export class DropdownPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Select control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -61,9 +61,9 @@ export class DropdownPlugin extends BasePlugin {
             change: (oEvent: sap.ui.base.Event) => {
                 const item = (oEvent as any).getParameter("selectedItem");
                 const val = item ? item.getKey() : "";
-                const result = this.validateAndApplyVisualState();
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             }
         });
@@ -91,7 +91,12 @@ export class DropdownPlugin extends BasePlugin {
      * @returns {unknown} The selected key.
      */
     protected getValue(): unknown {
-        return this.control ? (this.control as Select).getSelectedKey() : null;
+        const val = this.control ? (this.control as Select).getSelectedKey() : null;
+        if (val && this.metadata && (this.metadata.type === "number" || this.metadata.type === "integer")) {
+            const parsed = parseFloat(val);
+            return isNaN(parsed) ? val : parsed;
+        }
+        return val;
     }
 
     /**

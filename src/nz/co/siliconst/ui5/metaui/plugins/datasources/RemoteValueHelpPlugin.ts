@@ -3,7 +3,8 @@
  * @description A custom datasource plugin that simulates fetching data from a remote server.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+import { BasePlugin } from "../controls/BasePlugin";
+import Event from "sap/ui/base/Event";
 
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import ComboBox from "sap/m/ComboBox";

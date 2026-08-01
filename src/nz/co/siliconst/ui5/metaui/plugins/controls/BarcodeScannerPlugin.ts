@@ -20,7 +20,7 @@ export class BarcodeScannerPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured HBox control.
      */
-    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = metadata;
         this.fieldKey = bindingPath.replace('/', '');
@@ -42,9 +42,9 @@ export class BarcodeScannerPlugin extends BasePlugin {
             editable: !metadata.ui?.readOnly,
             width: "100%",
             change: () => {
-                const result = this.validateAndApplyVisualState();
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             }
         });
@@ -56,9 +56,9 @@ export class BarcodeScannerPlugin extends BasePlugin {
                 if (text) {
                     this.inputControl.setValue(text);
                     // UI5's two-way data binding on the input will sync the model automatically
-                    const result = this.validateAndApplyVisualState();
+                    const result = this.validate();
                     if (this.onChange) {
-                        this.onChange(result.isValid, this.fieldKey);
+                        this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                     }
                 }
             }

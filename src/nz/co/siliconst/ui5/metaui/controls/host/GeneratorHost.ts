@@ -5,6 +5,7 @@ import { SchemaNormalizer } from "../../core/SchemaNormalizer";
 import { SchemaValidator } from "../../core/SchemaValidator";
 import { Engine } from "../../core/Engine";
 import { StateManager } from "../../core/StateManager";
+import { PolicyEngine } from "../../core/PolicyEngine";
 import { DataSyncDelegate } from "./delegates/DataSyncDelegate";
 import { ValidationDelegate } from "./delegates/ValidationDelegate";
 import { DialogDelegate } from "./delegates/DialogDelegate";
@@ -30,7 +31,16 @@ export default class GeneratorHost extends Control {
 
     protected stateManager: StateManager | null = null;
     protected generatedContent: Control | null = null;
+    /** The embedded engine responsible for rendering the UI controls */
     protected engine: Engine | null = null;
+    
+    /** 
+     * The Policy-Based Rules Engine.
+     * Continuously evaluates declarative cross-field rules and pushes visual/structural mutations down into the plugins.
+     */
+    protected policyEngine: PolicyEngine | null = null;
+    
+    private policyDebounceTimer: any = null;
     protected activeModelName: string = "";
 
     protected dataSyncDelegate!: DataSyncDelegate;
@@ -203,6 +213,55 @@ export default class GeneratorHost extends Control {
             payload: payload,
             isValid: isValid
         });
+
+        // Trigger PBRE Live Evaluation
+        if (this.policyEngine && fieldKey) {
+            if (this.policyDebounceTimer) clearTimeout(this.policyDebounceTimer);
+            this.policyDebounceTimer = setTimeout(() => {
+                this.evaluatePolicies();
+            }, 200);
+        }
+    }
+
+    /**
+     * Executes the PBRE policy evaluations and orchestrates the delta updates to the UI plugins.
+     * Acts as the bridge between the headless PolicyEngine calculations and the physical UI5 plugins.
+     * 
+     * @param changedPath The specific JSON path that triggered the evaluation (used for incremental sweeps).
+     *                    If undefined, a full engine sweep is performed (e.g. during initial render or manual submit).
+     */
+    private evaluatePolicies(): void {
+        if (!this.policyEngine || !this.stateManager || !this.engine) return;
+        const payload = this.stateManager.extractPayload();
+        const deltas = this.policyEngine.evaluate(payload);
+        for (const delta of deltas) {
+            const plugin = this.engine.getPluginByPath(delta.target);
+            if (plugin) {
+                // Systemic Failsafe: State Pruning on Hide/Disable
+                if ((delta.property === "visibility" || delta.property === "editable") && delta.value === false) {
+                    this.stateManager.setProperty(delta.target, undefined); 
+                }
+
+                switch (delta.property) {
+                    case "visibility": 
+                        if (plugin.applyVisibility) plugin.applyVisibility(delta.value);
+                        break;
+                    case "validity":
+                        if (delta.value) {
+                            this.engine.reportPolicyError(delta.target, null);
+                        } else {
+                            this.engine.reportPolicyError(delta.target, delta.errorMessage || "Validation failed by policy");
+                        }
+                        break;
+                    case "required":
+                        if (plugin.applyRequired) plugin.applyRequired(delta.value);
+                        break;
+                    case "editable":
+                        if (plugin.applyEditable) plugin.applyEditable(delta.value);
+                        break;
+                }
+            }
+        }
     }
 
     /**
@@ -270,14 +329,22 @@ export default class GeneratorHost extends Control {
 
             this.validationDelegate.removeAllMessages();
 
-            // Only apply local fallback visual states if the global MessageManager is explicitly disabled
-            const applyVisualFallback = this.getProperty("useMessageManager") !== true;
-            const errors = this.engine.validateAll(applyVisualFallback);
+            // Run PBRE Full Sweep before validation to ensure visibility states are perfect
+            if (this.policyEngine) {
+                this.evaluatePolicies();
+            }
+
+            // PBRE Architecture Rule 12: Controls are deliberately isolated from UI5's native 
+            // MessageManager auto-sync. We must explicitly instruct plugins to paint their 
+            // visual red borders (ValueState) manually during a full form submission sweep.
+            const errors = this.engine.validateAll(true);
             if (errors.length > 0) {
-                this.validationDelegate.pushMessage("", "One or more fields failed schema validation. Please review the highlighted fields.");
+                if (this.getProperty("useMessageManager") === true) {
+                    this.validationDelegate.pushMessage("", "One or more fields failed schema validation. Please review the highlighted fields.");
+                }
                 for (const err of errors) {
                     if (err.fieldKey && err.errorMessage) {
-                        this.validationDelegate.pushMessage(err.fieldKey, err.errorMessage);
+                        this.validationDelegate.pushMessage(err.fieldKey, err.errorMessage, err.fieldLabel);
                     }
                 }
                 return false;
@@ -291,8 +358,10 @@ export default class GeneratorHost extends Control {
                 preventDefault: () => { isPrevented = true; },
                 addError: (propertyPath: string, errorMessage: string) => {
                     isPrevented = true;
-                    this.validationDelegate.pushMessage(propertyPath, errorMessage);
-                    if (applyVisualFallback && this.engine) {
+                    if (this.getProperty("useMessageManager") === true) {
+                        this.validationDelegate.pushMessage(propertyPath, errorMessage);
+                    }
+                    if (this.engine) {
                         const plugin = this.engine.getPluginByPath(propertyPath);
                         if (plugin && typeof plugin.setVisualValidationState === "function") {
                             plugin.setVisualValidationState(false, errorMessage);
@@ -433,34 +502,39 @@ export default class GeneratorHost extends Control {
                 this.stateManager = null;
             }
 
-            const rawSchema = this.getProperty("schemaDefinition");
+            let rawSchema = this.getProperty("schemaDefinition");
+            if (rawSchema && typeof rawSchema === "object") {
+                rawSchema = JSON.parse(JSON.stringify(rawSchema));
+            }
             const isSchemaEmpty = !rawSchema || (typeof rawSchema === "object" && Object.keys(rawSchema).length === 0);
 
             let inputData = this.getProperty("data");
             const inputDataJson = this.getProperty("dataJson");
 
+            let dataParseError = "";
+
             if (inputDataJson) {
                 try {
                     inputData = JSON.parse(inputDataJson as string);
                 } catch (e) {
-                    const msg = "Failed to parse inputDataJson string: " + (e as Error).message;
-                    Logger.error("[MetaUI]", msg, "GeneratorHost");
-                    this.fireEvent("error", { message: msg, exception: e });
-                    throw new Error(msg); // Critical error instead of silent fallback
+                    dataParseError = "Failed to parse inputDataJson string: " + (e as Error).message;
+                    Logger.error("[MetaUI]", dataParseError, "GeneratorHost");
+                    this.fireEvent("error", { message: dataParseError, exception: e });
+                    inputData = {}; // Fallback to empty object to allow schema to render
                 }
             } else if (typeof inputData === "string") {
                 try {
                     inputData = JSON.parse(inputData);
                 } catch (e) {
-                    const msg = "Failed to parse inputData string: " + (e as Error).message;
-                    Logger.error("[MetaUI]", msg, "GeneratorHost");
-                    this.fireEvent("error", { message: msg, exception: e });
-                    throw new Error(msg); // Critical error instead of silent fallback
+                    dataParseError = "Failed to parse inputData string: " + (e as Error).message;
+                    Logger.error("[MetaUI]", dataParseError, "GeneratorHost");
+                    this.fireEvent("error", { message: dataParseError, exception: e });
+                    inputData = {}; // Fallback to empty object to allow schema to render
                 }
             }
 
-            // The internal payload represents the user's latest un-extracted edits. It must take priority.
-            const finalData = internalPayload || inputData;
+            // The internal payload represents the user's latest un-extracted edits. It must take priority, unless an external data-swap failed.
+            const finalData = dataParseError ? inputData : (internalPayload || inputData);
 
             if (!finalData || Object.keys(finalData).length === 0) {
                 if (isSchemaEmpty) {
@@ -478,6 +552,12 @@ export default class GeneratorHost extends Control {
             this.parsedSchema = normalizedSchema as Record<string, unknown>;
 
             if (normalizedSchema) {
+                if (normalizedSchema.uiPolicies && normalizedSchema.uiPolicies.length > 0) {
+                    this.policyEngine = new PolicyEngine(normalizedSchema.uiPolicies);
+                } else {
+                    this.policyEngine = null;
+                }
+
                 const schemaErrors = SchemaValidator.validateSchemaStructure(normalizedSchema);
                 if (schemaErrors.length > 0) {
                     const errorMsg = "Schema Structural Errors Found:\n- " + schemaErrors.join("\n- ");
@@ -568,6 +648,11 @@ export default class GeneratorHost extends Control {
                 this.onInternalFieldChange.bind(this)
             );
 
+            // Defect #15: PBRE Initialization Blackout - Force headless evaluation of initial visibility state
+            if (this.policyEngine) {
+                this.evaluatePolicies();
+            }
+
             let contentContainer = this.generatedContent;
 
             const hasProperties = normalizedSchema && Object.keys(normalizedSchema).length > 0;
@@ -577,12 +662,30 @@ export default class GeneratorHost extends Control {
                     text: "Warning: The generated UI is blank. Reason: The schema (or inferred schema) contains no valid properties to render.",
                     type: "Warning",
                     showIcon: true,
-                    showCloseButton: false
+                    showCloseButton: true
                 });
-                strip.addStyleClass("sapUiSmallMarginBottom");
+                strip.addStyleClass("sapUiSmallMargin");
                 contentContainer = new VBox({
-                    items: [strip, this.generatedContent]
+                    items: [strip]
                 });
+            } else if (dataParseError) {
+                const strip = new MessageStrip({
+                    text: "Data Error: " + dataParseError + ". The form has been rendered with a blank dataset.",
+                    type: "Error",
+                    showIcon: true,
+                    showCloseButton: true
+                });
+                strip.addStyleClass("sapUiSmallMargin");
+                
+                if (typeof (contentContainer as any).insertItem === "function") {
+                    (contentContainer as any).insertItem(strip, 0);
+                } else if (typeof (contentContainer as any).insertContent === "function") {
+                    (contentContainer as any).insertContent(strip, 0);
+                } else {
+                    contentContainer = new VBox({
+                        items: [strip, this.generatedContent!]
+                    });
+                }
             } else if (this.engine.hasPartialRenderingErrors) {
                 const strip = new MessageStrip({
                     text: "Layout partially rendered. Some fields failed to generate due to configuration errors.",
@@ -603,8 +706,7 @@ export default class GeneratorHost extends Control {
             this.dataSyncDelegate.pushToBindings(payload);
 
             // Retroactively expand the dialog if the heuristic determines it needs more space
-            const optimalWidth = this.calculateOptimalDialogWidth(this.parsedSchema);
-            this.dialogDelegate.updateDialogWidthDynamically(optimalWidth);
+            this.dialogDelegate.calculateAndApplyOptimalWidth(this.parsedSchema);
 
         } catch (error) {
             this.setBusy(false);
@@ -616,54 +718,13 @@ export default class GeneratorHost extends Control {
         }
     }
 
-    /**
-     * Helper to heuristically calculate optimal dialog width based on schema content.
-     */
-    private calculateOptimalDialogWidth(schema: Record<string, any> | null): string {
-        if (!schema) return "auto";
-        let requiresWideDialog = false;
 
-        const scanProperties = (props: Record<string, any>) => {
-            if (requiresWideDialog) return;
-            for (const key in props) {
-                const prop = props[key];
-                if (prop.type === "array") {
-                    requiresWideDialog = true;
-                    return;
-                }
-                if (prop.ui?.fullWidth === true) {
-                    requiresWideDialog = true;
-                    return;
-                }
-                if (prop.ui?.widget === "codeEditor" || prop.ui?.widget === "textArea" || prop.ui?.widget === "richText") {
-                    requiresWideDialog = true;
-                    return;
-                }
-                if (prop.properties) scanProperties(prop.properties);
-                if (prop.items && prop.items.properties) scanProperties(prop.items.properties);
-            }
-        };
-
-        if (schema.type === "array") return "80vw";
-        if (schema.properties) {
-            scanProperties(schema.properties);
-        }
-
-        return requiresWideDialog ? "80vw" : "auto";
-    }
 
     /**
      * Programmatic API. Re-parents the generated content into a dialog and opens it.
      */
     public openInDialog(title: string = "Form", submitButtonText: string = "OK", cancelButtonText: string = "Cancel", dialogWidth: string = "auto", parentView?: Control): void {
         const isGenerated = !!this.generatedContent;
-        
-        // If we already have the schema parsed, we can calculate it instantly to prevent flicker
-        let finalWidth = dialogWidth;
-        if (finalWidth === "auto" && this.parsedSchema) {
-            finalWidth = this.calculateOptimalDialogWidth(this.parsedSchema);
-        }
-        
-        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated, cancelButtonText, finalWidth, parentView);
+        this.dialogDelegate.openInDialog(title, submitButtonText, isGenerated, cancelButtonText, dialogWidth, parentView);
     }
 }

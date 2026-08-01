@@ -6,7 +6,7 @@
 import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { IPlugin, IPluginValidationResult } from "../interfaces/IPlugin";
-import { ConditionEngine } from "./ConditionEngine";
+
 import { PluginRegistry } from "./PluginRegistry";
 import Control from "sap/ui/core/Control";
 import VBox from "sap/m/VBox";
@@ -15,6 +15,7 @@ import { Logger } from "../utils/Logger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import Core from "sap/ui/core/Core";
 import Messaging from "sap/ui/core/Messaging";
+import { GlobalPipeline } from "./PipelineManager";
 
 /**
  * The Engine is responsible for translating a normalized schema into a physical UI5 layout.
@@ -27,16 +28,21 @@ import Messaging from "sap/ui/core/Messaging";
  * @public
  */
 export class Engine {
-    /** Handles dynamic conditional logic across the active form. */
-    private conditionEngine: ConditionEngine | null = null;
+
 
     /** Array of all instantiated plugins generated during the current build. */
     private activePlugins: { plugin: IPlugin, path: string }[] = [];
 
+    /** Array of template plugins generated for table rows to prevent memory leaks during destruction. */
+    private templatePlugins: { plugin: IPlugin, path: string }[] = [];
+
     /** Deterministic scope ID injected by the host control to prevent clone collisions. */
     public engineScopeId?: string;
 
-    private activeModel?: any;
+    private activeModel?: unknown;
+
+    /** Ledger tracking local vs cross-field errors to prevent visual race conditions. */
+    private validationLedger: Map<string, { schemaError: string | null, policyError: string | null }> = new Map();
 
     /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
     public host?: unknown;
@@ -79,15 +85,16 @@ export class Engine {
      * @param onChange Callback fired when field values change.
      * @returns The generated root UI5 Control container.
      */
-    public build(schema: ISchema, model: any, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.conditionEngine = new ConditionEngine(schema);
+    public build(schema: ISchema, model: unknown, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
+
         this.activePlugins = [];
         this.activeModel = model;
         this.engineScopeId = engineScopeId;
         this.onChange = (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => {
-            if (this.conditionEngine && fieldKey) {
-                this.conditionEngine.handleEvent(fieldKey, isValid);
+            if (fieldKey) {
+                this.reportSchemaError(fieldKey, isValid ? null : errorMessage || "Invalid input");
             }
+
             if (onChange) {
                 onChange(isValid, fieldKey, errorMessage, controlId);
             }
@@ -129,13 +136,13 @@ export class Engine {
 
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });
+            } else {
+                this.templatePlugins.push({ plugin, path: bindingPath });
             }
             const scopeId = isTemplate ? undefined : this.engineScopeId;
             const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange, this.activeModel);
 
-            if (this.conditionEngine) {
-                this.conditionEngine.registerPlugin(bindingPath, plugin);
-            }
+
 
             return control;
         } catch (error) {
@@ -185,8 +192,8 @@ export class Engine {
         for (const item of this.activePlugins) {
             try {
                 const result = item.plugin.validate();
-                if (applyVisualState && typeof item.plugin.setVisualValidationState === "function") {
-                    item.plugin.setVisualValidationState(result.isValid, result.errorMessage);
+                if (applyVisualState) {
+                    this.reportSchemaError(item.path, result.isValid ? null : result.errorMessage || "Invalid input");
                 }
 
                 if (!result.isValid) {
@@ -200,6 +207,102 @@ export class Engine {
                 Logger.error(`[MetaUI Engine] Error validating plugin at ${item.path}`, (error as Error).message);
             }
         }
+
+        // 2. Recursively validate arrays via StateManager payload traversing for Table layout rows
+        if (this.host && typeof (this.host as any).getStateManager === "function") {
+            const stateManager = (this.host as any).getStateManager();
+            if (stateManager) {
+                const payload = stateManager.extractPayload();
+                const schema = stateManager.getSchema ? stateManager.getSchema() : (this.host as any).getParsedSchema?.();
+                if (payload && schema) {
+                    const arrayErrors = this.validatePayloadArrays(schema, payload, "");
+                    if (applyVisualState) {
+                        arrayErrors.forEach(err => {
+                            if (err.fieldKey) {
+                                this.reportSchemaError(err.fieldKey, err.isValid ? null : err.errorMessage || "Invalid input");
+                            }
+                        });
+                    }
+                    errors.push(...arrayErrors.filter(e => !e.isValid));
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    public onArrayMutated(arrayPath: string): void {
+        if (this.host && typeof (this.host as any).getStateManager === "function") {
+            const stateManager = (this.host as any).getStateManager();
+            if (stateManager && typeof stateManager.clearArrayMessages === "function") {
+                stateManager.clearArrayMessages(arrayPath);
+            }
+        }
+    }
+
+    private validatePayloadArrays(schema: any, payload: any, currentPath: string): IPluginValidationResult[] {
+        const errors: IPluginValidationResult[] = [];
+        if (!schema || !payload || typeof payload !== "object") return errors;
+
+        if (schema.type === "object" && schema.properties) {
+            for (const key of Object.keys(schema.properties)) {
+                const propSchema = schema.properties[key];
+                if (payload[key] !== undefined) {
+                    const childPath = currentPath ? `${currentPath}/${key}` : key;
+                    errors.push(...this.validatePayloadArrays(propSchema, payload[key], childPath));
+                }
+            }
+        } else if (schema.type === "array" && schema.items && Array.isArray(payload)) {
+            payload.forEach((item, index) => {
+                const itemPath = currentPath ? `${currentPath}/${index}` : `${index}`;
+                if (schema.items.type === "object" && schema.items.properties) {
+                    for (const key of Object.keys(schema.items.properties)) {
+                        const propMeta = schema.items.properties[key];
+                        const propPath = `${itemPath}/${key}`;
+                        const val = item ? item[key] : undefined;
+                        
+                        const validatorsToRun: string[] = [];
+                        const argsMap: Record<string, unknown> = {};
+
+                        if (propMeta.required) validatorsToRun.push("required");
+                        if (propMeta.maxLength !== undefined) {
+                            validatorsToRun.push("maxLength");
+                            argsMap["maxLength"] = propMeta.maxLength;
+                        }
+                        if (propMeta.minLength !== undefined) {
+                            validatorsToRun.push("minLength");
+                            argsMap["minLength"] = propMeta.minLength;
+                        }
+                        if (propMeta.pattern !== undefined) {
+                            validatorsToRun.push("pattern");
+                            argsMap["pattern"] = { regex: propMeta.pattern };
+                        }
+                        if (propMeta.minimum !== undefined || propMeta.maximum !== undefined) {
+                            validatorsToRun.push("range");
+                            argsMap["range"] = { min: propMeta.minimum, max: propMeta.maximum };
+                        }
+                        const format = propMeta.ui?.format;
+                        if (format === "email" || format === "url" || format === "iban") {
+                            validatorsToRun.push(format);
+                        }
+                        
+                        if (validatorsToRun.length > 0) {
+                            const res = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
+                            if (!res.isValid) {
+                                errors.push({
+                                    isValid: false,
+                                    errorMessage: res.errorMessage,
+                                    fieldKey: propPath,
+                                    fieldLabel: propMeta.ui?.label || key
+                                });
+                            } else {
+                                errors.push({ isValid: true, fieldKey: propPath }); // Push successful state to clear old errors
+                            }
+                        }
+                    }
+                }
+            });
+        }
         return errors;
     }
 
@@ -211,45 +314,121 @@ export class Engine {
      * @returns {IPlugin | undefined} The plugin instance, or undefined if not found.
      */
     public getPluginByPath(path: string): import("../interfaces/IPlugin").IPlugin | undefined {
-        const cleanPath = path.startsWith("/") ? path : `/${path}`;
-        const match = this.activePlugins.find(p => p.path === cleanPath || p.path === `/${cleanPath}`);
+        const cleanPath = path.replace(/^\//, "");
+        const match = this.activePlugins.find(p => p.path.replace(/^\//, "") === cleanPath);
         return match ? match.plugin : undefined;
+    }
+
+    /**
+     * Reports a localized schema validation error to the coordinator ledger.
+     */
+    public reportSchemaError(fieldPath: string, errorMessage: string | null): void {
+        const cleanPath = fieldPath.replace(/^\//, "");
+        if (!this.validationLedger.has(cleanPath)) {
+            this.validationLedger.set(cleanPath, { schemaError: null, policyError: null });
+        }
+        this.validationLedger.get(cleanPath)!.schemaError = errorMessage;
+        this.resolveVisualState(cleanPath);
+    }
+
+    /**
+     * Reports a cross-field policy error to the coordinator ledger.
+     */
+    public reportPolicyError(fieldPath: string, errorMessage: string | null): void {
+        const cleanPath = fieldPath.replace(/^\//, "");
+        if (!this.validationLedger.has(cleanPath)) {
+            this.validationLedger.set(cleanPath, { schemaError: null, policyError: null });
+        }
+        this.validationLedger.get(cleanPath)!.policyError = errorMessage;
+        this.resolveVisualState(cleanPath);
+    }
+
+    /**
+     * Computes the final visual state by checking both engines and applies it to the plugin.
+     */
+    private resolveVisualState(cleanPath: string): void {
+        const plugin = this.getPluginByPath(cleanPath);
+        const ledgerEntry = this.validationLedger.get(cleanPath);
+        if (!ledgerEntry) return;
+
+        const isError = ledgerEntry.policyError !== null || ledgerEntry.schemaError !== null;
+        const errorMessage = ledgerEntry.policyError || ledgerEntry.schemaError;
+
+        if (plugin && typeof plugin.setVisualValidationState === "function") {
+            plugin.setVisualValidationState(!isError, isError ? errorMessage || undefined : undefined);
+        } else {
+            // Un-tracked template clones (Table Layout rows)
+            this.setNativeControlError(cleanPath, isError ? errorMessage || undefined : undefined);
+        }
+    }
+
+    private setNativeControlError(targetPath: string, errorMessage?: string): void {
+        if (this.host && (this.host as any).generatedContent) {
+            const rootControl = (this.host as any).generatedContent;
+            this.traverseAndSetError(rootControl, targetPath, errorMessage);
+        }
+    }
+
+    private traverseAndSetError(control: any, targetPath: string, errorMessage?: string): void {
+        if (!control) return;
+        
+        const bindingInfos = [control.getBindingInfo("value"), control.getBindingInfo("selectedKey"), control.getBindingInfo("dateValue"), control.getBindingInfo("selected")];
+        for (const info of bindingInfos) {
+            if (info && info.parts && info.parts.length > 0) {
+                const boundPath = info.parts[0].path;
+                // UI5 relative bindings drop the leading slash in the context, but retain it in the path
+                if (boundPath === targetPath || targetPath.endsWith(boundPath)) {
+                    // Ensure we match the exact row context path
+                    const context = control.getBindingContext((this.host as any).activeModelName);
+                    if (context) {
+                        const fullPath = context.getPath() + "/" + boundPath;
+                        const cleanedFullPath = fullPath.replace(/^\//, "");
+                        if (cleanedFullPath === targetPath) {
+                            if (typeof control.setValueState === "function") {
+                                control.setValueState(errorMessage ? "Error" : "None");
+                                if (typeof control.setValueStateText === "function") {
+                                    control.setValueStateText(errorMessage || "");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (typeof control.getAggregation === "function" && typeof control.getMetadata === "function") {
+            const aggs = control.getMetadata().getAggregations();
+            for (const aggName in aggs) {
+                const child = control.getAggregation(aggName);
+                if (Array.isArray(child)) {
+                    child.forEach(c => this.traverseAndSetError(c, targetPath, errorMessage));
+                } else if (child) {
+                    this.traverseAndSetError(child, targetPath, errorMessage);
+                }
+            }
+        }
     }
 
     /**
      * Cleans up internal state and destroys the condition engine to prevent memory leaks.
      */
     public destroy(): void {
-        if (this.conditionEngine) {
-            this.conditionEngine.destroy();
-            this.conditionEngine = null;
-        }
 
-        // ------------------------------------------------------------------------
-        // Ghost Error Prevention
-        // Flush MessageManager for active plugins before destroying their controls
-        // ------------------------------------------------------------------------
-        const messageManager = Messaging;
-        const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove: unknown[] = [];
 
         for (const item of this.activePlugins) {
-            if (this.activeModel) {
-                const targetPath = `/${item.path.replace(/^\//, "")}`;
-                const matched = (existingMessages as { getTarget: () => string, getMessageProcessor: () => { getId: () => string } }[]).filter(msg =>
-                    msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.activeModel!.getId()
-                );
-                messagesToRemove.push(...matched);
-            }
             if (typeof item.plugin.destroy === "function") {
                 item.plugin.destroy();
             }
         }
 
-        if (messagesToRemove.length > 0) {
-            messageManager.removeMessages(messagesToRemove);
+        for (const item of this.templatePlugins) {
+            if (typeof item.plugin.destroy === "function") {
+                item.plugin.destroy();
+            }
         }
 
+        this.validationLedger.clear();
         this.activePlugins = [];
+        this.templatePlugins = [];
     }
 }

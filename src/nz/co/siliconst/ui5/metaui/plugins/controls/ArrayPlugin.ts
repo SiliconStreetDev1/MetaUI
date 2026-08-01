@@ -9,6 +9,7 @@ import { IPluginValidationResult } from "../../interfaces/IPlugin";
 import Control from "sap/ui/core/Control";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
+import { SCHEMA_TYPE, UI5_EVENT } from "../../constants/MetaUIConstants";
 
 export class ArrayPlugin extends BasePlugin {
     /**
@@ -21,16 +22,16 @@ export class ArrayPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Button control.
      */
-    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = field;
         const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
         
         const subSchema: ISchema = {
-            type: "array",
+            type: SCHEMA_TYPE.ARRAY,
             title: field.ui?.label || propKey,
             items: field.items || {
-                type: "object",
+                type: SCHEMA_TYPE.OBJECT,
                 properties: {} // inference will handle it if empty
             }
         };
@@ -79,7 +80,7 @@ export class ArrayPlugin extends BasePlugin {
 
                     // Only attach submit event if we are not in display mode
                     if (!!this.isEditable) {
-                        host.attachEvent("submit", (e: sap.ui.base.Event) => {
+                        host.attachEvent(UI5_EVENT.SUBMIT, (e: sap.ui.base.Event) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
 
@@ -96,6 +97,7 @@ export class ArrayPlugin extends BasePlugin {
                 });
             }
         });
+        this.applyCommonDirectives(this.control, field, modelName);
         
         return this.control as Control;
     }

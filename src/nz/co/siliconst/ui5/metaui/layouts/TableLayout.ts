@@ -19,6 +19,7 @@ import { Engine } from "../core/Engine";
 import GeneratorHost from "../controls/host/GeneratorHost";
 import { SchemaNormalizer } from "../core/SchemaNormalizer";
 import { Logger } from "../utils/Logger";
+import { WIDGET_TYPE, SCHEMA_TYPE } from "../constants/MetaUIConstants";
 
 /**
  * Layout Manager responsible for generating a responsive SAP Fiori Table.
@@ -42,7 +43,7 @@ export class TableLayout implements ILayoutManager {
      */
     public render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void, bindingPath: string = "/"): Control {
         let itemsSchema = schema.items;
-        if (itemsSchema && !itemsSchema.properties && itemsSchema.ui?.widget === "reference" && itemsSchema.$ref) {
+        if (itemsSchema && !itemsSchema.properties && itemsSchema.ui?.widget === WIDGET_TYPE.REFERENCE && itemsSchema.$ref) {
             Logger.debug(`[MetaUI] TableLayout detecting reference widget for ${bindingPath}. Resolving ${itemsSchema.$ref}`, "", "TableLayout");
             
             const host = engine.host as unknown as GeneratorHost;
@@ -59,10 +60,30 @@ export class TableLayout implements ILayoutManager {
             }
         }
 
-        if (schema.type !== "array" || !itemsSchema || !itemsSchema.properties) {
+        const isPrimitive = itemsSchema && !itemsSchema.properties && ["string", "number", "boolean"].includes(itemsSchema.type as string);
+        if (schema.type !== SCHEMA_TYPE.ARRAY || !itemsSchema || (!itemsSchema.properties && !isPrimitive)) {
             Logger.error(`[MetaUI] TableLayout fatal error! schema.type: ${schema.type}, itemsSchema: ${!!itemsSchema}, properties: ${itemsSchema ? !!itemsSchema.properties : false}`, "", "TableLayout");
-            throw new Error("[MetaUI] TableLayout requires an array schema with items.properties.");
+            throw new Error("[MetaUI] TableLayout requires an array schema with items.properties or primitive items.");
         }
+
+        const createSkeleton = (meta: ISchema | IPropertyMetadata): any => {
+            if (meta.type === "object" && meta.properties) {
+                const obj: any = {};
+                for (const key of Object.keys(meta.properties)) {
+                    obj[key] = createSkeleton(meta.properties[key] as ISchema | IPropertyMetadata);
+                }
+                return obj;
+            } else if (meta.type === "array") {
+                return [];
+            } else if (meta.type === "string") {
+                return (meta as any).default !== undefined ? (meta as any).default : ((meta as any).enum ? (meta as any).enum[0] : "");
+            } else if (meta.type === "number") {
+                return (meta as any).default !== undefined ? (meta as any).default : 0;
+            } else if (meta.type === "boolean") {
+                return (meta as any).default !== undefined ? (meta as any).default : false;
+            }
+            return "";
+        };
 
         const tableTitle = schema.title || "Table";
         const actualModelName = modelName;
@@ -86,7 +107,7 @@ export class TableLayout implements ILayoutManager {
 
                                 const rawData = model.getProperty(info.path);
                                 const data = Array.isArray(rawData) ? rawData : [];
-                                const newData = [...data, {}];
+                                const newData = [...data, createSkeleton(itemsSchema)];
                                 model.setProperty(info.path, newData);
 
                                 // CRITICAL: Notify the engine so it extracts payload and triggers liveUpdate
@@ -121,6 +142,11 @@ export class TableLayout implements ILayoutManager {
                 if (engine.onChange) {
                     engine.onChange(true, actualPath.replace(/^\//, ""));
                 }
+
+                // CRITICAL: Clear ghost errors that shifted due to array mutation
+                if (typeof (engine as any).onArrayMutated === "function") {
+                    (engine as any).onArrayMutated(arrayPath);
+                }
             }
         });
 
@@ -128,7 +154,13 @@ export class TableLayout implements ILayoutManager {
         const props = itemsSchema.properties;
         const layoutElements = schema.uiLayout;
 
-        if (layoutElements && Array.isArray(layoutElements)) {
+        if (isPrimitive) {
+            table.addColumn(new Column({
+                header: new Text({ text: "Value" })
+            }));
+            const control = engine.generateField(itemsSchema as IPropertyMetadata, "", actualModelName || "meta", true);
+            templateCells.push(control);
+        } else if (layoutElements && Array.isArray(layoutElements)) {
             // Only render columns defined in uiLayout
             layoutElements.forEach((element: ILayoutElement) => {
                 if (element.type === "Control" && element.scope) {

@@ -3,7 +3,8 @@
  * @description A custom datasource plugin that provides asynchronous live search (autocomplete) functionality.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";import Event from "sap/ui/base/Event";
+import { BasePlugin } from "../controls/BasePlugin";
+import Event from "sap/ui/base/Event";
 
 import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";

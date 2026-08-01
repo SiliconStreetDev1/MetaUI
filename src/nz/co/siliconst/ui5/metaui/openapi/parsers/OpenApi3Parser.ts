@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file OpenApi3Parser.ts
  * @description Native parser for OpenAPI 3.0.x specifications.
  */
@@ -19,32 +19,39 @@ export class OpenApi3Parser implements IOpenApiParserPlugin {
      * Parses a raw OpenAPI 3.0 document into a normalized MetaUI ISchema tree.
      * Extracts definitions from components.schemas, normalizes properties, and recursively resolves composition (allOf).
      * 
-     * @param {any} openApiRoot The root JSON document.
+     * @param {unknown} openApiRoot The root JSON document.
      * @param {string} [targetDefinition] Optional specific schema to extract from components.schemas. If omitted, uses the first schema available.
      * @returns {ISchema} The synthesized MetaUI schema structure.
      * @throws {Error} If the target definition cannot be found in the provided Swagger document.
      */
-    public parse(openApiRoot: any, targetDefinition?: string): ISchema {
-        let targetObject = openApiRoot;
+    public parse(openApiRoot: unknown, targetDefinition?: string): ISchema {
+        let targetObject = openApiRoot as Record<string, unknown>;
+        const root = openApiRoot as Record<string, unknown>;
 
         if (!targetDefinition) {
-            if (openApiRoot.components && openApiRoot.components.schemas) {
-                const keys = Object.keys(openApiRoot.components.schemas);
+            if (root.components && (root.components as Record<string, unknown>).schemas) {
+                const schemas = (root.components as Record<string, unknown>).schemas as Record<string, unknown>;
+                const keys = Object.keys(schemas);
                 if (keys.length > 0) targetDefinition = keys[0];
             }
         }
 
         if (targetDefinition) {
             targetDefinition = targetDefinition.replace("#/components/schemas/", "").replace("#/definitions/", "");
-            if (openApiRoot.components && openApiRoot.components.schemas && openApiRoot.components.schemas[targetDefinition]) {
-                targetObject = openApiRoot.components.schemas[targetDefinition];
+            if (root.components && (root.components as Record<string, unknown>).schemas) {
+                const schemas = (root.components as Record<string, unknown>).schemas as Record<string, unknown>;
+                if (schemas[targetDefinition]) {
+                    targetObject = schemas[targetDefinition] as Record<string, unknown>;
+                } else {
+                    throw new Error(`[MetaUI OpenApi3Parser] Could not find target definition '${targetDefinition}' in components.schemas.`);
+                }
             } else {
                 throw new Error(`[MetaUI OpenApi3Parser] Could not find target definition '${targetDefinition}' in components.schemas.`);
             }
         }
 
         if (targetObject.$ref) {
-            const resolved = OpenApiRefResolver.resolve(targetObject.$ref, openApiRoot);
+            const resolved = OpenApiRefResolver.resolve(targetObject.$ref as string, openApiRoot) as Record<string, unknown>;
             if (resolved) {
                 targetObject = { ...resolved, ...targetObject };
             }
@@ -54,17 +61,17 @@ export class OpenApi3Parser implements IOpenApiParserPlugin {
             let merged = { ...targetObject };
             delete merged.allOf;
             for (const subSchema of targetObject.allOf) {
-                let resolvedSub = subSchema;
+                let resolvedSub = subSchema as Record<string, unknown>;
                 if (subSchema.$ref) {
-                    resolvedSub = OpenApiRefResolver.resolve(subSchema.$ref, openApiRoot) || {};
+                    resolvedSub = (OpenApiRefResolver.resolve(subSchema.$ref as string, openApiRoot) as Record<string, unknown>) || {};
                 }
-                merged = OpenApiPropertyMapper.deepMergeSchemas(merged, resolvedSub);
+                merged = OpenApiPropertyMapper.deepMergeSchemas(merged, resolvedSub) as Record<string, unknown>;
             }
             targetObject = merged;
         }
 
         const schema: ISchema = {
-            title: targetObject.title || openApiRoot.info?.title || targetDefinition,
+            title: (targetObject.title as string) || ((root.info as Record<string, unknown>)?.title as string) || targetDefinition || "",
             type: targetObject.type === "array" ? "array" : "object",
             layoutStrategy: targetObject.type === "array" ? "table" : "form"
         };
@@ -78,15 +85,15 @@ export class OpenApi3Parser implements IOpenApiParserPlugin {
         }
 
         if (targetObject.properties) {
-            const requiredFields = Array.isArray(targetObject.required) ? targetObject.required : [];
+            const requiredFields = Array.isArray(targetObject.required) ? (targetObject.required as string[]) : [];
             schema.properties = OpenApiPropertyMapper.mapProperties(targetObject.properties, requiredFields, openApiRoot, "3.0");
         } else if (schema.type === "array" && targetObject.items) {
             schema.items = OpenApiPropertyMapper.mapPropertyMetadata(targetObject.items, "items", false, openApiRoot, "3.0");
         }
 
-        if (openApiRoot.components && openApiRoot.components.schemas) {
+        if (root.components && (root.components as Record<string, unknown>).schemas) {
             schema.definitions = {};
-            const schemas = openApiRoot.components.schemas;
+            const schemas = (root.components as Record<string, unknown>).schemas as Record<string, unknown>;
             for (const key of Object.keys(schemas)) {
                 const mappedProp = OpenApiPropertyMapper.mapPropertyMetadata(schemas[key], key, false, openApiRoot, "3.0");
                 schema.definitions[key] = {

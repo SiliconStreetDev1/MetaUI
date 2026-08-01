@@ -45,7 +45,9 @@ export interface IUIDirective {
     enabledOn?: string;
     format?: string;
     rows?: number;
+    expandable?: boolean;
     fullWidth?: boolean;
+    controlProps?: Record<string, unknown>;
     validators?: (string | IValidationRule)[];
     formatter?: string;
     args?: unknown;
@@ -58,6 +60,25 @@ export interface IRemoteValueHelpConfig {
     url: string;
     keyPath: string;
     textPath: string;
+}
+
+export type PolicyEffectType = "Require" | "Hide" | "Disable" | "Invalidate" | "Show" | "Enable" | "Validate" | "Optional";
+
+export interface IPolicyCondition {
+    NumericGreaterThan?: Record<string, number>;
+    NumericLessThan?: Record<string, number>;
+    StringEquals?: Record<string, string>;
+    DateLessThan?: Record<string, string>;
+    IsNull?: string[];
+    IsNotNull?: string[];
+    [operator: string]: unknown; // Extensible for other operators
+}
+
+export interface IPolicy {
+    effect: PolicyEffectType;
+    targets: string[];
+    condition: IPolicyCondition;
+    message?: string;
 }
 
 /**
@@ -125,6 +146,7 @@ export interface IPropertyMetadata {
  */
 export interface ISchema {
     title?: string;
+    uiPolicies?: IPolicy[];
     layoutStrategy?: string;
     type?: "object" | "array"; // Implicit layout hinting
     properties?: Record<string, IPropertyMetadata>;

@@ -40,7 +40,7 @@
           "widget": "textArea",
           "rows": 4,
           "controlProps": {
-            "placeholder": "{= ${meta>/AgreeTerms} ? 'Thank you! Leave a comment...' : 'You must agree to terms first' }"
+            "placeholder": "{= ${metaui>/AgreeTerms} ? 'Thank you! Leave a comment...' : 'You must agree to terms first' }"
           }
         }
       },

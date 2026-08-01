@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file OpenApi2Parser.ts
  * @description Native parser for OpenAPI 2.0 (Swagger) specifications.
  */
@@ -19,32 +19,39 @@ export class OpenApi2Parser implements IOpenApiParserPlugin {
      * Parses a raw OpenAPI 2.0 document into a normalized MetaUI ISchema tree.
      * Extracts definitions, normalizes properties, and recursively resolves composition (allOf).
      * 
-     * @param {any} openApiRoot The root JSON document.
+     * @param {unknown} openApiRoot The root JSON document.
      * @param {string} [targetDefinition] Optional specific definition to extract. If omitted, uses the first definition available.
      * @returns {ISchema} The synthesized MetaUI schema structure.
      * @throws {Error} If the target definition cannot be found in the provided Swagger document.
      */
-    public parse(openApiRoot: any, targetDefinition?: string): ISchema {
-        let targetObject = openApiRoot;
+    public parse(openApiRoot: unknown, targetDefinition?: string): ISchema {
+        let targetObject = openApiRoot as Record<string, unknown>;
+        const root = openApiRoot as Record<string, unknown>;
 
         if (!targetDefinition) {
-            if (openApiRoot.definitions) {
-                const keys = Object.keys(openApiRoot.definitions);
+            if (root.definitions) {
+                const defs = root.definitions as Record<string, unknown>;
+                const keys = Object.keys(defs);
                 if (keys.length > 0) targetDefinition = keys[0];
             }
         }
 
         if (targetDefinition) {
             targetDefinition = targetDefinition.replace("#/components/schemas/", "").replace("#/definitions/", "");
-            if (openApiRoot.definitions && openApiRoot.definitions[targetDefinition]) {
-                targetObject = openApiRoot.definitions[targetDefinition];
+            if (root.definitions) {
+                const defs = root.definitions as Record<string, unknown>;
+                if (defs[targetDefinition]) {
+                    targetObject = defs[targetDefinition] as Record<string, unknown>;
+                } else {
+                    throw new Error(`[MetaUI OpenApi2Parser] Could not find target definition '${targetDefinition}' in definitions.`);
+                }
             } else {
                 throw new Error(`[MetaUI OpenApi2Parser] Could not find target definition '${targetDefinition}' in definitions.`);
             }
         }
 
         if (targetObject.$ref) {
-            const resolved = OpenApiRefResolver.resolve(targetObject.$ref, openApiRoot);
+            const resolved = OpenApiRefResolver.resolve(targetObject.$ref as string, openApiRoot) as Record<string, unknown>;
             if (resolved) {
                 targetObject = { ...resolved, ...targetObject };
             }
@@ -54,17 +61,17 @@ export class OpenApi2Parser implements IOpenApiParserPlugin {
             let merged = { ...targetObject };
             delete merged.allOf;
             for (const subSchema of targetObject.allOf) {
-                let resolvedSub = subSchema;
+                let resolvedSub = subSchema as Record<string, unknown>;
                 if (subSchema.$ref) {
-                    resolvedSub = OpenApiRefResolver.resolve(subSchema.$ref, openApiRoot) || {};
+                    resolvedSub = (OpenApiRefResolver.resolve(subSchema.$ref as string, openApiRoot) as Record<string, unknown>) || {};
                 }
-                merged = OpenApiPropertyMapper.deepMergeSchemas(merged, resolvedSub);
+                merged = OpenApiPropertyMapper.deepMergeSchemas(merged, resolvedSub) as Record<string, unknown>;
             }
             targetObject = merged;
         }
 
         const schema: ISchema = {
-            title: targetObject.title || openApiRoot.info?.title || targetDefinition,
+            title: (targetObject.title as string) || ((root.info as Record<string, unknown>)?.title as string) || targetDefinition || "",
             type: targetObject.type === "array" ? "array" : "object",
             layoutStrategy: targetObject.type === "array" ? "table" : "form"
         };
@@ -78,16 +85,17 @@ export class OpenApi2Parser implements IOpenApiParserPlugin {
         }
 
         if (targetObject.properties) {
-            const requiredFields = Array.isArray(targetObject.required) ? targetObject.required : [];
+            const requiredFields = Array.isArray(targetObject.required) ? (targetObject.required as string[]) : [];
             schema.properties = OpenApiPropertyMapper.mapProperties(targetObject.properties, requiredFields, openApiRoot, "2.0");
         } else if (schema.type === "array" && targetObject.items) {
             schema.items = OpenApiPropertyMapper.mapPropertyMetadata(targetObject.items, "items", false, openApiRoot, "2.0");
         }
 
-        if (openApiRoot.definitions) {
+        if (root.definitions) {
             schema.definitions = {};
-            for (const key of Object.keys(openApiRoot.definitions)) {
-                const mappedProp = OpenApiPropertyMapper.mapPropertyMetadata(openApiRoot.definitions[key], key, false, openApiRoot, "2.0");
+            const defs = root.definitions as Record<string, unknown>;
+            for (const key of Object.keys(defs)) {
+                const mappedProp = OpenApiPropertyMapper.mapPropertyMetadata(defs[key], key, false, openApiRoot, "2.0");
                 schema.definitions[key] = {
                     title: key,
                     type: mappedProp.type === "array" ? "array" : "object",

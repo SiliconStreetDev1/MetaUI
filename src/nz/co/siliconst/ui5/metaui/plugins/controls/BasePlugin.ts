@@ -21,6 +21,12 @@ export abstract class BasePlugin implements IPlugin {
     /** The instantiated UI5 control for this plugin. */
     protected control: Control | null = null;
 
+    /** Explicit reference to the core data widget when this plugin is wrapped in a layout. */
+    protected mainControl?: Control;
+
+    /** Properties strictly protected by the Sandbox engine. */
+    protected BLOCKED_PROPS = ["value", "text", "selectedKey", "selected", "dateValue", "editable", "enabled", "visible", "valueState", "valueStateText", "items", "content", "pages", "formElements", "change", "press", "select", "submit"];
+
     /** The metadata schema defining the field rules. */
     protected metadata: IPropertyMetadata | null = null;
 
@@ -38,6 +44,15 @@ export abstract class BasePlugin implements IPlugin {
 
     /** Internal callback provided by GeneratorHost to signal validation/data changes upwards */
     protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
+
+    /** 
+     * Tracks explicitly forced invalid states pushed down from the PolicyEngine.
+     * When populated, this error takes absolute precedence over static SchemaValidator rules.
+     */
+    protected policyInvalidMessage: string | null = null;
+
+    /** Transient state tracking for PBRE required evaluations to prevent schema clobbering */
+    protected _isDynamicallyRequired?: boolean;
 
     /**
      * Injects the global editable mode context into the plugin before rendering.
@@ -65,7 +80,7 @@ export abstract class BasePlugin implements IPlugin {
      * @param onChange The callback fired natively when a field value blur/change occurs.
      * @returns {Control} The generated UI5 control.
      */
-    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void, model?: unknown): Control;
+    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
 
     /**
      * Generates a deterministic, globally unique ID for this control.
@@ -115,12 +130,17 @@ export abstract class BasePlugin implements IPlugin {
             }
         }
 
+        if (this.policyInvalidMessage) {
+            return { isValid: false, errorMessage: this.policyInvalidMessage, fieldKey: this.fieldKey };
+        }
+
         const validatorsToRun: string[] = [];
         const argsMap: Record<string, unknown> = {
             "maxLength": this.metadata.maxLength
         };
 
-        if (this.metadata.required) {
+        const isRequired = this._isDynamicallyRequired !== undefined ? this._isDynamicallyRequired : this.metadata.required;
+        if (isRequired) {
             validatorsToRun.push("required");
         }
         if (this.metadata.maxLength) validatorsToRun.push("maxLength");
@@ -136,7 +156,7 @@ export abstract class BasePlugin implements IPlugin {
             validatorsToRun.push("range");
             argsMap["range"] = { min: this.metadata.minimum, max: this.metadata.maximum };
         }
-        
+
         const format = this.metadata.ui?.format;
         if (format === "email" || format === "url" || format === "iban") {
             validatorsToRun.push(format);
@@ -161,7 +181,7 @@ export abstract class BasePlugin implements IPlugin {
 
         const val = this.getValue();
         const result = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
-        return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey };
+        return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey, fieldLabel: this.metadata?.ui?.label };
     }
 
     /**
@@ -171,7 +191,7 @@ export abstract class BasePlugin implements IPlugin {
     public setVisualValidationState(isValid: boolean, errorMessage?: string): void {
         if (!this.control) return;
 
-        
+
         // Use reflection to check if the control supports ValueState (e.g. sap.m.Input does, sap.m.Text does not)
         type StateControl = {
             setValueState?: (state: string) => void;
@@ -180,23 +200,81 @@ export abstract class BasePlugin implements IPlugin {
         const ctrl = this.control as unknown as StateControl;
         if (typeof ctrl.setValueState === "function") {
             ctrl.setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
-            
+
             if (typeof ctrl.setValueStateText === "function") {
                 ctrl.setValueStateText(isValid ? "" : (errorMessage || ""));
             }
         } else {
-            Logger.error("[MetaUI]", `Plugin ${this.fieldKey} has no setValueState function!`, "BasePlugin");
+            // Quietly ignore. Controls like sap.m.Text natively do not support value states, which is completely valid.
+        }
+    }
+
+
+
+    // --- IPluginStateReceiver Implementation for PBRE ---
+
+    /**
+     * Natively applies a forced error state from the PolicyEngine.
+     * Per MetaUI Architecture Rule 12, this explicitly forces the visual state red 
+     * independently of the MessageManager auto-sync.
+     * 
+     * @param errorMessage The custom error message to display.
+     */
+    public applyError(errorMessage: string): void {
+        this.policyInvalidMessage = errorMessage;
+        this.setVisualValidationState(false, errorMessage);
+    }
+
+    /**
+     * Clears a previously forced error state.
+     * Restores the visual boundary to standard (non-error) formatting.
+     */
+    public clearError(): void {
+        this.policyInvalidMessage = null;
+        this.setVisualValidationState(true);
+    }
+
+    /**
+     * Dynamically manipulates the visibility state of the control based on PolicyEngine directives.
+     * 
+     * @param isVisible True to display the control, false to hide it.
+     */
+    public applyVisibility(isVisible: boolean): void {
+        const ctrl = this.control as unknown as { setVisible?: (b: boolean) => void };
+        if (ctrl && typeof ctrl.setVisible === "function") {
+            ctrl.setVisible(isVisible);
         }
     }
 
     /**
-     * Wraps standard validation and immediately applies the visual state.
-     * Ideal for 'change' events to instantly turn fields red on blur.
+     * Dynamically alters the mandatory status of the field.
+     * Updates internal transient state to ensure the `validate()` pipeline enforces the change,
+     * and natively triggers the UI5 required indicator (asterisk) if supported,
+     * without permanently corrupting the shared global schema definition.
+     * 
+     * @param isRequired True to make the field mandatory, false to make it optional.
      */
-    protected validateAndApplyVisualState(): import("../../interfaces/IPlugin").IPluginValidationResult {
-        const result = this.validate();
-        this.setVisualValidationState(result.isValid, result.errorMessage);
-        return result;
+    public applyRequired(isRequired: boolean): void {
+        this._isDynamicallyRequired = isRequired;
+        const ctrl = this.control as unknown as { setRequired?: (b: boolean) => void };
+        if (ctrl && typeof ctrl.setRequired === "function") {
+            ctrl.setRequired(isRequired);
+        }
+    }
+
+    /**
+     * Dynamically alters the editability of the field.
+     * Falls back to `setEnabled` if the control is structural rather than purely input-driven.
+     * 
+     * @param isEditable True to allow user input, false to lock it.
+     */
+    public applyEditable(isEditable: boolean): void {
+        const ctrl = this.control as unknown as { setEditable?: (b: boolean) => void, setEnabled?: (b: boolean) => void };
+        if (ctrl && typeof ctrl.setEditable === "function") {
+            ctrl.setEditable(isEditable);
+        } else if (ctrl && typeof ctrl.setEnabled === "function") {
+            ctrl.setEnabled(isEditable);
+        }
     }
 
     /**
@@ -243,6 +321,58 @@ export abstract class BasePlugin implements IPlugin {
                 expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
             }
             control.bindProperty("enabled", expr);
+        }
+
+        if (metadata.ui?.controlProps) {
+            console.error(`[DEBUG MetaUI] controlProps found for ${this.fieldKey}`, metadata.ui.controlProps);
+            const targetControl = this.mainControl || control;
+            const target = targetControl as unknown as {
+                getMetadata?: () => { getName(): string },
+                applySettings?: (settings: Record<string, any>) => void,
+                setProperty?: (p: string, v: unknown) => void,
+                bindProperty?: (p: string, v: string) => void
+            };
+
+            if (typeof target.getMetadata === "function") {
+                const targetMeta = target.getMetadata();
+                const settings: Record<string, any> = {};
+                for (const [propName, propValue] of Object.entries(metadata.ui.controlProps)) {
+                    if (this.BLOCKED_PROPS.includes(propName)) {
+                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Property is protected by sandbox)`);
+                        continue;
+                    }
+                    
+                    // Natively block any aggregations or events to prevent sandbox escapes
+                    if (typeof (targetMeta as any).hasAggregation === "function" && (targetMeta as any).hasAggregation(propName)) {
+                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack aggregations)`);
+                        continue;
+                    }
+                    
+                    if (typeof (targetMeta as any).hasEvent === "function" && (targetMeta as any).hasEvent(propName)) {
+                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack events)`);
+                        continue;
+                    }
+
+                    if (typeof propValue === "string" && propValue.startsWith("{") && propValue.endsWith("}")) {
+                        // The JSON payloads often hardcode 'metaui>' in raw expression bindings, 
+                        // but the Engine dynamically generates model names like 'metaUI_Host1'. 
+                        // We must inject the actual modelName dynamically into the expression string.
+                        const injectedValue = propValue.replace(/metaui>/g, `${modelName}>`);
+                        settings[propName] = injectedValue;
+                    } else {
+                        settings[propName] = propValue;
+                    }
+                }
+
+                try {
+                    const target = targetControl as unknown as { applySettings?: (s: Record<string, any>) => void };
+                    if (typeof target.applySettings === "function") {
+                        target.applySettings(settings);
+                    }
+                } catch (err: unknown) {
+                    Logger.warn(`[BasePlugin] Failed to apply controlProps for field '${this.fieldKey}' on control ${targetMeta.getName()}: ${(err as Error).message}`);
+                }
+            }
         }
     }
 

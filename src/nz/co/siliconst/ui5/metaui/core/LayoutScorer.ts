@@ -81,9 +81,11 @@ export class LayoutScorer {
                     if (node.ui?.widget === WIDGET_TYPE.REFERENCE) delete node.ui.widget;
                     
                     node.ui.renderMode = RENDER_MODE.INLINE;
+                    visited.delete(node);
                     return resolvedScore;
                 } else {
                     node.ui.renderMode = RENDER_MODE.DIALOG;
+                    visited.delete(node);
                     return 1;
                 }
             }
@@ -104,9 +106,11 @@ export class LayoutScorer {
             node.ui.layoutBudget = budget;
             if (arrayScore <= budget) {
                 node.ui.renderMode = RENDER_MODE.INLINE;
+                visited.delete(node);
                 return arrayScore;
             } else {
                 node.ui.renderMode = RENDER_MODE.DIALOG;
+                visited.delete(node);
                 return 1;
             }
         }
@@ -130,6 +134,8 @@ export class LayoutScorer {
         node.ui = node.ui || {};
         node.ui.layoutBudget = budget;
         
+        visited.delete(node);
+
         if (totalScore <= budget) {
             node.ui.renderMode = RENDER_MODE.INLINE;
             return totalScore;

@@ -5,6 +5,7 @@
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { UI5_EVENT, UI5_AGGREGATION } from "../../constants/MetaUIConstants";
 import MultiInput from "sap/m/MultiInput";
 import Token from "sap/m/Token";
 import Control from "sap/ui/core/Control";
@@ -33,7 +34,7 @@ export class MultiInputPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured MultiInput control.
      */
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -57,12 +58,12 @@ export class MultiInputPlugin extends BasePlugin {
             placeholder: fieldMetadata.ui?.label || "Type and press Enter...",
             showValueHelp: false, // We don't have a list of options for primitive tags
             tokenUpdate: (oEvent: Event) => {
-                const type = (oEvent as any).getParameter("type");
+                const type = (oEvent.getParameter("type") as unknown) as string;
                 const sourceMi = oEvent.getSource() as MultiInput;
                 
                 // Native UI5 tokens removed via the 'x' icon. We sync this directly back to the model.
                 if (type === "removed") {
-                    const removedTokens = (oEvent as any).getParameter("removedTokens") as Token[];
+                    const removedTokens = (oEvent.getParameter("removedTokens") as unknown) as Token[];
                     const removedTexts = removedTokens.map(t => t.getText());
                     
                     const bindingInfo = plugin.getNativeBindingContext(sourceMi);
@@ -84,7 +85,7 @@ export class MultiInputPlugin extends BasePlugin {
         if (typeof mi.attachSubmit === "function") {
             mi.attachSubmit((oEvent: Event) => {
                 const sourceMi = oEvent.getSource() as MultiInput;
-                const val = ((oEvent as any).getParameter("value") as string || sourceMi.getProperty('value')).trim();
+                const val = ((oEvent.getParameter("value") as unknown) as string || sourceMi.getProperty('value')).trim();
                 
                 if (val) {
                     const bindingInfo = plugin.getNativeBindingContext(sourceMi);
@@ -117,7 +118,7 @@ export class MultiInputPlugin extends BasePlugin {
         });
 
         // Bind existing strings to tokens using a factory function
-        mi.bindAggregation("tokens", this.generateBindingInfo(bindingPath, modelName, undefined, {
+        mi.bindAggregation(UI5_AGGREGATION.TOKENS, this.generateBindingInfo(bindingPath, modelName, undefined, {
             factory: (sId: string, oContext: sap.ui.model.Context) => {
                 const text = (oContext.getObject() as string) || "";
                 return new Token(sId, { key: text, text: text });
@@ -136,7 +137,7 @@ export class MultiInputPlugin extends BasePlugin {
      * @returns Object containing model and absolute path, or null if resolution fails.
      */
     private getNativeBindingContext(sourceMi: MultiInput): { model: JSONModel, absPath: string } | null {
-        const binding = sourceMi.getBinding("tokens") as ListBinding;
+        const binding = sourceMi.getBinding(UI5_AGGREGATION.TOKENS) as ListBinding;
         if (!binding) {
             Logger.error("[MultiInputPlugin] token list binding is completely missing on the source clone.");
             return null;
@@ -178,8 +179,8 @@ export class MultiInputPlugin extends BasePlugin {
         model.refresh(true); // Force UI5 to sync bindings down the tree
 
         if (this.onChange) {
-            const result = this.validateAndApplyVisualState();
-            this.onChange(result.isValid, this.fieldKey);
+            const result = this.validate();
+            this.onChange(result.isValid, this.fieldKey, result.errorMessage);
         }
     }
 

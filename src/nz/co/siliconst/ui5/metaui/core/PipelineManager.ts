@@ -87,6 +87,13 @@ export class PipelineManager {
      * @returns {IValidationResult} The final result state and any associated error message.
      */
     public executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, unknown>): IValidationResult {
+        // Global short-circuit: if the field is completely empty and NOT required, skip all downstream string constraint checks.
+        const isEmpty = parsedValue === null || parsedValue === undefined || parsedValue === "";
+        const isRequired = requestedValidators.includes("required");
+        if (isEmpty && !isRequired) {
+            return { isValid: true };
+        }
+
         for (const rule of requestedValidators) {
             const validator = this.validators.get(rule);
             if (validator) {

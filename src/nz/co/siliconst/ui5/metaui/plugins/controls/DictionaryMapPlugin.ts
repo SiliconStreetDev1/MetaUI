@@ -64,8 +64,8 @@ export default class DictionaryMapPlugin extends BasePlugin {
         const syncToParent = () => {
             if (!model) return;
             this._isSyncing = true;
-            const items = localModel.getProperty("/items") as any[];
-            const newDict: Record<string, any> = {};
+            const items = localModel.getProperty("/items") as Record<string, unknown>[];
+            const newDict: Record<string, unknown> = {};
             items.forEach(item => {
                 if (item.key && item.key.trim() !== "") {
                     newDict[item.key] = item.value;
@@ -99,7 +99,7 @@ export default class DictionaryMapPlugin extends BasePlugin {
                     text: "Add Property",
                     icon: "sap-icon://add",
                     press: () => {
-                        const items = localModel.getProperty("/items") as any[];
+                        const items = localModel.getProperty("/items") as Record<string, unknown>[];
                         items.push({ key: "", value: null });
                         localModel.setProperty("/items", items);
                         syncToParent();
@@ -172,7 +172,7 @@ export default class DictionaryMapPlugin extends BasePlugin {
                         icon: "sap-icon://delete",
                         type: "Reject",
                         press: () => {
-                            const items = localModel.getProperty("/items") as any[];
+                            const items = localModel.getProperty("/items") as Record<string, unknown>[];
                             const matchIndex = parseInt(rowPath.split("/").pop() || "0", 10);
                             items.splice(matchIndex, 1);
                             localModel.setProperty("/items", items);
@@ -220,10 +220,11 @@ export default class DictionaryMapPlugin extends BasePlugin {
                 if (this.control) {
                     this.control.addDependent(dialog);
                 }
-                
                 dialog.open();
             }
         });
+
+        this.applyCommonDirectives(this.control, schema, modelName);
 
         return this.control as Control;
     }

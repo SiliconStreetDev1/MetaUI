@@ -5,7 +5,7 @@ import Input from "sap/m/Input";
 import Control from "sap/ui/core/Control";
 
 export class LinkPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.replace("/", "");
@@ -29,8 +29,8 @@ export class LinkPlugin extends BasePlugin {
             maxLength: fieldMetadata.maxLength || 0,
             required: !!fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {
-                const result = this.validateAndApplyVisualState();
-                if (this.onChange) this.onChange(result.isValid, this.fieldKey);
+                const result = this.validate();
+                if (this.onChange) this.onChange(result.isValid, this.fieldKey, result.errorMessage);
             }
         });
         

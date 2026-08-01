@@ -10,6 +10,7 @@ import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import Button from "sap/m/Button";
 import JSONModel from "sap/ui/model/json/JSONModel";
+import { SCHEMA_TYPE, UI5_EVENT } from "../../constants/MetaUIConstants";
 
 export class ObjectPlugin extends BasePlugin {
     /**
@@ -22,13 +23,13 @@ export class ObjectPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Button control.
      */
-    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = field;
         const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
         
         const subSchema: ISchema = {
-            type: "object",
+            type: SCHEMA_TYPE.OBJECT,
             title: field.ui?.label || propKey,
             properties: field.properties || {}
         };
@@ -65,7 +66,7 @@ export class ObjectPlugin extends BasePlugin {
                     } as object);
 
                     if (!!this.isEditable) {
-                        host.attachEvent("submit", (e: Event) => {
+                        host.attachEvent(UI5_EVENT.SUBMIT, (e: Event) => {
                             const payload = e.getParameter("payload");
                             parentModel.setProperty(updatePath, payload);
                             

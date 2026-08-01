@@ -27,7 +27,7 @@ export class StringPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Input control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.replace("/", ""); // For EventBus
@@ -50,9 +50,9 @@ export class StringPlugin extends BasePlugin {
             showValueHelp: fieldMetadata.ui?.widget === "searchHelp",
             change: (oEvent: sap.ui.base.Event) => {
                 const val = (oEvent as sap.ui.base.Event).getParameter("value");
-                const result = this.validateAndApplyVisualState();
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             }
         });

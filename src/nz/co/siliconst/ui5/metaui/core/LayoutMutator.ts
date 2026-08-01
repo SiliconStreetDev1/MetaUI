@@ -45,10 +45,12 @@ export class LayoutMutator {
                     if (isInlineObject && meta.properties) {
                         // Transform this Control into a Group containing its properties
                         const newGroup: ILayoutElement = {
+                            ...element,
                             type: "Group",
-                            label: meta.ui?.label || bindingPath.split("/").pop(),
+                            label: element.label || meta.ui?.label || bindingPath.split("/").pop(),
                             elements: []
                         };
+                        delete newGroup.scope;
 
                         // Add all child properties as controls
                         for (const childKey of Object.keys(meta.properties)) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file OpenApiPropertyMapper.ts
  * @description Extracts and maps OpenAPI properties into MetaUI IPropertyMetadata.
  */
@@ -7,6 +7,7 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { OpenApiRefResolver } from "../OpenApiRefResolver";
 import { OpenApiTypeMapper } from "../OpenApiTypeMapper";
 import { OpenApiUIMapper } from "../OpenApiUIMapper";
+import { FieldType } from "../../interfaces/ISchema";
 
 /**
  * Utility class responsible for extracting and mapping OpenAPI properties into the native MetaUI IPropertyMetadata schema format.
@@ -17,30 +18,31 @@ export class OpenApiPropertyMapper {
     /**
      * Recursively traverses and translates an OpenAPI properties block into a MetaUI IPropertyMetadata dictionary.
      * 
-     * @param {any} properties The OpenAPI properties block.
+     * @param {unknown} properties The OpenAPI properties block.
      * @param {string[]} requiredKeys Array of required property keys.
-     * @param {any} openApiRoot The OpenAPI root document for resolving references.
+     * @param {unknown} openApiRoot The OpenAPI root document for resolving references.
      * @param {"2.0" | "3.0"} version The OpenAPI version.
      * @param {number} [depth=0] Recursion depth limiter to prevent stack overflows on circular refs.
      * @returns {Record<string, IPropertyMetadata>} The normalized MetaUI properties mapping.
      */
     public static mapProperties(
-        properties: any, 
+        properties: unknown, 
         requiredKeys: string[], 
-        openApiRoot: any, 
+        openApiRoot: unknown, 
         version: "2.0" | "3.0", 
         depth: number = 0
     ): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         
         if (depth > 8) return normalizedProps;
+        const props = (properties || {}) as Record<string, unknown>;
 
-        for (const key of Object.keys(properties)) {
+        for (const key of Object.keys(props)) {
             const isRequired = requiredKeys.includes(key);
-            let propDef = properties[key];
+            let propDef = props[key] as Record<string, unknown>;
 
             if (propDef.$ref) {
-                const resolved = OpenApiRefResolver.resolve(propDef.$ref, openApiRoot);
+                const resolved = OpenApiRefResolver.resolve(propDef.$ref as string, openApiRoot) as Record<string, unknown>;
                 if (resolved) {
                     propDef = { ...resolved, ...propDef };
                 }
@@ -56,23 +58,23 @@ export class OpenApiPropertyMapper {
      * Translates a single OpenAPI property schema block into a MetaUI IPropertyMetadata block.
      * Delegates specific mapping tasks to focused private methods to adhere to SRP.
      * 
-     * @param {any} swaggerProp The specific OpenAPI property schema to map.
+     * @param {unknown} swaggerProp The specific OpenAPI property schema to map.
      * @param {string} keyName The key/name of this property.
      * @param {boolean} isRequired Whether this property is strictly required.
-     * @param {any} openApiRoot The OpenAPI root document for resolving references.
+     * @param {unknown} openApiRoot The OpenAPI root document for resolving references.
      * @param {"2.0" | "3.0"} version The OpenAPI version.
      * @param {number} [depth=0] Recursion depth limiter.
      * @returns {IPropertyMetadata} The normalized MetaUI property metadata.
      */
     public static mapPropertyMetadata(
-        swaggerProp: any, 
+        swaggerProp: unknown, 
         keyName: string, 
         isRequired: boolean, 
-        openApiRoot: any, 
+        openApiRoot: unknown, 
         version: "2.0" | "3.0", 
         depth: number = 0
     ): IPropertyMetadata {
-        let currentProp = swaggerProp as any;
+        let currentProp = swaggerProp as Record<string, unknown>;
 
         // 1. Resolve References
         const refResult = this._resolveReference(currentProp, keyName, isRequired, openApiRoot, version, depth);
@@ -81,10 +83,10 @@ export class OpenApiPropertyMapper {
         }
 
         // 2. Resolve Composition (allOf)
-        currentProp = this._resolveAllOf(currentProp, openApiRoot);
+        currentProp = this._resolveAllOf(currentProp, openApiRoot) as Record<string, unknown>;
 
         // 3. Base Initialization
-        const type = OpenApiTypeMapper.mapType(currentProp.type);
+        const type = OpenApiTypeMapper.mapType(currentProp.type as string);
         const metaProp: IPropertyMetadata = {
             type: type,
             required: isRequired
@@ -117,24 +119,11 @@ export class OpenApiPropertyMapper {
         return metaProp;
     }
 
-    /**
-     * Attempts to resolve a $ref block. If it resolves to a primitive, it inlines it.
-     * Otherwise, it returns a reference widget payload.
-     * 
-     * @param {any} currentProp The current schema property definition.
-     * @param {string} keyName The structural key name.
-     * @param {boolean} isRequired Whether the property is strictly required.
-     * @param {any} openApiRoot The root API definition for relative resolution.
-     * @param {"2.0" | "3.0"} version The structural version context.
-     * @param {number} depth The recursive resolution depth.
-     * @returns {IPropertyMetadata | null} Resolved metadata, or null if no reference exists.
-     * @private
-     */
     private static _resolveReference(
-        currentProp: any, 
+        currentProp: Record<string, unknown>, 
         keyName: string, 
         isRequired: boolean, 
-        openApiRoot: any, 
+        openApiRoot: unknown, 
         version: "2.0" | "3.0", 
         depth: number
     ): IPropertyMetadata | null {
@@ -142,32 +131,24 @@ export class OpenApiPropertyMapper {
             return null;
         }
 
-        const resolved = OpenApiRefResolver.resolve(currentProp.$ref, openApiRoot);
-        const resolvedType = currentProp.type || (resolved && (resolved as any).type);
+        const resolved = OpenApiRefResolver.resolve(currentProp.$ref as string, openApiRoot) as Record<string, unknown>;
+        const resolvedType = currentProp.type || (resolved && resolved.type);
         
-        if (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType)) {
-            const inlineProp = { ...(resolved as any), ...currentProp };
+        if (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType as string)) {
+            const inlineProp = { ...resolved, ...currentProp };
             delete inlineProp.$ref;
             return this.mapPropertyMetadata(inlineProp, keyName, isRequired, openApiRoot, version, depth + 1);
         }
 
         return {
             type: "object",
-            $ref: currentProp.$ref,
+            $ref: currentProp.$ref as string,
             required: isRequired,
             ui: { widget: "reference" }
         };
     }
 
-    /**
-     * Evaluates and merges 'allOf' arrays into a unified schema definition.
-     * 
-     * @param {any} currentProp The structural property definition containing potential aggregations.
-     * @param {any} openApiRoot The base schema for deep resolution.
-     * @returns {any} A flattened and merged schema entity.
-     * @private
-     */
-    private static _resolveAllOf(currentProp: any, openApiRoot: any): unknown {
+    private static _resolveAllOf(currentProp: Record<string, unknown>, openApiRoot: unknown): unknown {
         if (!Array.isArray(currentProp.allOf)) {
             return currentProp;
         }
@@ -175,24 +156,16 @@ export class OpenApiPropertyMapper {
         let merged = { ...currentProp };
         delete merged.allOf;
         for (const subSchema of currentProp.allOf) {
-            let resolvedSub = subSchema;
+            let resolvedSub = subSchema as Record<string, unknown>;
             if (subSchema.$ref) {
-                resolvedSub = OpenApiRefResolver.resolve(subSchema.$ref, openApiRoot) || {};
+                resolvedSub = (OpenApiRefResolver.resolve(subSchema.$ref as string, openApiRoot) as Record<string, unknown>) || {};
             }
-            merged = this.deepMergeSchemas(merged, resolvedSub);
+            merged = this.deepMergeSchemas(merged, resolvedSub) as Record<string, unknown>;
         }
         return merged;
     }
 
-    /**
-     * Extracts structural constraints (min/max, regex, etc.) and maps them natively to the output metadata.
-     * 
-     * @param {IPropertyMetadata} metaProp The target metadata definition block.
-     * @param {any} currentProp The source OpenAPI schema chunk.
-     * @param {"2.0" | "3.0"} version The version, utilized for nuanced boundary matching.
-     * @private
-     */
-    private static _applyConstraints(metaProp: IPropertyMetadata, currentProp: any, version: "2.0" | "3.0"): void {
+    private static _applyConstraints(metaProp: IPropertyMetadata, currentProp: Record<string, unknown>, version: "2.0" | "3.0"): void {
         // String Constraints
         if (typeof currentProp.maxLength === "number") metaProp.maxLength = currentProp.maxLength;
         if (typeof currentProp.minLength === "number") metaProp.minLength = currentProp.minLength;
@@ -222,58 +195,40 @@ export class OpenApiPropertyMapper {
             }
         } else if (version === "3.0") {
             if (typeof currentProp.exclusiveMaximum === "number" || typeof currentProp.exclusiveMaximum === "boolean") {
-                metaProp.exclusiveMaximum = currentProp.exclusiveMaximum;
+                metaProp.exclusiveMaximum = currentProp.exclusiveMaximum as boolean;
             }
             if (typeof currentProp.exclusiveMinimum === "number" || typeof currentProp.exclusiveMinimum === "boolean") {
-                metaProp.exclusiveMinimum = currentProp.exclusiveMinimum;
+                metaProp.exclusiveMinimum = currentProp.exclusiveMinimum as boolean;
             }
         }
     }
 
-    /**
-     * Extracts operational state flags like readOnly or nullable mapping them onto the internal specification.
-     * 
-     * @param {IPropertyMetadata} metaProp Target native specification.
-     * @param {any} currentProp Source raw schema payload.
-     * @private
-     */
-    private static _applyStateModifiers(metaProp: IPropertyMetadata, currentProp: any): void {
+    private static _applyStateModifiers(metaProp: IPropertyMetadata, currentProp: Record<string, unknown>): void {
         if (currentProp.readOnly === true) metaProp.readOnly = true;
         if (currentProp.writeOnly === true) metaProp.writeOnly = true;
         if (currentProp.nullable === true) metaProp.nullable = true;
         if (currentProp.deprecated === true) metaProp.deprecated = true;
     }
 
-    /**
-     * Extracts and maps polymorphic discriminator and union types (oneOf/anyOf) to MetaUI structural directives.
-     * 
-     * @param {IPropertyMetadata} metaProp Native MetaUI definition tree.
-     * @param {any} currentProp Raw schema block.
-     * @param {any} openApiRoot Master OpenAPI root.
-     * @param {"2.0" | "3.0"} version Protocol version identifier.
-     * @param {number} depth Internal depth tracker.
-     * @private
-     */
     private static _applyPolymorphism(
         metaProp: IPropertyMetadata, 
-        currentProp: any, 
-        openApiRoot: any, 
+        currentProp: Record<string, unknown>, 
+        openApiRoot: unknown, 
         version: "2.0" | "3.0", 
         depth: number
     ): void {
-        // Discriminator handling
         if (currentProp.discriminator) {
             if (version === "2.0" && typeof currentProp.discriminator === "string") {
                 metaProp.discriminator = { propertyName: currentProp.discriminator };
             } else if (version === "3.0" && typeof currentProp.discriminator === "object") {
+                const disc = currentProp.discriminator as Record<string, unknown>;
                 metaProp.discriminator = {
-                    propertyName: currentProp.discriminator.propertyName,
-                    mapping: currentProp.discriminator.mapping
+                    propertyName: disc.propertyName as string,
+                    mapping: disc.mapping as Record<string, string>
                 };
             }
         }
 
-        // Handle oneOf polymorphic mapping
         if (Array.isArray(currentProp.oneOf)) {
             metaProp.oneOf = [];
             for (let i = 0; i < currentProp.oneOf.length; i++) {
@@ -283,7 +238,6 @@ export class OpenApiPropertyMapper {
             metaProp.ui.widget = "polymorphic";
         }
         
-        // Handle anyOf mapping
         if (Array.isArray(currentProp.anyOf)) {
             metaProp.anyOf = [];
             for (let i = 0; i < currentProp.anyOf.length; i++) {
@@ -291,27 +245,15 @@ export class OpenApiPropertyMapper {
             }
         }
 
-        // Handle not mapping
         if (currentProp.not) {
             metaProp.not = this.mapPropertyMetadata(currentProp.not, `NotVariant`, false, openApiRoot, version, depth + 1);
         }
     }
 
-    /**
-     * Recursively traverses into nested objects and arrays constructing the structural node trees.
-     * 
-     * @param {IPropertyMetadata} metaProp The localized destination structure.
-     * @param {any} currentProp The source chunk representing a complex element.
-     * @param {any} openApiRoot The OpenAPI dictionary context.
-     * @param {"2.0" | "3.0"} version System schema version.
-     * @param {number} depth Invocation stack depth.
-     * @param {string} type Normalized atomic structure type.
-     * @private
-     */
     private static _applyNestedTypes(
         metaProp: IPropertyMetadata, 
-        currentProp: any, 
-        openApiRoot: any, 
+        currentProp: Record<string, unknown>, 
+        openApiRoot: unknown, 
         version: "2.0" | "3.0", 
         depth: number,
         type: string
@@ -332,7 +274,6 @@ export class OpenApiPropertyMapper {
                 }
             }
             
-            // Opaque JSON object definition mapping
             if (!currentProp.properties && !currentProp.additionalProperties) {
                 if (!metaProp.ui) metaProp.ui = {};
                 metaProp.ui.widget = "codeEditor";
@@ -346,30 +287,26 @@ export class OpenApiPropertyMapper {
         }
     }
 
-    /**
-     * Recursively deep-merges two OpenAPI objects, ensuring array boundaries and nested structures are preserved.
-     * 
-     * @param {any} target The target base object.
-     * @param {any} source The source object providing override details.
-     * @returns {any} The synthesized output object.
-     */
-    public static deepMergeSchemas(target: any, source: any): any {
-        const output: any = Object.assign({}, target);
+    public static deepMergeSchemas(target: unknown, source: unknown): unknown {
+        const outTarget = (target || {}) as Record<string, unknown>;
+        const output: Record<string, unknown> = Object.assign({}, outTarget);
         if (source === null || typeof source !== "object") return output;
+        
+        const srcObj = source as Record<string, unknown>;
 
-        Object.keys(source).forEach(key => {
-            if (Array.isArray(source[key])) {
-                output[key] = Array.isArray(target[key]) 
-                    ? Array.from(new Set([...target[key], ...source[key]])) 
-                    : [...source[key]];
-            } else if (typeof source[key] === "object" && source[key] !== null) {
-                if (target[key] && typeof target[key] === "object") {
-                    output[key] = this.deepMergeSchemas(target[key], source[key]);
+        Object.keys(srcObj).forEach(key => {
+            if (Array.isArray(srcObj[key])) {
+                output[key] = Array.isArray(outTarget[key]) 
+                    ? Array.from(new Set([...(outTarget[key] as unknown[]), ...(srcObj[key] as unknown[])])) 
+                    : [...(srcObj[key] as unknown[])];
+            } else if (typeof srcObj[key] === "object" && srcObj[key] !== null) {
+                if (outTarget[key] && typeof outTarget[key] === "object") {
+                    output[key] = this.deepMergeSchemas(outTarget[key], srcObj[key]);
                 } else {
-                    output[key] = Object.assign({}, source[key]);
+                    output[key] = Object.assign({}, srcObj[key]);
                 }
             } else {
-                output[key] = source[key];
+                output[key] = srcObj[key];
             }
         });
         return output;

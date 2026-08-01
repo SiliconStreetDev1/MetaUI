@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file BaseAIGenerator.ts
  * @description Abstract base class defining the contract for AI Schema Generation Proxies.
  */
@@ -25,7 +25,7 @@ export abstract class BaseAIGenerator {
         const llmGeneratedSchema = await this.callLLM(dataSkeleton);
 
         // 3. Deep merge the partial schema over the LLM schema.
-        return this.deepMergeSchemas(llmGeneratedSchema, partialSchema);
+        return this.deepMergeSchemas(llmGeneratedSchema, partialSchema) as ISchema;
     }
 
     /**
@@ -42,10 +42,11 @@ export abstract class BaseAIGenerator {
         if (!data || typeof data !== "object") return skeleton;
 
         const definedKeys = partialSchema?.properties ? Object.keys(partialSchema.properties) : [];
+        const dataObj = data as Record<string, unknown>;
 
-        for (const key of Object.keys(data)) {
+        for (const key of Object.keys(dataObj)) {
             if (!definedKeys.includes(key)) {
-                skeleton[key] = `type: ${typeof data[key]}`;
+                skeleton[key] = `type: ${typeof dataObj[key]}`;
             }
         }
         return skeleton;
@@ -54,21 +55,28 @@ export abstract class BaseAIGenerator {
     /**
      * Merges a manual partial schema over the LLM generated schema.
      */
-    private deepMergeSchemas(base: ISchema, override?: ISchema): ISchema {
-        if (!override) return base;
+    private deepMergeSchemas(base: unknown, override?: unknown): unknown {
+        const outTarget = (base || {}) as Record<string, unknown>;
+        const output: Record<string, unknown> = Object.assign({}, outTarget);
+        if (override === null || typeof override !== "object") return output;
         
-        const merged: Record<string, unknown> = { ...base };
-        for (const key of Object.keys(override)) {
-            const overrideVal = (override as any)[key];
-            const baseVal = merged[key];
+        const srcObj = override as Record<string, unknown>;
 
-            if (baseVal && typeof baseVal === "object" && !Array.isArray(baseVal) &&
-                overrideVal && typeof overrideVal === "object" && !Array.isArray(overrideVal)) {
-                merged[key] = { ...baseVal, ...overrideVal };
+        Object.keys(srcObj).forEach(key => {
+            if (Array.isArray(srcObj[key])) {
+                output[key] = Array.isArray(outTarget[key]) 
+                    ? Array.from(new Set([...(outTarget[key] as unknown[]), ...(srcObj[key] as unknown[])])) 
+                    : [...(srcObj[key] as unknown[])];
+            } else if (typeof srcObj[key] === "object" && srcObj[key] !== null) {
+                if (outTarget[key] && typeof outTarget[key] === "object") {
+                    output[key] = this.deepMergeSchemas(outTarget[key], srcObj[key]);
+                } else {
+                    output[key] = Object.assign({}, srcObj[key]);
+                }
             } else {
-                merged[key] = overrideVal;
+                output[key] = srcObj[key];
             }
-        }
-        return merged;
+        });
+        return output;
     }
 }

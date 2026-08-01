@@ -1,0 +1,265 @@
+{
+    "description": "Kruger National Park Complex Booking System with Policy-Based Rules",
+    "schema": {
+        "title": "Kruger National Park - Official Booking Form",
+        "type": "object",
+        "layoutStrategy": "form",
+        "uiPolicies": [
+            {
+                "effect": "Require",
+                "targets": ["/VisitorInfo/PassportNumber"],
+                "condition": {
+                    "StringEquals": { "/VisitorInfo/Nationality": "Foreigner" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/VisitorInfo/SADIDNumber"],
+                "condition": {
+                    "StringEquals": { "/VisitorInfo/Nationality": "Foreigner" }
+                }
+            },
+            {
+                "effect": "Require",
+                "targets": ["/VisitorInfo/SADIDNumber"],
+                "condition": {
+                    "StringEquals": { "/VisitorInfo/Nationality": "South African" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/VisitorInfo/PassportNumber"],
+                "condition": {
+                    "StringEquals": { "/VisitorInfo/Nationality": "South African" }
+                }
+            },
+            {
+                "effect": "Invalidate",
+                "targets": ["/VisitorInfo/Age"],
+                "message": "Primary applicant must be 18 or older to make a booking.",
+                "condition": {
+                    "NumericLessThan": { "/VisitorInfo/Age": 18 }
+                }
+            },
+            {
+                "effect": "Show",
+                "targets": ["/BookingDetails/CampSelection/SkukuzaFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Skukuza" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/BookingDetails/CampSelection/SataraFacilities", "/BookingDetails/CampSelection/OlifantsFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Skukuza" }
+                }
+            },
+            {
+                "effect": "Show",
+                "targets": ["/BookingDetails/CampSelection/SataraFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Satara" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/BookingDetails/CampSelection/SkukuzaFacilities", "/BookingDetails/CampSelection/OlifantsFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Satara" }
+                }
+            },
+            {
+                "effect": "Show",
+                "targets": ["/BookingDetails/CampSelection/OlifantsFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Olifants" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/BookingDetails/CampSelection/SkukuzaFacilities", "/BookingDetails/CampSelection/SataraFacilities"],
+                "condition": {
+                    "StringEquals": { "/BookingDetails/CampSelection/CampName": "Olifants" }
+                }
+            },
+            {
+                "effect": "Invalidate",
+                "targets": ["/BookingDetails/Guests/TotalGuests"],
+                "message": "Cannot exceed 6 guests per standard booking.",
+                "condition": {
+                    "NumericGreaterThan": { "/BookingDetails/Guests/TotalGuests": 6 }
+                }
+            },
+            {
+                "effect": "Require",
+                "targets": ["/VehicleDetails/TrailerReg"],
+                "condition": {
+                    "StringEquals": { "/VehicleDetails/HasTrailer": "Yes" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/VehicleDetails/TrailerReg"],
+                "condition": {
+                    "StringEquals": { "/VehicleDetails/HasTrailer": "No" }
+                }
+            },
+            {
+                "effect": "Show",
+                "targets": ["/Activities/MorningWalk", "/Activities/NightDrive"],
+                "condition": {
+                    "StringEquals": { "/Activities/IncludeActivities": "Yes" }
+                }
+            },
+            {
+                "effect": "Hide",
+                "targets": ["/Activities/MorningWalk", "/Activities/NightDrive"],
+                "condition": {
+                    "StringEquals": { "/Activities/IncludeActivities": "No" }
+                }
+            },
+            {
+                "effect": "Disable",
+                "targets": ["/Activities/NightDrive"],
+                "condition": {
+                    "NumericLessThan": { "/BookingDetails/Guests/ChildrenCount": 1 }
+                }
+            },
+            {
+                "effect": "Invalidate",
+                "targets": ["/Activities/MorningWalk"],
+                "message": "Children under 12 are not permitted on Bush Walks.",
+                "condition": {
+                    "NumericGreaterThan": { "/BookingDetails/Guests/ChildrenCount": 0 }
+                }
+            }
+        ],
+        "uiLayout": [
+            { "type": "Group", "label": "1. Visitor Information", "elements": [
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/FullName" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/Age" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/Email" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/Phone" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/Nationality" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/SADIDNumber" },
+                { "type": "Control", "scope": "#/properties/VisitorInfo/properties/PassportNumber" }
+            ]},
+            
+            { "type": "Group", "label": "2. Select Rest Camp", "elements": [
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/CampSelection/properties/CampName" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/CampSelection/properties/SkukuzaFacilities" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/CampSelection/properties/SataraFacilities" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/CampSelection/properties/OlifantsFacilities" }
+            ]},
+            
+            { "type": "Group", "label": "3. Booking Dates", "elements": [
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/ArrivalDate" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/DepartureDate" }
+            ]},
+            
+            { "type": "Group", "label": "4. Guest Breakdown", "elements": [
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/Guests/properties/AdultCount" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/Guests/properties/ChildrenCount" },
+                { "type": "Control", "scope": "#/properties/BookingDetails/properties/Guests/properties/TotalGuests" }
+            ]},
+            
+            { "type": "Group", "label": "5. Activities & Add-ons", "elements": [
+                { "type": "Control", "scope": "#/properties/Activities/properties/IncludeActivities" },
+                { "type": "Control", "scope": "#/properties/Activities/properties/MorningWalk" },
+                { "type": "Control", "scope": "#/properties/Activities/properties/NightDrive" },
+                { "type": "Control", "scope": "#/properties/Activities/properties/BraaiPack" },
+                { "type": "Control", "scope": "#/properties/Activities/properties/Firewood" }
+            ]},
+            
+            { "type": "Group", "label": "6. Vehicle Registration", "elements": [
+                { "type": "Control", "scope": "#/properties/VehicleDetails/properties/VehicleReg" },
+                { "type": "Control", "scope": "#/properties/VehicleDetails/properties/VehicleType" },
+                { "type": "Control", "scope": "#/properties/VehicleDetails/properties/HasTrailer" },
+                { "type": "Control", "scope": "#/properties/VehicleDetails/properties/TrailerReg" },
+                { "type": "Control", "scope": "#/properties/VehicleDetails/properties/DriverLicense" }
+            ]}
+        ],
+        "properties": {
+            "VisitorInfo": {
+                "type": "object",
+                "properties": {
+                    "FullName": { "type": "string", "ui": { "label": "Full Name" } },
+                    "Age": { "type": "number", "ui": { "label": "Age" } },
+                    "Email": { "type": "string", "ui": { "label": "Email Address", "format": "email" } },
+                    "Phone": { "type": "string", "ui": { "label": "Contact Number" } },
+                    "Nationality": { "type": "string", "enum": ["South African", "Foreigner"], "ui": { "label": "Nationality" } },
+                    "SADIDNumber": { "type": "string", "ui": { "label": "SA ID Number" } },
+                    "PassportNumber": { "type": "string", "ui": { "label": "Passport Number" } }
+                }
+            },
+            "BookingDetails": {
+                "type": "object",
+                "properties": {
+                    "CampSelection": {
+                        "type": "object",
+                        "properties": {
+                            "CampName": { "type": "string", "enum": ["Skukuza", "Satara", "Olifants"], "ui": { "label": "Kruger Camp" } },
+                            "SkukuzaFacilities": { "type": "string", "enum": ["Bungalow", "Safari Tent", "Guest House"], "ui": { "label": "Accommodation Type" } },
+                            "SataraFacilities": { "type": "string", "enum": ["Bungalow", "Campsite"], "ui": { "label": "Accommodation Type" } },
+                            "OlifantsFacilities": { "type": "string", "enum": ["Bungalow", "River View Bungalow"], "ui": { "label": "Accommodation Type" } }
+                        }
+                    },
+                    "ArrivalDate": { "type": "string", "ui": { "label": "Arrival Date", "widget": "datePicker" } },
+                    "DepartureDate": { "type": "string", "ui": { "label": "Departure Date", "widget": "datePicker" } },
+                    "Guests": {
+                        "type": "object",
+                        "properties": {
+                            "AdultCount": { "type": "number", "ui": { "label": "Number of Adults" } },
+                            "ChildrenCount": { "type": "number", "ui": { "label": "Number of Children (Under 12)" } },
+                            "TotalGuests": { "type": "number", "ui": { "label": "Total Guests" } }
+                        }
+                    }
+                }
+            },
+            "Activities": {
+                "type": "object",
+                "properties": {
+                    "IncludeActivities": { "type": "string", "enum": ["Yes", "No"], "ui": { "label": "Book Conservation Activities?" } },
+                    "MorningWalk": { "type": "string", "enum": ["None", "2 Guests", "4 Guests", "6 Guests"], "ui": { "label": "Guided Morning Bush Walk" } },
+                    "NightDrive": { "type": "string", "enum": ["None", "2 Guests", "4 Guests", "6 Guests"], "ui": { "label": "Sunset/Night Game Drive" } },
+                    "BraaiPack": { "type": "boolean", "ui": { "label": "Add Braai Meat Pack" } },
+                    "Firewood": { "type": "boolean", "ui": { "label": "Add Firewood Bundle" } }
+                }
+            },
+            "VehicleDetails": {
+                "type": "object",
+                "properties": {
+                    "VehicleReg": { "type": "string", "ui": { "label": "Vehicle Registration Number" } },
+                    "VehicleType": { "type": "string", "enum": ["Sedan", "SUV", "4x4", "Camper Van"], "ui": { "label": "Vehicle Type" } },
+                    "HasTrailer": { "type": "string", "enum": ["Yes", "No"], "ui": { "label": "Towing a Trailer/Caravan?" } },
+                    "TrailerReg": { "type": "string", "ui": { "label": "Trailer Registration Number" } },
+                    "DriverLicense": { "type": "string", "ui": { "label": "Driver's License Number" } }
+                }
+            }
+        }
+    },
+    "data": {
+        "VisitorInfo": {
+            "Nationality": "South African"
+        },
+        "BookingDetails": {
+            "CampSelection": {
+                "CampName": "Skukuza"
+            },
+            "Guests": {
+                "AdultCount": 2,
+                "ChildrenCount": 0,
+                "TotalGuests": 2
+            }
+        },
+        "Activities": {
+            "IncludeActivities": "No",
+            "MorningWalk": "None",
+            "NightDrive": "None"
+        },
+        "VehicleDetails": {
+            "HasTrailer": "No"
+        }
+    }
+}

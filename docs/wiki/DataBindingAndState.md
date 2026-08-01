@@ -114,3 +114,36 @@ oHost.attachFieldChange(function(oEvent) {
     }
 });
 ```
+
+---
+
+## Advanced Data Binding: Custom Properties (`controlProps`)
+
+The `ui.controlProps` object acts as an escape hatch in your JSON Schema, allowing you to inject raw, native SAPUI5 properties directly into the generated widget. While it can be used for static properties (e.g., `"showClearIcon": true`), its true power lies in **Dynamic Expression Bindings**.
+
+### Dynamic Expression Bindings
+You can write full UI5 `{= ... }` expressions to dynamically toggle UI states based on other fields in the payload, or even bind to external models supplied by your parent application.
+
+**Binding to the Internal MetaUI Payload:**
+The MetaUI Engine is smart enough to intercept the generic model placeholder `metaui>` and inject the correct dynamic scope at runtime (`metaUI_Host1>`). This entirely shields you from sandbox model collisions and safely avoids conflicts with Fiori Elements metadata models.
+```json
+"controlProps": {
+  "placeholder": "{= ${metaui>/AgreeTerms} ? 'Please leave a comment...' : 'You must agree to terms first!' }"
+}
+```
+
+**Binding to External Parent Models:**
+Because the engine selectively routes the `metaui>` prefix, you can freely bind to any external models provided by your parent application (such as `i18n>`, `device>`, or `Student>`) without the MetaUI engine interfering or trying to sandbox them.
+```json
+"controlProps": {
+  "placeholder": "{= ${settings>/liveUpdate} ? 'Live Data Mode' : 'Sandbox Mode' }"
+}
+```
+
+### Blocked Properties (Sandbox Integrity)
+To maintain the security and architectural integrity of the two-way data binding engine, certain critical properties are blocked and cannot be overridden via expression bindings in `controlProps`. These include:
+- `value`, `text`, `selected`, `dateValue` (Data paths managed strictly by the `StateManager`)
+- `editable`, `enabled`, `visible` (Managed strictly by `visibleOn`, `enabledOn`, and `readOnly` schema directives)
+- `valueState`, `valueStateText` (Managed exclusively by the `SchemaValidator`)
+
+If you attempt to inject these, the Engine will block them and log an `ILLEGAL OVERRIDE` warning to the console.

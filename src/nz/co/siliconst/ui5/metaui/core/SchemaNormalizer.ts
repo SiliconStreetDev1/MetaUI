@@ -4,6 +4,7 @@
  */
 
 import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
+import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
 import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { Logger } from "../utils/Logger";
 
@@ -12,7 +13,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public canHandle(rawSchema: any): boolean {
+    public canHandle(rawSchema: unknown): boolean {
         // Fallback for native ISchemas or data inference.
         // It always returns true because it is the final fallback builder in the registry.
         return true;
@@ -21,17 +22,17 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * ISchemaBuilderPlugin Contract
      */
-    public build(rawSchema: any, targetDefinition?: string): ISchema {
+    public build(rawSchema: unknown, targetDefinition?: string): ISchema {
         return SchemaNormalizer.normalize(rawSchema);
     }
 
     /**
      * Validates that the provided raw payload conforms to the required ISchema structures.
      */
-    public static normalize(rawSchema?: any, data?: any): ISchema {
+    public static normalize(rawSchema?: unknown, data?: unknown): ISchema {
         let schemaObj = rawSchema;
 
-        if (typeof schemaObj === "string") {
+        if (typeof schemaObj === SCHEMA_TYPE.STRING) {
             if (!schemaObj.trim()) {
                 schemaObj = null;
             } else {
@@ -56,7 +57,8 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 type: schemaObj.type || (schemaObj.items ? "array" : "object"),
                 layoutStrategy: schemaObj.layoutStrategy,
                 uiLayout: schemaObj.uiLayout ? JSON.parse(JSON.stringify(schemaObj.uiLayout)) : undefined,
-                additionalProperties: schemaObj.additionalProperties
+                additionalProperties: schemaObj.additionalProperties,
+                uiPolicies: schemaObj.uiPolicies ? JSON.parse(JSON.stringify(schemaObj.uiPolicies)) : undefined
             };
 
             let targetProperties = schemaObj.properties || {};
@@ -114,7 +116,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param requiredKeys An optional array of keys that are required by the parent object.
      * @returns A map of strict IPropertyMetadata objects.
      */
-    private static normalizeProperties(properties: Record<string, any>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
+    private static normalizeProperties(properties: Record<string, unknown>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         for (const key of Object.keys(properties)) {
             const isRequired = requiredKeys.includes(key);
@@ -130,15 +132,18 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param isRequired Indicates if the parent object mandated this property as required.
      * @returns A strict IPropertyMetadata instance.
      */
-    private static normalizePropertyMetadata(prop: any, keyName: string, isRequired: boolean = false): IPropertyMetadata {
+    private static normalizePropertyMetadata(rawProp: unknown, keyName: string, isRequired: boolean = false): IPropertyMetadata {
+        const prop = (rawProp || {}) as Record<string, unknown>;
+        const ui = (prop.ui || {}) as Record<string, unknown>;
+        
         const normalized: IPropertyMetadata = {
             type: (prop.type as FieldType) || "string",
             $ref: prop.$ref as string | undefined,
             ui: {
-                label: (prop.ui as any)?.label || this.generateLabel(keyName),
-                isKey: !!(prop.ui as any)?.isKey,
-                readOnly: !!(prop.ui as any)?.readOnly,
-                widget: (prop.ui as any)?.widget || (prop.valueHelp || prop.enum ? "select" : undefined),
+                label: ui.label as string || this.generateLabel(keyName),
+                isKey: !!ui.isKey,
+                readOnly: !!ui.readOnly,
+                widget: ui.widget as string || (prop.valueHelp || prop.enum ? "select" : undefined),
                 visibleOn: prop.ui?.visibleOn,
                 enabledOn: prop.ui?.enabledOn,
                 format: prop.ui?.format,
@@ -147,7 +152,8 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 args: prop.ui?.args,
                 rows: prop.ui?.rows,
                 fullWidth: prop.ui?.fullWidth,
-                dialogButtonText: prop.ui?.dialogButtonText
+                dialogButtonText: prop.ui?.dialogButtonText,
+                controlProps: prop.ui?.controlProps
             },
             required: isRequired || !!prop.required,
             maxLength: prop.maxLength as number,
@@ -166,8 +172,19 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
             const requiredKeys = Array.isArray(prop.required) ? prop.required : [];
             normalized.properties = this.normalizeProperties(prop.properties as Record<string, unknown>, requiredKeys);
             normalized.uiLayout = prop.uiLayout;
-        } else if (normalized.type === "array" && prop.items) {
-            normalized.items = this.normalizePropertyMetadata(prop.items as Record<string, unknown>, "items", false);
+        } else if (normalized.type === "array") {
+            // Auto-correct arrays that were mistakenly flattened with 'properties' instead of 'items.properties'
+            if (prop.properties && !prop.items) {
+                prop.items = {
+                    type: "object",
+                    properties: prop.properties
+                };
+                delete prop.properties;
+            }
+
+            if (prop.items) {
+                normalized.items = this.normalizePropertyMetadata(prop.items as Record<string, unknown>, "items", false);
+            }
             normalized.uiLayout = prop.uiLayout;
         }
 
@@ -190,7 +207,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /**
      * Infers a v2 ISchema structure dynamically from a plain data payload.
      */
-    public static inferSchemaFromData(data: any): ISchema {
+    public static inferSchemaFromData(data: unknown): ISchema {
         const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
 
         if (!data || typeof data !== "object") {
@@ -204,10 +221,18 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 schema.items = { type: typeof data[0] as FieldType };
             } else {
                 schema.layoutStrategy = "table";
+                
+                let mergedProperties: Record<string, unknown> = {};
+                const limit = Math.min(data.length, 50);
+                for (let i = 0; i < limit; i++) {
+                    const inferred = this.inferPropertiesFromObject(data[i] as Record<string, any>);
+                    mergedProperties = this.deepMergeProperties(mergedProperties, inferred as unknown as Record<string, unknown>);
+                }
+
                 schema.items = {
                     type: "object",
                     layoutStrategy: "compact",
-                    properties: data.length > 0 ? this.inferPropertiesFromObject(data[0] as Record<string, any>) : {}
+                    properties: mergedProperties as Record<string, IPropertyMetadata>
                 } as any;
             }
         } else {
@@ -223,7 +248,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
      * @param obj The raw JavaScript object.
      * @returns A dictionary of inferred IPropertyMetadata.
      */
-    private static inferPropertiesFromObject(obj: Record<string, any>): Record<string, IPropertyMetadata> {
+    private static inferPropertiesFromObject(obj: Record<string, unknown>): Record<string, IPropertyMetadata> {
         const properties: Record<string, IPropertyMetadata> = {};
         if (!obj || typeof obj !== "object") return properties;
 
@@ -231,7 +256,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
             const val = obj[key];
             if (val === null || val === undefined) continue;
 
-            let type: FieldType = "string";
+            let type: FieldType = SCHEMA_TYPE.STRING;
             let items: IPropertyMetadata | undefined;
             let nestedProps: Record<string, IPropertyMetadata> | undefined;
 
@@ -246,12 +271,12 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 } else {
                     items = {
                         type: "object",
-                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, any>) : {}
+                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, unknown>) : {}
                     };
                 }
             } else if (typeof val === "object") {
                 type = "object";
-                nestedProps = this.inferPropertiesFromObject(val);
+                nestedProps = this.inferPropertiesFromObject(val as Record<string, unknown>);
             }
 
             properties[key] = {

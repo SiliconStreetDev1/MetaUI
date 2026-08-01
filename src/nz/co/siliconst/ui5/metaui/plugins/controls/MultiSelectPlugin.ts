@@ -28,7 +28,7 @@ export class MultiSelectPlugin extends BasePlugin {
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured MultiComboBox control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string) => void): Control {
+    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
         this.onChange = onChange;
         this.metadata = fieldMetadata;
         this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
@@ -52,9 +52,9 @@ export class MultiSelectPlugin extends BasePlugin {
             placeholder: fieldMetadata.ui?.label || "Select items...",
             selectionChange: (oEvent: sap.ui.base.Event) => {
                 const keys = (this.control as MultiComboBox).getSelectedKeys();
-                const result = this.validateAndApplyVisualState();
+                const result = this.validate();
                 if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey);
+                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
                 }
             }
         });

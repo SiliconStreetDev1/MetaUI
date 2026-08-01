@@ -51,7 +51,6 @@ export class FormLayout implements ILayoutManager {
             return container;
         }
 
-        const tableElements: { scope: string, meta: IPropertyMetadata, label?: string }[] = [];
         let hasFormFields = false;
 
         // Recursively render layout elements
@@ -85,8 +84,28 @@ export class FormLayout implements ILayoutManager {
                 const isTableSubLayout = meta.type === "array" && isCollectionOfRecords && !hasExplicitWidget;
 
                 if (isTableSubLayout) {
-                    Logger.debug("[MetaUI FormLayout]", `Routing property '${propKey}' to Table Sub-Layout.`, "FormLayout");
-                    tableElements.push({ scope: bindingPath, meta, label: element.label });
+                    Logger.debug("[MetaUI FormLayout]", `Routing property '${propKey}' to Table Sub-Layout inline.`, "FormLayout");
+                    hasFormFields = true;
+                    try {
+                        const subSchema = {
+                            type: "array",
+                            title: element.label || meta.ui?.label || propKey,
+                            items: meta.items || { type: "object", properties: {} },
+                            uiLayout: meta.items?.uiLayout // Pass down sub-layout if available
+                        };
+                        
+                        const control = engine.generateLayout(subSchema as ISchema, modelName, `/${bindingPath}`);
+                        if (control) {
+                            sap.ui.require(["sap/ui/layout/GridData"], (GridData: typeof import("sap/ui/layout/GridData").default) => {
+                                control.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
+                            });
+                            form.addContent(control);
+                        }
+                    } catch (error) {
+                        const msg = (error as Error).message;
+                        Logger.error(`[MetaUI] Failed to render inline array field ${bindingPath}`, msg, "FormLayout");
+                        Logger.showErrorPopup(`Failed to render array field '${bindingPath}'.\n\nDetails: ${msg}`);
+                    }
                 } else {
                     hasFormFields = true;
                     Logger.debug("[MetaUI FormLayout]", `Rendering scalar field '${bindingPath}'.`, "FormLayout");
@@ -103,28 +122,6 @@ export class FormLayout implements ILayoutManager {
         if (hasFormFields) {
             container.addItem(form);
         }
-
-        // Render array/table sub-layouts full width below the form
-        tableElements.forEach(field => {
-            try {
-                const subSchema = {
-                    type: "array",
-                    title: field.label || field.meta.ui?.label || field.scope,
-                    items: field.meta.items || { type: "object", properties: {} },
-                    uiLayout: field.meta.items?.uiLayout // Pass down sub-layout if available
-                };
-                
-                const control = engine.generateLayout(subSchema as ISchema, modelName, `/${field.scope}`);
-                if (control) {
-                    control.addStyleClass("sapUiSmallMarginTop");
-                    container.addItem(control);
-                }
-            } catch (error) {
-                const msg = (error as Error).message;
-                Logger.error(`[MetaUI] Failed to render array field ${field.scope}`, msg, "FormLayout");
-                Logger.showErrorPopup(`Failed to render array field '${field.scope}'.\n\nDetails: ${msg}`);
-            }
-        });
 
         return container;
     }

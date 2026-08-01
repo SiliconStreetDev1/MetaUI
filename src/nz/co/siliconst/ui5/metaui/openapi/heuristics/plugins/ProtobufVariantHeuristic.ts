@@ -18,12 +18,12 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * 
      * @param {any} openApiRoot The entire OpenAPI root document.
      */
-    public apply(openApiRoot: any): void {
+    public apply(openApiRoot: unknown): void {
         if (!openApiRoot) return;
-
+        const root = openApiRoot as Record<string, unknown>;
         // In OpenAPI 2.0, scan definitions
-        if (openApiRoot.swagger === "2.0" && openApiRoot.definitions) {
-            this._scanDefinitions(openApiRoot.definitions);
+        if (root.swagger === "2.0" && root.definitions) {
+            this._scanDefinitions(root.definitions as Record<string, unknown>);
         }
     }
 
@@ -33,12 +33,12 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * @param {Record<string, any>} definitions The raw OpenAPI 2.0 definitions dictionary.
      * @private
      */
-    private _scanDefinitions(definitions: Record<string, any>): void {
+    private _scanDefinitions(definitions: Record<string, unknown>): void {
         for (const [key, definition] of Object.entries(definitions)) {
             // Heuristic 1: If the object name ends with "Value" and has multiple optional properties 
             // that end with "_value" (common Protobuf JSON representation for variants)
             if (this._isProtobufVariant(key, definition)) {
-                this._mutateToOneOf(definition);
+                this._mutateToOneOf(definition as Record<string, unknown>);
             }
         }
     }
@@ -51,17 +51,20 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * @returns {boolean} True if the structure matches a Protobuf variant pattern.
      * @private
      */
-    private _isProtobufVariant(key: string, definition: any): boolean {
+    private _isProtobufVariant(key: string, rawDef: unknown): boolean {
+        const definition = rawDef as Record<string, unknown>;
         if (definition.type !== "object" || !definition.properties) {
             return false;
         }
 
         // Must not have required fields if it's a pure union
-        if (definition.required && definition.required.length > 0) {
+        const requiredFields = definition.required as string[] | undefined;
+        if (requiredFields && requiredFields.length > 0) {
             return false;
         }
 
-        const propKeys = Object.keys(definition.properties);
+        const properties = definition.properties as Record<string, unknown>;
+        const propKeys = Object.keys(properties);
         if (propKeys.length < 2) {
             return false;
         }
@@ -82,12 +85,13 @@ export class ProtobufVariantHeuristic implements IHeuristicPlugin {
      * @param {any} definition The target variant object schema.
      * @private
      */
-    private _mutateToOneOf(definition: any): void {
-        const propKeys = Object.keys(definition.properties);
+    private _mutateToOneOf(definition: Record<string, unknown>): void {
+        const properties = definition.properties as Record<string, unknown>;
+        const propKeys = Object.keys(properties);
         const oneOfArray: unknown[] = [];
 
         for (const propKey of propKeys) {
-            const variantSchema = definition.properties[propKey];
+            const variantSchema = properties[propKey] as Record<string, unknown>;
             
             // Reconstruct a sub-object for each variant, enforcing strict requirement of the single variant property
             const syntheticVariant = {

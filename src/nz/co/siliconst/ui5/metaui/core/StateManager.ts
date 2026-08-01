@@ -6,7 +6,9 @@
 import JSONModel from "sap/ui/model/json/JSONModel";
 import ManagedObject from "sap/ui/base/ManagedObject";
 import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
+import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
 import { GlobalPipeline } from "./PipelineManager";
+import { SchemaNormalizer } from "./SchemaNormalizer";
 import Message from "sap/ui/core/message/Message";
 import coreLibrary from "sap/ui/core/library";
 import Core from "sap/ui/core/Core";
@@ -63,17 +65,15 @@ export class StateManager {
         const messageManager = Messaging;
         const targetPath = sPath.startsWith("/") ? sPath : `/${sPath}`; // Pure UI5: target MUST be absolute path
         
-        // 1. Remove existing messages (strictly for THIS model instance)
-        if (this._useMessageManager) {
-            const existingMessages = messageManager.getMessageModel().getData();
-            const messagesToRemove = existingMessages.filter((msg: Message) => {
-                const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
-                return isMatch;
-            });
-            
-            if (messagesToRemove.length > 0) {
-                messageManager.removeMessages(messagesToRemove);
-            }
+        // 1. Remove existing messages (strictly for THIS model instance) unconditionally
+        const existingMessages = messageManager.getMessageModel().getData();
+        const messagesToRemove = existingMessages.filter((msg: Message) => {
+            const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
+            return isMatch;
+        });
+        
+        if (messagesToRemove.length > 0) {
+            messageManager.removeMessages(messagesToRemove);
         }
 
         if (!metadata) return;
@@ -85,7 +85,7 @@ export class StateManager {
         if (metadata.required) {
             validatorsToRun.push("required");
         }
-        if (metadata.type === "string" && metadata.maxLength) {
+        if (metadata.type === SCHEMA_TYPE.STRING && metadata.maxLength) {
             validatorsToRun.push("maxLength");
             argsMap["maxLength"] = metadata.maxLength;
         }
@@ -108,7 +108,7 @@ export class StateManager {
         }
         if (metadata.ui?.validators) {
             for (const v of metadata.ui.validators) {
-                if (typeof v === "string") {
+                if (typeof v === SCHEMA_TYPE.STRING) {
                     validatorsToRun.push(v);
                 } else if (v && v.name) {
                     validatorsToRun.push(v.name);
@@ -134,14 +134,37 @@ export class StateManager {
     }
 
     /**
+     * Purges all MessageManager errors that start with a specific array path.
+     * Used to clean up "ghost errors" when array structural shifts (deletion) occur.
+     * @param arrayPath The root array path (e.g. /Items)
+     */
+    public clearArrayMessages(arrayPath: string): void {
+        const messageManager = Messaging;
+        const currentMessages = messageManager.getMessageModel().getData() as Message[];
+        
+        const pathPrefix = arrayPath.startsWith("/") ? arrayPath : `/${arrayPath}`;
+        
+        const messagesToRemove = currentMessages.filter(msg => {
+            return msg.getProcessor() === this.model && typeof msg.getTarget() === "string" && msg.getTarget().startsWith(pathPrefix);
+        });
+
+        if (messagesToRemove.length > 0) {
+            messageManager.removeMessages(messagesToRemove);
+        }
+    }
+
+    /**
      * Resolves the schema metadata for a given internal binding path.
      * @param path The flat binding path representing the field.
      * @returns The associated IPropertyMetadata, or undefined if not mapped.
      */
     private findMetadataForPath(path: string): IPropertyMetadata | undefined {
         if (!this.schema || !this.schema.properties) return undefined;
-        // Basic single-level support for now. Nested object resolution would split by '.' or '/'
-        return this.schema.properties[path];
+        
+        // Deeply resolve the metadata using the SchemaNormalizer
+        const absoluteScope = "#/properties/" + path.replace(/\//g, "/properties/");
+        const { meta } = SchemaNormalizer.resolveScope(this.schema, absoluteScope);
+        return meta;
     }
 
 
@@ -173,16 +196,65 @@ export class StateManager {
      */
     public extractPayload(): Record<string, unknown> {
         // Create a deep copy to prevent accidental mutations by the host
+        // Uses a robust deep clone to avoid destructively coercing native objects (like Dates) to strings
         const data = this.model.getData();
-        return JSON.parse(JSON.stringify(data));
+        return this.deepClone(data) as Record<string, unknown>;
+    }
+
+    /**
+     * Recursively clones an object while preserving native Date instances and arrays.
+     */
+    private deepClone(obj: any): any {
+        if (obj === null || typeof obj !== "object") {
+            return obj;
+        }
+
+        if (obj instanceof Date) {
+            return new Date(obj.getTime());
+        }
+
+        if (Array.isArray(obj)) {
+            const arrCopy = [];
+            for (const item of obj) {
+                arrCopy.push(this.deepClone(item));
+            }
+            return arrCopy;
+        }
+
+        const objCopy: any = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                objCopy[key] = this.deepClone(obj[key]);
+            }
+        }
+        return objCopy;
+    }
+
+    /**
+     * Programmatically mutates the internal JSONModel property (e.g. for PBRE state pruning).
+     * @param path The path to the property.
+     * @param value The value to set.
+     */
+    public setProperty(path: string, value: unknown): void {
+        const absolutePath = path.startsWith("/") ? path : `/${path}`;
+        this.model.setProperty(absolutePath, value);
     }
 
     /**
      * Cleans up internal state and natively destroys the UI5 JSONModel to prevent memory leaks.
      */
     public destroy(): void {
-        
         if (this.model) {
+            // Fix Leaky Abstractions: Clean up any ghost errors in the global MessageManager bound to this model
+            const messageManager = Messaging;
+            const existingMessages = messageManager.getMessageModel().getData();
+            const messagesToRemove = existingMessages.filter((msg: Message) => 
+                msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId()
+            );
+            if (messagesToRemove.length > 0) {
+                messageManager.removeMessages(messagesToRemove);
+            }
+
             this.model.destroy();
         }
     }
