@@ -13,6 +13,7 @@
         layoutBudget="{/settings/layoutBudget}"
         error=".onHostError"
         fieldChange=".onHostFieldChange"
-        submit=".onHostSubmit" />
+        submit=".onHostSubmit"
+        beforeLayoutSectionChange=".onBeforeLayoutSectionChange" />
         
 </core:FragmentDefinition>

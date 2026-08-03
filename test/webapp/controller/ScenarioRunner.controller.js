@@ -276,7 +276,8 @@ sap.ui.define([
                 var host = new DynamicHost({
                     error: this.onHostError.bind(this),
                     fieldChange: this.onHostFieldChange.bind(this),
-                    submit: this.onHostSubmit.bind(this)
+                    submit: this.onHostSubmit.bind(this),
+                    beforeLayoutSectionChange: this.onBeforeLayoutSectionChange.bind(this)
                 });
                 
                 host.bindProperty("liveUpdate", { path: "settings>/settings/liveUpdate" });
@@ -451,6 +452,35 @@ sap.ui.define([
             sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
                 MessageBox.success("Successfully extracted payload:\n\n" + JSON.stringify(payload, null, 2));
             });
+        },
+
+        /**
+         * Intercepts the beforeLayoutSectionChange event to prove the async pipeline.
+         * 
+         * @public
+         * @param {sap.ui.base.Event} oEvent The layout boundary event.
+         */
+        onBeforeLayoutSectionChange: function (oEvent) {
+            var oParams = oEvent.getParameters();
+            var payload = oParams.payload;
+            var sScenario = this.oModel.getProperty("/settings/selectedScenario");
+
+            if (sScenario === "wizard") {
+                // Mock an async backend check that tests the "addError" API.
+                oParams.preventDefault();
+                MessageToast.show("Simulating async backend check (1.5s)...");
+                
+                setTimeout(function() {
+                    // Test arbitrary backend validation rules
+                    if (payload && payload.Applicant && payload.Applicant.FirstName === "Blocked") {
+                        oParams.addError("/Applicant/FirstName", "This name is blocked by the backend.");
+                        MessageToast.show("Backend rejected transition.");
+                    } else {
+                        MessageToast.show("Backend approved transition.");
+                        oParams.resumeNavigation();
+                    }
+                }, 1500);
+            }
         },
 
         /**
