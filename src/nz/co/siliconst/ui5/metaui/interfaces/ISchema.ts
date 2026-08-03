@@ -92,7 +92,7 @@ export interface IPropertyMetadata {
     ui?: IUIDirective;
     
     // Standard validations
-    required?: boolean;
+    required?: boolean | string[];
     maxLength?: number;
     minLength?: number;
     minimum?: number;
@@ -153,5 +153,6 @@ export interface ISchema {
     items?: IPropertyMetadata;
     uiLayout?: ILayoutElement[];
     additionalProperties?: boolean;
+    required?: string[];
     definitions?: Record<string, ISchema>;
 }

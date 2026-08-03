@@ -28,14 +28,12 @@ interface ITargetState {
  * It operates strictly on the JSON payload structure and returns an array of `IDeltaState` mutations which the GeneratorHost
  * then applies to the individual active plugins.
  * 
- * It ensures the orchestration of conditional rendering, requiring, and invalidating of fields without the plugins
- * needing to be aware of each other.
  * 
  * @namespace nz.co.siliconst.ui5.metaui.core
  */
 export class PolicyEngine {
     private policies: IPolicy[];
-    
+
     /** Caches the last computed state matrix for differential delta emission */
     private lastStateMatrix: Map<string, ITargetState>;
 
@@ -46,65 +44,6 @@ export class PolicyEngine {
     constructor(policies: IPolicy[]) {
         this.policies = policies || [];
         this.lastStateMatrix = new Map();
-        this.detectCycles();
-    }
-
-    /**
-     * Builds a directed dependency graph and detects cycles to prevent infinite event loops.
-     */
-    private detectCycles(): void {
-        const graph = new Map<string, Set<string>>();
-
-        for (const policy of this.policies) {
-            const sources = new Set<string>();
-            if (policy.condition) {
-                const addPaths = (obj: Record<string, unknown> | undefined) => {
-                    if (obj) Object.keys(obj).forEach(k => sources.add(k.split("/$row")[0]));
-                };
-                addPaths(policy.condition.NumericGreaterThan);
-                addPaths(policy.condition.NumericLessThan);
-                addPaths(policy.condition.StringEquals);
-                if (policy.condition.IsNull) policy.condition.IsNull.forEach(p => sources.add(p.split("/$row")[0]));
-                if (policy.condition.IsNotNull) policy.condition.IsNotNull.forEach(p => sources.add(p.split("/$row")[0]));
-            }
-
-            for (const target of policy.targets) {
-                const cleanTarget = target.split("/$row")[0];
-                if (!graph.has(cleanTarget)) {
-                    graph.set(cleanTarget, new Set());
-                }
-                sources.forEach(s => graph.get(cleanTarget)!.add(s));
-            }
-        }
-
-        const visited = new Set<string>();
-        const recursionStack = new Set<string>();
-
-        const isCyclic = (node: string): boolean => {
-            if (!visited.has(node)) {
-                visited.add(node);
-                recursionStack.add(node);
-
-                const neighbors = graph.get(node);
-                if (neighbors) {
-                    for (const neighbor of neighbors) {
-                        if (!visited.has(neighbor) && isCyclic(neighbor)) {
-                            return true;
-                        } else if (recursionStack.has(neighbor)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            recursionStack.delete(node);
-            return false;
-        };
-
-        for (const node of graph.keys()) {
-            if (isCyclic(node)) {
-                throw new Error(`[MetaUI PolicyEngine] FATAL: Cyclic dependency detected involving policy target '${node}'. This will cause an infinite rendering loop.`);
-            }
-        }
     }
 
     /**
@@ -120,7 +59,7 @@ export class PolicyEngine {
         // Strip leading slash and any UI5 prefixes
         const cleanPointer = pointer.replace(/^\//, "").replace(/^metaui>\/?/, "");
         if (!cleanPointer) return data;
-        
+
         const parts = cleanPointer.split("/");
         let current = data as Record<string, unknown>;
         for (const part of parts) {
@@ -158,46 +97,27 @@ export class PolicyEngine {
 
     /**
      * Expands relative $row policies into absolute index policies for each physical row.
+     * Uses generic stringification to decouple from specific condition operator plugins.
      */
     private expandRowPolicies(data: unknown, policies: IPolicy[]): IPolicy[] {
         const expanded: IPolicy[] = [];
         for (const policy of policies) {
-            let hasRow = false;
-            let arrayPath = "";
-            
-            for (const target of policy.targets) {
-                if (target.includes("$row")) {
-                    hasRow = true;
-                    arrayPath = target.split("/$row")[0];
-                    break;
-                }
-            }
-            if (!hasRow && policy.condition) {
-                const checkPaths = (obj: any) => {
-                    if (!obj) return;
-                    for (const key of Object.keys(obj)) {
-                        if (key.includes("$row")) {
-                            hasRow = true;
-                            arrayPath = key.split("/$row")[0];
-                            break;
+            const policyStr = JSON.stringify(policy);
+            if (policyStr.includes("$row")) {
+                // Extract the array path (everything before "/$row" inside a JSON string value)
+                const match = policyStr.match(/"([^"]+)\/\$row/);
+                if (match) {
+                    const arrayPath = match[1];
+                    const arrayData = this.resolvePointer(data, arrayPath);
+                    if (Array.isArray(arrayData)) {
+                        for (let i = 0; i < arrayData.length; i++) {
+                            const cloneStr = policyStr.replace(/\$row/g, String(i));
+                            expanded.push(JSON.parse(cloneStr));
                         }
                     }
-                };
-                checkPaths(policy.condition.NumericGreaterThan);
-                checkPaths(policy.condition.NumericLessThan);
-                checkPaths(policy.condition.StringEquals);
-                
-                if (policy.condition.IsNull) policy.condition.IsNull.forEach(p => { if (p.includes("$row")) { hasRow = true; arrayPath = p.split("/$row")[0]; } });
-                if (policy.condition.IsNotNull) policy.condition.IsNotNull.forEach(p => { if (p.includes("$row")) { hasRow = true; arrayPath = p.split("/$row")[0]; } });
-            }
-
-            if (hasRow && arrayPath) {
-                const arrayData = this.resolvePointer(data, arrayPath);
-                if (Array.isArray(arrayData)) {
-                    for (let i = 0; i < arrayData.length; i++) {
-                        const cloneStr = JSON.stringify(policy).replace(/\$row/g, String(i));
-                        expanded.push(JSON.parse(cloneStr));
-                    }
+                } else {
+                    // Fallback if path couldn't be parsed
+                    expanded.push(policy);
                 }
             } else {
                 expanded.push(policy);
@@ -235,18 +155,18 @@ export class PolicyEngine {
         // 1. Build the Composite State Ledger Matrix
         for (const policy of expandedPolicies) {
             const isConditionMet = this.evaluateCondition(policy.condition, data);
-            
+
             for (const target of policy.targets) {
                 initTargetInLedger(target);
                 const currentLedger = ledger.get(target)!;
-                
+
                 const effectPlugin = PluginRegistry.getInstance().getPolicyEffectPlugin(policy.effect);
                 if (!effectPlugin) {
                     Logger.error(`[MetaUI PolicyEngine] Unrecognized policy effect: ${policy.effect}`);
                     continue;
                 }
                 const mapped = effectPlugin.resolveState(isConditionMet, policy.effect);
-                
+
                 // Track forces. For restrictable properties (visibility, validity, editable), forcedFalse acts as a lock.
                 // For required, forcedTrue acts as a lock.
                 if (mapped.value) {

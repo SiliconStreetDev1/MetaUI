@@ -38,10 +38,19 @@ export class StepInputPlugin extends BasePlugin {
             return this.control as Control;
         }
 
+        let precision: number | undefined = fieldMetadata.scale;
+        if (precision === undefined && fieldMetadata.multipleOf !== undefined) {
+            const stepStr = fieldMetadata.multipleOf.toString();
+            precision = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+        } else if (precision === undefined && fieldMetadata.type === "integer") {
+            precision = 0;
+        }
+
         this.control = new StepInput({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: this.generateBindingInfo(bindingPath, modelName),
-            displayValuePrecision: fieldMetadata.scale !== undefined ? fieldMetadata.scale : (fieldMetadata.type === "integer" ? 0 : 3),
+            step: fieldMetadata.multipleOf !== undefined ? fieldMetadata.multipleOf : 1,
+            ...(precision !== undefined && { displayValuePrecision: precision }),
             editable: !fieldMetadata.ui?.readOnly,
             required: !!fieldMetadata.required,
             change: (oEvent: sap.ui.base.Event) => {

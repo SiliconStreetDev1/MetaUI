@@ -95,3 +95,13 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 
 ## 21. Test-Driven Maintenance (TDM)
 - **Always Verify Changes:** Whenever an architectural change is made to the core engine, or a new plugin is added to the framework, the AI MUST concurrently generate a corresponding Unit Test (Tier 1) and/or update the relevant Sandbox JSON Mock Scenario (e.g. `kitchen_sink.json` for Tier 2/3). The AI must run the test suite to prove it works before concluding the task.
+
+## 22. Rigorous E2E Testing
+- **No Generic Checks:** AI must never write generic or hardcoded UI existence checks.
+- **Exhaustive Coverage:** All E2E tests MUST dynamically load JSON mock datasets and assert exact value bindings via loops to guarantee exhaustive 100% coverage.
+
+## 23. Rigorous Zero-Trust Testing Mandate
+- **Banning lazy testing**: AI must never use `assert.ok(instance)` as a test.
+- **Physical Sandbox**: Unit Tests must physically mount the control in a DOM sandbox using `sap.ui.qunit.utils.createAndAppendDiv`.
+- **Dynamic Mutation**: E2E tests must be dynamically generated from the schema and rigorously mutate state to prove validation/policy reactivity across all binding variants and render targets.
+- **The Double-Entry Rule**: Whenever a new plugin is added to `PluginRegistry.ts`, the AI MUST simultaneously add the mapping entry to the dictionary inside `TestOracle.js`.
