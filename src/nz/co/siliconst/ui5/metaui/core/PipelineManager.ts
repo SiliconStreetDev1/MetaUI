@@ -6,6 +6,7 @@
 
 import { Registry } from "./Registry";
 import { IFormatter, IParser, IValidator, IValidationResult } from "../interfaces/IPipeline";
+import { IPropertyMetadata } from "../interfaces/ISchema";
 import { PatternValidatorPlugin } from "../plugins/validators/PatternValidatorPlugin";
 import { MinLengthValidatorPlugin } from "../plugins/validators/MinLengthValidatorPlugin";
 import { RangeValidatorPlugin } from "../plugins/validators/RangeValidatorPlugin";
@@ -114,10 +115,66 @@ export class PipelineManager {
         }
         return { isValid: true };
     }
+
+    /**
+     * Convenience method that assembles the validator list from a schema property descriptor
+     * and immediately executes the pipeline. This is the single authoritative source for
+     * validator assembly — use it in BasePlugin and Engine to eliminate code duplication.
+     *
+     * @param propMeta The schema property descriptor for the field.
+     * @param value The current raw value to validate.
+     * @param isDynamicallyRequired Optional override for the `required` state (e.g. from PolicyEngine).
+     * @returns {IValidationResult} The combined validation result.
+     */
+    public assembleAndExecute(propMeta: IPropertyMetadata, value: unknown, isDynamicallyRequired?: boolean): IValidationResult {
+        const validatorsToRun: string[] = [];
+        const argsMap: Record<string, unknown> = {};
+
+        const isRequired = isDynamicallyRequired !== undefined ? isDynamicallyRequired : propMeta.required;
+        if (isRequired) validatorsToRun.push("required");
+
+        if (propMeta.maxLength !== undefined) {
+            validatorsToRun.push("maxLength");
+            argsMap["maxLength"] = propMeta.maxLength;
+        }
+        if (propMeta.minLength !== undefined) {
+            validatorsToRun.push("minLength");
+            argsMap["minLength"] = propMeta.minLength;
+        }
+        if (propMeta.pattern !== undefined) {
+            validatorsToRun.push("pattern");
+            argsMap["pattern"] = { regex: propMeta.pattern };
+        }
+        if (propMeta.minimum !== undefined || propMeta.maximum !== undefined) {
+            validatorsToRun.push("range");
+            argsMap["range"] = { min: propMeta.minimum, max: propMeta.maximum };
+        }
+
+        const format = propMeta.ui?.format;
+        if (format === "email" || format === "url" || format === "iban") {
+            validatorsToRun.push(format);
+        }
+
+        if (propMeta.ui?.validators) {
+            for (const v of propMeta.ui.validators) {
+                if (typeof v === "string") {
+                    validatorsToRun.push(v);
+                } else if (v && v.name) {
+                    validatorsToRun.push(v.name);
+                    if (v.args !== undefined) {
+                        argsMap[v.name] = v.args;
+                    }
+                }
+            }
+        }
+
+        if (validatorsToRun.length === 0) return { isValid: true };
+        return this.executeValidation(value, validatorsToRun, argsMap);
+    }
 }
 
-/** 
- * Singleton instance for global access to the active validation pipeline. 
- * @public 
+/**
+ * Singleton instance for global access to the active validation pipeline.
+ * @public
  */
 export const GlobalPipeline = new PipelineManager();

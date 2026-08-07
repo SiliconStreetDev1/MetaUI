@@ -8,7 +8,7 @@ import { StateManager } from "../../core/StateManager";
 import { PolicyEngine } from "../../core/PolicyEngine";
 import { DataSyncDelegate } from "./delegates/DataSyncDelegate";
 import { ValidationDelegate } from "./delegates/ValidationDelegate";
-import { DialogDelegate } from "./delegates/DialogDelegate";
+import { DialogDelegate, IHostDialog } from "./delegates/DialogDelegate";
 import MessageBox from "sap/m/MessageBox";
 import MessageStrip from "sap/m/MessageStrip";
 import VBox from "sap/m/VBox";
@@ -17,6 +17,7 @@ import { LayoutScorer } from "../../core/LayoutScorer";
 import { LayoutMutator } from "../../core/LayoutMutator";
 import { DefaultLayoutGenerator } from "../../core/DefaultLayoutGenerator";
 import type { ISchema } from "../../interfaces/ISchema";
+import type { IEngineHost } from "../../interfaces/IEngineHost";
 
 /**
  * Base wrapper element for embedding the dynamic form natively via Explicit Schemas.
@@ -27,10 +28,10 @@ import type { ISchema } from "../../interfaces/ISchema";
  * 
  * @namespace nz.co.siliconst.ui5.metaui.controls.host
  */
-export default class GeneratorHost extends Control {
+export default class GeneratorHost extends Control implements IEngineHost, IHostDialog {
 
     protected stateManager: StateManager | null = null;
-    protected generatedContent: Control | null = null;
+    public generatedContent: Control | null = null;
     /** The embedded engine responsible for rendering the UI controls */
     protected engine: Engine | null = null;
     
@@ -40,8 +41,8 @@ export default class GeneratorHost extends Control {
      */
     protected policyEngine: PolicyEngine | null = null;
     
-    private policyDebounceTimer: any = null;
-    protected activeModelName: string = "";
+    private policyDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    public activeModelName: string = "";
 
     protected dataSyncDelegate!: DataSyncDelegate;
     protected validationDelegate!: ValidationDelegate;
@@ -157,7 +158,7 @@ export default class GeneratorHost extends Control {
         // Initialize Composition Delegates
         this.dataSyncDelegate = new DataSyncDelegate(this);
         this.validationDelegate = new ValidationDelegate(this);
-        this.dialogDelegate = new DialogDelegate(this as any);
+        this.dialogDelegate = new DialogDelegate(this);
 
         this.onInternalFieldChange = this.onInternalFieldChange.bind(this);
     }

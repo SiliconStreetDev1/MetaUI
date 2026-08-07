@@ -108,3 +108,7 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 
 ## 24. Sunk Cost Component Fallacy
 - **Do not hack native constraints**: If a native framework component (like `sap.m.Wizard`) fundamentally contradicts MetaUI's architectural constraints (e.g., requiring a specific physical ancestor like a NavContainer while MetaUI dynamically hosts in VBoxes), **DO NOT** attempt to hack the component's render modes, events, or typings. If it doesn't fit the zero-hacks architecture, discard the native component and build a custom composable element using base primitives (`VBox`, `HBox`, `SimpleForm`) that strictly adheres to the MetaUI design system.
+
+## 25. Phantom File Cleanup (Zero-Clutter Mandate)
+- **Delete Temporary Files**: Whenever you write a temporary test script, a generation program, or a sandbox file to verify behavior or extract schemas, you MUST delete it immediately after use.
+- **Root Directory Integrity**: Never leave phantom scripts (e.g., `test_schema.ts`, `scrape.js`) or scratch directories in the project root. The root directory must only contain standard library configuration files. If you need temporary storage, use the `scratch/` directory and ensure it is cleaned up before concluding your task.

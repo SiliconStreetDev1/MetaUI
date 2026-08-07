@@ -1,0 +1,30 @@
+<!--
+  Example: Declarative XML View Integration
+  ==========================================
+  This is the minimal integration pattern to embed MetaUI inside a standard
+  SAP Fiori XML View using two-way model binding.
+
+  Prerequisites:
+  - MetaUI library deployed and visible to the app's namespace resolver.
+  - A JSONModel on your controller with a 'schema' and 'payload' property.
+-->
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    controllerName="my.app.controller.Main">
+
+    <!--
+        Minimal embedding: MetaUI generates all fields, labels,
+        validation, and responsive layout from the schema automatically.
+
+        - schemaDefinition : Path to your ISchema object in the model.
+        - data             : Path to your payload object in the model.
+        - submit           : Controller method called when submission passes validation.
+    -->
+    <meta:DynamicHost
+        schemaDefinition="{appModel>/schema}"
+        data="{appModel>/payload}"
+        editable="true"
+        submit=".onFormSubmitted" />
+
+</mvc:View>

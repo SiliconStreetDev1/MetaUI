@@ -6,6 +6,7 @@
 import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { IPlugin, IPluginValidationResult } from "../interfaces/IPlugin";
+import { IEngineHost } from "../interfaces/IEngineHost";
 
 import { PluginRegistry } from "./PluginRegistry";
 import Control from "sap/ui/core/Control";
@@ -50,7 +51,7 @@ export class Engine {
     private activeMessages: Map<string, Message> = new Map();
 
     /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
-    public host?: unknown;
+    public host?: IEngineHost;
 
     /** Callback to notify the host that an internal field changed. */
     public onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
@@ -214,11 +215,11 @@ export class Engine {
         }
 
         // 2. Recursively validate arrays via StateManager payload traversing for Table layout rows
-        if (this.host && typeof (this.host as any).getStateManager === "function") {
-            const stateManager = (this.host as any).getStateManager();
+        if (this.host && typeof this.host.getStateManager === "function") {
+            const stateManager = this.host.getStateManager();
             if (stateManager) {
                 const payload = stateManager.extractPayload();
-                const schema = stateManager.getSchema ? stateManager.getSchema() : (this.host as any).getParsedSchema?.();
+                const schema = stateManager.getSchema ? stateManager.getSchema() : this.host.getParsedSchema?.();
                 if (payload && schema) {
                     const arrayErrors = this.validatePayloadArrays(schema, payload, "");
                     if (applyVisualState) {
@@ -237,72 +238,47 @@ export class Engine {
     }
 
     public onArrayMutated(arrayPath: string): void {
-        if (this.host && typeof (this.host as any).getStateManager === "function") {
-            const stateManager = (this.host as any).getStateManager();
+        if (this.host && typeof this.host.getStateManager === "function") {
+            const stateManager = this.host.getStateManager();
             if (stateManager && typeof stateManager.clearArrayMessages === "function") {
                 stateManager.clearArrayMessages(arrayPath);
             }
         }
     }
 
-    private validatePayloadArrays(schema: any, payload: any, currentPath: string): IPluginValidationResult[] {
+    private validatePayloadArrays(schema: ISchema, payload: Record<string, unknown>, currentPath: string): IPluginValidationResult[] {
         const errors: IPluginValidationResult[] = [];
         if (!schema || !payload || typeof payload !== "object") return errors;
 
         if (schema.type === "object" && schema.properties) {
             for (const key of Object.keys(schema.properties)) {
                 const propSchema = schema.properties[key];
-                if (payload[key] !== undefined) {
+                const childValue = payload[key];
+                if (childValue !== undefined) {
                     const childPath = currentPath ? `${currentPath}/${key}` : key;
-                    errors.push(...this.validatePayloadArrays(propSchema, payload[key], childPath));
+                    errors.push(...this.validatePayloadArrays(propSchema as ISchema, childValue as Record<string, unknown>, childPath));
                 }
             }
         } else if (schema.type === "array" && schema.items && Array.isArray(payload)) {
-            payload.forEach((item, index) => {
+            (payload as Record<string, unknown>[]).forEach((item, index) => {
                 const itemPath = currentPath ? `${currentPath}/${index}` : `${index}`;
-                if (schema.items.type === "object" && schema.items.properties) {
-                    for (const key of Object.keys(schema.items.properties)) {
-                        const propMeta = schema.items.properties[key];
+                const items = schema.items;
+                if (items && items.type === "object" && items.properties) {
+                    for (const key of Object.keys(items.properties)) {
+                        const propMeta = items.properties[key];
                         const propPath = `${itemPath}/${key}`;
                         const val = item ? item[key] : undefined;
-                        
-                        const validatorsToRun: string[] = [];
-                        const argsMap: Record<string, unknown> = {};
 
-                        if (propMeta.required) validatorsToRun.push("required");
-                        if (propMeta.maxLength !== undefined) {
-                            validatorsToRun.push("maxLength");
-                            argsMap["maxLength"] = propMeta.maxLength;
-                        }
-                        if (propMeta.minLength !== undefined) {
-                            validatorsToRun.push("minLength");
-                            argsMap["minLength"] = propMeta.minLength;
-                        }
-                        if (propMeta.pattern !== undefined) {
-                            validatorsToRun.push("pattern");
-                            argsMap["pattern"] = { regex: propMeta.pattern };
-                        }
-                        if (propMeta.minimum !== undefined || propMeta.maximum !== undefined) {
-                            validatorsToRun.push("range");
-                            argsMap["range"] = { min: propMeta.minimum, max: propMeta.maximum };
-                        }
-                        const format = propMeta.ui?.format;
-                        if (format === "email" || format === "url" || format === "iban") {
-                            validatorsToRun.push(format);
-                        }
-                        
-                        if (validatorsToRun.length > 0) {
-                            const res = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
-                            if (!res.isValid) {
-                                errors.push({
-                                    isValid: false,
-                                    errorMessage: res.errorMessage,
-                                    fieldKey: propPath,
-                                    fieldLabel: propMeta.ui?.label || key
-                                });
-                            } else {
-                                errors.push({ isValid: true, fieldKey: propPath }); // Push successful state to clear old errors
-                            }
+                        const res = GlobalPipeline.assembleAndExecute(propMeta, val);
+                        if (!res.isValid) {
+                            errors.push({
+                                isValid: false,
+                                errorMessage: res.errorMessage,
+                                fieldKey: propPath,
+                                fieldLabel: propMeta.ui?.label || key
+                            });
+                        } else {
+                            errors.push({ isValid: true, fieldKey: propPath }); // Clear old errors
                         }
                     }
                 }
@@ -374,8 +350,8 @@ export class Engine {
             }
             if (isError) {
                 const targetPath = `/${cleanPath}`;
-                const processorModel = this.host && typeof (this.host as any).getStateManager === "function" 
-                    ? (this.host as any).getStateManager()?.getModel() 
+                const processorModel = this.host && typeof this.host.getStateManager === "function" 
+                    ? this.host.getStateManager()?.getModel() 
                     : undefined;
                 
                 const fieldLabel = typeof plugin?.getFieldLabel === "function" ? plugin.getFieldLabel() : undefined;
@@ -396,8 +372,8 @@ export class Engine {
     }
 
     private setNativeControlError(targetPath: string, errorMessage?: string): void {
-        if (this.host && (this.host as any).generatedContent) {
-            const rootControl = (this.host as any).generatedContent;
+        if (this.host && this.host.generatedContent) {
+            const rootControl = this.host.generatedContent;
             this.traverseAndSetError(rootControl, targetPath, errorMessage);
         }
     }
@@ -412,7 +388,7 @@ export class Engine {
                 // UI5 relative bindings drop the leading slash in the context, but retain it in the path
                 if (boundPath === targetPath || targetPath.endsWith(boundPath)) {
                     // Ensure we match the exact row context path
-                    const context = control.getBindingContext((this.host as any).activeModelName);
+                    const context = control.getBindingContext(this.host!.activeModelName);
                     if (context) {
                         const fullPath = context.getPath() + "/" + boundPath;
                         const cleanedFullPath = fullPath.replace(/^\//, "");

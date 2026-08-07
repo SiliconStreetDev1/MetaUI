@@ -115,7 +115,7 @@ export abstract class BasePlugin implements IPlugin {
      * @param additionalOptions Optional extra configurations (e.g. formatOptions, constraints).
      * @returns A configuration object ready to be assigned to 'value', 'text', 'state', etc.
      */
-    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): any {
+    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): Record<string, unknown> {
         return {
             path: bindingPath,
             model: modelName,
@@ -141,53 +141,10 @@ export abstract class BasePlugin implements IPlugin {
             return { isValid: false, errorMessage: this.policyInvalidMessage, fieldKey: this.fieldKey };
         }
 
-        const validatorsToRun: string[] = [];
-        const argsMap: Record<string, unknown> = {
-            "maxLength": this.metadata.maxLength
-        };
-
         const isRequired = this._isDynamicallyRequired !== undefined ? this._isDynamicallyRequired : this.metadata.required;
-        if (isRequired) {
-            validatorsToRun.push("required");
-        }
-        if (this.metadata.maxLength) validatorsToRun.push("maxLength");
-        if (this.metadata.minLength) {
-            validatorsToRun.push("minLength");
-            argsMap["minLength"] = this.metadata.minLength;
-        }
-        if (this.metadata.pattern) {
-            validatorsToRun.push("pattern");
-            argsMap["pattern"] = this.metadata.pattern;
-        }
-        if (this.metadata.minimum !== undefined || this.metadata.maximum !== undefined) {
-            validatorsToRun.push("range");
-            argsMap["range"] = { min: this.metadata.minimum, max: this.metadata.maximum };
-        }
-
-        const format = this.metadata.ui?.format;
-        if (format === "email" || format === "url" || format === "iban") {
-            validatorsToRun.push(format);
-        }
-
-        if (this.metadata.ui?.validators) {
-            for (const v of this.metadata.ui.validators) {
-                if (typeof v === "string") {
-                    validatorsToRun.push(v);
-                } else if (v && v.name) {
-                    validatorsToRun.push(v.name);
-                    if (v.args !== undefined) {
-                        argsMap[v.name] = v.args;
-                    }
-                }
-            }
-        }
-
-        if (validatorsToRun.length === 0) {
-            return { isValid: true, errorMessage: undefined, fieldKey: this.fieldKey };
-        }
 
         const val = this.getValue();
-        const result = GlobalPipeline.executeValidation(val, validatorsToRun, argsMap);
+        const result = GlobalPipeline.assembleAndExecute(this.metadata, val, isRequired);
         return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey, fieldLabel: this.metadata?.ui?.label };
     }
 
@@ -321,16 +278,17 @@ export abstract class BasePlugin implements IPlugin {
         if (metadata.ui?.controlProps) {
             Logger.debug(`[BasePlugin] controlProps found for ${this.fieldKey}: ` + JSON.stringify(metadata.ui.controlProps), "BasePlugin");
             const targetControl = this.mainControl || control;
+
+            // Narrow interface to access runtime UI5 ElementMetadata methods not exposed in TS types
+            type IUI5Metadata = { getName(): string; hasAggregation(name: string): boolean; hasEvent(name: string): boolean; };
             const target = targetControl as unknown as {
-                getMetadata?: () => { getName(): string },
-                applySettings?: (settings: Record<string, any>) => void,
-                setProperty?: (p: string, v: unknown) => void,
-                bindProperty?: (p: string, v: string) => void
+                getMetadata?: () => IUI5Metadata;
+                applySettings?: (settings: Record<string, unknown>) => void;
             };
 
             if (typeof target.getMetadata === "function") {
                 const targetMeta = target.getMetadata();
-                const settings: Record<string, any> = {};
+                const settings: Record<string, unknown> = {};
                 for (const [propName, propValue] of Object.entries(metadata.ui.controlProps)) {
                     if (this.BLOCKED_PROPS.includes(propName)) {
                         Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Property is protected by sandbox)`);
@@ -338,12 +296,12 @@ export abstract class BasePlugin implements IPlugin {
                     }
                     
                     // Natively block any aggregations or events to prevent sandbox escapes
-                    if (typeof (targetMeta as any).hasAggregation === "function" && (targetMeta as any).hasAggregation(propName)) {
+                    if (typeof targetMeta.hasAggregation === "function" && targetMeta.hasAggregation(propName)) {
                         Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack aggregations)`);
                         continue;
                     }
-                    
-                    if (typeof (targetMeta as any).hasEvent === "function" && (targetMeta as any).hasEvent(propName)) {
+
+                    if (typeof targetMeta.hasEvent === "function" && targetMeta.hasEvent(propName)) {
                         Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack events)`);
                         continue;
                     }
@@ -360,7 +318,6 @@ export abstract class BasePlugin implements IPlugin {
                 }
 
                 try {
-                    const target = targetControl as unknown as { applySettings?: (s: Record<string, any>) => void };
                     if (typeof target.applySettings === "function") {
                         target.applySettings(settings);
                     }
