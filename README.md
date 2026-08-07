@@ -1,23 +1,17 @@
 # MetaUI
 
-**A JSON-Schema-driven dynamic form engine for SAP UI5.** Define your forms as pure JSON. MetaUI generates the entire Fiori UI at runtime — fields, validation, layout, and cross-field business rules — with zero XML views.
+**MetaUI** is an extensible, metadata-driven UI engine built on top of SAP UI5. Instead of relying on static XML views, it parses standard JSON Schema definitions at runtime to dynamically generate SAP Fiori component trees. This enables server-driven architectures where the UI structure and data bindings are determined entirely by the incoming payload.
 
 [![Live Demo](https://img.shields.io/badge/demo-live-blue)](https://SiliconStreetDev1.github.io/MetaUI/index.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ![MetaUI rendering a Kitchen Sink form from a JSON Schema](docs/images/metaui_preview.png)
 
-## Why MetaUI?
+## MetaUI vs. Fiori Elements
 
-**There is no open-source alternative for dynamically generating SAP Fiori forms from JSON Schema.** SAP's own Fiori Elements requires static OData CDS annotations. MetaUI is for the use cases where that's unavailable, too rigid, or impossible.
+It is important to note that MetaUI is **not** an attempt to replace SAP Fiori Elements. Fiori Elements is a robust framework for building UIs driven by static OData CDS annotations. 
 
-| Feature | MetaUI | Fiori Elements |
-|---|---|---|
-| Schema format | Standard JSON Schema | OData CDS Annotations |
-| Runtime generation | ✅ | ❌ (build-time) |
-| Works without OData | ✅ | ❌ |
-| Cross-field rules (declarative) | ✅ `uiPolicies` | Partial (side effects) |
-| AI schema inference | ✅ | ❌ |
+MetaUI is designed as a complementary tool for highly dynamic use cases where CDS annotations are unavailable, impossible, or too rigid. By relying on universal JSON Schema, MetaUI provides a flexible alternative for scenarios that demand on-the-fly, runtime layout generation.
 
 ## Quickstart
 
