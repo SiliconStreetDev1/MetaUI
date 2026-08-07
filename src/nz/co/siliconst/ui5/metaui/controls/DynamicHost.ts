@@ -70,7 +70,21 @@ export default class DynamicHost extends Control {
             validationStateChanged: { parameters: { isValid: { type: "boolean" } } },
             validationError: { parameters: { fieldPath: { type: "string" }, message: { type: "string" } } },
             validationSuccess: { parameters: { fieldPath: { type: "string" } } },
-            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } }
+            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } },
+            /**
+             * Forwarded transparently from the inner GeneratorHost via the event proxy loop.
+             * Fired by WizardLayout when the user navigates to a new Wizard step.
+             * See GeneratorHost.metadata for full parameter documentation.
+             */
+            beforeLayoutSectionChange: {
+                parameters: {
+                    stepIndex: { type: "int" },
+                    payload: { type: "object" },
+                    preventDefault: { type: "function" },
+                    addError: { type: "function" },
+                    resumeNavigation: { type: "function" }
+                }
+            }
         }
     };
 

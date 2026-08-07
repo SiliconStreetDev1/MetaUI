@@ -23,6 +23,7 @@ export interface IPluginStateReceiver {
     applyVisibility?(isVisible: boolean): void;
     applyRequired?(isRequired: boolean): void;
     applyEditable?(isEditable: boolean): void;
+    getFieldLabel?(): string | undefined;
 }
 
 export interface IPlugin extends IPluginStateReceiver {

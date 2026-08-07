@@ -63,6 +63,13 @@ export abstract class BasePlugin implements IPlugin {
     }
 
     /**
+     * Retrieves the human-readable label for the field from its metadata.
+     */
+    public getFieldLabel(): string | undefined {
+        return this.metadata?.ui?.label || this.fieldKey;
+    }
+
+    /**
      * Injects the global MessageManager context into the plugin.
      * @param useMessageManager True if the MessageManager is handling validation visual states.
      */
@@ -301,30 +308,18 @@ export abstract class BasePlugin implements IPlugin {
         }
 
         if (metadata.ui?.visibleOn) {
-            const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
-            let expr = "";
-            if (ExpressionBuilder) {
-                expr = ExpressionBuilder.build(metadata.ui.visibleOn, this.fieldKey, modelName);
-            } else {
-                expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
-            }
+            const expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
             control.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false });
             control.bindProperty("visible", expr);
         }
 
         if (metadata.ui?.enabledOn && typeof ctrl.setEnabled === "function") {
-            const ExpressionBuilder = sap.ui.require("nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder")?.ExpressionBuilder;
-            let expr = "";
-            if (ExpressionBuilder) {
-                expr = ExpressionBuilder.build(metadata.ui.enabledOn, this.fieldKey, modelName);
-            } else {
-                expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
-            }
+            const expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
             control.bindProperty("enabled", expr);
         }
 
         if (metadata.ui?.controlProps) {
-            console.error(`[DEBUG MetaUI] controlProps found for ${this.fieldKey}`, metadata.ui.controlProps);
+            Logger.debug(`[BasePlugin] controlProps found for ${this.fieldKey}: ` + JSON.stringify(metadata.ui.controlProps), "BasePlugin");
             const targetControl = this.mainControl || control;
             const target = targetControl as unknown as {
                 getMetadata?: () => { getName(): string },

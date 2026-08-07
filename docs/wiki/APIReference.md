@@ -73,6 +73,33 @@ Fired when a catastrophic failure occurs during layout generation (e.g., duplica
   - `message` (string): Human-readable error description.
   - `exception` (object): The raw JavaScript Error object.
 
+### `beforeLayoutSectionChange`
+Fired by `WizardLayout` immediately when the user presses the "Next Step" button, **before** the layout physically transitions to the next step. Provides a structured hook for consumers to perform per-step validation — including asynchronous backend checks — and optionally block or resume the navigation.
+
+> **Important:** With the modern MetaUI custom Wizard architecture, navigation is paused. Calling `preventDefault()` will immediately block the transition. If you are doing an async backend check, you must call `preventDefault()` synchronously during the event, and then call `resumeNavigation()` inside your Promise `.then()` to physically advance the Wizard once validation passes.
+
+- **Parameters**:
+  - `stepIndex` (int): The **0-based index** of the step the user is navigating **away from** (the source step).
+  - `payload` (object): A live snapshot of the full form payload at the moment of transition.
+  - `preventDefault` (function): Blocks navigation synchronously. Call this immediately if you need to wait for an async backend check.
+  - `addError` (function(fieldPath: string, errorMessage: string)): Blocks navigation **and** paints the specified field with an error state (and pushes to MessageManager if active). Use for async backend validation failures.
+  - `resumeNavigation` (function): Explicitly allows navigation after a prior `preventDefault()` call. Intended for async consumer patterns (e.g., backend validation Promises). Calling this causes the wizard to advance to the next step immediately.
+
+**Example — async backend check:**
+```javascript
+onBeforeLayoutSectionChange: function(oEvent) {
+    var oParams = oEvent.getParameters();
+    oParams.preventDefault(); // Block navigation immediately pending the async check
+    myBackendService.validate(oParams.payload).then(function(result) {
+        if (result.isValid) {
+            oParams.resumeNavigation(); // Explicitly advances to the next step
+        } else {
+            oParams.addError("/Applicant/FirstName", result.errorMessage);
+        }
+    });
+}
+```
+
 ---
 
 ## Public Methods

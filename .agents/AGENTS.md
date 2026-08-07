@@ -105,3 +105,6 @@ The Playground Sandbox is an exhaustive matrix testing application. You must nev
 - **Physical Sandbox**: Unit Tests must physically mount the control in a DOM sandbox using `sap.ui.qunit.utils.createAndAppendDiv`.
 - **Dynamic Mutation**: E2E tests must be dynamically generated from the schema and rigorously mutate state to prove validation/policy reactivity across all binding variants and render targets.
 - **The Double-Entry Rule**: Whenever a new plugin is added to `PluginRegistry.ts`, the AI MUST simultaneously add the mapping entry to the dictionary inside `TestOracle.js`.
+
+## 24. Sunk Cost Component Fallacy
+- **Do not hack native constraints**: If a native framework component (like `sap.m.Wizard`) fundamentally contradicts MetaUI's architectural constraints (e.g., requiring a specific physical ancestor like a NavContainer while MetaUI dynamically hosts in VBoxes), **DO NOT** attempt to hack the component's render modes, events, or typings. If it doesn't fit the zero-hacks architecture, discard the native component and build a custom composable element using base primitives (`VBox`, `HBox`, `SimpleForm`) that strictly adheres to the MetaUI design system.

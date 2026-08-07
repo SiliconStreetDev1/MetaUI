@@ -145,7 +145,7 @@ export class StateManager {
         const pathPrefix = arrayPath.startsWith("/") ? arrayPath : `/${arrayPath}`;
         
         const messagesToRemove = currentMessages.filter(msg => {
-            return msg.getProcessor() === this.model && typeof msg.getTarget() === "string" && msg.getTarget().startsWith(pathPrefix);
+            return (msg as any).getProcessor() === this.model && typeof (msg as any).getTarget() === "string" && (msg as any).getTarget().startsWith(pathPrefix);
         });
 
         if (messagesToRemove.length > 0) {

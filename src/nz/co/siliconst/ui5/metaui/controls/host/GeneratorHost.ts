@@ -94,7 +94,31 @@ export default class GeneratorHost extends Control {
             validationStateChanged: { parameters: { isValid: { type: "boolean" } } },
             validationError: { parameters: { fieldPath: { type: "string" }, message: { type: "string" } } },
             validationSuccess: { parameters: { fieldPath: { type: "string" } } },
-            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } }
+            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } },
+            /**
+             * Fired by the WizardLayout immediately when the user presses the "Next Step" button,
+             * before the layout physically transitions to the next step. Provides a structured hook
+             * for consumers to perform per-step validation, including asynchronous backend checks,
+             * and optionally block or resume the navigation.
+             * 
+             * Parameters:
+             * - `stepIndex` {int}: The 0-based index of the step the user is navigating AWAY FROM.
+             * - `payload` {object}: A live snapshot of the full form payload at transition time.
+             * - `preventDefault` {function}: Blocks navigation synchronously. Call this immediately if you need to wait for an async check.
+             * - `addError` {function(fieldPath: string, errorMessage: string)}: Blocks navigation
+             *   and paints the specified field with a validation error state.
+             * - `resumeNavigation` {function}: Explicitly allows navigation after a prior `preventDefault()` call.
+             *   Causes the wizard to advance to the next step immediately.
+             */
+            beforeLayoutSectionChange: {
+                parameters: {
+                    stepIndex: { type: "int" },
+                    payload: { type: "object" },
+                    preventDefault: { type: "function" },
+                    addError: { type: "function" },
+                    resumeNavigation: { type: "function" }
+                }
+            }
         }
     };
 

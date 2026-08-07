@@ -15,6 +15,8 @@ import { Logger } from "../utils/Logger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import Core from "sap/ui/core/Core";
 import Messaging from "sap/ui/core/Messaging";
+import Message from "sap/ui/core/message/Message";
+import coreLibrary from "sap/ui/core/library";
 import { GlobalPipeline } from "./PipelineManager";
 
 /**
@@ -43,6 +45,9 @@ export class Engine {
 
     /** Ledger tracking local vs cross-field errors to prevent visual race conditions. */
     private validationLedger: Map<string, { schemaError: string | null, policyError: string | null }> = new Map();
+
+    /** Tracks active MessageManager messages created by this engine instance. */
+    private activeMessages: Map<string, Message> = new Map();
 
     /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
     public host?: unknown;
@@ -360,6 +365,34 @@ export class Engine {
             // Un-tracked template clones (Table Layout rows)
             this.setNativeControlError(cleanPath, isError ? errorMessage || undefined : undefined);
         }
+
+        if (this.useMessageManager) {
+            const currentMsg = this.activeMessages.get(cleanPath);
+            if (currentMsg) {
+                Messaging.removeMessages(currentMsg);
+                this.activeMessages.delete(cleanPath);
+            }
+            if (isError) {
+                const targetPath = `/${cleanPath}`;
+                const processorModel = this.host && typeof (this.host as any).getStateManager === "function" 
+                    ? (this.host as any).getStateManager()?.getModel() 
+                    : undefined;
+                
+                const fieldLabel = typeof plugin?.getFieldLabel === "function" ? plugin.getFieldLabel() : undefined;
+                const displayLabel = fieldLabel || cleanPath;
+                const displayText = `Field '${displayLabel}': ${errorMessage || "Validation Error"}`;
+                
+                const newMsg = new Message({
+                    message: displayText,
+                    additionalText: displayLabel !== targetPath ? displayLabel : undefined,
+                    type: coreLibrary.MessageType.Error,
+                    target: targetPath,
+                    processor: processorModel
+                });
+                Messaging.addMessages(newMsg);
+                this.activeMessages.set(cleanPath, newMsg);
+            }
+        }
     }
 
     private setNativeControlError(targetPath: string, errorMessage?: string): void {
@@ -427,7 +460,12 @@ export class Engine {
             }
         }
 
+        if (this.useMessageManager && this.activeMessages.size > 0) {
+            Messaging.removeMessages(Array.from(this.activeMessages.values()));
+        }
+
         this.validationLedger.clear();
+        this.activeMessages.clear();
         this.activePlugins = [];
         this.templatePlugins = [];
     }
