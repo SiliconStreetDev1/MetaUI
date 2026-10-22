@@ -1,121 +1,172 @@
 /**
  * @file NumberPlugin.ts
- * @description Renders a sap.m.Input configured for generic dynamic numeric data.
+ * @description Renders a numeric sap.m.Input control with numeric coercion and validation.
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
-import Float from "sap/ui/model/type/Float";
-import Integer from "sap/ui/model/type/Integer";
-import StepInput from "sap/m/StepInput";
+import JSONModel from "sap/ui/model/json/JSONModel";
+import Event from "sap/ui/base/Event";
+import { InputType } from "sap/m/library";
 
 /**
- * Handles rendering and logic for dynamic numeric inputs.
+ * Handles rendering logic for numeric (`number` and `integer`) properties.
+ * Coerces valid numbers into the underlying `JSONModel` and flags unparseable input as invalid.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
  */
 export class NumberPlugin extends BasePlugin {
+    private hasUnparseableInput: boolean = false;
+
     /**
-     * Renders a `sap.m.Input` component for numeric evaluation with dynamic Float type.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
+     * Renders a `sap.m.Input` control with `type: InputType.Number`.
+     *
+     * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
      * @param onChange The callback fired on value change.
-     * @returns {Control} The configured Input control.
+     * @returns {Control} The configured numeric Input control.
      */
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
+    public render(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string = "meta",
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): Control {
+        this.initialize(metadata, bindingPath, modelName, onChange);
+        this.hasUnparseableInput = false;
 
         if (!this.isEditable) {
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName)
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
+            return this.createDisplayText(engineScopeId, bindingPath);
         }
 
-        let typeInstance;
-        if (fieldMetadata.type === "integer") {
-            typeInstance = new Integer({ groupingEnabled: false });
-        } else {
-            typeInstance = new Float({
-                groupingEnabled: false,
-                minFractionDigits: fieldMetadata.scale !== undefined ? fieldMetadata.scale : 0,
-                maxFractionDigits: fieldMetadata.scale !== undefined ? fieldMetadata.scale : 9
-            });
-        }
+        const hasFormatter = Boolean(
+            metadata.ui?.formatter || (metadata.ui?.formatters && metadata.ui.formatters.length > 0)
+        );
 
-        const onChangeFn = (oEvent: sap.ui.base.Event) => {
-            const val = (oEvent as any).getParameter("value");
-            const result = this.validate();
-            if (this.onChange) {
-                this.onChange(result.isValid, this.fieldKey, result.errorMessage);
+        this.control = new Input({
+            id: this.generateStableId(engineScopeId, bindingPath),
+            type: hasFormatter ? InputType.Text : InputType.Number,
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
+            placeholder: metadata.ui?.placeholder || "",
+            required: this.isRequired(),
+            change: (oEvent: Event) => {
+                const input = oEvent.getSource() as Input;
+                const rawVal = input.getValue().trim();
+                const model = input.getModel(modelName) as JSONModel | undefined;
+                const targetPath = this.resolveAbsolutePath(input);
+                const cleanPath = targetPath.replace(/^\//, "") || this.fieldKey || "";
+
+                // Explicitly coerce string input into a native JavaScript number in the JSONModel
+                if (rawVal === "") {
+                    this.hasUnparseableInput = false;
+                    this.invalidParsePaths.delete(cleanPath);
+                    input.data("metauiParseInvalid", null);
+                    if (model) {
+                        const dynReq = this.getDynamicRequiredOverride(input);
+                        const effectiveReq = dynReq !== undefined ? dynReq : this.isRequired();
+                        const emptyVal = metadata.nullable === false && !effectiveReq ? undefined : null;
+                        model.setProperty(targetPath, emptyVal);
+                    }
+                } else {
+                    const parsedInput = this.hasPresentationalFormatter()
+                        ? this.resolveModelWriteValue(rawVal)
+                        : rawVal;
+                    const numVal = typeof parsedInput === "number" ? parsedInput : Number(parsedInput);
+                    if (Number.isNaN(numVal)) {
+                        this.hasUnparseableInput = true;
+                        this.invalidParsePaths.set(cleanPath, "Please enter a valid number.");
+                        input.data("metauiParseInvalid", true);
+                    } else if (metadata.type === "integer" && !Number.isInteger(numVal)) {
+                        this.hasUnparseableInput = true;
+                        this.invalidParsePaths.set(cleanPath, "Please enter a valid whole number.");
+                        input.data("metauiParseInvalid", true);
+                    } else {
+                        this.hasUnparseableInput = false;
+                        this.invalidParsePaths.delete(cleanPath);
+                        input.data("metauiParseInvalid", null);
+                        if (model) {
+                            model.setProperty(targetPath, numVal);
+                        }
+                    }
+                }
+
+                this.notifyChange(input.getId());
             }
-        };
+        });
 
-        if (fieldMetadata.ui?.widget === "stepInput") {
-            this.control = new StepInput({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                value: {
-                    path: bindingPath,
-                    model: modelName,
-                    type: typeInstance
-                },
-                editable: !fieldMetadata.ui?.readOnly,
-                required: !!fieldMetadata.required,
-                change: onChangeFn
-            });
-        } else {
-            this.control = new Input({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                value: {
-                    path: bindingPath,
-                    model: modelName,
-                    type: typeInstance
-                },
-                type: "Number",
-                editable: !fieldMetadata.ui?.readOnly,
-                required: !!fieldMetadata.required,
-                change: onChangeFn
-            });
-        }
-
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-
-        return this.control as Control;
+        this.applyCommonDirectives(this.control, metadata, modelName);
+        return this.control;
     }
 
     /**
-     * Retrieves the current numeric state.
-     * @returns {unknown} The numeric value.
+     * Returns a parse error message when the user input is an unparseable number (or non-integer for `integer`).
+     *
+     * @param sourceControl Optional runtime source control (e.g., cloned table cell).
+     * @returns {string | undefined} The parse error message if invalid, otherwise `undefined`.
      */
-    protected getValue(): unknown {
-        if (!this.control) return null;
-        // In UI5, Input.getProperty('value') returns a string. We must parse it if it's bound.
-        // However, we can also extract it directly from the binding.
-        const input = this.control as any;
-        const binding = input.getBinding("value");
-        if (binding && typeof binding.getValue === "function") {
-            return binding.getValue();
+    protected override getParseError(sourceControl?: Control): string | undefined {
+        if (!sourceControl && this.hasUnparseableInput && this.metadata) {
+            return this.metadata.type === "integer"
+                ? "Please enter a valid whole number."
+                : "Please enter a valid number.";
         }
-        return input.getProperty('value');
+        return undefined;
     }
 
     /**
-     * Applies dynamic read-only state.
+     * Clears any visual error state and resets parse error flags on the numeric plugin.
+     */
+    public override clearError(): void {
+        this.hasUnparseableInput = false;
+        super.clearError();
+    }
+
+    /**
+     * Retrieves the current numeric value from the `sap.m.Input` control.
+     *
+     * @param sourceControl Optional runtime source control (e.g., cloned table cell).
+     * @returns {unknown} The parsed number, `null`/`undefined` if empty, or raw string if unparseable.
+     */
+    protected getValue(sourceControl?: Control): unknown {
+        if (!this.isEditable) {
+            return this.getModelValue(sourceControl);
+        }
+        const target = (sourceControl ?? this.control) as Input | undefined;
+        if (!target || typeof target.getValue !== "function") {
+            return this.getModelValue(target);
+        }
+        const raw = target.getValue().trim();
+        if (raw === "") {
+            const modelVal = this.getModelValue(target);
+            if (!target.getDomRef()) {
+                return modelVal;
+            }
+            return modelVal === undefined ? undefined : null;
+        }
+        const candidate = this.hasPresentationalFormatter() ? this.resolveModelWriteValue(raw) : raw;
+        const parsed = typeof candidate === "number" ? candidate : Number(candidate);
+        if (Number.isNaN(parsed)) {
+            return raw;
+        }
+        return parsed;
+    }
+
+    /**
+     * Applies dynamic `readOnly`, `required`, and `placeholder` state updates to the Input.
      */
     protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            const input = this.control as any;
-            input.setEditable(!this.metadata.ui?.readOnly);
-            input.setRequired(!!this.metadata.required);
+        if (!this.control || !this.metadata || !this.isEditable) {
+            return;
         }
+        const input = this.control as Input;
+        input.setEditable(this.isControlEditable());
+        input.setRequired(this.isRequired());
+        input.setPlaceholder(this.metadata.ui?.placeholder || "");
     }
 }

@@ -27,7 +27,7 @@
     }
   },
   "schema": {
-    "title": "Enterprise Mortgage Application",
+    "title": "Commercial Mortgage Application",
     "type": "object",
     "layoutStrategy": "wizard",
     "properties": {

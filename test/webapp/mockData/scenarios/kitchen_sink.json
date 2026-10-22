@@ -12,6 +12,10 @@
       "type": "string",
       "value": "Polymorphic String Data"
     },
+    "DictMapVal": {
+      "env": "production",
+      "region": "ap-southeast-2"
+    },
     "RefVal": {
       "NestedString": "REF-89021"
     },
@@ -22,6 +26,9 @@
     "SelectVal": "OPT_2",
     "TextAreaVal": "Line 1\nLine 2\nLine 3",
     "CodeVal": "function test() { return true; }",
+    "LinkVal": "https://ui5.sap.com",
+    "PasswordVal": "Secret123!",
+    "EmailWidgetVal": "contact@siliconst.com",
     "FileVal": "https://example.com/doc.pdf",
     "MultiSelVal": ["OPT_1", "OPT_3"],
     "MultiInpVal": ["Tag1", "Tag2"],
@@ -36,6 +43,7 @@
     "RichTextVal": "<b>Bold</b> and <i>Italic</i>",
     "UrlVal": "Launch SAP",
     "SubmitVal": "Save Record",
+    "ClearVal": "Reset Form",
     "ODataVal": "ID_500",
     "RemoteDropVal": "NZ",
     "LiveSearchVal": "Siliconst",
@@ -44,7 +52,7 @@
     "PhoneVal": "5551234567",
     "EmailVal": "admin@siliconst.com",
     "UrlFormatVal": "https://www.siliconst.com",
-    "IBANVal": "NZ89370400440532013000",
+    "IBANVal": "DE89370400440532013000",
     "RequiredString": "Must not be empty",
     "RegexString": "ABC-1234"
   },
@@ -84,7 +92,31 @@
       "BoolVal": { "type": "boolean", "ui": { "label": "Boolean Plugin" } },
       "Arr": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "type": "object", "properties": { "Col1": { "type": "string" } } }, "ui": { "label": "Array Plugin" } },
       "Obj": { "type": "object", "ui": { "label": "Object Plugin" }, "properties": { "Key": { "type": "string" } } },
-      "PolyVal": { "type": "object", "ui": { "label": "Polymorphic Plugin", "widget": "polymorphic" }, "properties": { "type": { "type": "string" }, "value": { "type": "string" } } },
+      "PolyVal": {
+        "type": "object",
+        "ui": { "label": "Polymorphic Plugin", "widget": "polymorphic" },
+        "discriminator": { "propertyName": "type" },
+        "properties": { "type": { "type": "string" }, "value": { "type": "string" } },
+        "oneOf": [
+          {
+            "title": "String Variant",
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "const": "string", "default": "string" },
+              "value": { "type": "string", "ui": { "label": "String Value" } }
+            }
+          },
+          {
+            "title": "Numeric Variant",
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "const": "number", "default": "number" },
+              "amount": { "type": "number", "ui": { "label": "Numeric Amount" } }
+            }
+          }
+        ]
+      },
+      "DictMapVal": { "type": "object", "additionalProperties": { "type": "string" }, "ui": { "label": "Dictionary Map Plugin", "widget": "dictionaryMap" } },
       "RefVal": { "type": "object", "$ref": "#/definitions/MockReference", "ui": { "label": "Reference Plugin", "widget": "reference" } },
       "TimeVal": { "type": "string", "ui": { "label": "Time Plugin", "widget": "time" } },
       "DateTimeVal": { "type": "string", "ui": { "label": "DateTime Plugin", "widget": "datetime" } },
@@ -93,6 +125,9 @@
       "SelectVal": { "type": "string", "required": true, "ui": { "label": "Select Plugin (Required)", "widget": "select" }, "valueHelp": [{ "key": "OPT_1", "text": "Option 1" }, { "key": "OPT_2", "text": "Option 2" }, { "key": "OPT_3", "text": "Option 3" }] },
       "TextAreaVal": { "type": "string", "ui": { "label": "TextArea Plugin", "widget": "textArea", "rows": 3 } },
       "CodeVal": { "type": "string", "ui": { "label": "Code Editor Plugin", "widget": "codeEditor" } },
+      "LinkVal": { "type": "string", "ui": { "label": "Link Plugin", "widget": "link" } },
+      "PasswordVal": { "type": "string", "ui": { "label": "Password Plugin", "widget": "password" } },
+      "EmailWidgetVal": { "type": "string", "ui": { "label": "Email Widget Plugin", "widget": "email" } },
       "FileVal": { "type": "string", "ui": { "label": "File Uploader Plugin", "widget": "fileUploader" } },
       "MultiSelVal": { "type": "array", "ui": { "label": "Multi Select Plugin", "widget": "multiSelect" }, "enum": ["OPT_1", "OPT_2", "OPT_3"] },
       "MultiInpVal": { "type": "array", "items": { "type": "string" }, "ui": { "label": "Multi Input Plugin", "widget": "multiInput" } },
@@ -107,10 +142,11 @@
       "RichTextVal": { "type": "string", "ui": { "label": "Rich Text Plugin", "widget": "richText" } },
       "UrlVal": { "type": "string", "ui": { "label": "URL Action Plugin", "widget": "urlButton", "args": "https://sap.com" } },
       "SubmitVal": { "type": "string", "ui": { "label": "Submit Action Plugin", "widget": "submitButton" } },
+      "ClearVal": { "type": "string", "ui": { "label": "Clear Action Plugin", "widget": "clearButton" } },
       "ODataVal": { "type": "string", "ui": { "label": "OData Select Plugin", "widget": "odataSelect" } },
-      "RemoteDropVal": { "type": "string", "ui": { "label": "Remote Dropdown Plugin", "widget": "remoteDropdown" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
-      "LiveSearchVal": { "type": "string", "ui": { "label": "Live Search Plugin", "widget": "liveSearch" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
-      "RemoteValHelpVal": { "type": "string", "ui": { "label": "Remote Value Help Plugin", "widget": "remoteValueHelp" }, "valueHelp": { "url": "https://jsonplaceholder.typicode.com/users", "keyPath": "id", "textPath": "name" } },
+      "RemoteDropVal": { "type": "string", "ui": { "label": "Remote Dropdown Plugin", "widget": "remoteDropdown" }, "valueHelp": { "url": "mockData/users.json", "keyPath": "id", "textPath": "name" } },
+      "LiveSearchVal": { "type": "string", "ui": { "label": "Live Search Plugin", "widget": "liveSearch" }, "valueHelp": { "url": "mockData/users.json", "keyPath": "id", "textPath": "name" } },
+      "RemoteValHelpVal": { "type": "string", "ui": { "label": "Remote Value Help Plugin", "widget": "remoteValueHelp" }, "valueHelp": { "url": "mockData/users.json", "keyPath": "id", "textPath": "name" } },
       "CurrencyVal": { "type": "number", "ui": { "label": "Currency Formatter", "formatter": "currency" } },
       "PhoneVal": { "type": "string", "ui": { "label": "Phone Formatter", "formatter": "phone" } }
     },
@@ -133,7 +169,10 @@
           { "type": "Control", "scope": "#/properties/Str" },
           { "type": "Control", "scope": "#/properties/Num" },
           { "type": "Control", "scope": "#/properties/DateVal" },
-          { "type": "Control", "scope": "#/properties/BoolVal" }
+          { "type": "Control", "scope": "#/properties/BoolVal" },
+          { "type": "Control", "scope": "#/properties/LinkVal" },
+          { "type": "Control", "scope": "#/properties/PasswordVal" },
+          { "type": "Control", "scope": "#/properties/EmailWidgetVal" }
         ]
       },
       {
@@ -143,6 +182,7 @@
           { "type": "Control", "scope": "#/properties/Arr" },
           { "type": "Control", "scope": "#/properties/Obj" },
           { "type": "Control", "scope": "#/properties/PolyVal" },
+          { "type": "Control", "scope": "#/properties/DictMapVal" },
           { "type": "Control", "scope": "#/properties/RefVal" }
         ]
       },
@@ -200,7 +240,8 @@
         "elements": [
           { "type": "Control", "scope": "#/properties/MsgVal" },
           { "type": "Control", "scope": "#/properties/UrlVal" },
-          { "type": "Control", "scope": "#/properties/SubmitVal" }
+          { "type": "Control", "scope": "#/properties/SubmitVal" },
+          { "type": "Control", "scope": "#/properties/ClearVal" }
         ]
       }
     ],

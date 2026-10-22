@@ -5,71 +5,115 @@
 
 import { ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { SchemaNormalizer } from "./SchemaNormalizer";
-import { RENDER_MODE, SCHEMA_TYPE } from "../constants/MetaUIConstants";
+import { LAYOUT_STRATEGY, RENDER_MODE, SCHEMA_TYPE } from "../constants/MetaUIConstants";
+import { Logger } from "../utils/Logger";
 
+/**
+ * Intercepts the generated schema before rendering to dynamically mutate the UI layout
+ * based on inline versus dialog rendering rules.
+ */
 export class LayoutMutator {
     /**
      * Mutates the `uiLayout` array to expand nested inline objects into native Groups.
+     *
      * @param schema The normalized root schema.
      */
     public static apply(schema: ISchema): void {
         if (!schema || !schema.uiLayout || !Array.isArray(schema.uiLayout)) {
-            return; // No layout to mutate
+            return;
         }
 
-        schema.uiLayout = this.expandElements(schema.uiLayout, schema);
+        schema.uiLayout = this.expandElements(schema.uiLayout, schema, true);
     }
 
-    private static expandElements(elements: ILayoutElement[], rootSchema: ISchema): ILayoutElement[] {
+    /**
+     * Recursively expands container layout elements (`Group`, `WizardStep`, `HorizontalLayout`, `VerticalLayout`)
+     * and converts inline object `Control` elements into nested `Group` (or `VerticalLayout` at wizard top-level) elements.
+     *
+     * @param elements The layout elements array to expand.
+     * @param rootSchema The root normalized schema.
+     * @param isTopLevel True when expanding root-level elements of `schema.uiLayout`.
+     * @returns {ILayoutElement[]} A new expanded layout elements array.
+     */
+    private static expandElements(
+        elements: ILayoutElement[],
+        rootSchema: ISchema,
+        isTopLevel: boolean = false
+    ): ILayoutElement[] {
         const expanded: ILayoutElement[] = [];
+        const emittedDialogScopes = new Set<string>();
+        const isWizardTopLevel = isTopLevel && rootSchema.layoutStrategy === LAYOUT_STRATEGY.WIZARD;
 
         for (const element of elements) {
-            if (element.type === "Group") {
-                // Recursively expand group elements
+            if (
+                element.type === "Group" ||
+                element.type === "WizardStep" ||
+                element.type === "HorizontalLayout" ||
+                element.type === "VerticalLayout"
+            ) {
+                const clonedContainer: ILayoutElement = { ...element };
                 if (element.elements) {
-                    element.elements = this.expandElements(element.elements, rootSchema);
+                    clonedContainer.elements = this.expandElements(element.elements, rootSchema, false);
                 }
-                expanded.push(element);
+                expanded.push(clonedContainer);
             } else if (element.type === "Control") {
                 if (!element.scope) {
                     expanded.push(element);
                     continue;
                 }
-                // Resolve the schema to see if this control points to an inline object
                 try {
+                    const topSegment = element.scope.startsWith("#/properties/")
+                        ? element.scope.replace("#/properties/", "").split("/properties/")[0]
+                        : undefined;
+                    const topPropMeta = topSegment ? rootSchema.properties?.[topSegment] : undefined;
+                    const topScope = topSegment ? `#/properties/${topSegment}` : undefined;
+                    if (
+                        topPropMeta &&
+                        topScope &&
+                        element.scope !== topScope &&
+                        topPropMeta.ui?.renderMode === RENDER_MODE.DIALOG
+                    ) {
+                        if (!emittedDialogScopes.has(topScope)) {
+                            emittedDialogScopes.add(topScope);
+                            expanded.push({ type: "Control", scope: topScope });
+                        }
+                        continue;
+                    }
+
                     const { meta, bindingPath } = SchemaNormalizer.resolveScope(rootSchema, element.scope);
-                    
-                    const hasExplicitWidget = !!meta?.ui?.widget;
-                    const isInlineObject = meta?.type === SCHEMA_TYPE.OBJECT && meta.ui?.renderMode === RENDER_MODE.INLINE && !hasExplicitWidget;
+
+                    const hasExplicitWidget = Boolean(meta?.ui?.widget || element.widget);
+                    const isInlineObject =
+                        meta?.type === SCHEMA_TYPE.OBJECT &&
+                        meta.ui?.renderMode === RENDER_MODE.INLINE &&
+                        !hasExplicitWidget;
 
                     if (isInlineObject && meta.properties) {
-                        // Transform this Control into a Group containing its properties
-                        const newGroup: ILayoutElement = {
-                            ...element,
-                            type: "Group",
-                            label: element.label || meta.ui?.label || bindingPath.split("/").pop(),
-                            elements: []
-                        };
-                        delete newGroup.scope;
-
-                        // Add all child properties as controls
+                        const childElements: ILayoutElement[] = [];
                         for (const childKey of Object.keys(meta.properties)) {
-                            newGroup.elements!.push({
+                            childElements.push({
                                 type: "Control",
                                 scope: `${element.scope}/properties/${childKey}`
                             });
                         }
 
-                        // Recursively expand this new group in case it contains further inline objects
-                        newGroup.elements = this.expandElements(newGroup.elements!, rootSchema);
-                        
+                        const newGroup: ILayoutElement = {
+                            ...element,
+                            type: isWizardTopLevel ? "VerticalLayout" : "Group",
+                            label: element.label || meta.ui?.label || bindingPath.split("/").pop(),
+                            elements: this.expandElements(childElements, rootSchema, false)
+                        };
+                        delete newGroup.scope;
+
                         expanded.push(newGroup);
                     } else {
-                        // Scalar control, keep as is
                         expanded.push(element);
                     }
-                } catch (e) {
-                    // Scope not found, keep element to let normal error handling report it
+                } catch (err) {
+                    Logger.debug(
+                        "[MetaUI LayoutMutator]",
+                        `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`
+                    );
                     expanded.push(element);
                 }
             } else {

@@ -5,28 +5,28 @@ sap.ui.define([
     "metaui/sandbox/util/SnippetGenerator",
     "nz/co/siliconst/ui5/metaui/swagger/OpenApiExtractor",
     "sap/m/MessageToast",
-    "sap/ui/core/routing/History",
+    "sap/ui/core/Messaging",
     "nz/co/siliconst/ui5/metaui/controls/DynamicHost",
     "sap/base/Log"
-], function (BaseController, JSONModel, ScenarioManager, SnippetGenerator, OpenApiExtractor, MessageToast, History, DynamicHost, Log) {
+], function (BaseController, JSONModel, ScenarioManager, SnippetGenerator, OpenApiExtractor, MessageToast, Messaging, DynamicHost, Log) {
     "use strict";
 
     /**
      * @class
      * Controller for the MetaUI Scenario Runner.
      * Acts as an exhaustive matrix testing framework, iterating across all combinations of:
-     * Data Scenarios, Binding Types (String vs Object), Render Targets (Declarative vs Programmatic),
+     * Data Scenarios, Binding Types (String vs Object vs OData), Render Targets (Declarative vs Programmatic),
      * and Core Engine Settings (Live Updates, Editability).
-     * 
+     *
      * @extends metaui.sandbox.controller.BaseController
      * @alias metaui.sandbox.controller.ScenarioRunner
      */
     return BaseController.extend("metaui.sandbox.controller.ScenarioRunner", {
-        
+
         /**
          * Lifecycle hook.
          * Bootstraps the runner state, view models, and attaches to the standard routing lifecycle.
-         * 
+         *
          * @public
          */
         onInit: function () {
@@ -60,9 +60,7 @@ sap.ui.define([
             });
             this.getView().setModel(this.oModel);
             this.getView().setModel(this.oModel, "settings");
-
-            var oMessageManager = sap.ui.getCore().getMessageManager();
-            this.getView().setModel(oMessageManager.getMessageModel(), "message");
+            this.getView().setModel(Messaging.getMessageModel(), "message");
 
             var oRouter = this.getOwnerComponent().getRouter();
             oRouter.getRoute("scenario").attachPatternMatched(this._onRouteMatched, this);
@@ -71,7 +69,7 @@ sap.ui.define([
         /**
          * Intercepts the route match to determine which suite of tests to load (e.g., standard schemas vs OpenAPI).
          * Fetches the manifest from the ScenarioManager and applies filtering.
-         * 
+         *
          * @private
          * @param {sap.ui.base.Event} oEvent The route matched event.
          */
@@ -81,10 +79,13 @@ sap.ui.define([
 
             var sTitle = "Scenario Runner";
             var sDefaultScenario = "";
-            
+
             if (sMode === "kitchen_sink") {
                 sTitle = "Schema Scenarios";
                 sDefaultScenario = "kitchen_sink";
+                this.oModel.setProperty("/settings/useOpenApi", false);
+                this.oModel.setProperty("/settings/schemaTarget", "");
+                this.oModel.setProperty("/settings/schemaTargets", []);
             } else if (sMode === "openapi") {
                 sTitle = "OpenApi Integration";
                 sDefaultScenario = "openapi_v3_complex";
@@ -92,14 +93,14 @@ sap.ui.define([
             }
 
             this.oModel.setProperty("/ui/title", sTitle);
-            
+
             ScenarioManager.getIndex().then(function(aScenarios) {
                 var flatScenarios = [];
                 aScenarios.forEach(function(cat) {
                     if (cat.scenarios) {
                         flatScenarios = flatScenarios.concat(cat.scenarios);
                     } else {
-                        flatScenarios.push(cat); 
+                        flatScenarios.push(cat);
                     }
                 });
 
@@ -107,7 +108,7 @@ sap.ui.define([
                     if (sMode === "openapi") {
                         return s.key.startsWith("openapi");
                     } else if (sMode === "kitchen_sink") {
-                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "complex_nested", "deep_structure", "ultra_complex_structure", "control_props", "pbre_scenario"];
+                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "deep_structure", "ultra_complex_structure", "control_props", "pbre_scenario", "odata_v4"];
                         return whitelist.indexOf(s.key) !== -1;
                     }
                     return false;
@@ -119,7 +120,7 @@ sap.ui.define([
                 } else if (filtered.length > 0) {
                     this.oModel.setProperty("/settings/selectedScenario", filtered[0].key);
                 }
-                
+
                 this.onMatrixChange();
             }.bind(this));
         },
@@ -127,7 +128,7 @@ sap.ui.define([
         /**
          * Orchestrates the transition between different testing mock datasets.
          * Parses and normalizes incoming scenario structures into standard JSON strings and objects.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} [oEvent] Optional event from a list click.
          */
@@ -139,6 +140,10 @@ sap.ui.define([
 
             var sScenario = this.oModel.getProperty("/settings/selectedScenario");
             if (!sScenario) return;
+
+            if (sScenario === "odata_v4") {
+                this.oModel.setProperty("/settings/selectedBinding", "odata");
+            }
 
             var oList = this.byId("scenarioList");
             if (oList && !oEvent) {
@@ -152,45 +157,46 @@ sap.ui.define([
             }
 
             ScenarioManager.getScenario(sScenario).then(function(oScenario) {
-                this.oModel.setProperty("/current/data", JSON.stringify(oScenario.data, null, 2));
-                
                 var schemaStr = "";
                 if (oScenario.schema && Object.keys(oScenario.schema).length > 0) {
                     schemaStr = JSON.stringify(oScenario.schema, null, 2);
                 }
                 this.oModel.setProperty("/current/schema", schemaStr);
-                
+                this.oModel.setProperty("/current/data", JSON.stringify(oScenario.data, null, 2));
+
                 try {
-                    this.oModel.setProperty("/current/dataObj", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
                     var sSchema = this.oModel.getProperty("/current/schema");
                     var oSchemaObj = sSchema ? JSON.parse(sSchema) : null;
-                    this.oModel.setProperty("/current/schemaObj", oSchemaObj);
-                    
                     var aTargets = OpenApiExtractor.extractTargets(oSchemaObj);
                     this.oModel.setProperty("/settings/schemaTargets", aTargets);
+
+                    if (oScenario.schemaTarget) {
+                        this.oModel.setProperty("/settings/schemaTarget", oScenario.schemaTarget);
+                    } else if (aTargets.length > 0) {
+                        this.oModel.setProperty("/settings/schemaTarget", aTargets[0].key);
+                    } else {
+                        this.oModel.setProperty("/settings/schemaTarget", "");
+                    }
+
+                    this.oModel.setProperty("/current/schemaObj", oSchemaObj);
+                    this.oModel.setProperty("/current/dataObj", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
                 } catch(e) {
                     Log.trace("[ScenarioRunner] Ignored parse error while swapping scenarios: " + e.message);
                 }
-                
-                if (oScenario.schemaTarget) {
-                    this.oModel.setProperty("/settings/schemaTarget", oScenario.schemaTarget);
-                } else if (this.oModel.getProperty("/settings/schemaTargets").length > 0) {
-                    this.oModel.setProperty("/settings/schemaTarget", this.oModel.getProperty("/settings/schemaTargets")[0].key);
-                }
-                
+
                 this.updateCodeSnippets();
             }.bind(this)).catch(this.handleError.bind(this));
         },
 
         /**
-         * Triggers the SnippetGenerator to compile realistic Fiori XML and JS controller 
+         * Triggers the SnippetGenerator to compile realistic Fiori XML and JS controller
          * snippets that developers can copy/paste based on the active testing matrix settings.
-         * 
+         *
          * @public
          */
         updateCodeSnippets: function() {
             var oSettings = this.oModel.getProperty("/settings");
-            
+
             var js = SnippetGenerator.generateJS(oSettings);
             this.oModel.setProperty("/current/jsSnippet", js);
 
@@ -202,7 +208,7 @@ sap.ui.define([
         /**
          * Monitors real-time typing in the data string payload editor.
          * Silently catches syntax errors to prevent UI locking during mid-keystroke invalid JSON.
-         * 
+         *
          * @public
          */
         onInboundChange: function () {
@@ -216,13 +222,20 @@ sap.ui.define([
         /**
          * Monitors real-time typing in the schema editor.
          * Silently catches syntax errors to prevent UI locking during mid-keystroke invalid JSON.
-         * 
+         *
          * @public
          */
         onSchemaChange: function () {
             try {
                 var sSchema = this.oModel.getProperty("/current/schema");
-                this.oModel.setProperty("/current/schemaObj", sSchema ? JSON.parse(sSchema) : null);
+                var oSchemaObj = sSchema ? JSON.parse(sSchema) : null;
+                this.oModel.setProperty("/current/schemaObj", oSchemaObj);
+                var aTargets = OpenApiExtractor.extractTargets(oSchemaObj);
+                this.oModel.setProperty("/settings/schemaTargets", aTargets);
+                var sCurrentTarget = this.oModel.getProperty("/settings/schemaTarget");
+                if (aTargets.length > 0 && !aTargets.some(function (t) { return t.key === sCurrentTarget; })) {
+                    this.oModel.setProperty("/settings/schemaTarget", aTargets[0].key);
+                }
             } catch(e) {
                 Log.trace("[ScenarioRunner] Ignored invalid schema JSON during typing: " + e.message);
             }
@@ -230,14 +243,14 @@ sap.ui.define([
 
         /**
          * Master teardown and rebuild function.
-         * Evaluates the testing matrix state and routes the generation logic to either 
+         * Evaluates the testing matrix state and routes the generation logic to either
          * programmatic JS instantiation or declarative XML Fragment instantiation.
-         * 
+         *
          * @public
          */
         onGeneratePress: function () {
             var oSettings = this.oModel.getProperty("/settings");
-            
+
             // UI5 inputs cast to string, ensure layoutBudget is strictly an integer for the Engine
             if (typeof oSettings.layoutBudget === "string") {
                 oSettings.layoutBudget = parseInt(oSettings.layoutBudget, 10) || 0;
@@ -245,10 +258,16 @@ sap.ui.define([
             }
 
             var container = this.byId("hostContainer");
-            
+
+            if (this._activeDialogHost) {
+                this.getView().removeAggregation("dependents", this._activeDialogHost, true);
+                this._activeDialogHost.destroy();
+                this._activeDialogHost = null;
+            }
+
             var items = container.getItems();
             items.forEach(function(item) {
-                this.getView().removeDependent(item);
+                this.getView().removeAggregation("dependents", item, true);
                 item.destroy();
             }.bind(this));
             container.removeAllItems();
@@ -266,7 +285,7 @@ sap.ui.define([
         /**
          * Programmatically spins up a DynamicHost via standard `new` keyword logic.
          * Tests whether developers can securely bind objects or strings entirely in JS without XML definitions.
-         * 
+         *
          * @private
          * @param {object} oSettings Current testing matrix settings.
          * @param {sap.ui.core.Control} container The parent rendering target.
@@ -279,31 +298,43 @@ sap.ui.define([
                     submit: this.onHostSubmit.bind(this),
                     beforeLayoutSectionChange: this.onBeforeLayoutSectionChange.bind(this)
                 });
-                
+
                 host.bindProperty("liveUpdate", { path: "settings>/settings/liveUpdate" });
                 host.bindProperty("editable", { path: "settings>/settings/editable" });
                 host.bindProperty("debugMode", { path: "settings>/settings/debugMode" });
                 host.bindProperty("useMessageManager", { path: "settings>/settings/useMessageManager" });
                 host.bindProperty("layoutBudget", { path: "settings>/settings/layoutBudget" });
-                
+
                 if (oSettings.selectedBinding === "programmatic") {
                     host.setProperty("data", JSON.parse(this.oModel.getProperty("/current/data") || "{}"));
                     host.setProperty("schemaDefinition", JSON.parse(this.oModel.getProperty("/current/schema") || "{}"));
                 } else if (oSettings.selectedBinding === "string") {
                     host.bindProperty("dataJson", { path: "/current/data" });
-                    host.setProperty("schemaDefinition", this.oModel.getProperty("/current/schema"));
+                    host.bindProperty("schemaDefinition", { path: "/current/schema", mode: "OneWay" });
                 } else if (oSettings.selectedBinding === "object") {
                     host.bindProperty("data", { path: "/current/dataObj" });
-                    host.setProperty("schemaDefinition", this.oModel.getProperty("/current/schemaObj"));
+                    host.bindProperty("schemaDefinition", { path: "/current/schemaObj", mode: "OneWay" });
+                } else if (oSettings.selectedBinding === "odata") {
+                    host.bindElement({ path: "/Employees('E100')", model: "odata" });
+                    host.bindProperty("schemaDefinition", { path: "/current/schemaObj", mode: "OneWay" });
                 }
-                
+
                 if (oSettings.useOpenApi) {
                     host.bindProperty("schemaTarget", { path: "settings>/settings/schemaTarget" });
                 }
 
                 if (oSettings.selectedRender === "dialog" || oSettings.selectedRender === "js_dialog") {
-                    this.getView().addDependent(host);
-                    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView());
+                    this._activeDialogHost = host;
+                    this.getView().addAggregation("dependents", host, true);
+                    host.openInDialog("Programmatic Dialog", "Submit", "Cancel", "auto", this.getView()).finally(function () {
+                        if (this._activeDialogHost === host) {
+                            this._activeDialogHost = null;
+                        }
+                        if (!host.isDestroyed()) {
+                            this.getView().removeAggregation("dependents", host, true);
+                            host.destroy();
+                        }
+                    }.bind(this));
                 } else {
                     container.addItem(host);
                 }
@@ -316,26 +347,37 @@ sap.ui.define([
         /**
          * Uses `sap.ui.core.Fragment.load` to simulate a declarative XML initialization of MetaUI.
          * Tests whether the engine correctly boots itself based solely on OneWay or TwoWay XML binding paths.
-         * 
+         *
          * @private
          * @param {object} oSettings Current testing matrix settings.
          * @param {sap.ui.core.Control} container The parent rendering target.
          */
         _instantiateFragmentHost: function(oSettings, container) {
-            var sFragmentName = oSettings.selectedBinding === "string" ? "StringBinding" : "ObjectBinding";
-            
+            var sFragmentName = oSettings.selectedBinding === "string"
+                ? "StringBinding"
+                : (oSettings.selectedBinding === "odata" ? "ODataBinding" : "ObjectBinding");
+
             sap.ui.core.Fragment.load({
                 name: "metaui.sandbox.view.fragments." + sFragmentName,
                 controller: this
             }).then(function(oHost) {
-                this.getView().addDependent(oHost);
+                this.getView().addAggregation("dependents", oHost, true);
 
                 if (oSettings.useOpenApi) {
                     oHost.bindProperty("schemaTarget", { path: "settings>/settings/schemaTarget" });
                 }
 
                 if (oSettings.selectedRender === "dialog") {
-                    oHost.openInDialog("XML Fragment Dialog", "Extract Data", "Cancel", "auto", this.getView());
+                    this._activeDialogHost = oHost;
+                    oHost.openInDialog("XML Fragment Dialog", "Extract Data", "Cancel", "auto", this.getView()).finally(function () {
+                        if (this._activeDialogHost === oHost) {
+                            this._activeDialogHost = null;
+                        }
+                        if (!oHost.isDestroyed()) {
+                            this.getView().removeAggregation("dependents", oHost, true);
+                            oHost.destroy();
+                        }
+                    }.bind(this));
                 } else {
                     container.addItem(oHost);
                 }
@@ -345,7 +387,7 @@ sap.ui.define([
         /**
          * Constructs a meta-level MetaUI engine strictly for configuring the Sandbox settings.
          * Proves MetaUI's ability to recursively manage its own configuration UI.
-         * 
+         *
          * @public
          */
         onSettingsPress: function () {
@@ -356,7 +398,7 @@ sap.ui.define([
                     selectedBinding: {
                         title: "Binding Engine",
                         type: "string",
-                        enum: ["object", "string", "programmatic"]
+                        enum: ["object", "string", "programmatic", "odata"]
                     },
                     selectedRender: {
                         title: "Render Target",
@@ -376,20 +418,33 @@ sap.ui.define([
                 settingsSchema.properties.useOpenApi = { title: "Parse as OpenAPI", type: "boolean" };
             }
 
+            var currentSettings = this.oModel.getProperty("/settings") || {};
             var settingsHost = new DynamicHost({
                 schemaDefinition: settingsSchema,
-                liveUpdate: true
+                data: JSON.parse(JSON.stringify(currentSettings)),
+                liveUpdate: false,
+                submit: function (oEvt) {
+                    var updated = oEvt.getParameter("payload");
+                    if (updated) {
+                        this.oModel.setProperty("/settings", Object.assign({}, this.oModel.getProperty("/settings"), updated));
+                        this.updateCodeSnippets();
+                    }
+                }.bind(this)
             });
 
-            this.getView().addDependent(settingsHost);
-            settingsHost.bindProperty("data", { path: "settings>/settings" });
+            this.getView().addAggregation("dependents", settingsHost, true);
 
-            settingsHost.openInDialog("Configuration Settings", "Apply", "Cancel", "auto", this.getView());
+            settingsHost.openInDialog("Configuration Settings", "Apply", "Cancel", "auto", this.getView()).finally(function () {
+                if (!settingsHost.isDestroyed()) {
+                    this.getView().removeAggregation("dependents", settingsHost, true);
+                    settingsHost.destroy();
+                }
+            }.bind(this));
         },
 
         /**
          * Intercepts the programmatic request to extract data, forcing a global validation check.
-         * 
+         *
          * @public
          */
         onExtractPress: function () {
@@ -406,7 +461,7 @@ sap.ui.define([
 
         /**
          * Catch-all crash handler bubbled up from the host engines.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The engine crash event.
          */
@@ -417,7 +472,7 @@ sap.ui.define([
         /**
          * Intercepts individual field changes to synchronize UI modifications back to the JSON models,
          * or inject fake error states for testing purposes.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The fieldChange event.
          */
@@ -443,12 +498,16 @@ sap.ui.define([
 
         /**
          * Captures the ultimate, structurally-sound payload after validation passes.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The submit event containing the JSON payload.
          */
         onHostSubmit: function (oEvent) {
             var payload = oEvent.getParameter("payload");
+            if (payload !== undefined) {
+                this.oModel.setProperty("/current/data", JSON.stringify(payload, null, 2));
+                this.oModel.setProperty("/current/dataObj", payload);
+            }
             sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
                 MessageBox.success("Successfully extracted payload:\n\n" + JSON.stringify(payload, null, 2));
             });
@@ -456,7 +515,7 @@ sap.ui.define([
 
         /**
          * Intercepts the beforeLayoutSectionChange event to prove the async pipeline.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The layout boundary event.
          */
@@ -465,63 +524,15 @@ sap.ui.define([
             var payload = oParams.payload;
             var sScenario = this.oModel.getProperty("/settings/selectedScenario");
 
-            if (sScenario === "wizard") {
-                // Mock an async backend check that tests the "addError" API.
+            if (sScenario === "wizard" && payload && payload.Applicant && payload.Applicant.FirstName === "Blocked") {
                 oParams.preventDefault();
-                MessageToast.show("Simulating async backend check (1.5s)...");
-                
+                MessageToast.show("Simulating async backend check...");
+
                 setTimeout(function() {
-                    // Test arbitrary backend validation rules
-                    if (payload && payload.Applicant && payload.Applicant.FirstName === "Blocked") {
-                        oParams.addError("/Applicant/FirstName", "This name is blocked by the backend.");
-                        MessageToast.show("Backend rejected transition.");
-                    } else {
-                        MessageToast.show("Backend approved transition.");
-                        oParams.resumeNavigation();
-                    }
-                }, 1500);
+                    oParams.addError("/Applicant/FirstName", "This name is blocked by the backend.");
+                    MessageToast.show("Backend rejected transition.");
+                }, 100);
             }
-        },
-
-        /**
-         * Navigates the router back through UI5 history securely.
-         * 
-         * @public
-         */
-        onNavBack: function () {
-            var sPreviousHash = History.getInstance().getPreviousHash();
-            if (sPreviousHash !== undefined) {
-                window.history.go(-1);
-            } else {
-                this.getOwnerComponent().getRouter().navTo("home", {}, true);
-            }
-        },
-
-        /**
-         * Evaluates the MessageModel to natively toggle the Fiori validation popover.
-         * 
-         * @public
-         * @param {sap.ui.base.Event} oEvent The message button press event.
-         */
-        onMessagePopoverPress: function (oEvent) {
-            var oSourceControl = oEvent.getSource();
-            sap.ui.require(["sap/m/MessagePopover", "sap/m/MessageItem"], function(MessagePopover, MessageItem) {
-                if (!this._messagePopover) {
-                    this._messagePopover = new MessagePopover({
-                        items: {
-                            path: "message>/",
-                            template: new MessageItem({
-                                type: "{message>type}",
-                                title: "{message>message}",
-                                subtitle: "{message>additionalText}",
-                                description: "{message>description}"
-                            })
-                        }
-                    });
-                    this.getView().addDependent(this._messagePopover);
-                }
-                this._messagePopover.toggle(oSourceControl);
-            }.bind(this));
         }
     });
 });

@@ -1,80 +1,92 @@
 /**
  * @file RatingIndicatorPlugin.ts
- * @description Renders a sap.m.RatingIndicator for 1-5 numeric feedback.
+ * @description Renders a sap.m.RatingIndicator control for star ratings.
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import RatingIndicator from "sap/m/RatingIndicator";
 import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
+import Event from "sap/ui/base/Event";
+import JSONModel from "sap/ui/model/json/JSONModel";
 
 /**
- * Handles rendering logic for rating feedback.
- * 
+ * Plugin responsible for rendering star rating indicators (`sap.m.RatingIndicator`).
+ *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
 export class RatingIndicatorPlugin extends BasePlugin {
     /**
      * Renders a `sap.m.RatingIndicator` component.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
+     *
+     * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured RatingIndicator control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
+    public render(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string = "meta",
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): Control {
+        this.initialize(metadata, bindingPath, modelName, onChange);
 
         if (!this.isEditable) {
-            
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName)
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
+            return this.createDisplayText(engineScopeId, bindingPath);
         }
-        
+
+        const maxValue = metadata.maximum !== undefined ? metadata.maximum : 5;
+
         this.control = new RatingIndicator({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            enabled: !fieldMetadata.ui?.readOnly,
-            maxValue: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 5,
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as any).getParameter("value");
-                const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as number,
+            maxValue,
+            editable: this.isControlEditable(),
+            change: (oEvent: Event) => {
+                const src = oEvent.getSource() as RatingIndicator;
+                const model = (src.getModel(modelName) || this.engineContext?.getModel()) as JSONModel | undefined;
+                if (model) {
+                    model.setProperty(this.resolveAbsolutePath(src), src.getValue());
                 }
+                this.notifyChange(src.getId());
             }
         });
 
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-
-        return this.control as Control;
+        this.applyCommonDirectives(this.control, metadata, modelName);
+        return this.control;
     }
 
     /**
-     * Retrieves the current rating value.
-     * @returns {unknown} The rating value.
+     * Retrieves the current rating value from the `RatingIndicator`.
+     *
+     * @param sourceControl Optional runtime source control (e.g., cloned table cell).
+     * @returns {unknown} The numeric rating value.
      */
-    protected getValue(): unknown {
-        return this.control ? (this.control as RatingIndicator).getProperty('value') : 0;
+    protected getValue(sourceControl?: Control): unknown {
+        const target = (sourceControl ?? this.control) as RatingIndicator | undefined;
+        const modelVal = this.getModelValue(target);
+        if (!this.isEditable || modelVal === null || modelVal === undefined) {
+            return modelVal;
+        }
+        return target && typeof target.getValue === "function" ? target.getValue() : modelVal;
     }
 
     /**
-     * Applies dynamic read-only state.
+     * Applies dynamic `readOnly` and `maxValue` state updates to the `RatingIndicator`.
      */
     protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            (this.control as RatingIndicator).setEnabled(!this.metadata.ui?.readOnly);
+        if (!this.control || !this.metadata || !this.isEditable) {
+            return;
+        }
+        const ri = this.control as RatingIndicator;
+        ri.setEditable(this.isControlEditable());
+        if (this.metadata.maximum !== undefined) {
+            ri.setMaxValue(this.metadata.maximum);
         }
     }
 }

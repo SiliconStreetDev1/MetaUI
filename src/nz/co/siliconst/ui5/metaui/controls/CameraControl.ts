@@ -1,175 +1,240 @@
-import BaseHardwareControl from "./BaseHardwareControl";
-import Button from "sap/m/Button";
+/**
+ * @file CameraControl.ts
+ * @description Hardware control for capturing snapshots from the device camera via WebRTC (navigator.mediaDevices.getUserMedia).
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.controls
+ */
+import BaseHardwareControl, { $BaseHardwareControlSettings } from "./BaseHardwareControl";
+import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
 import VBox from "sap/m/VBox";
-import HTML from "sap/ui/core/HTML";
-import MessageToast from "sap/m/MessageToast";
+import HBox from "sap/m/HBox";
+import Button from "sap/m/Button";
 import Image from "sap/m/Image";
+import HTML from "sap/ui/core/HTML";
+import { ButtonType } from "sap/m/library";
 import { Logger } from "../utils/Logger";
+import { UrlValidator } from "../utils/UrlValidator";
 
 /**
- * CameraControl
- * Provides a live video feed to capture photos.
+ * Custom UI5 control that streams video from the user's camera and captures Base64 PNG snapshots.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.controls
+ * @public
  */
 export default class CameraControl extends BaseHardwareControl {
-    static readonly renderer = "nz.co.siliconst.ui5.metaui.controls.BaseHardwareControlRenderer";
-    static readonly metadata = {
-        properties: {},
-        events: {}
-    };
-
-    private startBtn!: Button;
-    private vBox!: VBox;
-    private captureBtn!: Button;
-    private retakeBtn!: Button;
-    private videoHtml!: HTML;
-    private previewImage!: Image;
-    
-    private videoEl: HTMLVideoElement | null = null;
+    static renderer = BaseHardwareControlRenderer;
+    private videoElement: HTMLVideoElement | null = null;
     private mediaStream: MediaStream | null = null;
+    private imagePreview!: Image;
+    private captureBtn!: Button;
+    private clearBtn!: Button;
+    private htmlVideo!: HTML;
+
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings) {
+        super(idOrSettings, settings);
+    }
 
     /**
-     * Initializes the control and builds the internal camera UI.
+     * Initializes the internal VBox layout containing the HTML5 `<video>` element, preview `Image`, and action buttons.
      */
     public init(): void {
-        super.init();
+        if (BaseHardwareControl.prototype.init) {
+            BaseHardwareControl.prototype.init.call(this);
+        }
 
-        this.videoHtml = new HTML({
-            content: "<video width='400' height='300' autoplay playsinline style='background-color: #000; display: none;'></video>",
-            afterRendering: this.onVideoRendered.bind(this)
-        }).addStyleClass("sapUiSmallMarginBottom");
+        const controlId = this.getId();
 
-        this.previewImage = new Image({
-            width: "400px",
-            visible: false
-        }).addStyleClass("sapUiSmallMarginBottom");
-
-        this.startBtn = new Button({
-            icon: "sap-icon://video",
-            text: "Start Camera",
-            press: this.handleStartCameraPress.bind(this)
+        const videoStyle =
+            "border: 1px solid #89919a; border-radius: 4px; background: #1d2d3e; display: block; max-width: 100%;";
+        this.htmlVideo = new HTML({
+            content:
+                `<div class="sapUiTinyMarginBottom">` +
+                `<video id="${controlId}-video" width="320" height="240" autoplay playsinline style="${videoStyle}"></video>` +
+                `<canvas id="${controlId}-canvas" width="320" height="240" hidden></canvas>` +
+                `</div>`
         });
+
+        this.imagePreview = new Image({
+            width: "320px",
+            height: "240px",
+            visible: false
+        }).addStyleClass("sapUiTinyMarginBottom");
 
         this.captureBtn = new Button({
+            text: "Start Camera / Capture",
             icon: "sap-icon://camera",
-            text: "Capture",
-            visible: false,
-            press: this.captureImage.bind(this)
-        });
-
-        this.retakeBtn = new Button({
-            icon: "sap-icon://undo",
-            text: "Retake",
-            visible: false,
-            press: this.retakeImage.bind(this)
-        });
-
-        this.vBox = new VBox({
-            items: [this.videoHtml, this.previewImage, this.startBtn, this.captureBtn, this.retakeBtn]
-        });
-
-        this.setAggregation("_content", this.vBox);
-    }
-
-    private async onVideoRendered(): Promise<void> {
-        const domRef = this.videoHtml.getDomRef() as HTMLElement;
-        if (!domRef) return;
-        
-        this.videoEl = domRef as HTMLVideoElement;
-        
-        const val = this.getProperty("value");
-        if (val && typeof val === "string" && val.startsWith("data:image")) {
-            this.showPreview(val);
-        } else if (this.captureBtn.getVisible() && this.videoHtml.getVisible()) {
-            this.startCamera();
-        }
-    }
-
-    private handleStartCameraPress(): void {
-        this.startCamera();
-        this.startBtn.setVisible(false);
-        this.captureBtn.setVisible(true);
-        if (this.videoEl) {
-            this.videoEl.style.display = "block";
-        }
-    }
-
-    private async startCamera(): Promise<void> {
-        try {
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            if (this.videoEl) {
-                this.videoEl.srcObject = this.mediaStream;
+            type: ButtonType.Emphasized,
+            press: () => {
+                void this.handleCameraAction();
             }
-        } catch (err) {
-            Logger.error("Camera access denied or unavailable", (err as Error).message, "CameraControl");
-            MessageToast.show("Camera access denied or unavailable.");
-        }
-    }
+        }).addStyleClass("sapUiTinyMarginEnd");
 
-    private stopCamera(): void {
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(track => track.stop());
-            this.mediaStream = null;
-        }
-    }
+        this.clearBtn = new Button({
+            text: "Clear / Retake",
+            icon: "sap-icon://delete",
+            type: ButtonType.Transparent,
+            visible: false,
+            press: () => {
+                this.clearCamera();
+            }
+        });
 
-    private captureImage(): void {
-        if (!this.videoEl) return;
-        
-        const canvas = document.createElement("canvas");
-        canvas.width = this.videoEl.videoWidth || 400;
-        canvas.height = this.videoEl.videoHeight || 300;
-        
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-            ctx.drawImage(this.videoEl, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-            this.setValueAndFire(dataUrl);
-            this.showPreview(dataUrl);
-            MessageToast.show("Image captured successfully.");
-        }
-    }
+        const buttonRow = new HBox({
+            items: [this.captureBtn, this.clearBtn]
+        });
 
-    private retakeImage(): void {
-        this.setValueAndFire(null);
-        this.previewImage.setVisible(false);
-        this.videoHtml.setVisible(true);
-        this.captureBtn.setVisible(true);
-        this.retakeBtn.setVisible(false);
-        
-        // startCamera is now handled safely by onVideoRendered hook
-    }
+        const layout = new VBox({
+            items: [this.htmlVideo, this.imagePreview, buttonRow]
+        });
 
-    private showPreview(dataUrl: string): void {
-        this.stopCamera();
-        this.videoHtml.setVisible(false);
-        this.previewImage.setSrc(dataUrl);
-        this.previewImage.setVisible(true);
-        this.captureBtn.setVisible(false);
-        this.retakeBtn.setVisible(true);
+        this.setAggregation("_content", layout);
     }
 
     /**
-     * Sets the value of the control programmatically.
-     * @param value The base64 data URL string representing the image.
+     * Synchronizes button enabled/visibility states with the `readOnly` and `value` properties before rendering.
      */
-     public setValue(value: unknown): this {
-        super.setProperty("value", value);
-        if (value && typeof value === "string" && value.startsWith("data:image")) {
-            this.showPreview(value);
-        } else if (!value) {
-            // Only retake if we were showing a preview
-            if (this.previewImage.getVisible()) {
-                this.retakeImage();
+    public onBeforeRendering(): void {
+        this.syncHardwareState();
+        this.syncPreviewWithValue(this.getProperty("value") as string | null);
+    }
+
+    /**
+     * Synchronizes the inner action buttons with the current `readOnly` property.
+     */
+    protected override syncHardwareState(): void {
+        const isReadOnly = Boolean(this.getProperty("readOnly"));
+        if (this.captureBtn) {
+            this.captureBtn.setEnabled(!isReadOnly);
+        }
+        if (this.clearBtn) {
+            this.clearBtn.setEnabled(!isReadOnly);
+        }
+    }
+
+    /**
+     * Starts the camera stream on first press, or captures a snapshot frame if the stream is already active.
+     */
+    private async handleCameraAction(): Promise<void> {
+        if (this.getProperty("readOnly")) {
+            return;
+        }
+        const controlId = this.getId();
+        this.videoElement = document.getElementById(`${controlId}-video`) as HTMLVideoElement | null;
+
+        if (!this.mediaStream) {
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    if (this.isDestroyed()) {
+                        stream.getTracks().forEach((track) => track.stop());
+                        return;
+                    }
+                    this.mediaStream = stream;
+                    if (this.videoElement) {
+                        this.videoElement.srcObject = this.mediaStream;
+                        this.captureBtn.setText("Take Snapshot");
+                    }
+                } else {
+                    Logger.warn("[MetaUI CameraControl]", "Camera API not available in this browser.", "CameraControl");
+                }
+            } catch (err) {
+                Logger.error(
+                    "[MetaUI CameraControl]",
+                    `Failed to access camera: ${(err as Error).message}`,
+                    "CameraControl"
+                );
+            }
+        } else {
+            this.takeSnapshot();
+        }
+    }
+
+    /**
+     * Draws the current video frame onto the hidden `<canvas>`, encodes it as a PNG data URL,
+     * stops the camera stream, and updates `value`.
+     */
+    private takeSnapshot(): void {
+        const controlId = this.getId();
+        const canvas = document.getElementById(`${controlId}-canvas`) as HTMLCanvasElement | null;
+        if (this.videoElement && canvas) {
+            const context = canvas.getContext("2d");
+            if (context) {
+                context.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL("image/png");
+                this.stopStream();
+                this.setValue(dataUrl);
+                this.fireEvent("capture", { value: dataUrl });
             }
         }
+    }
+
+    /**
+     * Clears the captured image and resets the control to camera preview mode.
+     */
+    private clearCamera(): void {
+        if (this.getProperty("readOnly")) {
+            return;
+        }
+        this.stopStream();
+        this.setProperty("value", null, true);
+        this.syncPreviewWithValue(null);
+        this.captureBtn.setText("Start Camera / Capture");
+        this.fireEvent("capture", { value: null });
+    }
+
+    /**
+     * Updates the `value` property and synchronizes the preview `Image` without firing synthetic user events.
+     *
+     * @param sValue The Base64 image data URL or `null`.
+     * @returns {this} This control instance for chaining.
+     */
+    public setValue(sValue: string | null): this {
+        this.setProperty("value", sValue, true);
+        this.syncPreviewWithValue(sValue);
         return this;
     }
 
     /**
-     * Cleans up the hardware streams when the control is destroyed.
+     * Synchronizes the internal preview `Image`, `<video>`, and buttons with the current `value`.
+     *
+     * @param sValue The current image data URL or `null`.
+     */
+    private syncPreviewWithValue(sValue: string | null): void {
+        if (!this.imagePreview || !this.htmlVideo || !this.clearBtn || !this.captureBtn) {
+            return;
+        }
+        if (sValue && UrlValidator.isSafeImageSource(sValue)) {
+            this.imagePreview.setSrc(sValue);
+            this.imagePreview.setVisible(true);
+            this.htmlVideo.setVisible(false);
+            this.clearBtn.setVisible(true);
+            this.captureBtn.setVisible(false);
+        } else {
+            this.imagePreview.setSrc("");
+            this.imagePreview.setVisible(false);
+            this.htmlVideo.setVisible(true);
+            this.clearBtn.setVisible(false);
+            this.captureBtn.setVisible(true);
+        }
+    }
+
+    /**
+     * Stops all active WebRTC media tracks and releases the camera device.
+     */
+    private stopStream(): void {
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach((track) => track.stop());
+            this.mediaStream = null;
+        }
+        if (this.videoElement) {
+            this.videoElement.srcObject = null;
+        }
+    }
+
+    /**
+     * Releases any active camera stream when the control is destroyed.
      */
     public exit(): void {
-        this.stopCamera();
-        super.exit();
+        this.stopStream();
     }
 }

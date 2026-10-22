@@ -1,54 +1,43 @@
 /**
  * @file Engine.ts
- * @description The central orchestrator that routes data between the Layout Factory and Plugin Registry (v2).
+ * @description The central orchestrator that routes data between the Layout Factory, Plugin Registry,
+ * and ValidationLedger (v2).
  */
 
 import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
-import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { IPlugin, IPluginValidationResult } from "../interfaces/IPlugin";
 import { IEngineHost } from "../interfaces/IEngineHost";
-
 import { PluginRegistry } from "./PluginRegistry";
-import Control from "sap/ui/core/Control";
-import VBox from "sap/m/VBox";
-import Text from "sap/m/Text";
-import { Logger } from "../utils/Logger";
+import { ValidationLedger } from "./ValidationLedger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
-import Core from "sap/ui/core/Core";
-import Messaging from "sap/ui/core/Messaging";
-import Message from "sap/ui/core/message/Message";
-import coreLibrary from "sap/ui/core/library";
-import { GlobalPipeline } from "./PipelineManager";
+import { Logger } from "../utils/Logger";
+import Control from "sap/ui/core/Control";
+import Model from "sap/ui/model/Model";
+import Text from "sap/m/Text";
 
 /**
  * The Engine is responsible for translating a normalized schema into a physical UI5 layout.
- * It delegates layout generation to the configured `LayoutManager` and field generation to the `PluginRegistry`.
- * It strictly routes execution flow and tracks active plugins for validation.
- * It embodies the "Plugin-First Philosophy" by routing all complex field and layout rendering
- * through discrete, decoupled plugins rather than handling native overrides.
- * 
+ * It delegates layout generation to the configured `LayoutManager`, field generation to the `PluginRegistry`,
+ * and validation state coordination to the `ValidationLedger`.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.core
  * @public
  */
 export class Engine {
-
-
     /** Array of all instantiated plugins generated during the current build. */
-    private activePlugins: { plugin: IPlugin, path: string }[] = [];
+    private activePlugins: { plugin: IPlugin; path: string }[] = [];
 
     /** Array of template plugins generated for table rows to prevent memory leaks during destruction. */
-    private templatePlugins: { plugin: IPlugin, path: string }[] = [];
+    private templatePlugins: { plugin: IPlugin; path: string }[] = [];
 
     /** Deterministic scope ID injected by the host control to prevent clone collisions. */
     public engineScopeId?: string;
 
-    private activeModel?: unknown;
+    private activeModel?: Model;
+    private onSubmitCallback?: () => void;
 
-    /** Ledger tracking local vs cross-field errors to prevent visual race conditions. */
-    private validationLedger: Map<string, { schemaError: string | null, policyError: string | null }> = new Map();
-
-    /** Tracks active MessageManager messages created by this engine instance. */
-    private activeMessages: Map<string, Message> = new Map();
+    /** Delegates validation ledger tracking, array validation, and Messaging sync. */
+    private readonly validationLedger: ValidationLedger;
 
     /** Reference to the GeneratorHost that instantiated this engine, for retrieving global definitions. */
     public host?: IEngineHost;
@@ -63,9 +52,9 @@ export class Engine {
     public hasPartialRenderingErrors: boolean = false;
 
     /** Tracks whether the engine should delegate visual state to the global MessageManager. */
-    public readonly useMessageManager: boolean = false;
+    public useMessageManager: boolean = false;
 
-    /** The injected PluginRegistry instance */
+    /** The injected PluginRegistry instance. */
     public readonly pluginRegistry: PluginRegistry;
 
     /**
@@ -78,11 +67,17 @@ export class Engine {
         this.isEditable = editable;
         this.useMessageManager = useMessageManager;
         this.pluginRegistry = pluginRegistry || PluginRegistry.getInstance();
+        this.validationLedger = new ValidationLedger(
+            useMessageManager,
+            (path) => this.getPluginByPath(path),
+            () => this.activePlugins,
+            () => this.host
+        );
     }
 
     /**
      * Bootstraps the layout generation process by resolving the correct layout strategy.
-     * 
+     *
      * @param schema The normalized JSON schema representing the view.
      * @param model The active StateManager JSONModel instance.
      * @param modelName The UI5 model alias used for isolation.
@@ -91,16 +86,22 @@ export class Engine {
      * @param onChange Callback fired when field values change.
      * @returns The generated root UI5 Control container.
      */
-    public build(schema: ISchema, model: unknown, modelName: string = "meta", onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-
+    public build(
+        schema: ISchema,
+        model: Model | undefined,
+        modelName: string = "meta",
+        onSubmit?: () => void,
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): Control {
         this.activePlugins = [];
         this.activeModel = model;
         this.engineScopeId = engineScopeId;
+        this.onSubmitCallback = onSubmit;
         this.onChange = (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => {
             if (fieldKey) {
                 this.reportSchemaError(fieldKey, isValid ? null : errorMessage || "Invalid input");
             }
-
             if (onChange) {
                 onChange(isValid, fieldKey, errorMessage, controlId);
             }
@@ -109,7 +110,6 @@ export class Engine {
         try {
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
-
             return layoutManager.render(schema, modelName, this, onSubmit);
         } catch (error) {
             this.hasPartialRenderingErrors = true;
@@ -123,22 +123,37 @@ export class Engine {
     /**
      * Instantiates the correct plugin for a specific field based on type and widget hints,
      * and tracks the plugin for global validation.
-     * 
+     *
      * @param fieldMeta The metadata schema specific to the field.
      * @param bindingPath The JSON path representing the field within the payload.
      * @param modelName The UI5 JSONModel name used for data binding.
+     * @param isTemplate True when building a reusable template control for a table column.
      * @returns The generated UI5 Control for the field.
      */
-    public generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate: boolean = false): Control {
+    public generateField(
+        fieldMeta: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        isTemplate: boolean = false
+    ): Control {
         try {
             const plugin = this.pluginRegistry.getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
-            if (typeof plugin.setEditable === "function") {
-                plugin.setEditable(this.isEditable);
-            }
-
+            plugin.setEditable(this.isEditable);
             if (typeof plugin.setUseMessageManager === "function") {
                 plugin.setUseMessageManager(this.useMessageManager);
             }
+            plugin.setEngineContext({
+                pluginRegistry: this.pluginRegistry,
+                resolveSchemaRef: (refPath: string) => this.host?.getSchemaDefinition?.(refPath),
+                getSchemaDefinition: (refPath: string) => this.host?.getSchemaDefinition?.(refPath),
+                getSchemaDefinitions: () => this.host?.getSchemaDefinitions?.(),
+                getModel: () => this.activeModel,
+                onSubmit: this.onSubmitCallback,
+                reportSchemaError: (fieldPath: string, errorMessage: string | null) =>
+                    this.reportSchemaError(fieldPath, errorMessage),
+                clearValidationPrefix: (prefix: string) => this.clearValidationPrefix(prefix),
+                clearValidationErrors: () => this.clearValidationErrors()
+            });
 
             if (!isTemplate) {
                 this.activePlugins.push({ plugin, path: bindingPath });
@@ -146,11 +161,7 @@ export class Engine {
                 this.templatePlugins.push({ plugin, path: bindingPath });
             }
             const scopeId = isTemplate ? undefined : this.engineScopeId;
-            const control = plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange, this.activeModel);
-
-
-
-            return control;
+            return plugin.render(fieldMeta, bindingPath, modelName, scopeId, this.onChange, this.activeModel);
         } catch (error) {
             this.hasPartialRenderingErrors = true;
             const msg = (error as Error).message;
@@ -161,9 +172,9 @@ export class Engine {
     }
 
     /**
-     * Generates a sub-layout (like an embedded table or nested form) without 
+     * Generates a sub-layout (like an embedded table or nested form) without
      * destroying the current Engine state or Condition tracking.
-     * 
+     *
      * @param schema The normalized JSON schema representing the view.
      * @param modelName The UI5 JSONModel name used for data binding (defaults to "meta").
      * @param bindingPath Optional path to bind the sub-layout to a specific array/object property.
@@ -172,9 +183,10 @@ export class Engine {
     public generateLayout(schema: ISchema, modelName: string, bindingPath?: string): Control {
         try {
             if (DefaultLayoutGenerator.ensureLayout(schema)) {
-                Logger.warn(`[MetaUI Engine] Missing 'uiLayout' array in sub-schema for ${bindingPath}. Synthesized a default layout mapping.`);
+                Logger.warn(
+                    `[MetaUI Engine] Missing 'uiLayout' array in sub-schema for ${bindingPath}. Synthesized a default layout mapping.`
+                );
             }
-
             const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);
@@ -188,260 +200,209 @@ export class Engine {
     }
 
     /**
-     * Iterates through all active plugins and triggers their internal validation pipelines.
-     * 
-     * @param applyVisualState If true, explicitly instructs the plugin to natively paint its own ValueState.
+     * Iterates through all active plugins, table-row arrays and the custom-error ledger.
+     *
+     * @param applyVisualState If true, explicitly instructs plugins to paint their own ValueState.
      * @returns {IPluginValidationResult[]} Array of validation error objects. Empty array if valid.
      */
     public validateAll(applyVisualState: boolean = false): IPluginValidationResult[] {
-        const errors: IPluginValidationResult[] = [];
+        return this.validationLedger.validateAll(applyVisualState);
+    }
+
+    /**
+     * Dynamically toggles UI5 MessageManager integration at runtime on the Engine, ValidationLedger, and active plugins.
+     *
+     * @param use True to publish validation errors to `sap/ui/core/Messaging`, false to purge and disable.
+     */
+    public setUseMessageManager(use: boolean): void {
+        this.useMessageManager = use;
+        this.validationLedger.setUseMessageManager(use);
         for (const item of this.activePlugins) {
-            try {
-                const result = item.plugin.validate();
-                if (applyVisualState) {
-                    this.reportSchemaError(item.path, result.isValid ? null : result.errorMessage || "Invalid input");
-                }
-
-                if (!result.isValid) {
-                    // Ensure the path is bound to the error so GeneratorHost knows where to target it
-                    result.fieldKey = result.fieldKey || item.path.replace(/^\//, "");
-                    errors.push(result);
-                    // Add console log to find which plugin fails silently
-                    Logger.error("[MetaUI Validation] Plugin failed validation silently:", item.path || item.plugin.constructor.name);
-                }
-            } catch (error) {
-                Logger.error(`[MetaUI Engine] Error validating plugin at ${item.path}`, (error as Error).message);
+            if (typeof item.plugin.setUseMessageManager === "function") {
+                item.plugin.setUseMessageManager(use);
             }
         }
-
-        // 2. Recursively validate arrays via StateManager payload traversing for Table layout rows
-        if (this.host && typeof this.host.getStateManager === "function") {
-            const stateManager = this.host.getStateManager();
-            if (stateManager) {
-                const payload = stateManager.extractPayload();
-                const schema = stateManager.getSchema ? stateManager.getSchema() : this.host.getParsedSchema?.();
-                if (payload && schema) {
-                    const arrayErrors = this.validatePayloadArrays(schema, payload, "");
-                    if (applyVisualState) {
-                        arrayErrors.forEach(err => {
-                            if (err.fieldKey) {
-                                this.reportSchemaError(err.fieldKey, err.isValid ? null : err.errorMessage || "Invalid input");
-                            }
-                        });
-                    }
-                    errors.push(...arrayErrors.filter(e => !e.isValid));
-                }
-            }
-        }
-
-        return errors;
-    }
-
-    public onArrayMutated(arrayPath: string): void {
-        if (this.host && typeof this.host.getStateManager === "function") {
-            const stateManager = this.host.getStateManager();
-            if (stateManager && typeof stateManager.clearArrayMessages === "function") {
-                stateManager.clearArrayMessages(arrayPath);
+        for (const item of this.templatePlugins) {
+            if (typeof item.plugin.setUseMessageManager === "function") {
+                item.plugin.setUseMessageManager(use);
             }
         }
     }
 
-    private validatePayloadArrays(schema: ISchema, payload: Record<string, unknown>, currentPath: string): IPluginValidationResult[] {
-        const errors: IPluginValidationResult[] = [];
-        if (!schema || !payload || typeof payload !== "object") return errors;
-
-        if (schema.type === "object" && schema.properties) {
-            for (const key of Object.keys(schema.properties)) {
-                const propSchema = schema.properties[key];
-                const childValue = payload[key];
-                if (childValue !== undefined) {
-                    const childPath = currentPath ? `${currentPath}/${key}` : key;
-                    errors.push(...this.validatePayloadArrays(propSchema as ISchema, childValue as Record<string, unknown>, childPath));
-                }
-            }
-        } else if (schema.type === "array" && schema.items && Array.isArray(payload)) {
-            (payload as Record<string, unknown>[]).forEach((item, index) => {
-                const itemPath = currentPath ? `${currentPath}/${index}` : `${index}`;
-                const items = schema.items;
-                if (items && items.type === "object" && items.properties) {
-                    for (const key of Object.keys(items.properties)) {
-                        const propMeta = items.properties[key];
-                        const propPath = `${itemPath}/${key}`;
-                        const val = item ? item[key] : undefined;
-
-                        const res = GlobalPipeline.assembleAndExecute(propMeta, val);
-                        if (!res.isValid) {
-                            errors.push({
-                                isValid: false,
-                                errorMessage: res.errorMessage,
-                                fieldKey: propPath,
-                                fieldLabel: propMeta.ui?.label || key
-                            });
-                        } else {
-                            errors.push({ isValid: true, fieldKey: propPath }); // Clear old errors
-                        }
-                    }
-                }
-            });
+    /**
+     * Notifies the StateManager and ValidationLedger when an array is mutated so stale row messages can be purged
+     * and surviving row validation states can shift with their rows.
+     *
+     * @param arrayPath The array binding path that was modified.
+     * @param deletedRowIndex Optional deleted row index (`-1` when appending a row) to shift surviving row errors.
+     */
+    public onArrayMutated(arrayPath: string, deletedRowIndex?: number): void {
+        const shifted = this.validationLedger.extractShiftedRowEntries(arrayPath, deletedRowIndex);
+        this.validationLedger.clearArrayEntries(arrayPath);
+        for (const item of this.templatePlugins) {
+            item.plugin.clearError();
         }
-        return errors;
+        if (this.host && typeof this.host.getStateManager === "function") {
+            this.host.getStateManager()?.clearArrayMessages(arrayPath);
+        }
+        this.host?.resetAndEvaluatePoliciesNow?.();
+        this.validationLedger.restoreRowEntries(shifted);
+    }
+
+    /**
+     * Validates a specific inline array path and its nested rows, painting individual invalid cells.
+     */
+    public validateArrayPath(arrayPath: string, meta: IPropertyMetadata): boolean {
+        return this.validationLedger.validateArrayField(arrayPath, meta);
+    }
+
+    /**
+     * Returns true if a nested field path belongs to an optional parent object that is currently absent or unpopulated.
+     *
+     * @param fieldPath The field path to inspect.
+     * @returns {boolean} True if an ancestor object is optional and unpopulated.
+     */
+    public isInsideAbsentOptionalObject(fieldPath: string): boolean {
+        return this.validationLedger.isInsideAbsentOptionalObject(fieldPath);
+    }
+
+    /**
+     * Returns true if any field or table cell currently holds an active validation error in the ledger.
+     *
+     * @returns {boolean} True if active validation errors exist.
+     */
+    public hasActiveErrors(): boolean {
+        return this.validationLedger.hasActiveErrors();
+    }
+
+    /**
+     * Returns true if any of the given field paths (or their nested children) currently holds an active error.
+     *
+     * @param fieldPaths Array of field paths to inspect.
+     * @returns {boolean} True if an active error exists on any of the specified paths.
+     */
+    public hasActiveErrorsForPaths(fieldPaths: string[]): boolean {
+        return this.validationLedger.hasActiveErrorsForPaths(fieldPaths);
+    }
+
+    /**
+     * Applies a PBRE state mutation (`visibility`, `required`, `editable`) to cloned table row cell controls.
+     *
+     * @param targetPath The expanded row cell path (e.g. `"/Items/0/Price"`).
+     * @param property The state property to update.
+     * @param value The boolean state value.
+     */
+    public applyRowPolicyState(
+        targetPath: string,
+        property: "visibility" | "required" | "editable",
+        value: boolean
+    ): void {
+        if (property === "editable" && !this.isEditable) {
+            return;
+        }
+        this.validationLedger.applyRowControlState(targetPath, property, value);
+    }
+
+    /**
+     * Clears all validation ledger entries and parse error flags under a specific path prefix (e.g. on variant switch).
+     *
+     * @param prefix The path prefix to clear.
+     */
+    public clearValidationPrefix(prefix: string): void {
+        this.validationLedger.clearArrayEntries(prefix);
+    }
+
+    /**
+     * Clears all active validation errors and resets control visual states (e.g. on data hot-swap or form clear).
+     */
+    public clearValidationErrors(): void {
+        this.validationLedger.clear(true);
+        for (const item of this.activePlugins) {
+            item.plugin.clearError();
+        }
+        for (const item of this.templatePlugins) {
+            item.plugin.clearError();
+        }
+    }
+
+    /**
+     * Returns the active sandbox JSONModel bound to this Engine instance.
+     *
+     * @returns {Model | undefined} The active UI5 model instance.
+     */
+    public getModel(): Model | undefined {
+        return this.activeModel;
     }
 
     /**
      * Retrieves an active plugin instance by its absolute binding path.
-     * Useful for programmatic field manipulation (e.g., custom error injection).
-     * 
-     * @param path The binding path (e.g. "/General/CustomerName").
+     *
+     * @param path The binding path (e.g. `"/General/CustomerName"`).
      * @returns {IPlugin | undefined} The plugin instance, or undefined if not found.
      */
-    public getPluginByPath(path: string): import("../interfaces/IPlugin").IPlugin | undefined {
+    public getPluginByPath(path: string): IPlugin | undefined {
         const cleanPath = path.replace(/^\//, "");
-        const match = this.activePlugins.find(p => p.path.replace(/^\//, "") === cleanPath);
-        return match ? match.plugin : undefined;
+        const match = this.activePlugins.find((p) => p.path.replace(/^\//, "") === cleanPath);
+        if (match) {
+            return match.plugin;
+        }
+        for (const entry of this.activePlugins) {
+            const childMatch = entry.plugin.getChildPluginByPath?.(cleanPath);
+            if (childMatch) {
+                return childMatch;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Returns a read-only view of all active plugin instances and their binding paths.
+     *
+     * @returns {ReadonlyArray<{ plugin: IPlugin; path: string }>} The active plugin entries.
+     */
+    public getActivePlugins(): ReadonlyArray<{ plugin: IPlugin; path: string }> {
+        return this.activePlugins;
     }
 
     /**
      * Reports a localized schema validation error to the coordinator ledger.
      */
     public reportSchemaError(fieldPath: string, errorMessage: string | null): void {
-        const cleanPath = fieldPath.replace(/^\//, "");
-        if (!this.validationLedger.has(cleanPath)) {
-            this.validationLedger.set(cleanPath, { schemaError: null, policyError: null });
-        }
-        this.validationLedger.get(cleanPath)!.schemaError = errorMessage;
-        this.resolveVisualState(cleanPath);
+        this.validationLedger.reportSchemaError(fieldPath, errorMessage);
     }
 
     /**
      * Reports a cross-field policy error to the coordinator ledger.
      */
     public reportPolicyError(fieldPath: string, errorMessage: string | null): void {
-        const cleanPath = fieldPath.replace(/^\//, "");
-        if (!this.validationLedger.has(cleanPath)) {
-            this.validationLedger.set(cleanPath, { schemaError: null, policyError: null });
-        }
-        this.validationLedger.get(cleanPath)!.policyError = errorMessage;
-        this.resolveVisualState(cleanPath);
+        this.validationLedger.reportPolicyError(fieldPath, errorMessage);
     }
 
     /**
-     * Computes the final visual state by checking both engines and applies it to the plugin.
+     * Reports (or clears, when null) an external custom error in the coordinator ledger.
      */
-    private resolveVisualState(cleanPath: string): void {
-        const plugin = this.getPluginByPath(cleanPath);
-        const ledgerEntry = this.validationLedger.get(cleanPath);
-        if (!ledgerEntry) return;
-
-        const isError = ledgerEntry.policyError !== null || ledgerEntry.schemaError !== null;
-        const errorMessage = ledgerEntry.policyError || ledgerEntry.schemaError;
-
-        if (plugin && typeof plugin.setVisualValidationState === "function") {
-            plugin.setVisualValidationState(!isError, isError ? errorMessage || undefined : undefined);
-        } else {
-            // Un-tracked template clones (Table Layout rows)
-            this.setNativeControlError(cleanPath, isError ? errorMessage || undefined : undefined);
-        }
-
-        if (this.useMessageManager) {
-            const currentMsg = this.activeMessages.get(cleanPath);
-            if (currentMsg) {
-                Messaging.removeMessages(currentMsg);
-                this.activeMessages.delete(cleanPath);
-            }
-            if (isError) {
-                const targetPath = `/${cleanPath}`;
-                const processorModel = this.host && typeof this.host.getStateManager === "function" 
-                    ? this.host.getStateManager()?.getModel() 
-                    : undefined;
-                
-                const fieldLabel = typeof plugin?.getFieldLabel === "function" ? plugin.getFieldLabel() : undefined;
-                const displayLabel = fieldLabel || cleanPath;
-                const displayText = `Field '${displayLabel}': ${errorMessage || "Validation Error"}`;
-                
-                const newMsg = new Message({
-                    message: displayText,
-                    additionalText: displayLabel !== targetPath ? displayLabel : undefined,
-                    type: coreLibrary.MessageType.Error,
-                    target: targetPath,
-                    processor: processorModel
-                });
-                Messaging.addMessages(newMsg);
-                this.activeMessages.set(cleanPath, newMsg);
-            }
-        }
-    }
-
-    private setNativeControlError(targetPath: string, errorMessage?: string): void {
-        if (this.host && this.host.generatedContent) {
-            const rootControl = this.host.generatedContent;
-            this.traverseAndSetError(rootControl, targetPath, errorMessage);
-        }
-    }
-
-    private traverseAndSetError(control: any, targetPath: string, errorMessage?: string): void {
-        if (!control) return;
-        
-        const bindingInfos = [control.getBindingInfo("value"), control.getBindingInfo("selectedKey"), control.getBindingInfo("dateValue"), control.getBindingInfo("selected")];
-        for (const info of bindingInfos) {
-            if (info && info.parts && info.parts.length > 0) {
-                const boundPath = info.parts[0].path;
-                // UI5 relative bindings drop the leading slash in the context, but retain it in the path
-                if (boundPath === targetPath || targetPath.endsWith(boundPath)) {
-                    // Ensure we match the exact row context path
-                    const context = control.getBindingContext(this.host!.activeModelName);
-                    if (context) {
-                        const fullPath = context.getPath() + "/" + boundPath;
-                        const cleanedFullPath = fullPath.replace(/^\//, "");
-                        if (cleanedFullPath === targetPath) {
-                            if (typeof control.setValueState === "function") {
-                                control.setValueState(errorMessage ? "Error" : "None");
-                                if (typeof control.setValueStateText === "function") {
-                                    control.setValueStateText(errorMessage || "");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (typeof control.getAggregation === "function" && typeof control.getMetadata === "function") {
-            const aggs = control.getMetadata().getAggregations();
-            for (const aggName in aggs) {
-                const child = control.getAggregation(aggName);
-                if (Array.isArray(child)) {
-                    child.forEach(c => this.traverseAndSetError(c, targetPath, errorMessage));
-                } else if (child) {
-                    this.traverseAndSetError(child, targetPath, errorMessage);
-                }
-            }
-        }
+    public reportCustomError(fieldPath: string, errorMessage: string | null): void {
+        this.validationLedger.reportCustomError(fieldPath, errorMessage);
     }
 
     /**
-     * Cleans up internal state and destroys the condition engine to prevent memory leaks.
+     * Re-evaluates the visual error state of a field in the ledger (e.g. after visibility changes).
+     */
+    public refreshFieldValidationState(fieldPath: string): void {
+        this.validationLedger.resolveVisualState(fieldPath);
+    }
+
+    /**
+     * Cleans up internal state and destroys active/template plugins to prevent memory leaks.
      */
     public destroy(): void {
-
-
         for (const item of this.activePlugins) {
-            if (typeof item.plugin.destroy === "function") {
-                item.plugin.destroy();
-            }
+            item.plugin.destroy();
         }
-
         for (const item of this.templatePlugins) {
-            if (typeof item.plugin.destroy === "function") {
-                item.plugin.destroy();
-            }
+            item.plugin.destroy();
         }
-
-        if (this.useMessageManager && this.activeMessages.size > 0) {
-            Messaging.removeMessages(Array.from(this.activeMessages.values()));
-        }
-
         this.validationLedger.clear();
-        this.activeMessages.clear();
         this.activePlugins = [];
         this.templatePlugins = [];
     }

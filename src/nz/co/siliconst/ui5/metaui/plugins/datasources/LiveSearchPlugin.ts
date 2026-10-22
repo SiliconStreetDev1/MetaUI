@@ -1,111 +1,169 @@
 /**
  * @file LiveSearchPlugin.ts
- * @description A custom datasource plugin that provides asynchronous live search (autocomplete) functionality.
+ * @description Renders a sap.m.Input with live type-ahead suggestions fetched from a remote REST endpoint.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
-import Event from "sap/ui/base/Event";
-
-import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
+import { TextLikeInputPlugin } from "../controls/TextLikeInputPlugin";
+import { IDataSourceConfig, IPropertyMetadata } from "../../interfaces/ISchema";
+import { ControlDirectiveUtil, extractDataSourceList } from "../../utils/ControlDirectiveUtil";
 import Input from "sap/m/Input";
-import Item from "sap/ui/core/Item";
+import SuggestionItem from "sap/m/SuggestionItem";
 import Control from "sap/ui/core/Control";
+import JSONModel from "sap/ui/model/json/JSONModel";
+import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { isRecord } from "../../utils/TypeGuards";
 
 /**
- * A custom datasource plugin that provides asynchronous live search (autocomplete) functionality.
- * As the user types, it fetches suggestions from a remote endpoint.
- * 
+ * Plugin responsible for rendering an `Input` control with remote live type-ahead suggestions (`ui.widget = "liveSearch"`).
+ * Includes debounce throttling and monotonic request sequencing to discard out-of-order network responses.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
  * @public
  */
-export class LiveSearchPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
-        this.metadata = fieldMetadata;
-        
-        const input = new Input({
-            value: `{${modelName}>${bindingPath}}`,
-            enabled: !fieldMetadata.ui?.readOnly,
-            placeholder: "Type to search...",
+export class LiveSearchPlugin extends TextLikeInputPlugin {
+    private debounceTimer?: ReturnType<typeof setTimeout>;
+    private requestSequence: number = 0;
+
+    /**
+     * Constructs a `sap.m.Input` configured with `showSuggestion: true` and remote suggestion fetching.
+     *
+     * @param metadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @returns {Control} The configured Input control.
+     */
+    protected createEditableControl(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        const ds = ControlDirectiveUtil.resolveDataSourceConfig(metadata);
+        return new Input({
+            id: this.generateStableId(engineScopeId, bindingPath),
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
+            placeholder: metadata.ui?.placeholder || "Type to search...",
+            required: this.isRequired(),
             showSuggestion: true,
+            startSuggestion: 2,
+            filterSuggests: false,
             suggest: (oEvent: Event) => {
-                const query = (oEvent as Event).getParameter("suggestValue");
-                this.fetchSuggestions(input, query);
+                const src = oEvent.getSource() as Input;
+                const params = oEvent.getParameters() as { suggestValue?: string };
+                const term = params.suggestValue || "";
+                this.scheduleSearch(src, term, ds);
+            },
+            suggestionItemSelected: (oEvent: Event) => {
+                const src = oEvent.getSource() as Input;
+                const params = oEvent.getParameters() as { selectedItem?: SuggestionItem };
+                const selectedItem = params.selectedItem;
+                if (selectedItem) {
+                    const selectedVal = selectedItem.getKey() || selectedItem.getText();
+                    src.setValue(selectedVal);
+                    const model = src.getModel(modelName) as JSONModel | undefined;
+                    if (model) {
+                        model.setProperty(this.resolveAbsolutePath(src), selectedVal);
+                    }
+                }
+                this.notifyChange(src.getId());
             },
             change: (oEvent: Event) => {
-                this.validate();
+                const src = oEvent.getSource() as Input;
+                this.notifyChange(src.getId());
             }
         });
-
-        this.control = input;
-        return this.control as Control;
     }
 
     /**
-     * Executes the REST fetch for suggestions based on a query. Can be overridden by mock subclasses.
-     * @param input The UI5 Input to populate with suggestions.
-     * @param query The text typed by the user.
+     * Schedules a debounced remote search query (250ms) and cancels any pending timer.
+     *
+     * @param input The target `sap.m.Input` control.
+     * @param term The user's search term.
+     * @param ds The configured `IDataSourceConfig` block.
      */
-    protected fetchSuggestions(input: Input, query: string): void {
-        const vhConfig = this.metadata?.valueHelp as IRemoteValueHelpConfig;
-        if (!vhConfig || !vhConfig.url) {
-            Logger.error("LiveSearchPlugin requires a valid valueHelp configuration with a URL.", "", "LiveSearchPlugin");
+    private scheduleSearch(input: Input, term: string, ds?: IDataSourceConfig): void {
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+        if (!ds || !ds.url || term.trim().length < 2) {
             return;
         }
-
-        if (!query) {
-            input.removeAllSuggestionItems();
-            return;
-        }
-        
-        input.setBusy(true);
-        
-        // In a real application, the query parameter would be passed to the backend (e.g. ?q=query)
-        // Here, we simulate fetching and filter locally, but subclasses can override this entirely.
-        fetch(vhConfig.url)
-            .then(res => res.json())
-            .then((data: Record<string, unknown>[]) => {
-                const keyPath = vhConfig.keyPath || "key";
-                const textPath = vhConfig.textPath || "text";
-                
-                input.removeAllSuggestionItems();
-
-                // Simple client-side filter for demonstration
-                const lowerQuery = query.toLowerCase();
-                const filteredData = data.filter(item => {
-                    const textValue = String(item[textPath] || item[keyPath]).toLowerCase();
-                    return textValue.includes(lowerQuery);
-                });
-                
-                filteredData.forEach(itemData => {
-                    input.addSuggestionItem(new Item({ 
-                        key: String(itemData[keyPath]), 
-                        text: String(itemData[textPath] || itemData[keyPath])
-                    }));
-                });
-            })
-            .catch(err => {
-                Logger.error("Failed to load value help from " + vhConfig.url, err.message, "LiveSearchPlugin");
-            })
-            .finally(() => {
-                input.setBusy(false);
-            });
+        const currentSeq = ++this.requestSequence;
+        this.debounceTimer = setTimeout(() => {
+            void this.executeSearch(input, term.trim(), ds.url, ds.keyField, ds.textField, ds.dataPath, currentSeq);
+        }, 250);
     }
 
     /**
-     * Retrieves the current input value.
-     * @returns {unknown} The input text.
+     * Executes the remote HTTP request and populates `SuggestionItem` aggregations if the sequence is still current.
+     *
+     * @param input The target `sap.m.Input` control.
+     * @param term The search query string.
+     * @param urlTemplate The endpoint URL or template containing `{query}`.
+     * @param keyField The JSON property key for item keys.
+     * @param textField The JSON property key for item display text.
+     * @param dataPath Optional dot-separated path to the array inside the response payload.
+     * @param seq The monotonic request sequence number.
      */
-    protected getValue(): unknown {
-        return this.control ? (this.control as Input).getValue() : null;
+    private async executeSearch(
+        input: Input,
+        term: string,
+        urlTemplate: string,
+        keyField: string,
+        textField: string,
+        dataPath: string | undefined,
+        seq: number
+    ): Promise<void> {
+        try {
+            const targetUrl = urlTemplate.includes("{query}")
+                ? urlTemplate.replace("{query}", encodeURIComponent(term))
+                : `${urlTemplate}${urlTemplate.includes("?") ? "&" : "?"}q=${encodeURIComponent(term)}`;
+
+            const response = await fetch(targetUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const rawPayload: unknown = await response.json();
+            if (seq !== this.requestSequence || input.isDestroyed()) {
+                return;
+            }
+
+            const items = extractDataSourceList(rawPayload, dataPath);
+            input.destroySuggestionItems();
+
+            for (const row of items) {
+                if (isRecord(row)) {
+                    const keyVal = row[keyField] !== undefined ? String(row[keyField]) : "";
+                    const textVal = row[textField] !== undefined ? String(row[textField]) : keyVal;
+                    input.addSuggestionItem(
+                        new SuggestionItem({
+                            key: keyVal,
+                            text: textVal,
+                            description: keyVal !== textVal ? keyVal : ""
+                        })
+                    );
+                }
+            }
+        } catch (err) {
+            Logger.warn(
+                "[MetaUI LiveSearchPlugin]",
+                `Live search request failed: ${(err as Error).message}`,
+                "LiveSearchPlugin"
+            );
+        }
     }
 
     /**
-     * Applies dynamic read-only state.
+     * Clears any pending debounce timer and destroys the underlying UI5 control.
      */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            (this.control as Input).setEnabled(!this.metadata.ui?.readOnly);
+    public override destroy(): void {
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = undefined;
         }
+        super.destroy();
     }
 }

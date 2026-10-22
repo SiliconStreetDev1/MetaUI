@@ -4,12 +4,17 @@ dist/
 .ui5/
 .env
 
-# AI Agent / Development Artifacts
+# AI Agent / Development Artifacts (never published - this is a public repo)
 persona.md
 implementation_plan.md
 design_document.md
 task.md
 walkthrough.md
+# Phase specs are internal working documents handed to coding agents.
+# Product documentation belongs in docs/wiki/ or docs/ARCHITECTURE.md instead.
+docs/PHASE_*.md
+docs/*_SPEC.md
+docs/RULES_*.md
 
 # Scratch & Temporary Files
 scratch/
@@ -19,3 +24,8 @@ scratch/
 test_schema.ts
 test-schema.ts
 scrape.js
+
+# Real-world OpenAPI specs for the opt-in stress routine (~17MB).
+# Fetch with: npm run stress:fetch
+test/swagger_schemas/k8s_oa2.json
+test/swagger_schemas/github_oa3.json

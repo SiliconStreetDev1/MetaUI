@@ -1,49 +1,70 @@
-import { BasePlugin } from "./BasePlugin";
+/**
+ * @file PasswordPlugin.ts
+ * @description Renders a password-masked sap.m.Input control.
+ */
+
+import { TextLikeInputPlugin } from "./TextLikeInputPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
+import Event from "sap/ui/base/Event";
+import { InputType } from "sap/m/library";
+import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 
-export class PasswordPlugin extends BasePlugin {
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.replace("/", "");
-        
-        if (!this.isEditable) {
-            // Password in read-only should be masked natively
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: "********" 
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
-        }
+/**
+ * Handles rendering logic for Password strings (`ui.widget = "password"` or `format = "password"`).
+ * Masks characters in both edit mode (`InputType.Password`) and display mode (`********`).
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
+ */
+export class PasswordPlugin extends TextLikeInputPlugin {
+    /**
+     * Renders a masked `********` display text control when the host is in display mode.
+     *
+     * @param _metadata The property metadata.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @returns {Control} The masked Text control.
+     */
+    protected override renderDisplayControl(
+        _metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        const maskedBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
+            formatter: (val: unknown) => (val ? "********" : "")
+        }) as PropertyBindingInfo;
+        return this.createDisplayText(engineScopeId, bindingPath, maskedBinding);
+    }
 
-        this.control = new Input({
+    /**
+     * Constructs the editable `sap.m.Input` control with `type: InputType.Password`.
+     *
+     * @param metadata The specific JSON schema properties for this field.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel name.
+     * @param engineScopeId The deterministic scope ID.
+     * @returns {Control} The configured password Input control.
+     */
+    protected createEditableControl(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        return new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            type: "Password",
-            maxLength: fieldMetadata.maxLength || 0,
-            required: !!fieldMetadata.required,
-            change: (oEvent: sap.ui.base.Event) => {
-                const result = this.validate();
-                if (this.onChange) this.onChange(result.isValid, this.fieldKey, result.errorMessage);
+            type: InputType.Password,
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
+            placeholder: metadata.ui?.placeholder || "Enter password",
+            maxLength: metadata.maxLength || 0,
+            required: this.isRequired(),
+            change: (oEvent: Event) => {
+                this.notifyChange((oEvent.getSource() as Control).getId());
             }
         });
-
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-        return this.control as Control;
-    }
-
-    protected getValue(): unknown {
-        return this.control && this.control.getMetadata().getName() === "sap.m.Input" ? (this.control as Input).getProperty('value') : null;
-    }
-
-    protected applyState(): void {
-        if (!this.control || !this.metadata || this.control.getMetadata().getName() !== "sap.m.Input") return;
-        const input = this.control as Input;
-        input.setEditable(!this.metadata.ui?.readOnly);
-        input.setRequired(!!this.metadata.required);
     }
 }

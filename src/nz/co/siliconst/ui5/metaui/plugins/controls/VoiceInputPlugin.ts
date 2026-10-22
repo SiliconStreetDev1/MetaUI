@@ -1,75 +1,46 @@
-import { BasePlugin } from "../controls/BasePlugin";
+/**
+ * @file VoiceInputPlugin.ts
+ * @description Renders a VoiceInputControl component for speech-to-text transcription.
+ */
+
+import { HardwareControlPlugin } from "./HardwareControlPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import VoiceInputControl from "../../controls/VoiceInputControl";
-import TextControl from "sap/m/Text";
+import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 
-export class VoiceInputPlugin extends BasePlugin {
+/**
+ * Plugin responsible for rendering the hardware `VoiceInputControl` speech-to-text widget.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
+ */
+export class VoiceInputPlugin extends HardwareControlPlugin<VoiceInputControl> {
+    protected readonly HardwareControlClass = VoiceInputControl;
+
     /**
-     * Renders a `VoiceInputControl` component.
-     * 
-     * @param metadata The specific JSON schema properties for this field.
+     * Renders a `sap.m.Text` control in display mode, sanitizing empty/null strings.
+     *
+     * @param _metadata The property metadata.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
-     * @returns {Control} The configured VoiceInputControl.
+     * @returns {Control} The configured Text control.
      */
-    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = metadata;
-        this.fieldKey = bindingPath.replace('/', '');
-        this.modelName = modelName;
-
-        if (!this.isEditable) {
-            
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName, undefined, {
-                    formatter: (val: unknown) => {
-                        if (!val || val === "undefined" || val === "null") return "";
-                        return val;
-                    }
-                })
-            }) as Control;
-            this.applyCommonDirectives(this.control, metadata, modelName);
-            return this.control as Control;
-        }
-
-        this.control = new VoiceInputControl({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            schemaMetadata: metadata,
-            readOnly: !!metadata.ui?.readOnly
-        }) as Control;
-
-        this.applyCommonDirectives(this.control, metadata, modelName);
-
-        (this.control as VoiceInputControl).attachEvent('capture', () => {
-            const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
+    protected renderDisplayControl(
+        _metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        const voiceBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
+            formatter: (val: unknown) => {
+                if (!val || val === "undefined" || val === "null") {
+                    return "";
                 }
-        });
-
-        return this.control as Control;
-    }
-
-    /**
-     * Retrieves the current voice transcription text.
-     * @returns {unknown} The text string.
-     */
-    protected getValue(): unknown {
-        return this.control ? (this.control as VoiceInputControl).getProperty('value') : null;
-    }
-
-    /**
-     * Applies dynamic read-only state.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
-        }
+                return String(val);
+            }
+        }) as PropertyBindingInfo;
+        return this.createDisplayText(engineScopeId, bindingPath, voiceBinding);
     }
 }

@@ -1,17 +1,30 @@
 {
   "name": "@siliconst/metaui",
-  "version": "1.4.51",
-  "description": "Dynamic Metadata UI5 Engine",
+  "version": "2.0.0",
+  "description": "Metadata-driven UI engine for SAPUI5: renders Fiori control trees at runtime from JSON Schema, OpenAPI or OData metadata",
   "author": "SiliconStreetDev1",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SiliconStreetDev1/MetaUI.git"
+    "url": "git+https://github.com/SiliconStreetDev1/MetaUI.git"
+  },
+  "homepage": "https://github.com/SiliconStreetDev1/MetaUI#readme",
+  "bugs": {
+    "url": "https://github.com/SiliconStreetDev1/MetaUI/issues"
   },
   "keywords": [
     "ui5",
+    "sapui5",
+    "fiori",
     "metadata",
-    "engine"
+    "engine",
+    "json-schema",
+    "openapi",
+    "swagger",
+    "odata",
+    "dynamic-forms",
+    "form-generator",
+    "schema-driven-ui"
   ],
   "files": [
     "src",
@@ -19,15 +32,26 @@
     "README.md"
   ],
   "scripts": {
+    "metrics": "node scripts/run-tests.js --metrics-only",
+    "lint": "node scripts/run-tests.js --lint-only",
+    "typecheck": "tsc --noEmit -p .",
     "build": "ui5 build --clean-dest",
+    "pretest": "npm run build",
+    "test": "node scripts/run-tests.js",
     "flatten": "move dist\\resources\\nz dist\\nz && rmdir /s /q dist\\resources",
     "deploy": "npm run build && npm run flatten && fiori deploy --config ui5-deploy.yaml",
-    "publish-prep": "node scripts/publish-prep.js"
+    "publish-prep": "node scripts/publish-prep.js",
+    "stress:fetch": "node scripts/fetch-stress-specs.js",
+    "stress": "node -r ./test/swagger_schemas/node-ui5-stub.js -r ts-node/register test/swagger_schemas/test_runner.ts",
+    "gen:accessors": "node scripts/generate-control-accessors.js"
   },
-  "types": "index.d.ts",
+  "types": "dist/resources/nz/co/siliconst/ui5/metaui/library.d.ts",
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "@types/openui5": "^1.120.0",
     "@ui5/cli": "^3.0.0",
+    "puppeteer": "^25.15.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.0"
   },
   "dependencies": {

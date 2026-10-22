@@ -5,7 +5,8 @@
     "SearchQuery": "",
     "AgreeTerms": false,
     "Comments": "",
-    "ToggleState": true
+    "ToggleState": true,
+    "ExternalBinding": ""
   },
   "schema": {
     "title": "Generic Control Properties Demo",

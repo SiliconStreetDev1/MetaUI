@@ -1,462 +1,520 @@
-import Control from "sap/ui/core/Control";
-import RenderManager from "sap/ui/core/RenderManager";
+/**
+ * @file DynamicHost.ts
+ * @description Transparent wrapper control (Facade) that routes between Explicit Schema Mode
+ * and Inference Mode, and manages remote schema resolution and OData context bindings.
+ */
+
+import Control, { $ControlSettings } from "sap/ui/core/Control";
+import { CSSSize } from "sap/ui/core/library";
+import ManagedObject from "sap/ui/base/ManagedObject";
+import Context from "sap/ui/model/Context";
+import Event from "sap/ui/base/Event";
 import GeneratorHost from "./host/GeneratorHost";
+import {
+    HOST_CONTROL_METADATA,
+    HOST_CONTROL_RENDERER,
+    extractConstructorJsonLiterals
+} from "./host/HostControlMetadata";
 import { Logger } from "../utils/Logger";
 import { ODataDelegate } from "./host/delegates/ODataDelegate";
+import { SchemaResolutionDelegate } from "./host/delegates/SchemaResolutionDelegate";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
-import { SchemaBuilderRegistry } from "../core/SchemaBuilderRegistry";
-import BusyIndicator from "sap/ui/core/BusyIndicator";
-import MessageToast from "sap/m/MessageToast";
-import MessageBox from "sap/m/MessageBox";
-import { SchemaProvider } from "../services/SchemaProvider";
-import { AIConfig } from "../ai/AIConfig";
+import { isRecord } from "../utils/TypeGuards";
+import { ISchema } from "../interfaces/ISchema";
+import { StateManager } from "../core/StateManager";
+
+export interface $DynamicHostSettings extends $ControlSettings {
+    schemaDefinition?: unknown;
+    schemaDefinitions?: Record<string, ISchema> | null;
+    schemaTarget?: string | null;
+    pluginRegistry?: unknown;
+    schemaBuilderRegistry?: unknown;
+    data?: unknown;
+    dataJson?: string | null;
+    liveUpdate?: boolean;
+    isValid?: boolean;
+    useMessageManager?: boolean;
+    modelName?: string;
+    engineScopeId?: string | null;
+    debugMode?: boolean;
+    editable?: boolean;
+    layoutBudget?: number;
+    width?: CSSSize;
+    height?: CSSSize;
+}
 
 /**
- * A transparent wrapper control (Facade) that automatically chooses between Explicit Schema Mode 
- * and Inference Mode based on the presence of a 'schemaDefinition'.
- * 
- * This maintains total architectural separation of the modes without forcing developers to 
- * use different XML tags.
- * 
+ * A transparent wrapper control (Facade) that automatically chooses between Explicit Schema Mode
+ * and Inference Mode based on the presence of a `'schemaDefinition'`.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.controls
  */
 export default class DynamicHost extends Control {
+    public sParentAggregationName?: string;
     private odataDelegate: ODataDelegate | null = null;
-
-    static readonly metadata = {
-        properties: {
-            schemaDefinition: { type: "any", defaultValue: null },
-            schemaDefinitions: { type: "object", defaultValue: null },
-            schemaTarget: { type: "string", defaultValue: null },
-            pluginRegistry: { type: "object", defaultValue: null },
-            schemaBuilderRegistry: { type: "object", defaultValue: null },
-            data: { type: "object", defaultValue: null, bindable: "bindable" },
-            dataJson: { type: "string", defaultValue: null, bindable: "bindable" },
-            liveUpdate: { type: "boolean", defaultValue: false },
-            isValid: { type: "boolean", defaultValue: true },
-            useMessageManager: { type: "boolean", defaultValue: false },
-            modelName: { type: "string", defaultValue: "meta" },
-            debugMode: { type: "boolean", defaultValue: false },
-            editable: { type: "boolean", defaultValue: true },
-            layoutBudget: { type: "int", defaultValue: 0 },
-            inferenceStrategy: { type: "string", defaultValue: "RuleBased" }
-        },
-        aggregations: {
-            _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
-        },
-        events: {
-            beforeSubmit: {
-                parameters: {
-                    payload: { type: "object" },
-                    addError: { type: "function" },
-                    preventDefault: { type: "function" }
-                }
-            },
-            submit: {
-                parameters: {
-                    payload: { type: "object" },
-                    payloadJson: { type: "string" }
-                }
-            },
-            cancel: {},
-            fieldChange: {
-                parameters: {
-                    fieldPath: { type: "string" },
-                    value: { type: "any" },
-                    payload: { type: "object" },
-                    isValid: { type: "boolean" }
-                }
-            },
-            validationStateChanged: { parameters: { isValid: { type: "boolean" } } },
-            validationError: { parameters: { fieldPath: { type: "string" }, message: { type: "string" } } },
-            validationSuccess: { parameters: { fieldPath: { type: "string" } } },
-            error: { parameters: { message: { type: "string" }, exception: { type: "object" } } },
-            /**
-             * Forwarded transparently from the inner GeneratorHost via the event proxy loop.
-             * Fired by WizardLayout when the user navigates to a new Wizard step.
-             * See GeneratorHost.metadata for full parameter documentation.
-             */
-            beforeLayoutSectionChange: {
-                parameters: {
-                    stepIndex: { type: "int" },
-                    payload: { type: "object" },
-                    preventDefault: { type: "function" },
-                    addError: { type: "function" },
-                    resumeNavigation: { type: "function" }
-                }
-            }
-        }
-    };
-
-    static renderer = {
-        apiVersion: 2,
-        render(rm: RenderManager, control: DynamicHost) {
-            rm.openStart("div", control);
-            rm.style("width", "100%");
-            rm.style("height", "100%");
-            rm.openEnd();
-
-            const content = control.getAggregation("_content") as Control;
-            if (content) {
-                rm.renderControl(content);
-            }
-
-            rm.close("div");
-        }
-    };
-
-    /**
-     * Internal reference to the generated inner host instance.
-     * @private
-     */
+    private schemaResolutionDelegate!: SchemaResolutionDelegate;
     private _innerHost: GeneratorHost | null = null;
-
-    /**
-     * Flag indicating if the inner host has been initialized.
-     * @private
-     */
     private _initializedInner: boolean = false;
+    private readonly _trackedElementBindings: Set<{ detachChange: (fn: () => void) => void }> = new Set();
+    private readonly _onElementBindingChange = (): void => {
+        this.initODataDelegate();
+    };
 
-    /**
-     * Initializes the OData Delegate if an OData context is detected.
-     * This allows DynamicHost to seamlessly synchronize metadata and properties from an OData model.
-     * @private
-     */
-    private initODataDelegate(): void {
-        if (!this.odataDelegate) {
-            // Guard: If the user explicitly bound dataJson, do not steal the context.
-            if (this.getBindingInfo("dataJson")) {
-                return;
-            }
+    static readonly metadata = HOST_CONTROL_METADATA;
+    static renderer = HOST_CONTROL_RENDERER;
 
-            // Guard: If the user explicitly bound 'data' to a specific property path, do not steal the context.
-            const dataBinding = this.getBindingInfo("data") as Record<string, unknown> | undefined;
-            if (dataBinding && dataBinding.path && dataBinding.path !== "") {
-                return;
-            }
-
-            const oContext = this.getBindingContext("odata") || this.getBindingContext();
-            if (oContext) {
-                Logger.debug("[MetaUI DynamicHost]", `Context found for delegate initialization: ${oContext.getPath()}`, "DynamicHost");
-                if (oContext && (oContext as ODataV4Context).requestObject && typeof (oContext as ODataV4Context).requestObject === "function") {
-                    Logger.debug("[MetaUI DynamicHost]", `Context supports requestObject/getObject. Instantiating ODataDelegate.`, "DynamicHost");
-                    this.odataDelegate = new ODataDelegate(this, oContext as ODataV4Context);
-                    this.odataDelegate.syncToEngine();
-                } else {
-                    Logger.debug("[MetaUI DynamicHost]", `Context does NOT support requestObject/getObject! Keys: ${Object.keys(oContext)}`, "DynamicHost");
-                }
-            }
+    constructor(idOrSettings?: string | $DynamicHostSettings, settings?: $DynamicHostSettings) {
+        const extracted = extractConstructorJsonLiterals(idOrSettings, settings);
+        super(extracted.idOrSettings as string, extracted.settings);
+        if (extracted.literalSchemaDefinition !== undefined) {
+            this.setProperty("schemaDefinition", extracted.literalSchemaDefinition, true);
+        }
+        if (extracted.literalDataJson !== undefined) {
+            this.setProperty("dataJson", extracted.literalDataJson, true);
         }
     }
 
-    /**
-     * Standard UI5 method override.
-     * Sets the binding context for the control and attempts to initialize the OData delegate
-     * if the context points to an OData model.
-     * 
-     * @param {sap.ui.model.Context | null | undefined} oContext The binding context object
-     * @param {string} [sModelName] Optional model name
-     * @returns {this} The control instance for chaining
-     */
-    public setBindingContext(oContext: unknown, sModelName?: string): this {
-        super.setBindingContext(oContext as sap.ui.model.Context, sModelName);
+    /** Initializes the control and its schema resolution delegate. */
+    public init(): void {
+        super.init();
+        this.schemaResolutionDelegate = new SchemaResolutionDelegate(this);
+    }
+
+    /** Initializes or replaces the OData Delegate if an OData context is detected. */
+    private initODataDelegate(): void {
+        if (this.getBindingInfo("dataJson")) return;
+        const dataBinding = this.getBindingInfo("data") as { path?: string } | undefined;
+        if (dataBinding && dataBinding.path && dataBinding.path !== "") return;
+
+        const namedODataContext = this.getBindingContext("odata");
+        const oContext = namedODataContext || this.getBindingContext();
+        if (!oContext) {
+            if (this.odataDelegate) {
+                this.odataDelegate.destroy();
+                this.odataDelegate = null;
+            }
+            return;
+        }
+        if (this.odataDelegate && this.odataDelegate.getContext() === oContext) return;
+
+        const candidate = oContext as {
+            requestObject?: unknown;
+            getObject?: unknown;
+            getModel?: () => { getMetadata?: () => { getName?: () => string } } | null;
+        };
+        const hasRequestObject = typeof candidate.requestObject === "function";
+        const modelClassName = candidate.getModel?.()?.getMetadata?.()?.getName?.() || "";
+        const isODataModel = modelClassName.indexOf("odata") > -1 || modelClassName.indexOf("ODataModel") > -1;
+        const isJsonModel = modelClassName === "sap.ui.model.json.JSONModel";
+        const hasExplicitElementBinding = Boolean(this.getElementBinding("odata") || this.getElementBinding());
+        const hasExplicitLiteralData =
+            this.getBaseProperty("data") !== null || this.getBaseProperty("dataJson") !== null;
+
+        if (!hasRequestObject && !isODataModel && !namedODataContext) {
+            if (isJsonModel && (!hasExplicitElementBinding || hasExplicitLiteralData)) {
+                return;
+            }
+        }
+
+        if (this.odataDelegate) {
+            this.odataDelegate.destroy();
+            this.odataDelegate = null;
+        }
+
+        if (hasRequestObject || typeof candidate.getObject === "function") {
+            Logger.debug(
+                "[MetaUI DynamicHost]",
+                `Instantiating ODataDelegate for context ${oContext.getPath()}`,
+                "DynamicHost"
+            );
+            this.odataDelegate = new ODataDelegate(this, oContext as ODataV4Context);
+            this.odataDelegate.syncToEngine();
+        }
+    }
+
+    /** Standard UI5 method override. Sets the binding context and updates the OData delegate. */
+    public setBindingContext(oContext: Context | null | undefined, sModelName?: string): this {
+        super.setBindingContext(oContext as Context, sModelName);
         this.initODataDelegate();
         return this;
     }
 
-    /**
-     * Standard UI5 method override.
-     * Binds the element to the given path and attaches a change listener to re-evaluate
-     * the OData delegate when the element binding resolves.
-     * 
-     * @param {string | Record<string, unknown>} vPath The binding path or configuration object
-     * @param {object} [mParameters] Optional mapping parameters
-     * @returns {this} Reference to this instance for chaining
-     */
-    public bindElement(vPath: unknown, mParameters?: object): this {
-        super.bindElement(vPath as string | { path: string }, mParameters);
-        const sModelName = typeof vPath === "object" ? vPath.model : undefined;
+    /** Attaches `_onElementBindingChange` to the resolved element binding for `vPath` / `mParameters`. */
+    private attachElementBindingListener(
+        vPath: string | { path?: string; model?: string },
+        mParameters?: { model?: string }
+    ): void {
+        let sModelName: string | undefined;
+        if (isRecord(vPath) && typeof vPath.model === "string") {
+            sModelName = vPath.model;
+        } else if (isRecord(mParameters) && typeof mParameters.model === "string") {
+            sModelName = mParameters.model;
+        } else if (typeof vPath === "string" && vPath.indexOf(">") > 0) {
+            sModelName = vPath.substring(0, vPath.indexOf(">"));
+        }
         const oBinding = this.getElementBinding(sModelName);
         if (oBinding) {
-            oBinding.attachChange(() => {
-                this.initODataDelegate();
-            });
+            oBinding.detachChange(this._onElementBindingChange);
+            oBinding.attachChange(this._onElementBindingChange);
+            this._trackedElementBindings.add(oBinding);
         }
+    }
+
+    /** Standard UI5 method override. Binds the object context and attaches an OData change listener. */
+    public bindObject(vPath: string | { path: string; model?: string }, mParameters?: object): this {
+        const bindArg =
+            typeof vPath === "string" && isRecord(mParameters) ? { path: vPath, ...mParameters } : vPath;
+        super.bindObject(bindArg as string);
+        this.attachElementBindingListener(vPath, mParameters as { model?: string } | undefined);
+        return this;
+    }
+
+    /** Standard UI5 method override. Binds the element to the given path and attaches a change listener. */
+    public bindElement(vPath: string | { path: string; model?: string }, mParameters?: object): this {
+        super.bindElement(vPath as string, mParameters);
+        this.attachElementBindingListener(vPath, mParameters as { model?: string } | undefined);
         return this;
     }
 
     /**
-     * Standard UI5 Lifecycle Hook.
-     * Evaluates the initial properties and spawns the GeneratorHost.
-     * It handles the complex lifecycle task of copying all bindings, raw properties, and event listeners 
-     * down to the inner host perfectly transparently.
+     * Suppresses invalidation bubbling to parent views when this host is mounted in `dependents`.
+     *
+     * @param oOrigin Optional child control that triggered invalidation.
      */
+    public override invalidate(oOrigin?: ManagedObject): void {
+        if (this.sParentAggregationName === "dependents") {
+            return;
+        }
+        super.invalidate(oOrigin);
+    }
+
+    /** Standard UI5 Lifecycle Hook. Evaluates the initial properties and spawns the GeneratorHost. */
     public onBeforeRendering(): void {
-        Logger.debug("[MetaUI DynamicHost]", `onBeforeRendering called. _initializedInner: ${this._initializedInner}`, "DynamicHost");
-
         this.initODataDelegate();
-
         if (!this._initializedInner) {
-            let schemaRaw = this.getProperty("schemaDefinition");
-
-            if (typeof schemaRaw === "string" && (schemaRaw.startsWith("http://") || schemaRaw.startsWith("https://"))) {
-                const self = this as unknown as { _fetchingSchema?: boolean };
-                if (self._fetchingSchema) return; // Prevent re-entry
-                self._fetchingSchema = true;
-                
-                BusyIndicator.show(0);
-                SchemaProvider.resolve(schemaRaw)
-                    .then(json => {
-                        const plugin = SchemaBuilderRegistry.getBuilderFor(json);
-                        const finalSchema = plugin ? plugin.build(json, this.getProperty("schemaTarget") as string | undefined) : json;
-                        super.setProperty("schemaDefinition", finalSchema, true);
-                        if (finalSchema.definitions) {
-                            super.setProperty("schemaDefinitions", finalSchema.definitions, true);
-                        }
-                        const self = this as unknown as { _fetchingSchema?: boolean };
-                        self._fetchingSchema = false;
-                        BusyIndicator.hide();
-                        this.invalidate(); // Force re-render with resolved schema
-                    })
-                    .catch(err => {
-                        const self = this as unknown as { _fetchingSchema?: boolean };
-                        MessageToast.show("Failed to fetch remote schema");
-                        super.setProperty("schemaDefinition", null, true); // Fallback to full inference
-                        self._fetchingSchema = false;
-                        BusyIndicator.hide();
-                        this.invalidate();
-                    });
-                return; // Abort this render cycle until fetch completes
-            }
-
-            // 2. Local Plugin Detection (Stringified JSON or Raw Object)
-            let schema = schemaRaw;
-            if (schema && typeof schema === "string" && (schema as string).trim().startsWith("{")) {
-                try {
-                    schema = JSON.parse(schema);
-                } catch (e) {
-                    // Ignore, let standard validation catch it
-                }
-            }
-
-            if (schema && typeof schema === "object") {
-                const plugin = SchemaBuilderRegistry.getBuilderFor(schema);
-                if (plugin) {
-                    schema = plugin.build(schema, this.getProperty("schemaTarget") as string | undefined);
-                    // Silently update the wrapper property so the inner host gets the final parsed MetaUI format
-                    super.setProperty("schemaDefinition", schema, true);
-                    if ((schema as Record<string, unknown>).definitions) {
-                        super.setProperty("schemaDefinitions", (schema as Record<string, unknown>).definitions, true);
-                    }
-                }
-            }
-
-            const dataJson = this.getProperty("dataJson");
-            const data = this.getProperty("data");
-
-            let hasSchema = !!schema;
-            if (hasSchema && typeof schema === "object" && Object.keys(schema as Record<string, unknown>).length === 0) {
-                hasSchema = false; // Treat empty object as no schema
-            }
-
-            const hasData = !!dataJson || !!data;
-
-            // 3. AI Schema Inference Detection
-            if (hasData && this.getProperty("inferenceStrategy") === "AI") {
-                const self = this as unknown as { _fetchingSchema?: boolean };
-                if (self._fetchingSchema) return; // Prevent re-entry
-                self._fetchingSchema = true;
-
-                let rawDataObj = data;
-                if (!rawDataObj && dataJson) {
-                    try { rawDataObj = JSON.parse(dataJson as string); } catch(e: unknown) { 
-                        const msg = "Ignored invalid dataJson parse: " + (e as Error).message;
-                        Logger.error("[DynamicHost]", msg, "DynamicHost"); 
-                        MessageBox.error(msg, { title: "Invalid JSON Data" });
-                    }
-                }
-
-                if (rawDataObj) {
-                    BusyIndicator.show(0);
-                    const proxy = AIConfig.getProxy();
-                    
-                    proxy.generateSchema(rawDataObj, schema || undefined)
-                        .then((generatedSchema: unknown) => {
-                            const self = this as unknown as { _fetchingSchema?: boolean };
-                            super.setProperty("schemaDefinition", generatedSchema, true);
-                            self._fetchingSchema = false;
-                            BusyIndicator.hide();
-                            this.invalidate(); // Force re-render with the new schema
-                        })
-                        .catch((err: Error) => {
-                            const self = this as unknown as { _fetchingSchema?: boolean };
-                            Logger.warn("[MetaUI DynamicHost]", "AI inference failed, falling back to RuleBased. Error: " + err.message, "DynamicHost");
-                            MessageToast.show("AI Inference failed, using fallback.");
-                            super.setProperty("inferenceStrategy", "RuleBased", true); // Fallback to normal inference
-                            self._fetchingSchema = false;
-                            BusyIndicator.hide();
-                            this.invalidate(); 
-                        });
-                    return; // Abort render cycle until AI is done
-                }
-            }
-
-            Logger.debug("[MetaUI DynamicHost]", `Evaluating boot. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
-
-            // Only boot if we have either a schema or some data to infer from
-            if (hasSchema || hasData) {
-                if (this.getProperty("debugMode")) {
-                    Logger.debug("[MetaUI DynamicHost]", `Booting inner host. hasSchema: ${hasSchema}, hasData: ${hasData}`, "DynamicHost");
-                }
-                // The architectural Facade router logic:
-                // We've simplified this! We no longer use HostFactory or separate subclasses.
-                // GeneratorHost is fully capable of inferring the schema if none is provided.
-                this._innerHost = new GeneratorHost();
-
-                // 1. Forward all static values to the spawned host BEFORE mounting.
-                // Since we no longer use bindProperty, it's perfectly safe to set raw properties before mounting.
-                const props = this.getMetadata().getProperties();
-                for (const propName in props) {
-                    if (propName === "inferenceStrategy") continue;
-                    const val = super.getProperty(propName);
-                    if (val !== null && val !== undefined) {
-                        if (propName === "schemaDefinitions") {
-                            Logger.debug(`[MetaUI DynamicHost] Proxying schemaDefinitions: ${Object.keys(val)}`, "", "DynamicHost");
-                        }
-                        this._innerHost.setProperty(propName, val);
-                    } else if (propName === "schemaDefinitions") {
-                        Logger.warn(`[MetaUI DynamicHost] Warning: schemaDefinitions is null/undefined in Wrapper. Defaulting to empty object in GeneratorHost.`, "", "DynamicHost");
-                    }
-                }
-
-                // 2. Mount so it inherits models and triggers lifecycle.
-                this.setAggregation("_content", this._innerHost);
-
-                // 3. Forward all event subscriptions.
-                // By proxying the events upwards, the developer can subscribe to `<meta:DynamicHost submit="...">` 
-                // and perfectly receive the inner host's submission event.
-                const events = this.getMetadata().getEvents();
-                for (const eventName in events) {
-                    this._innerHost.attachEvent(eventName, (oEvent: sap.ui.base.Event) => {
-                        // Natively push updated payload out to any bound Fiori Element properties.
-                        // Using super.setProperty prevents an infinite loop back down to _innerHost.
-                        if (eventName === "submit" || eventName === "fieldChange") {
-                            const params = oEvent.getParameters();
-                            if (params.payload) {
-                                const isLive = this.getProperty("liveUpdate") === true;
-                                if (eventName === "submit" || isLive) {
-                                    super.setProperty("data", params.payload, true);
-
-                                    const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
-                                    super.setProperty("dataJson", str, true);
-                                }
-                            }
-                        }
-                        this.fireEvent(eventName, oEvent.getParameters());
-                    });
-                }
-
+            const spawned = this.schemaResolutionDelegate.resolveAndSpawnInnerHost();
+            if (spawned) {
+                this._innerHost = spawned;
+                this.setAggregation("_content", this._innerHost, this.sParentAggregationName === "dependents");
                 this._initializedInner = true;
             }
         }
     }
 
-    /**
-     * Overrides standard UI5 setProperty to act as a transparent proxy.
-     * When a property is updated on the wrapper (either programmatically or via a binding update),
-     * it instantly mirrors that value down to the inner instantiated host.
-     */
-    public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
-        if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition" || propertyName === "schemaDefinitions") {
-            if (this.getProperty("debugMode")) {
-                Logger.debug("[MetaUI DynamicHost]", `Wrapper received setProperty: ${propertyName}`, "DynamicHost");
-            }
+    /** Reads a property directly from the base UI5 control without inner-host interception. */
+    public getBaseProperty(propertyName: string): unknown {
+        return super.getProperty(propertyName);
+    }
+
+    /** Writes a property directly to the base UI5 control without inner-host forwarding. */
+    public setBaseProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
+        return super.setProperty(propertyName, value, suppressInvalidate);
+    }
+
+    /** Forwards a resolved remote schema object to the inner `GeneratorHost` if already spawned. */
+    public forwardResolvedSchemaToInnerHost(resolvedSchema: unknown): void {
+        if (this._innerHost) {
+            this._innerHost.setProperty("schemaDefinition", resolvedSchema);
         }
+    }
+
+    /** Overrides standard UI5 setProperty to act as a transparent proxy. */
+    public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
         super.setProperty(propertyName, value, suppressInvalidate);
-        if (this._innerHost && propertyName !== "inferenceStrategy") {
+        if (
+            propertyName === "schemaDefinition" &&
+            typeof value === "string" &&
+            (value.startsWith("http://") || value.startsWith("https://"))
+        ) {
+            this.schemaResolutionDelegate.startRemoteFetch(value);
+            return this;
+        }
+        if (this._innerHost && propertyName !== "width" && propertyName !== "height") {
             this._innerHost.setProperty(propertyName, value, suppressInvalidate);
-        } else if (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition" || propertyName === "schemaDefinitions") {
-            if (this.getProperty("debugMode")) {
-                Logger.debug("[MetaUI DynamicHost]", `_innerHost not yet initialized when ${propertyName} was set. Booting will happen on next render.`, "DynamicHost");
-            }
+        } else if (
+            !this._initializedInner &&
+            (propertyName === "data" || propertyName === "dataJson" || propertyName === "schemaDefinition") &&
+            value !== null &&
+            value !== undefined
+        ) {
+            this.invalidate();
         }
         return this;
     }
 
-
-
-
-
-    /**
-     * Programmatic API support. Routes dialog commands down to the spawned inner host.
-     * If the inner host has not booted yet, it forces initialization immediately.
-     * 
-     * @param {string} [title="Form"] The title of the dialog
-     * @param {string} [submitButtonText="OK"] The text for the primary action button
-     * @param {string} [cancelButtonText="Cancel"] The text for the cancel button
-     * @param {string} [dialogWidth="auto"] The width of the dialog
-     * @param {sap.ui.core.Control} [parentView] The parent view to attach the dialog to for model inheritance.
-     */
-    public openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): void {
+    /** Proxies asynchronous layout generation down to the inner host. */
+    public async generate(): Promise<void> {
         if (!this._innerHost) {
-            this.onBeforeRendering(); // Force init if they bypassed UI5 rendering
+            this.onBeforeRendering();
         }
-        this._innerHost?.openInDialog(title, submitButtonText, cancelButtonText, dialogWidth, parentView);
+        const fetchPromise = this.schemaResolutionDelegate.getFetchPromise();
+        if (fetchPromise) {
+            await fetchPromise;
+            if (!this._innerHost) {
+                this.onBeforeRendering();
+            }
+        }
+        if (this._innerHost) {
+            await this._innerHost.generate();
+        }
     }
 
-    /**
-     * Proxies submission triggering down to the instantiated generator host.
-     * Evaluates the internal Engine validation suite and returns true if structurally sound.
-     * 
-     * @returns {boolean} True if the internal payload passes schema validation, false otherwise.
-     */
+    /** Programmatic API support. Routes dialog commands down to the spawned inner host. */
+    public async openInDialog(
+        title?: string,
+        submitButtonText?: string,
+        cancelButtonText?: string,
+        dialogWidth?: string,
+        parentView?: Control
+    ): Promise<void> {
+        if (!this._innerHost) {
+            this.onBeforeRendering();
+        }
+        const fetchPromise = this.schemaResolutionDelegate.getFetchPromise();
+        if (fetchPromise) {
+            await fetchPromise;
+            if (!this._innerHost) {
+                this.onBeforeRendering();
+            }
+        }
+        if (this._innerHost) {
+            await this._innerHost.openInDialog(title, submitButtonText, cancelButtonText, dialogWidth, parentView);
+        }
+    }
+
+    /** Proxies submission triggering down to the instantiated generator host. */
     public triggerSubmit(): boolean {
-        if (!this._innerHost) {
-            return false;
-        }
-        return this._innerHost.triggerSubmit();
+        return this._innerHost ? this._innerHost.triggerSubmit() : false;
     }
 
-    /**
-     * Injects a custom error message onto a specific field.
-     * Useful for injecting custom backend validation errors.
-     * 
-     * @param {string} fieldPath The schema key path to target.
-     * @param {string} message The custom error message to display.
-     */
+    /** Injects a custom error message onto a specific field. */
     public addCustomError(fieldPath: string, message: string): void {
-        const inner = this._innerHost as unknown as { addCustomError?: (p: string, m: string) => void };
-        if (inner && typeof inner.addCustomError === "function") {
-            inner.addCustomError(fieldPath, message);
-        }
+        this._innerHost?.addCustomError(fieldPath, message);
     }
 
-    /**
-     * Clears a custom error message from a specific field.
-     * 
-     * @param {string} fieldPath The schema key path to target.
-     */
+    /** Clears a custom error message from a specific field. */
     public clearCustomError(fieldPath: string): void {
-        const inner = this._innerHost as unknown as { clearCustomError?: (p: string) => void };
-        if (inner && typeof inner.clearCustomError === "function") {
-            inner.clearCustomError(fieldPath);
-        }
+        this._innerHost?.clearCustomError(fieldPath);
     }
 
-    /**
-     * Overrides standard UI5 getProperty to transparently pull extracted data from the inner host.
-     * Ensures that querying the DynamicHost facade for `data` always yields the freshest payload.
-     * 
-     * @param {string} propertyName The name of the property to retrieve
-     * @returns {unknown} The property value
-     */
+    /** Overrides standard UI5 getProperty to transparently pull extracted data from the inner host. */
     public getProperty(propertyName: string): unknown {
-        if (propertyName === "outputData") {
-            propertyName = "data"; // Forward deprecated outputData to data
-        }
-        if (this._innerHost && (propertyName === "data" || propertyName === "dataJson")) {
+        if (
+            this._innerHost &&
+            (propertyName === "outputData" ||
+                propertyName === "data" ||
+                propertyName === "dataJson" ||
+                propertyName === "isValid")
+        ) {
             return this._innerHost.getProperty(propertyName);
+        }
+        if (propertyName === "outputData") {
+            return super.getProperty("data");
         }
         return super.getProperty(propertyName);
     }
+
+    /** Attaches a handler to the `submit` event. */
+    public attachSubmit(fnFunction: (oEvent: Event) => void, oListener?: object): this {
+        return this.attachEvent("submit", fnFunction, oListener);
+    }
+
+    /** Sets the global `$ref` schema definitions dictionary on the host and inner host. */
+    public setSchemaDefinitions(definitions: Record<string, ISchema>): this {
+        this.setProperty("schemaDefinitions", definitions, true);
+        this._innerHost?.setSchemaDefinitions(definitions);
+        return this;
+    }
+
+    /** Retrieves the normalized `$ref` schema definitions dictionary from the inner host. */
+    public getSchemaDefinitions(): Record<string, ISchema> | undefined {
+        if (this._innerHost) {
+            return this._innerHost.getSchemaDefinitions();
+        }
+        return (this.getProperty("schemaDefinitions") as Record<string, ISchema> | null) || undefined;
+    }
+
+    /** Resolves a single `$ref` definition from the inner host. */
+    public getSchemaDefinition(refPath: string): ISchema | undefined {
+        return this._innerHost ? this._innerHost.getSchemaDefinition(refPath) : undefined;
+    }
+
+    /** Proxies access to the active `StateManager` instance on the inner host. */
+    public getStateManager(): StateManager | null {
+        return this._innerHost ? this._innerHost.getStateManager() : null;
+    }
+
+    /** Proxies access to the diagnostic DOM metadata tree from the inner host. */
+    public getDebugDomMetadata(): unknown {
+        return this._innerHost ? this._innerHost.getDebugDomMetadata() : [];
+    }
+
+    /** Standard UI5 exit hook. Cleans up tracked element-binding listeners, the ODataDelegate, and inner host. */
+    public exit(): void {
+        for (const binding of Array.from(this._trackedElementBindings)) {
+            binding.detachChange(this._onElementBindingChange);
+        }
+        this._trackedElementBindings.clear();
+        this.odataDelegate?.destroy();
+        this.odataDelegate = null;
+        this._innerHost?.destroy();
+        this._innerHost = null;
+    }
 }
+
+// <generated-accessors>
+// Generated by scripts/generate-control-accessors.js from this control's UI5 metadata.
+// Do not edit by hand: run `npm run gen:accessors`. `npm run lint` fails if it is stale.
+
+/**
+ * Parameters delivered with the `beforeSubmit` event of `DynamicHost`.
+ */
+export interface DynamicHost$BeforeSubmitEventParameters {
+    payload?: object;
+    addError?: (...args: unknown[]) => unknown;
+    preventDefault?: (...args: unknown[]) => unknown;
+}
+
+/**
+ * Parameters delivered with the `submit` event of `DynamicHost`.
+ */
+export interface DynamicHost$SubmitEventParameters {
+    payload?: object;
+    payloadJson?: string;
+}
+
+/**
+ * Parameters delivered with the `cancel` event of `DynamicHost` (none).
+ */
+export type DynamicHost$CancelEventParameters = object;
+
+/**
+ * Parameters delivered with the `fieldChange` event of `DynamicHost`.
+ */
+export interface DynamicHost$FieldChangeEventParameters {
+    fieldPath?: string;
+    value?: unknown;
+    payload?: object;
+    isValid?: boolean;
+}
+
+/**
+ * Parameters delivered with the `validationStateChanged` event of `DynamicHost`.
+ */
+export interface DynamicHost$ValidationStateChangedEventParameters {
+    isValid?: boolean;
+}
+
+/**
+ * Parameters delivered with the `error` event of `DynamicHost`.
+ */
+export interface DynamicHost$ErrorEventParameters {
+    message?: string;
+    exception?: object;
+}
+
+/**
+ * Parameters delivered with the `beforeLayoutSectionChange` event of `DynamicHost`.
+ */
+export interface DynamicHost$BeforeLayoutSectionChangeEventParameters {
+    stepIndex?: number;
+    currentSectionIndex?: number;
+    newSectionIndex?: number;
+    payload?: object;
+    preventDefault?: (...args: unknown[]) => unknown;
+    addError?: (...args: unknown[]) => unknown;
+    resumeNavigation?: (...args: unknown[]) => unknown;
+}
+
+/**
+ * Accessors UI5 generates at runtime from `DynamicHost`'s metadata, declared here so
+ * TypeScript consumers can call them. Merged into the class by declaration merging.
+ */
+export default interface DynamicHost {
+    setSchemaDefinition(schemaDefinition: unknown): this;
+    getSchemaTarget(): string;
+    setSchemaTarget(schemaTarget: string): this;
+    getPluginRegistry(): object;
+    setPluginRegistry(pluginRegistry: object): this;
+    getSchemaBuilderRegistry(): object;
+    setSchemaBuilderRegistry(schemaBuilderRegistry: object): this;
+    getData(): unknown;
+    setData(data: unknown): this;
+    getDataJson(): string;
+    setDataJson(dataJson: string): this;
+    getLiveUpdate(): boolean;
+    setLiveUpdate(liveUpdate: boolean): this;
+    getIsValid(): boolean;
+    setIsValid(isValid: boolean): this;
+    getUseMessageManager(): boolean;
+    setUseMessageManager(useMessageManager: boolean): this;
+    getModelName(): string;
+    setModelName(modelName: string): this;
+    getDebugMode(): boolean;
+    setDebugMode(debugMode: boolean): this;
+    getEditable(): boolean;
+    setEditable(editable: boolean): this;
+    getLayoutBudget(): number;
+    setLayoutBudget(layoutBudget: number): this;
+    getEngineScopeId(): string;
+    setEngineScopeId(engineScopeId: string): this;
+    getWidth(): CSSSize;
+    setWidth(width: CSSSize): this;
+    getHeight(): CSSSize;
+    setHeight(height: CSSSize): this;
+    attachBeforeSubmit(fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachBeforeSubmit<T>(
+        data: T,
+        fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>, data: T) => void,
+        listener?: object
+    ): this;
+    detachBeforeSubmit(fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireBeforeSubmit(parameters?: DynamicHost$BeforeSubmitEventParameters): this;
+    detachSubmit(fn: (event: Event<DynamicHost$SubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireSubmit(parameters?: DynamicHost$SubmitEventParameters): this;
+    attachCancel(fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachCancel<T>(data: T, fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    detachCancel(fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireCancel(parameters?: DynamicHost$CancelEventParameters): this;
+    attachFieldChange(fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachFieldChange<T>(
+        data: T,
+        fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>, data: T) => void,
+        listener?: object
+    ): this;
+    detachFieldChange(fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireFieldChange(parameters?: DynamicHost$FieldChangeEventParameters): this;
+    attachValidationStateChanged(
+        fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>) => void,
+        listener?: object
+    ): this;
+    attachValidationStateChanged<T>(
+        data: T,
+        fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>, data: T) => void,
+        listener?: object
+    ): this;
+    detachValidationStateChanged(
+        fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>) => void,
+        listener?: object
+    ): this;
+    fireValidationStateChanged(parameters?: DynamicHost$ValidationStateChangedEventParameters): this;
+    attachError(fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachError<T>(data: T, fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    detachError(fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireError(parameters?: DynamicHost$ErrorEventParameters): this;
+    attachBeforeLayoutSectionChange(
+        fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>) => void,
+        listener?: object
+    ): this;
+    attachBeforeLayoutSectionChange<T>(
+        data: T,
+        fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>, data: T) => void,
+        listener?: object
+    ): this;
+    detachBeforeLayoutSectionChange(
+        fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>) => void,
+        listener?: object
+    ): this;
+    fireBeforeLayoutSectionChange(parameters?: DynamicHost$BeforeLayoutSectionChangeEventParameters): this;
+}
+// </generated-accessors>

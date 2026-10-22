@@ -1,39 +1,51 @@
 /**
  * @file PatternValidatorPlugin.ts
- * @description Standard business logic validator for Regex patterns.
+ * @description Validates string values against a JSON-Schema `pattern` regular expression.
  */
 
-import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
+import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
 
 /**
- * Validates a string against a regular expression pattern provided in the schema args.
- * 
- * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * Enforces the JSON-Schema `pattern` keyword. Per JSON-Schema semantics the keyword only constrains
+ * strings; other value types are ignored. An invalid regex is a schema authoring error and is reported
+ * as a failed validation rather than silently skipped.
  */
 export class PatternValidatorPlugin implements IValidator {
     /**
-     * Validates parsed data before it enters the JSON model.
-     * @param parsedValue The cleaned data to validate.
-     * @param args Optional arguments provided in the schema.
-     * @returns IValidationResult containing status and optional error message.
+     * Extracts the `pattern` regular expression from a schema property descriptor.
+     *
+     * @param propMeta The schema property descriptor.
+     * @returns {IValidatorRuleExtraction} Activation status and regex string.
+     */
+    public extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction {
+        return {
+            active: propMeta.pattern !== undefined,
+            args: propMeta.pattern
+        };
+    }
+
+    /**
+     * @param parsedValue The value to test.
+     * @param args The regular expression source string.
+     * @returns {IValidationResult} Invalid if the string does not match, or if the pattern itself is malformed.
      */
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
-        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
+        if (typeof parsedValue !== "string" || parsedValue === "") return { isValid: true };
         if (typeof args !== "string") {
-            return { isValid: true }; // Invalid config, skip
+            return { isValid: false, errorMessage: "Schema configuration error: 'pattern' must be a string." };
         }
 
+        let regex: RegExp;
         try {
-            const regex = new RegExp(args);
-            if (typeof parsedValue !== "string" || !regex.test(parsedValue)) {
-                return { isValid: false, errorMessage: `Input does not match the required pattern.` };
-            }
+            regex = new RegExp(args);
         } catch (e) {
-            // Invalid regex string provided
-            return { isValid: false, errorMessage: `Schema configuration error: Invalid regex pattern.` };
+            return { isValid: false, errorMessage: `Schema configuration error: invalid regex pattern '${args}'.` };
         }
-        
+
+        if (!regex.test(parsedValue)) {
+            return { isValid: false, errorMessage: "Input does not match the required pattern." };
+        }
         return { isValid: true };
     }
 }

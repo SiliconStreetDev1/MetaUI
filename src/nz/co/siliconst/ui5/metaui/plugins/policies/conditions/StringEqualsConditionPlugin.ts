@@ -1,19 +1,18 @@
+/**
+ * @file StringEqualsConditionPlugin.ts
+ * @description Policy condition plugin that evaluates whether target properties strictly equal configured string values.
+ */
+
 import { IPolicyConditionPlugin } from "../../../interfaces/IPolicyPlugin";
+import { isRecord } from "../../../utils/TypeGuards";
+import { Logger } from "../../../utils/Logger";
+import { PolicyConditionUtil } from "../../../utils/PolicyConditionUtil";
 
 /**
  * Evaluates whether a target property matches a specific string exactly.
  * Used for routing logic, like hiding fields based on a dropdown selection.
  */
 export class StringEqualsConditionPlugin implements IPolicyConditionPlugin {
-    /**
-     * Determines if this plugin can handle the given schema condition block.
-     * @param conditionKey The key found in the schema (e.g., "StringEquals").
-     * @returns True if the key is "StringEquals".
-     */
-    public canHandle(conditionKey: string): boolean {
-        return conditionKey === "StringEquals";
-    }
-
     /**
      * Evaluates the configured equality strings against the live state payload.
      * @param conditionPayload A record mapping JSON pointers to target string values.
@@ -22,12 +21,22 @@ export class StringEqualsConditionPlugin implements IPolicyConditionPlugin {
      * @returns True if all mapped properties strictly equal their targets, false otherwise.
      */
     public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean {
-        const payload = conditionPayload as Record<string, string>;
-        if (!payload) return true;
+        if (!isRecord(conditionPayload) || Object.keys(conditionPayload).length === 0) {
+            Logger.warn(
+                "[MetaUI PolicyEngine]",
+                `Malformed condition payload for operator 'StringEquals': ` +
+                    `expected non-empty object, got ${typeof conditionPayload}. Failing closed (false).`,
+                "StringEqualsConditionPlugin"
+            );
+            return false;
+        }
 
-        for (const [path, targetStr] of Object.entries(payload)) {
+        for (const [path, targetStr] of Object.entries(conditionPayload)) {
             const val = resolvePointer(data, path);
-            if (String(val) !== String(targetStr)) return false;
+            const resolvedTarget = PolicyConditionUtil.resolveThreshold(targetStr, data, resolvePointer);
+            const actual = val === undefined || val === null ? "" : String(val);
+            const expected = resolvedTarget === undefined || resolvedTarget === null ? "" : String(resolvedTarget);
+            if (actual !== expected) return false;
         }
         return true;
     }

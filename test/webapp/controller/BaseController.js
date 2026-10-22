@@ -4,20 +4,20 @@ sap.ui.define([
     "sap/ui/model/json/JSONModel",
     "sap/m/MessagePopover",
     "sap/m/MessageItem",
-    "sap/ui/core/Core",
+    "sap/ui/core/Messaging",
     "sap/m/MessageToast",
     "sap/m/Dialog",
     "sap/m/Button",
     "nz/co/siliconst/ui5/metaui/controls/DynamicHost",
     "sap/base/Log"
-], function (Controller, History, JSONModel, MessagePopover, MessageItem, Core, MessageToast, Dialog, Button, DynamicHost, Log) {
+], function (Controller, History, JSONModel, MessagePopover, MessageItem, Messaging, MessageToast, Dialog, Button, DynamicHost, Log) {
     "use strict";
 
     /**
      * @class
      * Base Controller for the Sandbox application.
      * Provides common routing, view model setup, and generic event handlers for testing MetaUI capabilities.
-     * 
+     *
      * @extends sap.ui.core.mvc.Controller
      * @alias metaui.sandbox.controller.BaseController
      */
@@ -25,7 +25,7 @@ sap.ui.define([
 
         /**
          * Convenience method for accessing the router in every controller of the application.
-         * 
+         *
          * @public
          * @returns {sap.ui.core.routing.Router} The router for this component.
          */
@@ -35,7 +35,7 @@ sap.ui.define([
 
         /**
          * Convenience method for getting the view model by name in every controller of the application.
-         * 
+         *
          * @public
          * @param {string} [sName] The model name.
          * @returns {sap.ui.model.Model} The model instance.
@@ -46,7 +46,7 @@ sap.ui.define([
 
         /**
          * Convenience method for setting the view model in every controller of the application.
-         * 
+         *
          * @public
          * @param {sap.ui.model.Model} oModel The model instance.
          * @param {string} sName The model name.
@@ -59,7 +59,7 @@ sap.ui.define([
         /**
          * Lifecycle hook to initialize standard sandbox settings.
          * Subclasses should call this in their onInit to setup common Sandbox wiring.
-         * 
+         *
          * @public
          * @returns {sap.ui.model.json.JSONModel} The newly created view model.
          */
@@ -72,16 +72,27 @@ sap.ui.define([
             });
             this.setModel(oViewModel, "viewModel");
 
-            // Setup global MessageManager to catch UI5 validation messages
-            var oMessageManager = Core.getMessageManager();
-            this.getView().setModel(oMessageManager.getMessageModel(), "message");
+            // Setup global Messaging model to catch UI5 validation messages
+            this.getView().setModel(Messaging.getMessageModel(), "message");
 
             return oViewModel;
         },
 
         /**
+         * Cleans up any lazily instantiated MessagePopover on controller exit.
+         *
+         * @public
+         */
+        onExit: function () {
+            if (this._messagePopover) {
+                this._messagePopover.destroy();
+                this._messagePopover = null;
+            }
+        },
+
+        /**
          * Displays the objective and instructions for the currently loaded scenario.
-         * 
+         *
          * @public
          */
         onScenarioInfo: function () {
@@ -96,7 +107,7 @@ sap.ui.define([
          * Event handler for navigating back.
          * Resolves the UI5 history hash and navigates back seamlessly.
          * If no previous hash exists, routes back to the home page.
-         * 
+         *
          * @public
          */
         onNavBack: function () {
@@ -112,7 +123,7 @@ sap.ui.define([
         /**
          * Shields the CodeEditor from immediate invalid JSON parses.
          * Pushes raw strings down to bindings and safely parses them if structurally sound.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The inbound change event from the code editor.
          */
@@ -132,7 +143,7 @@ sap.ui.define([
 
         /**
          * Forces the dynamically bound MetaUI host to validate and extract its current payload.
-         * 
+         *
          * @public
          */
         onTriggerSubmit: function () {
@@ -144,7 +155,7 @@ sap.ui.define([
 
         /**
          * Toggles the global MessagePopover containing centralized UI validation state errors.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The press event originating from the message indicator button.
          */
@@ -168,9 +179,9 @@ sap.ui.define([
         },
 
         /**
-         * Parses the manually typed JSON strings from the CodeEditors and re-binds them 
+         * Parses the manually typed JSON strings from the CodeEditors and re-binds them
          * to trigger a full regeneration of the internal MetaUI layout.
-         * 
+         *
          * @public
          */
         onRegenerate: function () {
@@ -195,7 +206,7 @@ sap.ui.define([
         /**
          * Programmatically builds a MetaUI engine and mounts it natively inside a popup dialog.
          * Useful for testing popup orchestration decoupled from static XML views.
-         * 
+         *
          * @public
          */
         onOpenDialog: function () {
@@ -207,14 +218,14 @@ sap.ui.define([
                 debugMode: oViewModel.getProperty("/debugMode")
             });
 
-            oHost.attachSubmit(function(oEvent) {
+            oHost.attachSubmit(function (oEvent) {
                 var params = oEvent.getParameters();
                 var payload = params.payload;
                 var sPayload = JSON.stringify(payload, null, 2);
-                
+
                 Log.info("[Sandbox] Popup Submit Payload:", payload);
-                
-                sap.ui.require(["sap/m/MessageBox"], function(MessageBox) {
+
+                sap.ui.require(["sap/m/MessageBox"], function (MessageBox) {
                     MessageBox.success("Payload successfully extracted from MetaUI.", {
                         title: "Extracted Payload",
                         details: sPayload || "No payload extracted."
@@ -222,8 +233,13 @@ sap.ui.define([
                 });
             });
 
-            this.getView().addDependent(oHost);
-            oHost.openInDialog("MetaUI Sandbox Dialog", "Extract Payload");
+            this.getView().addAggregation("dependents", oHost, true);
+            oHost.openInDialog("MetaUI Sandbox Dialog", "Extract Payload", "Cancel", "auto", this.getView()).finally(function () {
+                if (!oHost.isDestroyed()) {
+                    this.getView().removeAggregation("dependents", oHost, true);
+                    oHost.destroy();
+                }
+            }.bind(this));
         },
 
         /* =========================================================== */
@@ -232,7 +248,7 @@ sap.ui.define([
 
         /**
          * Handles native field modifications bubbled up from the MetaUI Engine.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The field change event containing the updated payload.
          */
@@ -240,9 +256,9 @@ sap.ui.define([
             var fieldPath = oEvent.getParameter("fieldPath");
             var isValid = oEvent.getParameter("isValid");
             var payload = oEvent.getParameter("payload");
-            
+
             Log.info("[Sandbox] Field Changed: " + fieldPath + " (Valid: " + isValid + ")");
-            
+
             var oViewModel = this.getModel("viewModel");
             if (oViewModel && oViewModel.getProperty("/liveUpdate") && payload) {
                 oViewModel.setProperty("/editorDataString", JSON.stringify(payload, null, 2));
@@ -251,7 +267,7 @@ sap.ui.define([
 
         /**
          * Tracks shifts in the engine's global structural validity.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The validation state event.
          */
@@ -262,25 +278,29 @@ sap.ui.define([
 
         /**
          * Intercepts the submit flow directly prior to validation.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The beforeSubmit event.
          */
-        onBeforeSubmit: function (oEvent) {
+        onBeforeSubmit: function () {
             Log.info("[Sandbox] Before Submit fired.");
         },
 
         /**
          * Captures the ultimate, structurally-sound payload after validation passes.
-         * 
+         *
          * @public
          * @param {sap.ui.base.Event} oEvent The submit event containing the JSON payload.
          */
         onSubmit: function (oEvent) {
-            var isValid = oEvent.getParameter("isValid");
-            var payload = oEvent.getParameter("payload");
+            var oHost = oEvent.getSource();
+            var isValid = oEvent.getParameter("isValid") !== false;
+            var payload = oEvent.getParameter("payload") || (oHost && oHost.getProperty ? oHost.getProperty("outputData") : null);
 
-            if (isValid) {
+            if (isValid && payload !== undefined) {
+                if (this.oModel && typeof this.oModel.setProperty === "function") {
+                    this.oModel.setProperty("/current/data", JSON.stringify(payload, null, 2));
+                }
                 MessageToast.show("Submit successful! Check console for payload.");
                 Log.info("[Sandbox] Submit Payload:", payload);
             } else {
@@ -292,13 +312,13 @@ sap.ui.define([
         /**
          * Generic error handler for dynamically instantiated hosts or components.
          * Logs the error cleanly and surfaces it via a MessageToast.
-         * 
+         *
          * @public
          * @param {string|Error} vError The error message or error object.
          */
         handleError: function (vError) {
             var sMessage = (typeof vError === "object" && vError.message) ? vError.message : vError;
-            sap.ui.require(["sap/m/MessageToast", "sap/base/Log"], function(MessageToast, Log) {
+            sap.ui.require(["sap/m/MessageToast", "sap/base/Log"], function (MessageToast, Log) {
                 Log.error("[Sandbox BaseController]", sMessage);
                 MessageToast.show("An error occurred: " + sMessage);
             });

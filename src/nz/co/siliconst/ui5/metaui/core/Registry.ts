@@ -42,6 +42,15 @@ export class Registry<T> {
     }
 
     /**
+     * Checks whether a key is registered in the registry.
+     * @param key The unique string identifier.
+     * @returns True if the key exists in the registry.
+     */
+    public has(key: string): boolean {
+        return this.items.has(key);
+    }
+
+    /**
      * Retrieves an item by its key, throwing an error if it doesn't exist.
      * @param key The unique string identifier.
      * @returns The registered item.

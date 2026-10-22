@@ -12,6 +12,9 @@
                 <f:heading>
                     <Title text="Data Inference Playpen" />
                 </f:heading>
+                <f:navigationActions>
+                    <Button icon="sap-icon://nav-back" press=".onNavBack" />
+                </f:navigationActions>
                 <f:expandedContent>
                     <Label text="Paste raw JSON on the left. The Inference Engine will generate a Fiori form on the right dynamically." />
                 </f:expandedContent>
@@ -22,12 +25,12 @@
                 <layout:contentAreas>
                     <Page showHeader="false" class="sapUiTinyMargin">
                         <content>
-                            <codeeditor:CodeEditor 
-                                id="jsonEditor" 
-                                type="json" 
-                                value="{view>/jsonString}" 
-                                width="100%" 
-                                height="100%" 
+                            <codeeditor:CodeEditor
+                                id="jsonEditor"
+                                type="json"
+                                value="{view>/jsonString}"
+                                width="100%"
+                                height="100%"
                                 liveChange=".onCodeEditorChange" />
                         </content>
                         <footer>

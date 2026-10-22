@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node", "@types/openui5"],
+    "noEmit": true
+  },
+  "include": ["test_runner.ts"]
+}

@@ -13,9 +13,11 @@ MetaUI is an engine that dynamically generates SAPUI5 Fiori layouts based on JSO
 ### A. Declarative Usage (XML Views)
 You can embed it directly into any Fiori view via the `DynamicHost` wrapper.
 ```xml
-<mvc:View xmlns:meta="nz.co.siliconst.ui5.metaui.controls.host">
+<mvc:View xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
     <meta:DynamicHost
         id="myHost"
+        width="100%"                        <!-- sap.ui.core.CSSSize (default "100%") -->
+        height="auto"                       <!-- sap.ui.core.CSSSize (default "auto") -->
         dataJson="{/rawJsonString}"         <!-- OR 'data' for JS objects -->
         schemaDefinition="{/jsonSchema}"    <!-- Optional -->
         liveUpdate="false"                  <!-- false: Transactional Mode (protects parent model). true: Continuous Two-Way Binding -->
@@ -25,6 +27,8 @@ You can embed it directly into any Fiori view via the `DynamicHost` wrapper.
     />
 </mvc:View>
 ```
+
+**Host Sizing & Containment**: `DynamicHost` is containment-safe by default (`width="100%"`, `height="auto"`, `min-width: 0`, `max-width: 100%`, `box-sizing: border-box`) and will never push a parent flex, grid, or table cell wider than the width offered to it. When embedding `DynamicHost` inside a table column (such as `sap.m.Table` or Fiori Elements `<macros:Table>`), set an explicit sensible column width on the column definition so the responsive form has room to lay out cleanly rather than stacking into a narrow strip.
 
 ### B. Programmatic Usage & Dialogs (JS/TS)
 The Engine can be spawned dynamically in controllers to instantly generate a popup dialog, completely detached from the view's XML.
@@ -46,7 +50,7 @@ this.getView().addDependent(host);
 host.openInDialog("Edit Profile", "Save", "Cancel", "600px", this.getView());
 ```
 
-### C. Tri-Binding Engine & AI Inference
+### C. Tri-Binding Engine & Data Inference
 The framework accepts data through three paths:
 1. **`dataJson`**: Raw stringified JSON (ideal for REST APIs).
 2. **`data`**: Native JS Objects.
@@ -66,10 +70,22 @@ When generating or editing a MetaUI JSON Schema (`schemaDefinition`), you must *
     "title": "My Form",
     "type": "object", // or "array"
     "layoutStrategy": "form", // Options: "form", "table", "wizard", "compact"
+    "ui": {}, // Optional root IUIDirective
     "uiLayout": [], // (See Section 3)
     "uiPolicies": [], // (See Section 4)
-    "additionalProperties": false,
+    "required": [], // Array of required property keys
+    "readOnly": false,
+    "maxItems": 100,
+    "minItems": 0,
+    "uniqueItems": false,
+    "maxProperties": 50,
+    "minProperties": 0,
+    "oneOf": [],
+    "anyOf": [],
+    "allOf": [],
+    "additionalProperties": false, // boolean | IPropertyMetadata
     "definitions": {},
+    "items": {}, // Root array item IPropertyMetadata when type === "array"
     "properties": {
         // Child fields go here...
     }
@@ -79,23 +95,29 @@ When generating or editing a MetaUI JSON Schema (`schemaDefinition`), you must *
 ### B. Field Metadata (`IPropertyMetadata`)
 Every field inside `properties` supports standard JSON-Schema validation and MetaUI-specific `ui` orchestration.
 
-**Standard Validations:**
-- `type`: "string", "number", "integer", "boolean", "object", "array", "date"
-- `required`: boolean
+**Standard Validations & Metadata:**
+- `type`: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`, `"date"`
+- `$ref`: string (e.g., `"#/definitions/Address"`, `"#/components/schemas/Address"`)
+- `title`, `description`: string (fallback label and control tooltip)
+- `required`: boolean | string[]
+- `format`: string (`"email"`, `"uri"`, `"url"`, `"iban"`, `"date"`, `"date-time"`, `"time"`, `"password"`)
+- `const`: unknown
 - `maxLength`, `minLength`: number
-- `minimum`, `maximum`: number
+- `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`: number | boolean
+- `precision`, `scale`, `multipleOf`: number
 - `pattern`: string (regex)
 - `valueHelp`: Array of `{"key": "id", "text": "Label"}` or `{ "url": "/api", "keyPath": "id", "textPath": "name" }`
 - `enum`: string[] | number[]
 - `readOnly`, `writeOnly`, `nullable`, `deprecated`: boolean
-- `default`, `example`: any
+- `default`, `example`: unknown
 
 **Array & Object Validations:**
 - `maxItems`, `minItems`, `uniqueItems` (Arrays)
-- `maxProperties`, `minProperties` (Objects)
+- `maxProperties`, `minProperties`, `additionalProperties` (Objects)
+- `properties`, `items`, `uiLayout` (Nested recursion)
 
 **Polymorphism:**
-- `oneOf`, `anyOf`, `allOf`, `not`: IPropertyMetadata[]
+- `oneOf`, `anyOf`, `allOf`, `not`: `IPropertyMetadata[]` / `IPropertyMetadata`
 - `discriminator`: `{ "propertyName": "type", "mapping": {} }`
 
 ### C. The `ui` Directive (`IUIDirective`)
@@ -105,32 +127,53 @@ The `ui` block dictates exactly how the field renders visually.
     "type": "string",
     "ui": {
         "label": "My Label",
+        "placeholder": "Enter text...",
         "widget": "textArea",     // The explicit UI control (See Section 2D)
         "readOnly": false,
+        "visible": true,
+        "enabled": true,
         "isKey": false,
-        "visibleOn": "/OtherField === true",
-        "enabledOn": "/OtherField === true",
+        "visibleOn": "$root.OtherField === true",
+        "enabledOn": "$root.OtherField === true",
         "format": "email",        // Triggers native format validators
+        "valueState": "None",     // Initial ValueState ("None", "Error", "Warning", "Success", "Information")
         "rows": 4,                // For TextAreas
+        "expandable": true,       // For expandable containers
         "fullWidth": true,        // Bypasses layout constraints
-        "validators": [],         // Array of custom validator names
+        "formatter": "textCase",  // Single formatter name
+        "formatters": ["textCase"], // Chained formatter names
+        "args": "upper",          // Formatter arguments
+        "validators": [],         // Array of validator names or { name, args }
+        "valueHelp": [],          // Inline [{ key, text }] options
+        "options": {},            // Extended widget options (values, min, max, step, etc.)
+        "dataSource": {           // Remote REST/OData dataSource config
+            "url": "/api/items",
+            "keyField": "id",
+            "textField": "name",
+            "dataPath": "results",
+            "modelName": ""
+        },
+        "dialogButtonText": "Edit Details",
+        "layoutBudget": 50,
+        "renderMode": "inline",   // "inline" | "dialog"
+        "labelSpan": 4,           // Root-level SimpleForm label span override (1-12 for label-beside-field, or 0 to hide labels)
         "controlProps": {
             "placeholder": "Enter text..."
         }
     }
 }
 ```
-*Note: `controlProps` supports SAPUI5 Expression Bindings referencing `metaui>` (the internal form data model). Blocked core properties (`value`, `editable`, `valueState`) cannot be overridden via `controlProps`.*
+*Note: `controlProps` supports SAPUI5 Expression Bindings referencing `meta>` (the internal form data model). Blocked core properties (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`) cannot be overridden via `controlProps`. On the root schema's `ui` block, `labelSpan` (`0`–`12`) or `controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`, `emptySpan*`, `columns*`) configures `SimpleForm`'s `ResponsiveGridLayout` spans (default `labelSpanS: 12`, `M/L/XL: 4`).*
 
 ### D. The Widget Registry Dictionary
-You may specify these values in `ui.widget` to force the Engine to use a specific Fiori control (mapped via `PluginRegistry.ts`).
+You may specify these values in `ui.widget` to force the Engine to use a specific Fiori control (mapped via `DefaultPluginBootstrapper.ts` and `MetaUIConstants.ts`):
 
-- **String Widgets**: `default` (Input), `time`, `datetime`, `select`, `textArea`, `codeEditor`, `link`, `password`, `email`, `fileUploader`, `messageStrip`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`.
-- **Number Widgets**: `default` (Input type=Number), `step`, `slider`, `rating`.
-- **Boolean Widgets**: `default` (CheckBox), `switch`.
-- **Array Widgets**: `default` (Table), `multiSelect`, `multiInput`.
-- **Object Widgets**: `default` (Form), `dictionaryMap` (Key-Value), `reference` (Sub-Form), `location`.
-- **Actions/Data Sources**: `urlButton`, `submitButton`, `odataSelect`, `remoteDropdown`, `liveSearch`, `remoteValueHelp`.
+- **String Widgets**: *(omitted)* / `default` (`sap.m.Input`), `date`, `datePicker`, `time`, `datetime`, `select`, `textArea`, `codeEditor`, `link`, `password`, `email`, `fileUploader`, `messageStrip`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`, `urlButton`, `submitButton`, `clearButton`, `odataSelect`, `remoteDropdown`, `remoteSelect`, `combobox`, `liveSearch`, `remoteValueHelp`, `valueHelp`.
+- **Number & Integer Widgets**: *(omitted)* (`sap.m.Input` `type="Number"`), `step`, `slider`, `rating`, `select`.
+- **Boolean Widgets**: *(omitted)* (`sap.m.CheckBox`), `switch`.
+- **Date Widgets**: *(omitted)* (`sap.m.DatePicker`), `date`, `datePicker`.
+- **Array Widgets**: *(omitted)* (Array Dialog / Inline `TableLayout`), `multiSelect`, `multiInput`.
+- **Object Widgets**: *(omitted)* (Object Dialog / Inline `FormLayout`), `dictionaryMap` (Key-Value Map), `reference` (`$ref` Sub-Form), `polymorphic` (`oneOf`/`anyOf` Selector), `location` (Geolocation Picker).
 
 ---
 
@@ -199,14 +242,13 @@ import Input from "sap/m/Input";
 
 export class MyCustomPlugin extends BasePlugin {
     public render(fieldMetadata, bindingPath, modelName, engineScopeId, onChange) {
-        this.metadata = fieldMetadata;
+        this.initialize(fieldMetadata, bindingPath, modelName, onChange);
         
         this.control = new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: `{${modelName}>${bindingPath}}`,
             change: () => {
-                const result = this.validateAndApplyVisualState();
-                if (onChange) onChange(result.isValid, bindingPath);
+                this.notifyChange();
             }
         });
         
@@ -223,11 +265,25 @@ export class MyCustomPlugin extends BasePlugin {
 ### B. Registering the Plugin
 Map it in `PluginRegistry.ts` so the engine knows how to resolve the `ui.widget` hint:
 ```typescript
-PluginRegistry.getInstance().registerPluginPath("string", "myCustomWidget", "my/path/MyCustomPlugin");
+PluginRegistry.getInstance().registerPluginPath("string", "myCustomWidget", "my/custom/app/plugins/MyCustomPlugin");
 ```
 
-### C. Custom Validation Rules
-Register programmatic validation rules into the `GlobalPipeline`:
+### C. Built-in & Custom Validation / Formatting Rules
+`PipelineManager` registers 14 built-in validators (`required`, `minLength`, `maxLength`, `pattern`, `range`, `multipleOf`, `arrayItems`, `email`, `url`, `iban`, `enum`, `const`, `integer`, `objectProperties`), 4 built-in formatters (`date`, `phone`, `textCase`, `currency`), and 3 built-in presentational parsers (`date`, `phone`, `currency`).
+
+- **Presentational vs Transforming Formatters**:
+  - `phone`, `currency`, and `date` implement `IParser.parse()` (`PipelineManager.parsers`) and are **presentational** (reversible display masks). On user edits, `BasePlugin.notifyChange()` runs `GlobalPipeline.runParsers()` (in reverse order when `ui.formatters` is an array) so the model stores the raw unformatted value and validators evaluate the raw value.
+  - `textCase` (`args`: `"upper"`, `"lower"`, `"title"`) does not implement `parse()` and is **transforming** (lossy normalization). Its formatted output is written directly into the data model and validated.
+- **`phone` Formatter Accepted Input Shapes & Validation**:
+  - `PhoneFormatterPlugin` (`ui.formatter: "phone"` or `ui.formatters: ["phone"]`) formats and parses:
+    1. 10-digit US numbers: `"5551234567"` <-> `"(555) 123-4567"`
+    2. 11-digit US numbers with leading `1` or `+1`: `"+15551234567"` / `"15551234567"` -> `"+1 (555) 123-4567"` (parsed back to `"+15551234567"` when formatted with leading `+`, or `"15551234567"` when entered as 11 digits without `+`)
+    3. International numbers with 2-digit country code (`2` CC digits + `7–10` subscriber digits): `"+64211234567"` <-> `"+64 211234567"`
+    4. International numbers with 3-digit country code (`3` CC digits + `6–10` subscriber digits): `"+3531234567"` <-> `"+353 1234567"`
+    5. Any other string is returned unchanged by both `format()` and `parse()`.
+  - **No Built-in Phone Validator**: `ui.format: "phone"` (and `ui.formatter: "phone"`) performs **no validation**. Only `"email"`, `"url"` / `"uri"`, and `"iban"` map to built-in format validators. Validate phone numbers with a schema `pattern` (e.g., `"pattern": "^\\+?\\d{10,15}$"` or `"pattern": "^\\d{10}$"`), which runs against the parsed raw value in the model.
+
+You can also register custom programmatic validation rules into `GlobalPipeline`:
 ```typescript
 import { GlobalPipeline } from "nz/co/siliconst/ui5/metaui/core/PipelineManager";
 
@@ -253,7 +309,7 @@ import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
 
 export class CustomConditionPlugin implements IPolicyConditionPlugin {
     public canHandle(conditionKey: string): boolean { return conditionKey === "MyCustomCheck"; }
-    public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: Function): boolean {
+    public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean {
         // Logic goes here
         return true; 
     }
@@ -262,8 +318,21 @@ export class CustomConditionPlugin implements IPolicyConditionPlugin {
 // Register it
 PluginRegistry.getInstance().registerPolicyConditionPath(
     "MyCustomCheck", 
-    "my/path/CustomConditionPlugin"
+    "my/custom/app/plugins/policies/conditions/CustomConditionPlugin"
 );
 ```
 
 ---
+
+## 6. Automated Testing & Double-Entry Verification
+
+Whenever any TypeScript file in `src/` or scenario in `test/` is modified, execute the three-step verification loop:
+
+```bash
+npx tsc --noEmit -p .
+npm run build
+npm test
+```
+
+- **The Double-Entry Rule (`test/webapp/test/TestOracle.js`)**: Any plugin added to `DefaultPluginBootstrapper.ts` or validator/formatter added to `PipelineManager.ts` **must** also be added to `test/webapp/test/TestOracle.js`.
+- **Detailed Testing Blueprint**: See [`docs/wiki/09_Testing_Routines_and_Automation.md`](09_Testing_Routines_and_Automation.md) for the complete testing architecture (`TestOracle.js`, QUnit physical DOM unit tests, QUnit integration/E2E matrix tests, Fiori Sandbox route verification, and OpenAPI stress tests).

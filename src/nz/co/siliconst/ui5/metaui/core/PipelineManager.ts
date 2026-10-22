@@ -1,6 +1,6 @@
 /**
  * @file PipelineManager.ts
- * @description Central manager for the data manipulation pipeline. 
+ * @description Central manager for the data manipulation pipeline.
  * Orchestrates Formatting, Parsing, and Validating data using the generic Registry.
  */
 
@@ -16,38 +16,25 @@ import { EmailValidatorPlugin } from "../plugins/validators/EmailValidatorPlugin
 import { DateFormatterPlugin } from "../plugins/formatters/DateFormatterPlugin";
 import { PhoneFormatterPlugin } from "../plugins/formatters/PhoneFormatterPlugin";
 import { TextCaseFormatterPlugin } from "../plugins/formatters/TextCaseFormatterPlugin";
+import { CurrencyFormatterPlugin } from "../plugins/formatters/CurrencyFormatterPlugin";
+import { RequiredValidatorPlugin, isEmptyValue } from "../plugins/validators/RequiredValidatorPlugin";
+import { MaxLengthValidatorPlugin } from "../plugins/validators/MaxLengthValidatorPlugin";
+import { ArrayItemsValidatorPlugin } from "../plugins/validators/ArrayItemsValidatorPlugin";
+import { MultipleOfValidatorPlugin } from "../plugins/validators/MultipleOfValidatorPlugin";
+import { EnumValidatorPlugin } from "../plugins/validators/EnumValidatorPlugin";
+import { ConstValidatorPlugin } from "../plugins/validators/ConstValidatorPlugin";
+import { IntegerValidatorPlugin } from "../plugins/validators/IntegerValidatorPlugin";
+import { ObjectPropertiesValidatorPlugin } from "../plugins/validators/ObjectPropertiesValidatorPlugin";
 import { Logger } from "../utils/Logger";
-
-// --- Built-in Default Validators ---
-/** Internal rule for required fields. */
-class RequiredValidator implements IValidator {
-    /** Validates that the value is not null, undefined, or empty string. */
-    validate(parsedValue: unknown, args?: unknown): IValidationResult {
-        if (parsedValue === null || parsedValue === undefined || parsedValue === "") {
-            return { isValid: false, errorMessage: "This field is required." };
-        }
-        return { isValid: true };
-    }
-}
-
-/** Internal rule for string maximum length. */
-class MaxLengthValidator implements IValidator {
-    /** Validates that a string does not exceed the provided argument length. */
-    validate(parsedValue: unknown, args?: unknown): IValidationResult {
-        if (typeof parsedValue === "string" && args && typeof args === "number") {
-            if (parsedValue.length > args) {
-                return { isValid: false, errorMessage: `Maximum length is ${args} characters.` };
-            }
-        }
-        return { isValid: true };
-    }
-}
-
+import { isRecord } from "../utils/TypeGuards";
 
 /**
  * The core engine responsible for marshalling data through the validation, formatting, and parsing phases.
- * Pluggable design allows new validators to be registered dynamically.
- * 
+ * Pluggable design allows new validators and formatters to be registered dynamically without modifying the kernel.
+ * Architectural Note: Unlike UI5 control/layout plugins (which pull heavy SAPUI5 widget modules and are lazy-loaded
+ * asynchronously via `PluginRegistry`), validators and formatters are pure synchronous functions invoked inside
+ * UI5 property-binding formatters and synchronous keystroke/submit validation, so they are registered eagerly here.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.core
  * @public
  */
@@ -60,107 +47,207 @@ export class PipelineManager {
     public readonly validators: Registry<IValidator> = new Registry<IValidator>("Validators");
 
     /**
-     * Bootstraps the PipelineManager with default validators (required, maxLength, email).
+     * Returns the shared singleton `PipelineManager` instance.
+     * @returns {PipelineManager} The global pipeline manager.
+     */
+    public static getInstance(): PipelineManager {
+        return GlobalPipeline;
+    }
+
+    /**
+     * Bootstraps the PipelineManager with default validators and formatters.
      */
     constructor() {
-        // Register default validators
-        this.validators.register("required", new RequiredValidator());
-        this.validators.register("maxLength", new MaxLengthValidator());
+        this.validators.register("required", new RequiredValidatorPlugin());
+        this.validators.register("maxLength", new MaxLengthValidatorPlugin());
         this.validators.register("pattern", new PatternValidatorPlugin());
         this.validators.register("minLength", new MinLengthValidatorPlugin());
         this.validators.register("range", new RangeValidatorPlugin());
+        this.validators.register("multipleOf", new MultipleOfValidatorPlugin());
+        this.validators.register("arrayItems", new ArrayItemsValidatorPlugin());
         this.validators.register("url", new UrlValidatorPlugin());
         this.validators.register("iban", new IbanValidatorPlugin());
         this.validators.register("email", new EmailValidatorPlugin());
+        this.validators.register("enum", new EnumValidatorPlugin());
+        this.validators.register("const", new ConstValidatorPlugin());
+        this.validators.register("integer", new IntegerValidatorPlugin());
+        this.validators.register("objectProperties", new ObjectPropertiesValidatorPlugin());
 
-        // Register default formatters
-        this.formatters.register("date", new DateFormatterPlugin());
-        this.formatters.register("phone", new PhoneFormatterPlugin());
-        this.formatters.register("textCase", new TextCaseFormatterPlugin());
+        const dateFormatter = new DateFormatterPlugin();
+        const phoneFormatter = new PhoneFormatterPlugin();
+        const textCaseFormatter = new TextCaseFormatterPlugin();
+        const currencyFormatter = new CurrencyFormatterPlugin();
+
+        this.formatters.register("date", dateFormatter);
+        this.formatters.register("phone", phoneFormatter);
+        this.formatters.register("textCase", textCaseFormatter);
+        this.formatters.register("currency", currencyFormatter);
+
+        this.parsers.register("date", dateFormatter);
+        this.parsers.register("phone", phoneFormatter);
+        this.parsers.register("currency", currencyFormatter);
+    }
+
+    /**
+     * Returns true if at least one formatter in the chain is presentational (registered in `parsers` or implementing `IParser.parse`).
+     *
+     * @param formatterNames A single formatter name or array of formatter names.
+     * @returns {boolean} True when the formatter chain is presentational (reversible).
+     */
+    public hasPresentationalParser(formatterNames: string | string[]): boolean {
+        const list = Array.isArray(formatterNames) ? formatterNames : [formatterNames];
+        return list.some((name) => Boolean(this.parsers.get(name) ?? this.getFormatterAsParser(name)));
+    }
+
+    /**
+     * Executes a chain of registered formatters sequentially on a raw model value.
+     *
+     * @param rawValue The raw value from the model.
+     * @param formatterNames A single formatter name or array of formatter names.
+     * @param args Optional formatter arguments.
+     * @returns {unknown} The formatted display value.
+     */
+    public runFormatters(rawValue: unknown, formatterNames: string | string[], args?: unknown): unknown {
+        const list = Array.isArray(formatterNames) ? formatterNames : [formatterNames];
+        let current: unknown = rawValue;
+        for (const name of list) {
+            const formatter = this.formatters.get(name);
+            if (formatter) {
+                current = formatter.format(current, args);
+            }
+        }
+        return current;
+    }
+
+    /**
+     * Executes a chain of registered parsers in reverse order on a UI control value to recover the raw model value.
+     *
+     * @param uiValue The value extracted from the UI control.
+     * @param parserNames A single formatter/parser name or array of names.
+     * @param args Optional parser arguments.
+     * @returns {unknown} The parsed raw value for the model.
+     */
+    public runParsers(uiValue: unknown, parserNames: string | string[], args?: unknown): unknown {
+        const list = Array.isArray(parserNames) ? parserNames : [parserNames];
+        let current: unknown = uiValue;
+        for (let i = list.length - 1; i >= 0; i--) {
+            const name = list[i];
+            const parser = this.parsers.get(name) ?? this.getFormatterAsParser(name);
+            if (parser) {
+                current = parser.parse(current, args);
+            }
+        }
+        return current;
+    }
+
+    private getFormatterAsParser(name: string): IParser | undefined {
+        const formatter = this.formatters.get(name) as Partial<IParser> | undefined;
+        return formatter && typeof formatter.parse === "function" ? (formatter as IParser) : undefined;
+    }
+
+    /**
+     * Runs all schema-configured validators for a given value and property metadata.
+     *
+     * @param value The live value to validate.
+     * @param propMeta The property metadata defining constraints.
+     * @param isDynamicallyRequired Optional dynamic required override.
+     * @returns {IValidationResult} The validation outcome.
+     */
+    public runValidators(
+        value: unknown,
+        propMeta: IPropertyMetadata,
+        isDynamicallyRequired?: boolean
+    ): IValidationResult {
+        return this.assembleAndExecute(propMeta, value, isDynamicallyRequired);
     }
 
     /**
      * Executes the validation pipeline sequentially. Fails fast on the first encountered error.
-     * 
+     *
      * @param parsedValue The raw extracted value from the UI control.
-     * @param requestedValidators Array of validation rule keys (e.g. ['required', 'email']).
-     * @param argsMap Optional map of parameters required by specific rules (e.g. { maxLength: 50 }).
+     * @param requestedValidators Array of validation rule keys (e.g. `['required', 'email']`).
+     * @param argsMap Optional map of parameters required by specific rules (e.g. `{ maxLength: 50 }`).
      * @returns {IValidationResult} The final result state and any associated error message.
      */
-    public executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, unknown>): IValidationResult {
-        // Global short-circuit: if the field is completely empty and NOT required, skip all downstream string constraint checks.
-        const isEmpty = parsedValue === null || parsedValue === undefined || parsedValue === "";
-        const isRequired = requestedValidators.includes("required");
-        if (isEmpty && !isRequired) {
+    public executeValidation(
+        parsedValue: unknown,
+        requestedValidators: string[],
+        argsMap?: Record<string, unknown>
+    ): IValidationResult {
+        const reqArgs = argsMap?.required;
+        const isRequired =
+            requestedValidators.includes("required") &&
+            !(isRecord(reqArgs) && reqArgs.required === false && parsedValue !== null);
+        const hasArrayRule = requestedValidators.includes("arrayItems") && Array.isArray(parsedValue);
+        const hasObjectRule =
+            requestedValidators.includes("objectProperties") &&
+            typeof parsedValue === "object" &&
+            parsedValue !== null &&
+            !Array.isArray(parsedValue);
+        if (isEmptyValue(parsedValue) && !isRequired && !hasArrayRule && !hasObjectRule) {
             return { isValid: true };
         }
 
         for (const rule of requestedValidators) {
             const validator = this.validators.get(rule);
-            if (validator) {
-                const args = argsMap ? argsMap[rule] : undefined;
-                try {
-                    const result = validator.validate(parsedValue, args);
-                    if (!result.isValid) {
-                        return result; // Fast fail on first error
-                    }
-                } catch (error) {
-                    const msg = (error as Error).message;
-                    Logger.error(`[MetaUI] PipelineManager: Validator '${rule}' crashed during execution.`, msg);
-                    return { isValid: false, errorMessage: `System validation error: ${msg}` };
-                }
-            } else {
+            if (!validator) {
                 Logger.warn(`[MetaUI] PipelineManager: Requested validator '${rule}' not found in registry.`);
+                continue;
+            }
+            const args = argsMap ? argsMap[rule] : undefined;
+            try {
+                const result = validator.validate(parsedValue, args);
+                if (!result.isValid) {
+                    return result;
+                }
+            } catch (error) {
+                const msg = (error as Error).message;
+                Logger.error(`[MetaUI] PipelineManager: Validator '${rule}' crashed during execution.`, msg);
+                return { isValid: false, errorMessage: `System validation error: ${msg}` };
             }
         }
         return { isValid: true };
     }
 
     /**
-     * Convenience method that assembles the validator list from a schema property descriptor
-     * and immediately executes the pipeline. This is the single authoritative source for
-     * validator assembly — use it in BasePlugin and Engine to eliminate code duplication.
+     * Assembles the validator list polymorphically by querying each registered validator plugin's
+     * `extractRule` hook, plus any explicit `ui.validators` entries, and executes the pipeline.
      *
      * @param propMeta The schema property descriptor for the field.
      * @param value The current raw value to validate.
      * @param isDynamicallyRequired Optional override for the `required` state (e.g. from PolicyEngine).
      * @returns {IValidationResult} The combined validation result.
      */
-    public assembleAndExecute(propMeta: IPropertyMetadata, value: unknown, isDynamicallyRequired?: boolean): IValidationResult {
+    public assembleAndExecute(
+        propMeta: IPropertyMetadata,
+        value: unknown,
+        isDynamicallyRequired?: boolean
+    ): IValidationResult {
         const validatorsToRun: string[] = [];
         const argsMap: Record<string, unknown> = {};
 
-        const isRequired = isDynamicallyRequired !== undefined ? isDynamicallyRequired : propMeta.required;
-        if (isRequired) validatorsToRun.push("required");
-
-        if (propMeta.maxLength !== undefined) {
-            validatorsToRun.push("maxLength");
-            argsMap["maxLength"] = propMeta.maxLength;
-        }
-        if (propMeta.minLength !== undefined) {
-            validatorsToRun.push("minLength");
-            argsMap["minLength"] = propMeta.minLength;
-        }
-        if (propMeta.pattern !== undefined) {
-            validatorsToRun.push("pattern");
-            argsMap["pattern"] = { regex: propMeta.pattern };
-        }
-        if (propMeta.minimum !== undefined || propMeta.maximum !== undefined) {
-            validatorsToRun.push("range");
-            argsMap["range"] = { min: propMeta.minimum, max: propMeta.maximum };
-        }
-
-        const format = propMeta.ui?.format;
-        if (format === "email" || format === "url" || format === "iban") {
-            validatorsToRun.push(format);
+        for (const [key, validator] of this.validators.items.entries()) {
+            if (typeof validator.extractRule === "function") {
+                const extraction = validator.extractRule(propMeta, isDynamicallyRequired);
+                if (extraction.active) {
+                    validatorsToRun.push(key);
+                    if (extraction.args !== undefined) {
+                        argsMap[key] = extraction.args;
+                    }
+                }
+            }
         }
 
         if (propMeta.ui?.validators) {
             for (const v of propMeta.ui.validators) {
                 if (typeof v === "string") {
-                    validatorsToRun.push(v);
+                    if (!validatorsToRun.includes(v)) {
+                        validatorsToRun.push(v);
+                    }
                 } else if (v && v.name) {
-                    validatorsToRun.push(v.name);
+                    if (!validatorsToRun.includes(v.name)) {
+                        validatorsToRun.push(v.name);
+                    }
                     if (v.args !== undefined) {
                         argsMap[v.name] = v.args;
                     }
@@ -168,8 +255,10 @@ export class PipelineManager {
             }
         }
 
-        if (validatorsToRun.length === 0) return { isValid: true };
-        return this.executeValidation(value, validatorsToRun, argsMap);
+        if (validatorsToRun.length > 0) {
+            return this.executeValidation(value, validatorsToRun, argsMap);
+        }
+        return { isValid: true };
     }
 }
 

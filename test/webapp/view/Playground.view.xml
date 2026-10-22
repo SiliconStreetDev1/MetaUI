@@ -5,8 +5,7 @@
     xmlns:core="sap.ui.core"
     xmlns:l="sap.ui.layout"
     xmlns:f="sap.f"
-    xmlns:codeeditor="sap.ui.codeeditor"
-    xmlns:meta="nz.co.siliconst.ui5.metaui.controls.host">
+    xmlns:codeeditor="sap.ui.codeeditor">
     
     <f:DynamicPage id="page" headerExpanded="true" fitContent="true" showFooter="{= ${message>/}.length > 0 }">
         <f:title>

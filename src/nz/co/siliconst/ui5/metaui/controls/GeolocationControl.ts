@@ -1,90 +1,157 @@
 /**
  * @file GeolocationControl.ts
- * @description Native UI5 Control for GPS capture.
- * 
+ * @description Hardware control for acquiring GPS coordinates via the browser Geolocation API (navigator.geolocation).
+ *
  * @namespace nz.co.siliconst.ui5.metaui.controls
  */
-import BaseHardwareControl from "./BaseHardwareControl";
+import BaseHardwareControl, { $BaseHardwareControlSettings } from "./BaseHardwareControl";
 import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
-import RenderManager from "sap/ui/core/RenderManager";
-import Button from "sap/m/Button";
+import HBox from "sap/m/HBox";
 import Input from "sap/m/Input";
-import VBox from "sap/m/VBox";
-import MessageToast from "sap/m/MessageToast";
+import Button from "sap/m/Button";
+import FlexItemData from "sap/m/FlexItemData";
+import { ButtonType, FlexAlignItems } from "sap/m/library";
+import { Logger } from "../utils/Logger";
+import { isRecord } from "../utils/TypeGuards";
 
+/**
+ * Custom UI5 control that captures `{ lat, lng }` coordinates using `navigator.geolocation.getCurrentPosition`.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.controls
+ * @public
+ */
 export default class GeolocationControl extends BaseHardwareControl {
-    private vBox!: VBox;
-    private locationBtn!: Button;
-    private resultInput!: Input;
+    static renderer = BaseHardwareControlRenderer;
+    private coordInput!: Input;
+    private locateBtn!: Button;
 
-    static readonly renderer = BaseHardwareControlRenderer;
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings) {
+        super(idOrSettings, settings);
+    }
 
     /**
-     * Initializes the control and builds the internal UI components.
+     * Initializes the internal HBox layout containing the read-only coordinate display `Input` and Locate `Button`.
      */
     public init(): void {
-        super.init();
+        if (BaseHardwareControl.prototype.init) {
+            BaseHardwareControl.prototype.init.call(this);
+        }
 
-        this.locationBtn = new Button({
-            icon: "sap-icon://map",
-            text: "Get Location",
-            press: this.getLocation.bind(this)
-        });
-
-        this.resultInput = new Input({
+        this.coordInput = new Input({
             editable: false,
-            visible: false
+            placeholder: "Latitude, Longitude",
+            width: "100%",
+            layoutData: new FlexItemData({ growFactor: 1 })
+        }).addStyleClass("sapUiTinyMarginEnd");
+
+        this.locateBtn = new Button({
+            text: "Get Location",
+            icon: "sap-icon://locate-me",
+            type: ButtonType.Emphasized,
+            press: () => {
+                this.acquireLocation();
+            }
         });
 
-        this.vBox = new VBox({
-            items: [this.locationBtn, this.resultInput]
+        const layout = new HBox({
+            width: "100%",
+            alignItems: FlexAlignItems.Center,
+            items: [this.coordInput, this.locateBtn]
         });
 
-        this.setAggregation("_content", this.vBox);
+        this.setAggregation("_content", layout);
     }
 
     /**
-     * Lifecycle hook called before the control is rendered to the DOM.
-     * Updates button state and sets any existing values.
+     * Synchronizes the Locate button's `enabled` state and coordinate display before rendering.
      */
     public onBeforeRendering(): void {
-        const metadata = this.getProperty("schemaMetadata");
-        if (metadata && metadata.ui && metadata.ui.label) {
-            this.locationBtn.setText(metadata.ui.label);
+        this.syncHardwareState();
+        this.updateDisplayFromValue(this.getProperty("value"));
+    }
+
+    /**
+     * Synchronizes the inner coordinate `Input` and Locate `Button` with `readOnly`, `valueState`, and `valueStateText`.
+     */
+    protected override syncHardwareState(): void {
+        if (this.locateBtn) {
+            this.locateBtn.setEnabled(!this.getProperty("readOnly"));
         }
-
-        const readOnly = this.getProperty("readOnly");
-        this.locationBtn.setEnabled(!readOnly);
-
-        const currentVal = this.getProperty("value");
-        if (currentVal) {
-            this.resultInput.setValue(currentVal as string);
-            this.resultInput.setVisible(true);
+        if (this.coordInput) {
+            this.coordInput.setValueState(this.getValueState());
+            this.coordInput.setValueStateText(this.getValueStateText());
         }
     }
 
-    private getLocation(): void {
+    /**
+     * Updates the `value` property (`{ lat, lng }` or string) and refreshes the coordinate text field.
+     *
+     * @param vValue The new geolocation value.
+     * @returns {this} This control instance for chaining.
+     */
+    public setValue(vValue: unknown): this {
+        this.setProperty("value", vValue, true);
+        this.updateDisplayFromValue(vValue);
+        return this;
+    }
+
+    /**
+     * Formats the stored coordinate value (`{ lat, lng }` object or string) into the display `Input`.
+     *
+     * @param vValue The coordinate value to format.
+     */
+    private updateDisplayFromValue(vValue: unknown): void {
+        if (!this.coordInput) {
+            return;
+        }
+        let formatted = "";
+        if (isRecord(vValue) && vValue.lat !== undefined && vValue.lng !== undefined) {
+            formatted = `${vValue.lat}, ${vValue.lng}`;
+        } else if (typeof vValue === "string") {
+            formatted = vValue;
+        }
+        if (this.coordInput.getValue() !== formatted) {
+            this.coordInput.setValue(formatted);
+        }
+    }
+
+    /**
+     * Requests the current position from `navigator.geolocation` and stores `{ lat, lng }` in `value`.
+     */
+    private acquireLocation(): void {
+        if (this.getProperty("readOnly")) {
+            return;
+        }
         if (!navigator.geolocation) {
-            MessageToast.show("Geolocation is not supported by your browser");
+            Logger.warn("[MetaUI GeolocationControl]", "Geolocation API is not supported by this browser.", "GeolocationControl");
             return;
         }
 
+        this.locateBtn.setBusy(true);
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const locStr = `${position.coords.latitude}, ${position.coords.longitude}`;
-                this.resultInput.setValue(locStr);
-                this.resultInput.setVisible(true);
-                this.setValueAndFire(locStr);
-                MessageToast.show("Location acquired.");
+            (pos: GeolocationPosition) => {
+                if (this.isDestroyed()) {
+                    return;
+                }
+                this.locateBtn.setBusy(false);
+                const coordsObj = {
+                    lat: Number(pos.coords.latitude.toFixed(6)),
+                    lng: Number(pos.coords.longitude.toFixed(6))
+                };
+                this.setValue(coordsObj);
+                this.fireEvent("capture", { value: coordsObj });
             },
-            (error) => {
-                import("../utils/Logger").then(({ Logger }) => {
-                    Logger.error("[MetaUI] Geolocation failed or denied", error.message, "GeolocationControl");
-                });
-                MessageToast.show("Unable to retrieve your location");
+            (err: GeolocationPositionError) => {
+                if (this.isDestroyed()) {
+                    return;
+                }
+                this.locateBtn.setBusy(false);
+                Logger.error(
+                    "[MetaUI GeolocationControl]",
+                    `Failed to acquire geolocation: ${err.message}`,
+                    "GeolocationControl"
+                );
             }
         );
     }
-
-
 }

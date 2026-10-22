@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MetaUI - Integration &amp; E2E Matrix Tests</title>
+    <link rel="stylesheet" type="text/css" href="https://ui5.sap.com/resources/sap/ui/thirdparty/qunit-2.css">
+    <script id="sap-ui-bootstrap"
+            src="https://ui5.sap.com/resources/sap-ui-core.js"
+            data-sap-ui-theme="sap_horizon"
+            data-sap-ui-libs="sap.m, sap.ui.core, sap.ui.layout, sap.ui.codeeditor"
+            data-sap-ui-resourceroots='{
+                "metaui.sandbox": "../../",
+                "nz.co.siliconst.ui5.metaui": "/resources/nz/co/siliconst/ui5/metaui"
+            }'
+            data-sap-ui-compatVersion="edge"
+            data-sap-ui-async="true">
+    </script>
+    <script src="https://ui5.sap.com/resources/sap/ui/thirdparty/qunit-2.js"></script>
+    <script src="https://ui5.sap.com/resources/sap/ui/qunit/qunit-junit.js"></script>
+    <script>
+        QUnit.config.autostart = false;
+        sap.ui.getCore().attachInit(function () {
+            sap.ui.require([
+                "metaui/sandbox/test/integration/AllJourneys"
+            ], function () {
+                QUnit.start();
+            });
+        });
+    </script>
+</head>
+<body class="sapUiBody">
+    <div id="qunit"></div>
+    <div id="qunit-fixture"></div>
+    <div id="content"></div>
+</body>
+</html>

@@ -1,35 +1,65 @@
 /**
  * @file IbanValidatorPlugin.ts
- * @description Standard business logic validator for International Bank Account Numbers.
+ * @description Validates International Bank Account Numbers (ISO 13616).
  */
 
-import { IValidator, IValidationResult } from "../../interfaces/IPipeline";
+import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
 
 /**
- * Validates a standard IBAN string.
- * This provides a simplified check for demonstration (starts with 2 chars, followed by digits/chars).
- * 
- * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * Full IBAN validation: structural check plus the ISO 7064 MOD 97-10 checksum.
+ * Spaces are ignored and letters are case-insensitive, matching how IBANs are printed.
  */
 export class IbanValidatorPlugin implements IValidator {
     /**
-     * Validates parsed data before it enters the JSON model.
-     * @param parsedValue The cleaned data to validate.
-     * @param args Optional arguments provided in the schema.
-     * @returns IValidationResult containing status and optional error message.
+     * Activates when `ui.format` is set to `"iban"`.
+     *
+     * @param propMeta The schema property descriptor.
+     * @returns {IValidatorRuleExtraction} Activation status.
      */
-    public validate(parsedValue: unknown, args?: unknown): IValidationResult {
-        if (!parsedValue) return { isValid: true }; // Let RequiredValidator handle empty
-        
-        // Very basic IBAN structure regex (e.g. DE89370400440532013000)
-        // A true IBAN check requires modulo 97 arithmetic which is out of scope for a basic mock.
-        const ibanRegex = /^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/;
-        
-        if (typeof parsedValue !== "string" || !ibanRegex.test(parsedValue.replace(/\s+/g, '').toUpperCase())) {
+    public extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction {
+        const fmt = propMeta.ui?.format || propMeta.format;
+        return { active: fmt === "iban" };
+    }
+
+    /**
+     * @param parsedValue The value to test.
+     * @returns {IValidationResult} Invalid if the structure or checksum is wrong.
+     */
+    public validate(parsedValue: unknown): IValidationResult {
+        if (parsedValue === null || parsedValue === undefined || parsedValue === "") return { isValid: true };
+        if (typeof parsedValue !== "string") {
             return { isValid: false, errorMessage: "Please enter a valid IBAN." };
         }
-        
+
+        const iban = parsedValue.replace(/\s+/g, "").toUpperCase();
+        if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) {
+            return { isValid: false, errorMessage: "Please enter a valid IBAN." };
+        }
+
+        if (IbanValidatorPlugin.mod97(iban) !== 1) {
+            return { isValid: false, errorMessage: "IBAN checksum is invalid." };
+        }
         return { isValid: true };
+    }
+
+    /**
+     * Computes the ISO 7064 MOD 97-10 remainder. The country code and check digits are moved to the end,
+     * letters are expanded to numbers (A=10 … Z=35), and the remainder is computed digit by digit to avoid
+     * exceeding the safe integer range.
+     *
+     * @param iban A normalized (uppercase, no spaces) IBAN.
+     * @returns {number} The remainder; 1 for a valid IBAN.
+     */
+    private static mod97(iban: string): number {
+        const rearranged = iban.slice(4) + iban.slice(0, 4);
+        let remainder = 0;
+        for (const char of rearranged) {
+            const digits = /[A-Z]/.test(char) ? String(char.charCodeAt(0) - 55) : char;
+            for (const digit of digits) {
+                remainder = (remainder * 10 + Number(digit)) % 97;
+            }
+        }
+        return remainder;
     }
 }

@@ -1,218 +1,242 @@
 /**
  * @file TableLayout.ts
- * @description Generates a responsive SAP Fiori Table layout for v2 schema.
+ * @description Generates a responsive SAP Fiori Table layout for v2 array schemas.
  */
 
 import Table from "sap/m/Table";
 import Column from "sap/m/Column";
+import Label from "sap/m/Label";
 import Text from "sap/m/Text";
 import ColumnListItem from "sap/m/ColumnListItem";
 import Toolbar from "sap/m/Toolbar";
 import Title from "sap/m/Title";
 import ToolbarSpacer from "sap/m/ToolbarSpacer";
 import Button from "sap/m/Button";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Control from "sap/ui/core/Control";
+import Event from "sap/ui/base/Event";
+import { ListMode, PopinDisplay } from "sap/m/library";
 import { IPropertyMetadata, ISchema, ILayoutElement } from "../interfaces/ISchema";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
-import GeneratorHost from "../controls/host/GeneratorHost";
-import { SchemaNormalizer } from "../core/SchemaNormalizer";
+import { TableRowHelper } from "./TableRowHelper";
+import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
 import { Logger } from "../utils/Logger";
-import { WIDGET_TYPE, SCHEMA_TYPE } from "../constants/MetaUIConstants";
+import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
+import { isRecord } from "../utils/TypeGuards";
+import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
 
 /**
  * Layout Manager responsible for generating a responsive SAP Fiori Table.
- * It is automatically utilized by the Engine when the schema root or property is of type 'array'.
+ * Automatically utilized by the Engine when the schema root or property is of type `'array'`.
  * Includes built-in support for adding and deleting rows via dynamic data binding manipulation.
- * 
+ *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
  * @public
  */
 export class TableLayout implements ILayoutManager {
     /**
      * Renders the JSON Schema array properties into a UI5 Table.
-     * 
+     *
      * @param schema The active JSON schema array definition.
      * @param modelName The UI5 JSONModel name used for data binding.
      * @param engine The central orchestrator for delegating column plugin generation.
-     * @param onSubmit Optional submit hook.
+     * @param _onSubmit Optional submit hook.
      * @param bindingPath The JSON path representing the array within the payload.
-     * @returns {Control} The generated sap.m.Table control.
-     * @throws {Error} If the provided schema is not of type 'array'.
+     * @returns {Control} The generated `sap.m.Table` control.
+     * @throws {Error} If the provided schema is not of type `'array'`.
      */
-    public render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void, bindingPath: string = "/"): Control {
-        let itemsSchema = schema.items;
-        if (itemsSchema && !itemsSchema.properties && itemsSchema.ui?.widget === WIDGET_TYPE.REFERENCE && itemsSchema.$ref) {
-            Logger.debug(`[MetaUI] TableLayout detecting reference widget for ${bindingPath}. Resolving ${itemsSchema.$ref}`, "", "TableLayout");
-            
-            const host = engine.host as unknown as GeneratorHost;
-            if (host && typeof host.getSchemaDefinition === "function") {
-                const resolved = host.getSchemaDefinition(itemsSchema.$ref);
-                Logger.debug(`[MetaUI] Resolved schema for ${itemsSchema.$ref}: ${!!resolved} ${resolved ? Object.keys(resolved) : ""}`, "", "TableLayout");
-                if (resolved && resolved.properties) {
-                    itemsSchema = resolved;
-                } else {
-                    Logger.error(`[MetaUI] TableLayout resolved schema but it has no properties!`, "", "TableLayout");
-                }
-            } else {
-                Logger.error(`[MetaUI] TableLayout cannot resolve ${itemsSchema.$ref} because engine.host.getSchemaDefinition is missing! host: ${host?.getMetadata().getName()}`, "", "TableLayout");
-            }
-        }
+    public render(
+        schema: ISchema,
+        modelName: string,
+        engine: Engine,
+        _onSubmit?: () => void,
+        bindingPath: string = "/"
+    ): Control {
+        const itemsSchema = TableRowHelper.resolveItemsSchema(schema, engine, bindingPath);
+        const isPrimitive = Boolean(
+            itemsSchema &&
+                !itemsSchema.properties &&
+                ["string", "number", "integer", "boolean"].includes(itemsSchema.type as string)
+        );
 
-        const isPrimitive = itemsSchema && !itemsSchema.properties && ["string", "number", "boolean"].includes(itemsSchema.type as string);
         if (schema.type !== SCHEMA_TYPE.ARRAY || !itemsSchema || (!itemsSchema.properties && !isPrimitive)) {
-            Logger.error(`[MetaUI] TableLayout fatal error! schema.type: ${schema.type}, itemsSchema: ${!!itemsSchema}, properties: ${itemsSchema ? !!itemsSchema.properties : false}`, "", "TableLayout");
+            Logger.error(
+                `[MetaUI] TableLayout fatal error! schema.type: ${schema.type}, itemsSchema: ${!!itemsSchema}`,
+                "",
+                "TableLayout"
+            );
             throw new Error("[MetaUI] TableLayout requires an array schema with items.properties or primitive items.");
         }
 
-        const createSkeleton = (meta: ISchema | IPropertyMetadata): any => {
-            if (meta.type === "object" && meta.properties) {
-                const obj: any = {};
-                for (const key of Object.keys(meta.properties)) {
-                    obj[key] = createSkeleton(meta.properties[key] as ISchema | IPropertyMetadata);
-                }
-                return obj;
-            } else if (meta.type === "array") {
-                return [];
-            } else if (meta.type === "string") {
-                return (meta as any).default !== undefined ? (meta as any).default : ((meta as any).enum ? (meta as any).enum[0] : "");
-            } else if (meta.type === "number") {
-                return (meta as any).default !== undefined ? (meta as any).default : 0;
-            } else if (meta.type === "boolean") {
-                return (meta as any).default !== undefined ? (meta as any).default : false;
-            }
-            return "";
-        };
+        const resolvedItemsSchema: IPropertyMetadata = itemsSchema;
+        const tableTitle = schema.title || schema.ui?.label || "Table";
+        const canEditTable =
+            engine.isEditable && !schema.readOnly && !schema.ui?.readOnly && schema.ui?.enabled !== false;
 
-        const tableTitle = schema.title || "Table";
-        const actualModelName = modelName;
-        const actualPath = bindingPath;
+        let effectiveBindingPath = bindingPath;
+        if (bindingPath === "/") {
+            const activeModel = engine.getModel() as { getData?: () => unknown } | undefined;
+            const rootData = typeof activeModel?.getData === "function" ? activeModel.getData() : undefined;
+            if (!Array.isArray(rootData) && isRecord(rootData) && Array.isArray(rootData.items)) {
+                effectiveBindingPath = "/items";
+            }
+        }
+
+        const addRowBtn = new Button({
+            text: "Add Row",
+            icon: "sap-icon://add",
+            visible: canEditTable,
+            press: (oEvent: Event) => {
+                const btn = oEvent.getSource() as Button;
+                const tbl = btn.getParent()?.getParent() as Table | undefined;
+                TableRowHelper.addRow(tbl, modelName, resolvedItemsSchema, engine, effectiveBindingPath, schema);
+            }
+        });
+        addRowBtn.data("metauiTableAddBtn", true);
 
         const table = new Table({
             headerToolbar: new Toolbar({
-                content: [
-                    new Title({ text: tableTitle }),
-                    new ToolbarSpacer(),
-                    ...(!engine.isEditable ? [] : [
-                        new Button({
-                            text: "Add Row",
-                            icon: "sap-icon://add",
-                            press: (oEvent: sap.ui.base.Event) => {
-                                const btn = oEvent.getSource() as Button;
-                                const tbl = btn.getParent()?.getParent() as Table;
-                                const model = tbl.getModel(actualModelName) as JSONModel;
-                                const info = tbl.getBindingInfo("items");
-                                if (!info || !info.path) return;
-
-                                const rawData = model.getProperty(info.path);
-                                const data = Array.isArray(rawData) ? rawData : [];
-                                const newData = [...data, createSkeleton(itemsSchema)];
-                                model.setProperty(info.path, newData);
-
-                                // CRITICAL: Notify the engine so it extracts payload and triggers liveUpdate
-                                if (engine.onChange) {
-                                    engine.onChange(true, actualPath.replace(/^\//, ""));
-                                }
-                            }
-                        })
-                    ])
-                ]
+                content: [new Title({ text: tableTitle }), new ToolbarSpacer(), addRowBtn]
             }),
             fixedLayout: false,
-            mode: !engine.isEditable ? "None" : "Delete",
-            delete: (oEvent: sap.ui.base.Event) => {
-                const item = oEvent.getParameter("listItem") as ColumnListItem;
-                const path = item.getBindingContext(actualModelName)?.getPath();
-                if (!path) return;
-                const model = item.getModel(actualModelName) as JSONModel;
-
-                const splitPaths = path.split("/");
-                const index = parseInt(splitPaths.pop() || "0", 10);
-                let arrayPath = splitPaths.join("/");
-                if (arrayPath === "") arrayPath = "/";
-
-                const rawData = model.getProperty(arrayPath);
-                const data = Array.isArray(rawData) ? rawData : [];
-                const newData = [...data];
-                newData.splice(index, 1);
-                model.setProperty(arrayPath, newData);
-
-                // CRITICAL: Notify the engine so it extracts payload and triggers liveUpdate
-                if (engine.onChange) {
-                    engine.onChange(true, actualPath.replace(/^\//, ""));
-                }
-
-                // CRITICAL: Clear ghost errors that shifted due to array mutation
-                if (typeof (engine as any).onArrayMutated === "function") {
-                    (engine as any).onArrayMutated(arrayPath);
-                }
+            mode: !canEditTable ? ListMode.None : ListMode.Delete,
+            delete: (oEvent: Event) => {
+                const params = oEvent.getParameters() as { listItem?: ColumnListItem };
+                TableRowHelper.deleteRow(params.listItem, modelName, engine, effectiveBindingPath, schema);
             }
         });
+        table.data("metauiBindingPath", effectiveBindingPath);
+        if (schema.ui?.visible === false || schema.ui?.visibleOn) {
+            ControlDirectiveUtil.applyCommonDirectives(
+                table,
+                table,
+                { type: "array", ui: { visible: schema.ui.visible, visibleOn: schema.ui.visibleOn } },
+                effectiveBindingPath,
+                canEditTable,
+                modelName
+            );
+        }
 
+        const templateCells = this.buildColumnsAndCells(
+            table,
+            schema,
+            resolvedItemsSchema,
+            isPrimitive,
+            modelName,
+            engine,
+            canEditTable
+        );
+
+        table.bindItems({
+            path: effectiveBindingPath,
+            model: modelName,
+            template: new ColumnListItem({ cells: templateCells }),
+            templateShareable: false
+        });
+
+        return table;
+    }
+
+    /**
+     * Populates the `sap.m.Table` columns (with accessible `sap.m.Label` headers and `required` indicators)
+     * and generates the corresponding cell template controls.
+     *
+     * @param table The target `sap.m.Table` control.
+     * @param schema The array schema.
+     * @param resolvedItemsSchema The resolved `items` metadata.
+     * @param isPrimitive True if the array items are primitives rather than objects.
+     * @param modelName The UI5 JSONModel alias.
+     * @param engine The owning `Engine` instance.
+     * @param canEditTable True if the table allows editing.
+     * @returns {Control[]} The array of template cell controls for `ColumnListItem`.
+     */
+    private buildColumnsAndCells(
+        table: Table,
+        schema: ISchema,
+        resolvedItemsSchema: IPropertyMetadata,
+        isPrimitive: boolean,
+        modelName: string,
+        engine: Engine,
+        canEditTable: boolean = true
+    ): Control[] {
         const templateCells: Control[] = [];
-        const props = itemsSchema.properties;
-        const layoutElements = schema.uiLayout;
+        const props = resolvedItemsSchema.properties;
+        const layoutElements = schema.uiLayout || resolvedItemsSchema.uiLayout;
+        const effectiveModel = modelName || "meta";
+
+        const withTableReadOnly = (meta: IPropertyMetadata, widgetOverride?: string): IPropertyMetadata => {
+            return LayoutFieldFactory.cloneFieldMetadata(meta, widgetOverride, !canEditTable);
+        };
 
         if (isPrimitive) {
-            table.addColumn(new Column({
-                header: new Text({ text: "Value" })
-            }));
-            const control = engine.generateField(itemsSchema as IPropertyMetadata, "", actualModelName || "meta", true);
-            templateCells.push(control);
-        } else if (layoutElements && Array.isArray(layoutElements)) {
-            // Only render columns defined in uiLayout
-            layoutElements.forEach((element: ILayoutElement) => {
-                if (element.type === "Control" && element.scope) {
-                    const { meta: fieldMeta, bindingPath, propKey } = SchemaNormalizer.resolveScope(
-                        { type: "object", properties: props } as ISchema, 
-                        element.scope
-                    );
-                    
-                    if (!fieldMeta) {
-                        Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions for Table.`, "", "TableLayout");
-                    } else {
-                        // The architectural boundary: Table Layout orchestrates the columns and aggregation binding,
-                        // but delegates the actual cell rendering to the Engine's Field Plugins.
-                        table.addColumn(new Column({
-                            header: new Text({ text: element.label || fieldMeta.ui?.label || propKey }),
-                            demandPopin: !fieldMeta.ui?.isKey,
-                            minScreenWidth: fieldMeta.ui?.isKey ? "" : "Tablet",
-                            popinDisplay: "Inline"
-                        }));
+            table.addColumn(
+                new Column({
+                    header: new Label({ text: "Value", required: resolvedItemsSchema.required === true })
+                })
+            );
+            templateCells.push(engine.generateField(withTableReadOnly(resolvedItemsSchema), "", effectiveModel, true));
+            return templateCells;
+        }
 
-                        const effectiveMeta = { ...fieldMeta };
-                        if (element.widget) {
-                            effectiveMeta.ui = { ...fieldMeta.ui, widget: element.widget };
-                        }
+        const hasExplicitKey = props
+            ? Object.values(props).some((p) => Boolean(p.ui?.isKey))
+            : false;
 
-                        // We pass the activeModel as actualModelName down. But the path must be relative to the 
-                        // table row binding context, so we just use the bindingPath (e.g. "id" or "header/id")
-                        const control = engine.generateField(effectiveMeta, bindingPath, actualModelName || "meta", true);
-                        templateCells.push(control);
+        if (layoutElements && Array.isArray(layoutElements)) {
+            let renderedColIndex = 0;
+            const itemObjectSchema: ISchema = { type: "object", properties: props };
+            const controlCount = LayoutElementWalker.walk(
+                layoutElements,
+                itemObjectSchema,
+                engine,
+                {
+                    onScalarField: (element: ILayoutElement, colBindingPath: string, fieldMeta: IPropertyMetadata) => {
+                        const isAnchor = Boolean(fieldMeta.ui?.isKey) || (!hasExplicitKey && renderedColIndex === 0);
+                        renderedColIndex++;
+                        table.addColumn(
+                            new Column({
+                                header: new Label({
+                                    text: element.label || fieldMeta.ui?.label || colBindingPath,
+                                    required: fieldMeta.required === true
+                                }),
+                                demandPopin: !isAnchor,
+                                minScreenWidth: isAnchor ? "" : "Tablet",
+                                popinDisplay: PopinDisplay.Inline
+                            })
+                        );
+                        const effectiveMeta = withTableReadOnly(fieldMeta, element.widget);
+                        templateCells.push(engine.generateField(effectiveMeta, colBindingPath, effectiveModel, true));
                     }
-                } else {
-                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}' in Table.`, "", "TableLayout");
-                }
-            });
-        } else {
-            Logger.debug("[MetaUI TableLayout]", "No uiLayout provided. Falling back to rendering all properties as columns.", "TableLayout");
-            // Fallback: If no uiLayout is provided, render all properties as columns
-            Object.keys(props).forEach((key) => {
+                },
+                "TableLayout"
+            );
+            if (controlCount > 0) {
+                return templateCells;
+            }
+            Logger.warn(
+                "[MetaUI] Table uiLayout contains no Control elements; falling back to item properties.",
+                "",
+                "TableLayout"
+            );
+        }
+
+        if (props) {
+            Object.keys(props).forEach((key, colIdx) => {
                 try {
-                    const fieldMeta = props[key];
-                    const isKey = !!fieldMeta.ui?.isKey;
-
-                    const column = new Column({
-                        header: new Text({ text: fieldMeta.ui?.label || key }),
-                        demandPopin: !isKey,
-                        minScreenWidth: isKey ? "" : "Tablet",
-                        popinDisplay: "Inline"
-                    });
-                    table.addColumn(column);
-
-                    const control = engine.generateField(fieldMeta, key, actualModelName || "meta", true);
-                    templateCells.push(control);
+                    const fieldMeta = withTableReadOnly(props[key]);
+                    const isAnchor = Boolean(fieldMeta.ui?.isKey) || (!hasExplicitKey && colIdx === 0);
+                    table.addColumn(
+                        new Column({
+                            header: new Label({
+                                text: fieldMeta.ui?.label || key,
+                                required: fieldMeta.required === true
+                            }),
+                            demandPopin: !isAnchor,
+                            minScreenWidth: isAnchor ? "" : "Tablet",
+                            popinDisplay: PopinDisplay.Inline
+                        })
+                    );
+                    templateCells.push(engine.generateField(fieldMeta, key, effectiveModel, true));
                 } catch (error) {
                     const msg = (error as Error).message;
                     Logger.error(`[MetaUI] Failed to render fallback column ${key}`, msg, "TableLayout");
@@ -222,19 +246,6 @@ export class TableLayout implements ILayoutManager {
             });
         }
 
-
-
-        const rowTemplate = new ColumnListItem({
-            cells: templateCells
-        });
-
-        table.bindItems({
-            path: actualPath,
-            model: actualModelName,
-            template: rowTemplate,
-            templateShareable: false
-        });
-
-        return table;
+        return templateCells;
     }
 }

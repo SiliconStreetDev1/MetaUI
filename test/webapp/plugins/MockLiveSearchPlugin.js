@@ -10,24 +10,15 @@ sap.ui.define([
      * keeping the core MetaUI engine pure.
      */
     class MockLiveSearchPlugin extends LiveSearchPluginModule.LiveSearchPlugin {
-        fetchSuggestions(input, query) {
-            var vhConfig = this.metadata && this.metadata.valueHelp;
-            if (!vhConfig || !vhConfig.url) {
+        scheduleSearch(input, term, ds) {
+            if (!ds || !ds.url) {
                 return;
             }
-            
-            if (!query) {
-                input.removeAllSuggestionItems();
+            if (!term || term.trim().length < 2) {
+                input.destroySuggestionItems();
                 return;
             }
-            
-            input.setBusy(true);
-            
-            // Simulate network latency for sandbox testing
-            setTimeout(() => {
-                // Call the original fetchSuggestions method which performs the actual fetch
-                super.fetchSuggestions(input, query);
-            }, 500); // 500ms artificial delay
+            super.scheduleSearch(input, term, ds);
         }
     }
 

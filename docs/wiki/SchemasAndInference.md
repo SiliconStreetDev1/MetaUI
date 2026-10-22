@@ -18,13 +18,25 @@ A MetaUI JSON Schema defines the hierarchical layout of your form, the types of 
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `title` | `string` | The title of the form/schema. |
-| `layoutStrategy` | `string` | Defines the macro-layout behavior of the container (e.g. `"form"`, `"table"`, `"wizard"`, or `"compact"`). |
+| `ui` | `IUIDirective` | Optional root-level UI directives (`layoutBudget`, `dialogButtonText`, `renderMode`, etc.). |
+| `uiPolicies` | `IPolicy[]` | Declarative cross-field rules evaluated by the Policy-Based Rules Engine (`PolicyEngine`). |
+| `layoutStrategy` | `string` | Defines the macro-layout behavior of the container (`"form"`, `"table"`, `"wizard"`, or `"compact"`). |
 | `type` | `"object" \| "array"` | The overarching type of the root node (implicitly hints layout). |
 | `properties` | `Record<string, IPropertyMetadata>` | The dictionary of nested fields for an object. |
 | `items` | `IPropertyMetadata` | The schema defining the elements within an array. |
 | `uiLayout` | `ILayoutElement[]` | Explicitly overrides the visual hierarchy and grouping. |
-| `additionalProperties` | `boolean` | If true, MetaUI merges explicit properties with an inferred schema generated from bound data. |
-| `definitions` | `Record<string, ISchema>` | A dictionary of reusable sub-schemas used for OpenAPI $ref resolution. |
+| `additionalProperties` | `boolean \| IPropertyMetadata` | If true, MetaUI merges explicit properties with an inferred schema generated from bound data. |
+| `required` | `string[]` | Array of required property keys on the root object. |
+| `readOnly` | `boolean` | Indicates the root schema is read-only. |
+| `maxItems` | `number` | Maximum items allowed for a root array schema. |
+| `minItems` | `number` | Minimum items required for a root array schema. |
+| `uniqueItems` | `boolean` | Requires all items in a root array schema to be unique. |
+| `maxProperties` | `number` | Maximum properties allowed on the root object. |
+| `minProperties` | `number` | Minimum properties required on the root object. |
+| `oneOf` | `IPropertyMetadata[]` | Root polymorphic branch array (exactly one branch). |
+| `anyOf` | `IPropertyMetadata[]` | Root polymorphic branch array (one or more branches). |
+| `allOf` | `IPropertyMetadata[]` | Root schema composition array merged during normalization. |
+| `definitions` | `Record<string, ISchema>` | A dictionary of reusable sub-schemas used for JSON Schema / OpenAPI `$ref` resolution (also normalized from `$defs`). |
 
 ### Field `IPropertyMetadata` Properties (Exhaustive)
 
@@ -32,10 +44,14 @@ Every field within `properties` or `items` supports the following absolute schem
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `type` | `FieldType` (`"string" \| "number" \| "integer" \| "boolean" \| "date" \| "array" \| "object"`) | The primitive data type. |
-| `$ref` | `string` | A JSON Pointer reference to a schema definition (e.g. `#/definitions/Address`). |
+| `type` | `FieldType` (`"string" \| "number" \| "integer" \| "boolean" \| "date" \| "array" \| "object"`) | The primitive data type (also accepts Draft 2020-12 nullable arrays such as `["string", "null"]`). |
+| `$ref` | `string` | A JSON Pointer reference to a schema definition (e.g. `#/definitions/Address` or `#/$defs/Address`). |
+| `title` | `string` | Standard JSON-Schema title. Used as the label fallback when `ui.label` is absent. |
+| `description` | `string` | Standard JSON-Schema description. Used as the tooltip fallback on generated controls. |
 | `ui` | `IUIDirective` | MetaUI proprietary block for Fiori visual orchestration. |
-| `required` | `boolean` | Natively maps to `sap.m.InputBase` required state. |
+| `required` | `boolean \| string[]` | Natively maps to `sap.m.InputBase` / `sap.m.Label` required state (or child required array on nested objects). |
+| `format` | `string` | Standard JSON-Schema / OpenAPI format (`"email"`, `"uri"`, `"url"`, `"iban"`, `"date"`, `"date-time"`, `"time"`, `"password"`). |
+| `const` | `unknown` | Requires the field value to strictly equal the specified constant. |
 | `maxLength` | `number` | String max length constraint. |
 | `minLength` | `number` | String min length constraint. |
 | `minimum` | `number` | Numeric minimum boundary. |
@@ -43,31 +59,31 @@ Every field within `properties` or `items` supports the following absolute schem
 | `pattern` | `string` | Regular expression validation. |
 | `precision` | `number` | Total length of a numeric field (e.g. `precision: 10, scale: 2`). |
 | `scale` | `number` | Number of allowed decimal places. |
-| `multipleOf` | `number` | Step increment (mapped to StepInput natively). |
-| `valueHelp` | `IValueHelp[] \| IRemoteValueHelpConfig` | Array of static Key/Text pairs OR remote OData configuration object. |
+| `multipleOf` | `number` | Numeric step/divisor constraint. |
+| `valueHelp` | `IValueHelp[] \| IRemoteValueHelpConfig` | Array of static Key/Text pairs OR remote endpoint configuration object. |
 | `enum` | `string[] \| number[]` | Array of allowed primitive values. |
 | `default` | `unknown` | The default value assigned if the payload is empty. |
-| `nullable` | `boolean` | Indicates if the property allows null values. |
-| `writeOnly` | `boolean` | Indicates the property is meant only for submission and should not be displayed in read-only layouts. |
+| `nullable` | `boolean` | Indicates if the property allows null values (`RequiredValidatorPlugin` rejects `null` when `nullable: false` and permits `null` when `nullable: true`). |
+| `writeOnly` | `boolean` | Preserved on normalized `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime). |
 | `readOnly` | `boolean` | Indicates the property is read-only. |
 | `example` | `unknown` | A sample value for documentation/mocking. |
-| `deprecated` | `boolean` | Flags the property as deprecated. |
-| `exclusiveMinimum` | `boolean \| number` | Strict boundary constraint (less than but not equal). |
-| `exclusiveMaximum` | `boolean \| number` | Strict boundary constraint (greater than but not equal). |
+| `deprecated` | `boolean` | Preserved on normalized `IPropertyMetadata` for consumer inspection. |
+| `exclusiveMinimum` | `boolean \| number` | Strict boundary constraint (greater than but not equal). |
+| `exclusiveMaximum` | `boolean \| number` | Strict boundary constraint (less than but not equal). |
 | `maxItems` | `number` | Maximum items for an array. |
 | `minItems` | `number` | Minimum items for an array. |
 | `uniqueItems` | `boolean` | Requires all array items to be unique. |
 | `maxProperties` | `number` | Maximum properties for an object. |
 | `minProperties` | `number` | Minimum properties for an object. |
-| `oneOf` | `IPropertyMetadata[]` | Must match exactly one of the provided schemas. |
-| `anyOf` | `IPropertyMetadata[]` | Must match one or more of the provided schemas. |
-| `allOf` | `IPropertyMetadata[]` | Must match all of the provided schemas. |
-| `not` | `IPropertyMetadata` | Must not match the provided schema. |
+| `oneOf` | `IPropertyMetadata[]` | Must match exactly one of the provided schemas (renders `PolymorphicPlugin`). |
+| `anyOf` | `IPropertyMetadata[]` | Must match one or more of the provided schemas (renders `PolymorphicPlugin`). |
+| `allOf` | `IPropertyMetadata[]` | Merged during schema normalization / OpenAPI parsing into a combined schema. |
+| `not` | `IPropertyMetadata` | Preserved on normalized `IPropertyMetadata` (not evaluated by a built-in validator plugin). |
 | `discriminator` | `{ propertyName: string, mapping?: Record<string, string> }` | Used for polymorphic object mapping in OpenAPI. |
 | `properties` | `Record<string, IPropertyMetadata>` | Nested recursion for objects. |
 | `items` | `IPropertyMetadata` | Nested recursion for arrays. |
 | `uiLayout` | `ILayoutElement[]` | Nested visual layout overrides for complex child objects. |
-| `additionalProperties` | `boolean \| IPropertyMetadata` | Defines rules for undeclared properties. |
+| `additionalProperties` | `boolean \| IPropertyMetadata` | Defines rules for undeclared properties or typed dictionary maps. |
 
 ---
 
@@ -78,20 +94,30 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `label` | `string` | Overrides the schema title with a specific UI label. |
+| `placeholder` | `string` | Placeholder text for input controls. |
 | `isKey` | `boolean` | Marks a field as a primary key (useful for OData payload mapping). |
 | `readOnly` | `boolean` | Structurally locks the field (maps to `setEditable(false)`). |
+| `visible` | `boolean` | Initial static visibility of the control. |
+| `enabled` | `boolean` | Initial static enabled state of the control. |
 | `widget` | `string` | Forces a specific Plugin implementation (e.g., `"slider"` instead of the default numeric input). |
-| `visibleOn` | `string` | Expression string evaluated via `ExpressionBuilder` (e.g. `"{/Active} === true"` or direct JS syntax). Controls `setVisible()`. |
+| `visibleOn` | `string` | Expression string evaluated via `ExpressionBuilder` (e.g. `"{/Active} === true"` or `$root.Active === true`). Controls `setVisible()`. |
 | `enabledOn` | `string` | Expression string for enabling/disabling a control interactively. |
 | `format` | `string` | Specialized data formats natively mapped to validation rules (`"email"`, `"url"`, `"iban"`). |
+| `valueState` | `string` | Initial `sap.ui.core.ValueState` (`"None"`, `"Error"`, `"Warning"`, `"Success"`, `"Information"`). |
 | `rows` | `number` | Row count specific to the `textArea` widget. |
 | `expandable` | `boolean` | Allows disabling the full-screen expand button for `textArea` and `codeEditor`. Defaults to true. |
 | `fullWidth` | `boolean` | Forces a control to break to a new line and span 12 grid columns horizontally. |
-| `controlProps` | `Record<string, unknown>` | **Advanced:** Directly applies static UI5 properties or dynamic expression bindings (using `{...}`) to the underlying UI5 widget via reflection. Core data properties (`value`, `text`, `visible`, etc.) are blocked by the Sandbox. |
+| `controlProps` | `Record<string, unknown>` | **Advanced:** Directly applies static UI5 properties or dynamic expression bindings (using `{...}`) to the underlying UI5 widget via reflection. Core data/state properties (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`) are blocked by the Sandbox. |
+| `options` | `Record<string, unknown>` | Extended widget configuration options (`values`, `min`, `max`, `step`, `maxValue`, `text`, `type`, `icon`). |
+| `valueHelp` | `IValueHelp[]` | Inline array of `{ key, text }` options inside the `ui` block. |
+| `dataSource` | `IDataSourceConfig` | Asynchronous REST or OData data source configuration (`url`, `keyField`, `textField`, `dataPath`, `modelName`). |
 | `validators` | `(string \| IValidationRule)[]` | Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`). |
-| `formatter` | `string` | The name of a custom string transformation formatter pipeline natively mapped in `PipelineManager`. |
+| `formatter` | `string` | The name of a single formatter pipeline mapped in `PipelineManager` (`"date"`, `"phone"`, `"currency"` are presentational and parsed back to raw model values via `PipelineManager.parsers`; `"textCase"` is transforming and writes its normalized string to the model). Note: `ui.format: "phone"` performs no validation; validate phone numbers with `pattern`. |
+| `formatters` | `string[]` | Ordered array of chained formatter names mapped in `PipelineManager` (parsed in reverse order via `runParsers()` when presentational). |
 | `args` | `unknown` | Configuration arguments passed to a specific Widget or Formatter (e.g. `"javascript"` for `codeEditor`). |
-| `dialogButtonText` | `string` | Explicit text for the configurable popup submit button (overriding the default "Submit"). |
+| `dialogButtonText` | `string` | Explicit text for the modal trigger button on nested objects/arrays. |
+| `layoutBudget` | `number` | Maximum control footprint budget before nested objects/arrays overflow into modal dialogs. |
+| `renderMode` | `"inline" \| "dialog"` | Explicit rendering mode for nested objects, arrays, or `$ref` properties. |
 
 ---
 
@@ -115,7 +141,8 @@ In MetaUI, "Actions" are simply custom plugins mapped via the `ui.widget` proper
 
 #### Built-in Actions
 - **`submitButton`**: Renders an Action Button that natively triggers the host container's submission flow (publishing a `TriggerSubmit` event).
-- **`urlButton`**: Renders a Navigation Button that opens an external link.
+- **`clearButton`**: Renders an Action Button (`ClearFormActionPlugin`) that resets the form payload to schema defaults or type-appropriate empty values.
+- **`urlButton`**: Renders a Navigation Button (`UrlNavigationActionPlugin`) that opens an external link (`http:`, `https:`, or `mailto:`).
 
 #### Using `ui.args` for Actions
 Action plugins often require parameters. You can pass these via the `ui.args` property:
@@ -135,7 +162,7 @@ Action plugins often require parameters. You can pass these via the `ui.args` pr
 You are not limited to the built-in actions. If you create a custom `ActionPlugin` (e.g., a button that triggers a barcode scanner or a backend OData call), you register it globally using the `PluginRegistry`:
 
 ```typescript
-import PluginRegistry from "@siliconst/metaui/core/PluginRegistry";
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
 
 // Register your custom action
 PluginRegistry.getInstance().registerPluginPath(
@@ -150,48 +177,54 @@ You can then trigger it in your schema simply by setting `"widget": "myCustomAct
 
 ## Out-of-the-Box Widget Mappings (`PluginRegistry`)
 
-The MetaUI Engine translates schemas into SAPUI5 instances using 31 rigorously defined Plugins. You must use these exact `type` and `ui.widget` combinations to trigger them.
+The MetaUI Engine translates schemas into SAPUI5 instances using 52 `(type, widget)` plugin mappings registered in `DefaultPluginBootstrapper.ts`. You must use these exact `type` and `ui.widget` combinations to trigger them.
 
 | Base `type` | `ui.widget` (Override) | Rendered UI5 Control | Plugin Class |
 | :--- | :--- | :--- | :--- |
 | **Core Plugins** | | | |
-| `string` | *(default)* | `sap.m.Input` | StringPlugin |
-| `number` | *(default)* | `sap.m.StepInput` | NumberPlugin |
-| `integer` | *(default)* | `sap.m.StepInput` | NumberPlugin |
-| `date` | *(default)* | `sap.m.DatePicker` | DatePlugin |
+| `string` | *(default)* / `"default"` | `sap.m.Input` | StringPlugin |
+| `number` | *(default)* | `sap.m.Input` | NumberPlugin |
+| `integer` | *(default)* | `sap.m.Input` | NumberPlugin |
+| `date` | *(default)* / `"date"` / `"datePicker"` | `sap.m.DatePicker` | DatePlugin |
 | `boolean` | *(default)* | `sap.m.CheckBox` | BooleanPlugin |
-| `array` | *(default)* | `sap.m.Table` | ArrayPlugin |
-| `object` | *(default)* | `sap.ui.layout.form.FormContainer` | ObjectPlugin |
-| `string` | `"default"` | `sap.m.Input` | StringPlugin |
-| `object` | `"dictionary"` | Key-Value List | DictionaryMapPlugin |
-| `object` | `"reference"` | Sub-Form Container | ReferencePlugin |
+| `array` | *(default)* | `sap.m.Button` (Modal Trigger) | ArrayPlugin |
+| `object` | *(default)* | `sap.m.Button` (Modal Trigger) | ObjectPlugin |
+| `object` | `"dictionaryMap"` | `sap.m.VBox` (Key-Value Map) | DictionaryMapPlugin |
+| `object` | `"reference"` | `sap.m.VBox` / `sap.m.Button` | ReferencePlugin |
+| `object` | `"polymorphic"` | `sap.m.VBox` (`oneOf`/`anyOf` Selector) | PolymorphicPlugin |
 | **Widget Overrides** | | | |
+| `string` | `"date"` / `"datePicker"` | `sap.m.DatePicker` | DatePlugin |
 | `string` | `"time"` | `sap.m.TimePicker` | TimePlugin |
 | `string` | `"datetime"` | `sap.m.DateTimePicker` | DateTimePlugin |
 | `boolean` | `"switch"` | `sap.m.Switch` | SwitchPlugin |
-| `number` | `"step"` | `sap.m.StepInput` | StepInputPlugin |
-| `string` | `"select"` | `sap.m.ComboBox` | DropdownPlugin |
+| `number` / `integer` | `"step"` | `sap.m.StepInput` | StepInputPlugin |
+| `string` / `number` / `integer` | `"select"` | `sap.m.Select` | DropdownPlugin |
 | `string` | `"textArea"` | `sap.m.TextArea` | TextAreaPlugin |
-| `string` | `"codeEditor"` | `sap.ui.codeeditor.CodeEditor` | CodeEditorPlugin |
-| `string` | `"fileUploader"` | `sap.ui.unified.FileUploader` | FileUploaderPlugin |
+| `string` | `"codeEditor"` | `sap.m.VBox` (`sap.ui.codeeditor.CodeEditor`) | CodeEditorPlugin |
+| `string` | `"link"` | `sap.m.Link` | LinkPlugin |
+| `string` | `"password"` | `sap.m.Input` (`type="Password"`) | PasswordPlugin |
+| `string` | `"email"` | `sap.m.Input` (`type="Email"`) | EmailPlugin |
+| `string` | `"fileUploader"` | `sap.m.VBox` (`sap.m.Image` + `sap.ui.unified.FileUploader`) | FileUploaderPlugin |
 | `array` | `"multiSelect"` | `sap.m.MultiComboBox` | MultiSelectPlugin |
 | `array` | `"multiInput"` | `sap.m.MultiInput` | MultiInputPlugin |
-| `number` | `"slider"` | `sap.m.Slider` | SliderPlugin |
-| `number` | `"rating"` | `sap.m.RatingIndicator` | RatingIndicatorPlugin |
+| `number` / `integer` | `"slider"` | `sap.m.Slider` | SliderPlugin |
+| `number` / `integer` | `"rating"` | `sap.m.RatingIndicator` | RatingIndicatorPlugin |
 | `string` | `"messageStrip"` | `sap.m.MessageStrip` | MessageStripPlugin |
-| `string` | `"camera"` | MetaUI Native Camera | CameraPlugin |
-| `string` | `"signature"` | MetaUI Native Signature | SignaturePlugin |
-| `object` | `"location"` | MetaUI Native Geolocation | GeolocationPlugin |
-| `string` | `"scanner"` | MetaUI Native Barcode | BarcodeScannerPlugin |
-| `string` | `"voiceInput"` | MetaUI Native Voice | VoiceInputPlugin |
-| `string` | `"richText"` | `sap.ui.richtexteditor...` | RichTextPlugin |
+| `string` | `"camera"` | `nz.co.siliconst.ui5.metaui.controls.CameraControl` | CameraPlugin |
+| `string` | `"signature"` | `nz.co.siliconst.ui5.metaui.controls.SignatureControl` | SignaturePlugin |
+| `object` | `"location"` | `nz.co.siliconst.ui5.metaui.controls.GeolocationControl` | GeolocationPlugin |
+| `string` | `"scanner"` | `sap.m.HBox` (`sap.ndc.BarcodeScannerButton`) | BarcodeScannerPlugin |
+| `string` | `"voiceInput"` | `nz.co.siliconst.ui5.metaui.controls.VoiceInputControl` | VoiceInputPlugin |
+| `string` | `"richText"` | `nz.co.siliconst.ui5.metaui.controls.RichTextControl` | RichTextPlugin |
 | **Actions & Datasources** | | | |
-| `string` | `"urlButton"` | Navigation Button | UrlNavigationActionPlugin |
-| `string` | `"submitButton"` | Action Button | SubmitFormActionPlugin |
-| `string` | `"odataSelect"` | `sap.m.Select` (OData) | ODataListBindingPlugin |
-| `string` | `"remoteDropdown"` | `sap.m.ComboBox` (REST) | RemoteDropdownPlugin |
-| `string` | `"liveSearch"` | `sap.m.SearchField` | LiveSearchPlugin |
-| `string` | `"remoteValueHelp"` | Remote ValueHelpDialog | RemoteValueHelpPlugin |
+| `string` | `"urlButton"` | `sap.m.Button` | UrlNavigationActionPlugin |
+| `string` | `"submitButton"` | `sap.m.Button` | SubmitFormActionPlugin |
+| `string` | `"clearButton"` | `sap.m.Button` | ClearFormActionPlugin |
+| `string` | `"odataSelect"` | `sap.m.ComboBox` (OData) | ODataListBindingPlugin |
+| `string` | `"remoteDropdown"` / `"remoteSelect"` | `sap.m.Select` (REST) | RemoteDropdownPlugin |
+| `string` | `"combobox"` | `sap.m.ComboBox` (REST) | RemoteDropdownPlugin |
+| `string` | `"liveSearch"` | `sap.m.Input` (Suggestions) | LiveSearchPlugin |
+| `string` | `"remoteValueHelp"` / `"valueHelp"` | `sap.m.Input` (`SelectDialog`) | RemoteValueHelpPlugin |
 
 ---
 
@@ -209,7 +242,7 @@ If you bind a completely empty schema (either `null` or `{}`) to the `DynamicHos
 ```
 
 **What MetaUI Infers:**
-1. Creates an overarching form container (via the default `"form"` layout strategy).
+1. Creates an overarching container (via the default `"compact"` layout strategy for inferred objects, or `"table"` for inferred object arrays).
 2. Infers `Username` as a `string` and maps it to the `StringPlugin`.
 3. Infers `IsAdmin` as a `boolean` and maps it to the `BooleanPlugin`.
 4. Infers `Score` as a `number` and maps it to the `NumberPlugin`.
@@ -225,7 +258,7 @@ You don't have to write MetaUI schemas by hand. The engine includes a `OpenApiBu
 To use an OpenAPI specification, you simply fetch it in your controller, pass it through the `OpenApiBuilder`, and bind the resulting object to the `DynamicHost` in your XML view.
 
 **1. Your XML View**
-Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g., `viewMode>/openApiSchema`).
+Add the `DynamicHost` and bind its `schemaDefinition` to a local JSON model (e.g., `viewModel>/openApiSchema`).
 
 ```xml
 <core:FragmentDefinition
@@ -274,7 +307,7 @@ sap.ui.define([
 When the `OpenApiBuilder` runs, it automatically maps OpenAPI constraints into MetaUI UI rules:
 - `format: "email"` -> Maps to `ui: { format: "email" }` (Native validation)
 - `allOf` and `$ref` -> Flattened and resolved automatically
-- `enum` arrays -> Rendered as Dropdowns (`sap.m.ComboBox`)
+- `enum` arrays -> Rendered as Dropdowns (`sap.m.Select`)
 - `exclusiveMinimum` / `maxLength` -> Natively bound to UI5 input constraints
 
 You can see this live in the **Playground Sandbox**! Toggle the **"Simulate OpenAPI Pipeline"** switch to swap out the MetaUI schema for a native OpenAPI schema and watch the Engine orchestrate the exact same UI layout.
@@ -315,7 +348,7 @@ This example demonstrates a standard form with custom widgets, native validation
       "enum": ["HR", "Engineering", "Sales"]
     },
     "hireDate": {
-      "type": "date",
+      "type": "string",
       "ui": {
         "widget": "datetime"
       }

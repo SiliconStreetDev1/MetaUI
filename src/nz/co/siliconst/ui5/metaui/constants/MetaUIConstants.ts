@@ -34,6 +34,9 @@ export type SchemaTypeType = typeof SCHEMA_TYPE[keyof typeof SCHEMA_TYPE];
 export const WIDGET_TYPE = {
     REFERENCE: "reference",
     DICTIONARY_MAP: "dictionaryMap",
+    POLYMORPHIC: "polymorphic",
+    DATE: "date",
+    DATE_PICKER: "datePicker",
     TIME: "time",
     DATETIME: "datetime",
     SWITCH: "switch",
@@ -58,10 +61,14 @@ export const WIDGET_TYPE = {
     RICH_TEXT: "richText",
     URL_BUTTON: "urlButton",
     SUBMIT_BUTTON: "submitButton",
+    CLEAR_BUTTON: "clearButton",
     ODATA_SELECT: "odataSelect",
     REMOTE_DROPDOWN: "remoteDropdown",
+    REMOTE_SELECT: "remoteSelect",
+    COMBOBOX: "combobox",
     LIVE_SEARCH: "liveSearch",
-    REMOTE_VALUE_HELP: "remoteValueHelp"
+    REMOTE_VALUE_HELP: "remoteValueHelp",
+    VALUE_HELP: "valueHelp"
 } as const;
 
 /**
@@ -97,5 +104,6 @@ export const UI5_AGGREGATION = {
  */
 export const OPENAPI_PREFIX = {
     DEFINITIONS: "#/definitions/",
-    COMPONENTS_SCHEMAS: "#/components/schemas/"
+    COMPONENTS_SCHEMAS: "#/components/schemas/",
+    DEFS: "#/$defs/"
 } as const;

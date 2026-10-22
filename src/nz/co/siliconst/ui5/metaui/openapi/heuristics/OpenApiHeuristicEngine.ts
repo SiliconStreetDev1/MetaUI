@@ -10,7 +10,7 @@ import { ProtobufVariantHeuristic } from "./plugins/ProtobufVariantHeuristic";
  * Orchestration engine that initializes and executes heuristic plugins sequentially.
  * This pipeline mutates the raw OpenAPI document in-place to normalize non-standard constructs
  * (like Protobuf unions) before the primary parsing phase occurs.
- * 
+ *
  * @public
  */
 export class OpenApiHeuristicEngine {
@@ -27,16 +27,16 @@ export class OpenApiHeuristicEngine {
     /**
      * Runs all registered heuristic plugins sequentially against the raw OpenAPI document.
      * Captures and bubbles plugin-specific execution failures to prevent silent pipeline corruption.
-     * 
-     * @param {any} openApiRoot The entire OpenAPI root document, to be mutated in-place.
+     *
+     * @param {unknown} openApiRoot The entire OpenAPI root document, to be mutated in-place.
      * @throws {Error} If any heuristic plugin crashes during execution.
      */
     public run(openApiRoot: unknown): void {
         for (const plugin of this.plugins) {
             try {
                 plugin.apply(openApiRoot);
-            } catch (e: any) {
-                throw new Error(`[MetaUI HeuristicEngine] Plugin execution failed: ${e.message}`);
+            } catch (e: unknown) {
+                throw new Error(`[MetaUI HeuristicEngine] Plugin execution failed: ${(e as Error).message}`);
             }
         }
     }

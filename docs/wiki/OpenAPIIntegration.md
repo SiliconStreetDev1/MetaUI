@@ -10,7 +10,7 @@ The primary entry point for converting OpenAPI to a MetaUI Schema is the `OpenAp
 
 - **`OpenApiBuilder.fetchAndBuild(url: string, targetDefinition?: string)`**: Asynchronously fetches a remote OpenAPI JSON document and compiles it into an `ISchema`. 
 - **`OpenApiBuilder.build(rawSchema: unknown, targetDefinition?: string)`**: Synchronously parses an OpenAPI document if it is already loaded into memory.
-- **`OpenApiExtractor.extractTargets(rawSchema: unknown)`**: Crawls an OpenAPI document to extract all valid root endpoints (Paths) and reusable schema objects (Definitions/Components). This is used to populate drop-downs for schema selection.
+- **`OpenApiExtractor.extractTargets(rawSchema: unknown)`**: Crawls an OpenAPI 2.0 or 3.0 document to extract all selectable request/response operation paths (`#/paths/...`) and reusable schema objects (`definitions` / `components.schemas`). Returns `OpenApiTarget[]` (`{ key, text }`).
 
 ---
 
@@ -22,17 +22,18 @@ The `OpenApiPropertyMapper` and its related utilities rigorously translate OpenA
 
 | OpenAPI Type | MetaUI `FieldType` | Fallback / Nuance |
 | :--- | :--- | :--- |
-| `string` | `string` | |
+| `string` | `string` | Default when `type` is omitted and no object/array structural keywords are present. |
+| `file` | `string` | OpenAPI 2.0 `file` type; mapped to `widget: "fileUploader"`. |
 | `number` | `number` | |
 | `integer` | `integer` | |
 | `boolean` | `boolean` | |
-| `array` | `array` | |
-| `object` | `object` | Defaults to `object` if the type property is entirely omitted. |
+| `array` | `array` | Inferred when `items` is an object even if `type` is omitted. |
+| `object` | `object` | Inferred when `properties`, `additionalProperties`, `oneOf`, `anyOf`, or `$ref` is present even if `type` is omitted. |
 | `date` | `date` | |
 
 ### Structural Constraints
 
-MetaUI respects OpenAPI constraints by directly mapping them to the schema. These constraints are evaluated natively by the `SchemaValidator`.
+MetaUI respects OpenAPI constraints by directly mapping them onto `IPropertyMetadata`. Structural schema consistency (`minLength <= maxLength`, `minimum <= maximum`) is verified by `SchemaValidator`, while runtime payload values are validated by `PipelineManager` (`IValidator` plugins) and `PayloadValidator`.
 
 - **String Constraints**: `maxLength`, `minLength`, `pattern`
 - **Numeric Constraints**: `maximum`, `minimum`, `multipleOf`, `exclusiveMaximum`, `exclusiveMinimum`
@@ -41,12 +42,12 @@ MetaUI respects OpenAPI constraints by directly mapping them to the schema. Thes
 
 ### State Modifiers
 
-Operational flags from OpenAPI map directly to the MetaUI form state:
+Operational flags from OpenAPI map onto the normalized `IPropertyMetadata`:
 
 - **`readOnly`**: Makes the Fiori widget non-editable (`sap.m.InputBase#editable = false`).
-- **`writeOnly`**: Maps to `writeOnly` state (often used to obscure payloads on outbound).
-- **`nullable`**: Allows `null` as a valid validation state.
-- **`deprecated`**: Flags the field as deprecated.
+- **`writeOnly`**: Preserved on `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime).
+- **`nullable`**: Enforced by `RequiredValidatorPlugin` (`nullable: false` rejects `null`; `nullable: true` permits `null` even when `required: true`). Also normalized from OpenAPI 2.0 `x-nullable` and Draft 2020-12 `type: [..., "null"]`.
+- **`deprecated`**: Preserved on `IPropertyMetadata` for consumer inspection.
 
 ---
 
@@ -58,11 +59,13 @@ OpenAPI `format` modifiers are mapped to explicit MetaUI `IUIDirective` properti
 | :--- | :--- |
 | `date-time` | `widget: "datetime"` (`sap.m.DateTimePicker`) |
 | `date` | `widget: "date"` (`sap.m.DatePicker`) |
-| `password` | `format: "password"` |
-| `email` | `format: "email"` |
-| `uri` | `format: "url"` |
+| `time` | `widget: "time"` (`sap.m.TimePicker`) |
+| `password` | `widget: "password"` (`sap.m.Input` `type="Password"`) |
+| `email` | `widget: "email"`, `format: "email"` (`sap.m.Input` `type="Email"`) |
+| `uri` / `url` | `widget: "link"`, `format: "url"` (`sap.m.Link`) |
+| `iban` | `format: "iban"` |
 | `binary` / `byte` | `widget: "fileUploader"` |
-| `uuid` / `ipv4` / `ipv6` / `hostname` | Adds explicit format string to the `ui.validators` array. |
+| `uuid` / `ipv4` / `ipv6` / `hostname` | Mapped to standard RFC regular expressions on `pattern` (`OpenApiConstraintMapper`) and validated by `PatternValidatorPlugin`. |
 
 ---
 
@@ -72,7 +75,7 @@ MetaUI handles complex OpenAPI structural semantics through deep recursive evalu
 
 - **`$ref` Resolution**: Reusable references are recursively resolved. If they point to primitives, they are inlined. If they point to objects, they map to the `reference` widget (`Sub-Form Container`).
 - **`allOf`**: Arrays of schemas are flattened and deep-merged (`deepMergeSchemas`) to create a unified schema with all properties combined.
-- **`oneOf` / `anyOf`**: Mapped into native MetaUI polymorphic definitions. `oneOf` triggers the `polymorphic` widget, which generates dropdown selection layouts for variant swapping.
-- **`discriminator`**: Maps the OpenAPI discriminator property Name (and mappings in v3.0) to MetaUI so the engine can natively switch types based on payload values.
-- **`additionalProperties`**: If set to `true`, enables Inference mode on the object. If defined as a schema, maps to the `dictionary` widget (Key-Value List).
+- **`oneOf` / `anyOf`**: Mapped into normalized `IPropertyMetadata[]` composition arrays on the property metadata and rendered interactively via `PolymorphicPlugin` (`widget: "polymorphic"`), which provides a variant selector (`sap.m.Select`) and renders the active sub-schema via a nested `DynamicHost`.
+- **`discriminator`**: Maps the OpenAPI discriminator `propertyName` and `mapping` dictionary (`OpenAPI 3.0`) so `PolymorphicPlugin` automatically synchronizes the discriminator field with the active variant.
+- **`additionalProperties`**: If set to `true`, enables Hybrid Inference mode on the object. If defined as a schema, maps to the `dictionaryMap` widget (Key-Value List).
 - **Opaque Objects**: Objects with no `properties` and no `additionalProperties` fall back to rendering a raw `codeEditor` widget for freeform JSON.

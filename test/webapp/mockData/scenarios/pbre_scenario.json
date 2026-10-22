@@ -1,4 +1,6 @@
 {
+    "key": "pbre_scenario",
+    "name": "Policy-Based Rules",
     "description": "Kruger National Park Complex Booking System with Policy-Based Rules",
     "schema": {
         "title": "Kruger National Park - Official Booking Form",
@@ -241,7 +243,8 @@
     },
     "data": {
         "VisitorInfo": {
-            "Nationality": "South African"
+            "Nationality": "South African",
+            "SADIDNumber": "8501015009087"
         },
         "BookingDetails": {
             "CampSelection": {

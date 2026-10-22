@@ -46,7 +46,7 @@
     "scenarios": [
       {
         "key": "openapi_v2_complex",
-        "name": "OpenAPI V2 Enterprise"
+        "name": "OpenAPI V2 Provisioning"
       },
       {
         "key": "openapi_v3_complex",

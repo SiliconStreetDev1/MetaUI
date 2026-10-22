@@ -55,6 +55,7 @@
         "dataSource": "mainService",
         "settings": {
           "operationMode": "Server",
+          "groupId": "$direct",
           "autoExpandSelect": true,
           "earlyRequests": true
         }
@@ -89,6 +90,11 @@
           "pattern": "playpen",
           "name": "playpen",
           "target": "playpen"
+        },
+        {
+          "pattern": "odata",
+          "name": "odata",
+          "target": "odataTest"
         }
       ],
       "targets": {
@@ -107,6 +113,10 @@
         "playpen": {
           "viewId": "playpen",
           "viewName": "Playpen"
+        },
+        "odataTest": {
+          "viewId": "odataTest",
+          "viewName": "ODataTest"
         }
       }
     },

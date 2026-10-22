@@ -3,259 +3,171 @@
  * @description Isolated internal state management. Decouples the MetaUI engine from external host models.
  */
 
-import JSONModel from "sap/ui/model/json/JSONModel";
-import ManagedObject from "sap/ui/base/ManagedObject";
-import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
-import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
-import { GlobalPipeline } from "./PipelineManager";
-import { SchemaNormalizer } from "./SchemaNormalizer";
+import BindingMode from "sap/ui/model/BindingMode";
 import Message from "sap/ui/core/message/Message";
-import coreLibrary from "sap/ui/core/library";
-import Core from "sap/ui/core/Core";
 import Messaging from "sap/ui/core/Messaging";
-
+import { ISchema } from "../interfaces/ISchema";
+import SandboxJSONModel from "./SandboxJSONModel";
+import { JsonRecord, isRecord, deepClone } from "../utils/TypeGuards";
 
 /**
- * Manages the isolated internal data payload for the MetaUI engine.
+ * Manages the isolated internal data payload for the MetaUI engine (the "sandbox").
+ *
+ * - The consumer's data is deep-copied on construction, so the host model is never mutated by keystrokes.
+ * - UI5 `Messaging` entries are coordinated by {@link ValidationLedger} using this sandbox model as the processor,
+ *   and are deterministically purged when {@link StateManager.destroy} runs.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.core
+ * @public
  */
 export class StateManager {
-    private model: JSONModel;
-    private activeModelName: string;
-    private schema: ISchema | null = null;
-    private _useMessageManager: boolean = false;
+    private readonly model: SandboxJSONModel;
+    private readonly schema: ISchema;
+    private useMessageManager: boolean = false;
 
     /**
-     * Initializes the state manager with an authentic SAPUI5 JSONModel.
-     * @param initialData The initial JSON payload to populate the fields.
-     * @param schema The normalized schema for live validation.
-     * @param modelName The UI5 model alias used for isolation.
+     * Initializes a new isolated `StateManager` sandbox.
+     *
+     * @param initialData The initial JSON payload (object or array). Deep-copied so the caller's reference is never mutated.
+     * @param schema The normalized schema associated with this state.
      */
-    constructor(initialData: Record<string, unknown> = {}, schema: ISchema, modelName: string = "meta") {
-        this.activeModelName = modelName;
+    constructor(initialData: unknown, schema: ISchema) {
         this.schema = schema;
-        
-        // Deep copy to ensure no reference leakage from the host application
-        const safeData = JSON.parse(JSON.stringify(initialData));
-        this.model = new JSONModel(safeData);
-        this.model.setDefaultBindingMode("TwoWay");
-
-        // Centralized Model-Level Validation Interceptor
-        const originalSetProperty = this.model.setProperty.bind(this.model);
-        this.model.setProperty = (sPath: string, oValue: unknown, oContext?: unknown, bAsyncUpdate?: boolean) => {
-            const result = originalSetProperty(sPath, oValue, oContext, bAsyncUpdate);
-            this.validatePath(sPath, oValue);
-            return result;
-        };
+        const safeInitial =
+            initialData !== undefined && initialData !== null
+                ? deepClone(initialData)
+                : schema.type === "array"
+                  ? []
+                  : {};
+        this.model = new SandboxJSONModel(safeInitial as object);
+        this.model.setDefaultBindingMode(BindingMode.TwoWay);
     }
 
     /**
-     * Updates the flag indicating whether this manager should push validation errors directly to the global MessageManager.
+     * Enables or disables publishing validation failures to the global MessageManager.
+     *
+     * @param use True to publish messages.
      */
     public setUseMessageManager(use: boolean): void {
-        this._useMessageManager = use;
+        this.useMessageManager = use;
     }
 
     /**
-     * Validates a specific path against the schema and updates the MessageManager.
+     * Returns whether `useMessageManager` is active on this state manager.
+     *
+     * @returns {boolean} True if MessageManager integration is enabled.
      */
-    private validatePath(sPath: string, value: unknown): void {
-        const fieldKey = sPath.replace(/^\//, "");
-        const metadata = this.findMetadataForPath(fieldKey);
-        
-        const messageManager = Messaging;
-        const targetPath = sPath.startsWith("/") ? sPath : `/${sPath}`; // Pure UI5: target MUST be absolute path
-        
-        // 1. Remove existing messages (strictly for THIS model instance) unconditionally
-        const existingMessages = messageManager.getMessageModel().getData();
-        const messagesToRemove = existingMessages.filter((msg: Message) => {
-            const isMatch = msg.getTarget() === targetPath && msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId();
-            return isMatch;
-        });
-        
-        if (messagesToRemove.length > 0) {
-            messageManager.removeMessages(messagesToRemove);
-        }
-
-        if (!metadata) return;
-
-        // 2. Run GlobalPipeline
-        const validatorsToRun: string[] = [];
-        const argsMap: Record<string, unknown> = {};
-
-        if (metadata.required) {
-            validatorsToRun.push("required");
-        }
-        if (metadata.type === SCHEMA_TYPE.STRING && metadata.maxLength) {
-            validatorsToRun.push("maxLength");
-            argsMap["maxLength"] = metadata.maxLength;
-        }
-        if (metadata.minLength) {
-            validatorsToRun.push("minLength");
-            argsMap["minLength"] = metadata.minLength;
-        }
-        if (metadata.pattern) {
-            validatorsToRun.push("pattern");
-            argsMap["pattern"] = metadata.pattern;
-        }
-        if (metadata.minimum !== undefined || metadata.maximum !== undefined) {
-            validatorsToRun.push("range");
-            argsMap["range"] = { min: metadata.minimum, max: metadata.maximum };
-        }
-        
-        const format = metadata.ui?.format;
-        if (format === "email" || format === "url" || format === "iban") {
-            validatorsToRun.push(format);
-        }
-        if (metadata.ui?.validators) {
-            for (const v of metadata.ui.validators) {
-                if (typeof v === SCHEMA_TYPE.STRING) {
-                    validatorsToRun.push(v);
-                } else if (v && v.name) {
-                    validatorsToRun.push(v.name);
-                    if (v.args !== undefined) {
-                        argsMap[v.name] = v.args;
-                    }
-                }
-            }
-        }
-
-        if (validatorsToRun.length > 0) {
-            const validationResult = GlobalPipeline.executeValidation(value, validatorsToRun, argsMap);
-            if (!validationResult.isValid && this._useMessageManager) {
-                const newMsg = new Message({
-                    message: validationResult.errorMessage || "Invalid value.",
-                    type: coreLibrary.MessageType.Error,
-                    target: targetPath,
-                    processor: this.model
-                });
-                messageManager.addMessages(newMsg);
-            }
-        }
+    public getUseMessageManager(): boolean {
+        return this.useMessageManager;
     }
 
     /**
-     * Purges all MessageManager errors that start with a specific array path.
-     * Used to clean up "ghost errors" when array structural shifts (deletion) occur.
-     * @param arrayPath The root array path (e.g. /Items)
+     * Returns the normalized schema this state is validated against.
+     *
+     * @returns {ISchema} The normalized schema.
      */
-    public clearArrayMessages(arrayPath: string): void {
-        const messageManager = Messaging;
-        const currentMessages = messageManager.getMessageModel().getData() as Message[];
-        
-        const pathPrefix = arrayPath.startsWith("/") ? arrayPath : `/${arrayPath}`;
-        
-        const messagesToRemove = currentMessages.filter(msg => {
-            return (msg as any).getProcessor() === this.model && typeof (msg as any).getTarget() === "string" && (msg as any).getTarget().startsWith(pathPrefix);
-        });
-
-        if (messagesToRemove.length > 0) {
-            messageManager.removeMessages(messagesToRemove);
-        }
+    public getSchema(): ISchema {
+        return this.schema;
     }
 
     /**
-     * Resolves the schema metadata for a given internal binding path.
-     * @param path The flat binding path representing the field.
-     * @returns The associated IPropertyMetadata, or undefined if not mapped.
+     * Returns the isolated sandbox model attached to the `GeneratorHost`.
+     *
+     * @returns {SandboxJSONModel} The isolated JSONModel instance.
      */
-    private findMetadataForPath(path: string): IPropertyMetadata | undefined {
-        if (!this.schema || !this.schema.properties) return undefined;
-        
-        // Deeply resolve the metadata using the SchemaNormalizer
-        const absoluteScope = "#/properties/" + path.replace(/\//g, "/properties/");
-        const { meta } = SchemaNormalizer.resolveScope(this.schema, absoluteScope);
-        return meta;
-    }
-
-
-
-    /**
-     * Retrieves the isolated JSONModel instance to attach to the root GeneratorHost control.
-     * @returns The internal JSONModel.
-     */
-    public getModel(): JSONModel {
+    public getModel(): SandboxJSONModel {
         return this.model;
     }
 
     /**
-     * Binds a generated UI control property to a path in the internal model.
-     * @param control The target UI5 Control.
-     * @param property The UI5 property name (e.g., 'value').
-     * @param bindingPath The exact path in the JSON payload.
+     * Returns all global messages owned by this sandbox model, optionally filtered by target prefix.
+     *
+     * @param targetPrefix Optional absolute path prefix (e.g. `"/Items"`).
+     * @returns {Message[]} The matching messages.
      */
-    public bindControl(control: ManagedObject, property: string, bindingPath: string): void {
-        control.bindProperty(property, {
-            path: bindingPath,
-            model: "meta" // Assumes the model is bound to the root container with the name 'meta'
+    public getOwnMessages(targetPrefix?: string): Message[] {
+        const modelId = this.model.getId();
+        const all: Message[] = Messaging.getMessageModel().getData();
+        return all.filter((msg) => {
+            const processor = msg.getMessageProcessor();
+            if (!processor || processor.getId() !== modelId) return false;
+            if (targetPrefix === undefined) return true;
+            const target = msg.getTarget();
+            return typeof target === "string" && target.startsWith(targetPrefix);
         });
     }
 
     /**
-     * Extracts the flat JavaScript object representing the current state of the UI.
-     * @returns A serialized record of the data payload, free of UI5 wrappers.
+     * Purges all MessageManager errors under an array path.
+     * Used to clean up ghost errors when rows are removed and indexes shift.
+     *
+     * @param arrayPath The root array path (e.g. `"/Items"`).
      */
-    public extractPayload(): Record<string, unknown> {
-        // Create a deep copy to prevent accidental mutations by the host
-        // Uses a robust deep clone to avoid destructively coercing native objects (like Dates) to strings
-        const data = this.model.getData();
-        return this.deepClone(data) as Record<string, unknown>;
+    public clearArrayMessages(arrayPath: string): void {
+        const prefix = arrayPath.startsWith("/") ? arrayPath : `/${arrayPath}`;
+        const stale = this.getOwnMessages(prefix);
+        if (stale.length > 0) {
+            Messaging.removeMessages(stale);
+        }
     }
 
     /**
-     * Recursively clones an object while preserving native Date instances and arrays.
+     * Extracts a deep copy of the current sandbox state. Native `Date` instances and root arrays are preserved.
+     *
+     * @returns {JsonRecord | unknown[]} The payload, sharing no references with the internal model.
      */
-    private deepClone(obj: any): any {
-        if (obj === null || typeof obj !== "object") {
-            return obj;
+    public extractPayload(): JsonRecord | unknown[] {
+        const data: unknown = this.model.getData();
+        if (Array.isArray(data)) {
+            return data.map((entry) => StateManager.cloneValue(entry));
         }
+        return isRecord(data) ? StateManager.cloneRecord(data) : {};
+    }
 
-        if (obj instanceof Date) {
-            return new Date(obj.getTime());
-        }
+    private static cloneValue(value: unknown): unknown {
+        if (value instanceof Date) return new Date(value.getTime());
+        if (Array.isArray(value)) return value.map((entry) => StateManager.cloneValue(entry));
+        if (isRecord(value)) return StateManager.cloneRecord(value);
+        return value;
+    }
 
-        if (Array.isArray(obj)) {
-            const arrCopy = [];
-            for (const item of obj) {
-                arrCopy.push(this.deepClone(item));
-            }
-            return arrCopy;
+    private static cloneRecord(record: JsonRecord): JsonRecord {
+        const copy: JsonRecord = {};
+        for (const key of Object.keys(record)) {
+            copy[key] = StateManager.cloneValue(record[key]);
         }
-
-        const objCopy: any = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                objCopy[key] = this.deepClone(obj[key]);
-            }
-        }
-        return objCopy;
+        return copy;
     }
 
     /**
-     * Programmatically mutates the internal JSONModel property (e.g. for PBRE state pruning).
-     * @param path The path to the property.
+     * Reads the current value at an absolute or root-relative path in the sandbox model.
+     *
+     * @param path Absolute or root-relative path.
+     * @returns {unknown} The current property value.
+     */
+    public getProperty(path: string): unknown {
+        if (!path) return undefined;
+        return this.model.getProperty(path.startsWith("/") ? path : `/${path}`);
+    }
+
+    /**
+     * Programmatically writes a model property (e.g. for PBRE state pruning).
+     *
+     * @param path Absolute or root-relative path.
      * @param value The value to set.
      */
     public setProperty(path: string, value: unknown): void {
-        const absolutePath = path.startsWith("/") ? path : `/${path}`;
-        this.model.setProperty(absolutePath, value);
+        this.model.setProperty(path.startsWith("/") ? path : `/${path}`, value);
     }
 
     /**
-     * Cleans up internal state and natively destroys the UI5 JSONModel to prevent memory leaks.
+     * Removes every global message owned by this sandbox and destroys the internal model.
      */
     public destroy(): void {
-        if (this.model) {
-            // Fix Leaky Abstractions: Clean up any ghost errors in the global MessageManager bound to this model
-            const messageManager = Messaging;
-            const existingMessages = messageManager.getMessageModel().getData();
-            const messagesToRemove = existingMessages.filter((msg: Message) => 
-                msg.getMessageProcessor() && msg.getMessageProcessor().getId() === this.model.getId()
-            );
-            if (messagesToRemove.length > 0) {
-                messageManager.removeMessages(messagesToRemove);
-            }
-
-            this.model.destroy();
+        const owned = this.getOwnMessages();
+        if (owned.length > 0) {
+            Messaging.removeMessages(owned);
         }
+        this.model.destroy();
     }
 }

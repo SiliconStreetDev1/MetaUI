@@ -6,7 +6,7 @@
     "EmployeeProfile": {
       "FirstName": "Jane",
       "LastName": "Doe",
-      "Email": "jane.doe@enterprise.com",
+      "Email": "jane.doe@siliconst.co.nz",
       "Age": 32,
       "Salary": 125000,
       "Status": "Active"
@@ -32,7 +32,7 @@
     "swagger": "2.0",
     "info": {
       "version": "1.0.0",
-      "title": "Enterprise User Provisioning API"
+      "title": "Organization User Provisioning API"
     },
     "paths": {},
     "definitions": {

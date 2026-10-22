@@ -1,59 +1,146 @@
 /**
  * @file OpenApiRefResolver.ts
- * @description Utility class for resolving local $ref pointers within an OpenAPI document.
+ * @description Pure utility class for resolving RFC 6901 local $ref pointers within an OpenAPI document.
  */
+
+import { OPENAPI_PREFIX } from "../constants/MetaUIConstants";
 import { Logger } from "../utils/Logger";
+import { isRecord, readRecord, readString } from "../utils/TypeGuards";
 
 /**
- * Utility class for resolving local $ref pointers within an OpenAPI document.
- * 
+ * Resolves local JSON Pointer `$ref` paths (e.g., `'#/components/schemas/Pet'` or `'#/paths/~1v1~1orders/post'`)
+ * against an OpenAPI root document with circular-reference protection and RFC 6901 unescaping.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.openapi
  * @public
  */
 export class OpenApiRefResolver {
+    private static readonly MAX_REF_DEPTH = 10;
+
     /**
-     * Recursively traverses a local JSON Pointer $ref path (e.g., '#/components/schemas/Pet')
-     * and extracts the target object from the Swagger root document.
-     * External URLs or invalid references are safely ignored.
-     * 
-     * @param {string} refUrl The $ref string path.
-     * @param {any} openApiRoot The root OpenAPI document to query against.
-     * @param {number} depth The current recursive depth count, used to prevent infinite loops.
-     * @returns {any} The resolved schema object, or null if unresolvable.
+     * Unescapes a single RFC 6901 JSON Pointer reference token (`decodeURIComponent`, then `~1` -> `/`, then `~0` -> `~`).
+     *
+     * @param segment The raw pointer reference token.
+     * @returns {string} The unescaped token string.
      */
-    public static resolve(refUrl: string, openApiRoot: unknown, depth: number = 0): unknown {
+    public static unescapePointerSegment(segment: string): string {
+        const decoded =
+            segment.includes("%") && !/%(?![0-9A-Fa-f]{2})/.test(segment)
+                ? decodeURIComponent(segment)
+                : segment;
+        return decoded.replace(/~1/g, "/").replace(/~0/g, "~");
+    }
+
+    /**
+     * Escapes a single string segment for inclusion in an RFC 6901 JSON Pointer (`~` -> `~0`, `/` -> `~1`).
+     *
+     * @param segment The unescaped key or path string.
+     * @returns {string} The RFC 6901 escaped pointer token.
+     */
+    public static escapePointerSegment(segment: string): string {
+        return segment.replace(/~/g, "~0").replace(/\//g, "~1");
+    }
+
+    /**
+     * Extracts the clean definition name from a local `$ref` pointer (`#/components/schemas/...`,
+     * `#/definitions/...`, or `#/$defs/...`) and unescapes RFC 6901 tokens (`~1` -> `/`, `~0` -> `~`).
+     *
+     * @param refPath The raw `$ref` pointer string.
+     * @returns {string} The unescaped definition name.
+     */
+    public static extractRefName(refPath: string): string {
+        if (!refPath) return "";
+        let key = refPath;
+        if (key.startsWith(OPENAPI_PREFIX.COMPONENTS_SCHEMAS)) {
+            key = key.substring(OPENAPI_PREFIX.COMPONENTS_SCHEMAS.length);
+        } else if (key.startsWith(OPENAPI_PREFIX.DEFINITIONS)) {
+            key = key.substring(OPENAPI_PREFIX.DEFINITIONS.length);
+        } else if (key.startsWith(OPENAPI_PREFIX.DEFS)) {
+            key = key.substring(OPENAPI_PREFIX.DEFS.length);
+        } else if (key.startsWith("#/")) {
+            const parts = key.substring(2).split("/");
+            key = parts[parts.length - 1] || key;
+        }
+        return this.unescapePointerSegment(key);
+    }
+
+    /**
+     * Recursively traverses a local JSON Pointer `$ref` path and extracts the target node.
+     * External URLs or invalid references are safely ignored and return `null`.
+     *
+     * @param refUrl The `$ref` string path starting with `'#/'`.
+     * @param openApiRoot The root OpenAPI or normalized ISchema document to query against.
+     * @param depth Current recursion depth count, used to prevent circular reference stack overflows.
+     * @param activeRefs Set of currently active `$ref` pointers on the call stack.
+     * @returns {unknown} The resolved schema or operation object, or `null` if unresolvable.
+     */
+    public static resolve(
+        refUrl: string,
+        openApiRoot: unknown,
+        depth: number = 0,
+        activeRefs: Set<string> = new Set()
+    ): unknown {
         if (!refUrl || !refUrl.startsWith("#/")) {
             Logger.debug(`[MetaUI OpenApiBuilder] Ignoring non-local or empty $ref: ${refUrl}`, "OpenApiBuilder");
-            return null; // Ignore external URLs per architectural rules
-        }
-
-        // Circular Reference Limit:
-        // A hard limit is enforced to prevent stack overflow exceptions caused by infinitely 
-        // recursive structures (e.g., a Tree node that references another Tree node).
-        if (depth > 10) {
-            Logger.error(`[MetaUI OpenApiBuilder] Circular or overly deep $ref detected: ${refUrl}`, null, "OpenApiBuilder");
             return null;
         }
 
-        // Path Segment Parsing:
-        // The '#/' prefix is stripped, and the remaining path is split by '/'.
-        // We incrementally descend into the swagger root using these segments.
-        const pathSegments = refUrl.substring(2).split("/");
-        let current = openApiRoot;
+        if (depth > this.MAX_REF_DEPTH || activeRefs.has(refUrl)) {
+            Logger.error(
+                `[MetaUI OpenApiBuilder] Circular or overly deep $ref detected: ${refUrl}`,
+                undefined,
+                "OpenApiBuilder"
+            );
+            return null;
+        }
 
+        const pathSegments = refUrl
+            .substring(2)
+            .split("/")
+            .map((segment) => this.unescapePointerSegment(segment));
+
+        let current: unknown = openApiRoot;
+        let found = true;
         for (const segment of pathSegments) {
-            if (current && typeof current === "object" && segment in current) {
-                current = (current as Record<string, unknown>)[segment];
+            if (Array.isArray(current)) {
+                const idx = Number(segment);
+                if (segment !== "" && Number.isInteger(idx) && idx >= 0 && idx < current.length) {
+                    current = current[idx];
+                } else {
+                    found = false;
+                    break;
+                }
+            } else if (isRecord(current) && segment in current) {
+                current = current[segment];
             } else {
-                Logger.error(`[MetaUI OpenApiBuilder] Failed to resolve local $ref: ${refUrl}`, null, "OpenApiBuilder");
-                return null;
+                found = false;
+                break;
             }
         }
 
-        // Deep Resolution Recursion:
-        // If the resolved target is itself a reference pointer, recursively resolve again
-        // until we reach a terminal structure or hit the recursion depth limit.
-        if (current && typeof current === "object" && (current as Record<string, unknown>).$ref) {
-            return this.resolve((current as Record<string, unknown>).$ref as string, openApiRoot, depth + 1);
+        if (!found && isRecord(openApiRoot)) {
+            const refName = this.extractRefName(refUrl);
+            const fallbackDefs = readRecord(openApiRoot, "definitions") || readRecord(openApiRoot, "$defs");
+            if (fallbackDefs && refName in fallbackDefs) {
+                current = fallbackDefs[refName];
+                found = true;
+            }
+        }
+
+        if (!found) {
+            Logger.error(
+                `[MetaUI OpenApiBuilder] Failed to resolve local $ref: ${refUrl}`,
+                undefined,
+                "OpenApiBuilder"
+            );
+            return null;
+        }
+
+        const nestedRef = isRecord(current) ? readString(current, "$ref") : undefined;
+        if (nestedRef) {
+            const nextRefs = new Set(activeRefs);
+            nextRefs.add(refUrl);
+            return this.resolve(nestedRef, openApiRoot, depth + 1, nextRefs);
         }
 
         return current;

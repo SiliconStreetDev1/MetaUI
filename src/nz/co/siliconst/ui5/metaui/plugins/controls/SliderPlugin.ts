@@ -1,83 +1,105 @@
 /**
  * @file SliderPlugin.ts
- * @description Renders a sap.m.Slider for picking numbers in a range.
+ * @description Renders a sap.m.Slider control for numeric range selection.
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Slider from "sap/m/Slider";
 import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
+import Event from "sap/ui/base/Event";
+import JSONModel from "sap/ui/model/json/JSONModel";
 
 /**
- * Handles rendering logic for numeric sliders.
- * 
+ * Plugin responsible for rendering numeric range sliders (`sap.m.Slider`).
+ *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
 export class SliderPlugin extends BasePlugin {
     /**
      * Renders a `sap.m.Slider` component.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
+     *
+     * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
      * @param onChange The callback fired on value change.
      * @returns {Control} The configured Slider control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
-        
+    public render(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string = "meta",
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): Control {
+        this.initialize(metadata, bindingPath, modelName, onChange);
+
         if (!this.isEditable) {
-            
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName)
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
+            return this.createDisplayText(engineScopeId, bindingPath);
         }
+
+        const step =
+            typeof metadata.multipleOf === "number"
+                ? metadata.multipleOf
+                : metadata.ui?.options && typeof metadata.ui.options.step === "number"
+                  ? metadata.ui.options.step
+                  : 1;
 
         this.control = new Slider({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            enabled: !fieldMetadata.ui?.readOnly,
-            min: fieldMetadata.minimum !== undefined ? fieldMetadata.minimum : 0,
-            max: fieldMetadata.maximum !== undefined ? fieldMetadata.maximum : 100,
-            step: fieldMetadata.multipleOf !== undefined ? fieldMetadata.multipleOf : 1,
-            enableTickmarks: true,
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as sap.ui.base.Event).getParameter("value");
-                const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as number,
+            min: metadata.minimum !== undefined ? metadata.minimum : 0,
+            max: metadata.maximum !== undefined ? metadata.maximum : 100,
+            step,
+            enabled: this.isControlEditable(),
+            width: "100%",
+            showAdvancedTooltip: true,
+            inputsAsTooltips: true,
+            change: (oEvent: Event) => {
+                const src = oEvent.getSource() as Slider;
+                const model = (src.getModel(modelName) || this.engineContext?.getModel()) as JSONModel | undefined;
+                if (model) {
+                    model.setProperty(this.resolveAbsolutePath(src), src.getValue());
                 }
+                this.notifyChange(src.getId());
             }
         });
 
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-
-        return this.control as Control;
+        this.applyCommonDirectives(this.control, metadata, modelName);
+        return this.control;
     }
 
     /**
-     * Retrieves the current slider value.
-     * @returns {unknown} The numeric value.
+     * Retrieves the current numeric value from the `Slider`.
+     *
+     * @param sourceControl Optional runtime source control (e.g., cloned table cell).
+     * @returns {unknown} The slider value.
      */
-    protected getValue(): unknown {
-        return this.control ? (this.control as Slider).getProperty('value') : 0;
+    protected getValue(sourceControl?: Control): unknown {
+        const target = (sourceControl ?? this.control) as Slider | undefined;
+        const modelVal = this.getModelValue(target);
+        if (!this.isEditable || modelVal === null || modelVal === undefined) {
+            return modelVal;
+        }
+        return target && typeof target.getValue === "function" ? target.getValue() : modelVal;
     }
 
     /**
-     * Applies dynamic read-only state.
+     * Applies dynamic `readOnly`, `min`, and `max` state updates to the `Slider`.
      */
     protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            (this.control as Slider).setEnabled(!this.metadata.ui?.readOnly);
+        if (!this.control || !this.metadata || !this.isEditable) {
+            return;
+        }
+        const slider = this.control as Slider;
+        slider.setEnabled(this.isControlEditable());
+        if (this.metadata.minimum !== undefined) {
+            slider.setMin(this.metadata.minimum);
+        }
+        if (this.metadata.maximum !== undefined) {
+            slider.setMax(this.metadata.maximum);
         }
     }
 }

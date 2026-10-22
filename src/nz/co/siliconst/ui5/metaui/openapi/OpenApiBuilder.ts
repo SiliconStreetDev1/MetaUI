@@ -7,31 +7,31 @@
 import { ISchema } from "../interfaces/ISchema";
 import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { Logger } from "../utils/Logger";
+import { isRecord, deepClone } from "../utils/TypeGuards";
 import { OpenApiParserFactory } from "./OpenApiParserFactory";
 import { OpenApiHeuristicEngine } from "./heuristics/OpenApiHeuristicEngine";
 
 /**
  * Facade orchestration for translating Swagger/OpenAPI JSON into native MetaUI ISchema.
  * Strict Single Responsibility architecture delegates mapping logic to dedicated utilities and factories.
- * 
+ *
  * @public
  */
 export class OpenApiBuilder implements ISchemaBuilderPlugin {
 
     /**
      * Determines if the provided JSON payload is a Swagger or OpenAPI document.
-     * 
+     *
      * @param {unknown} rawSchema The raw JSON schema to test.
      * @returns {boolean} True if the document contains 'openapi' or 'swagger' root keys.
      */
     public canHandle(rawSchema: unknown): boolean {
-        const schema = rawSchema as Record<string, unknown>;
-        return !!(schema && (schema.openapi || schema.swagger));
+        return isRecord(rawSchema) && Boolean(rawSchema.openapi || rawSchema.swagger);
     }
 
     /**
      * Builds a strict MetaUI ISchema from the provided OpenAPI payload.
-     * 
+     *
      * @param {unknown} rawSchema The OpenAPI root document.
      * @param {string} [targetDefinition] Optional target root definition.
      * @returns {ISchema} The translated MetaUI schema.
@@ -42,7 +42,7 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
 
     /**
      * Asynchronously fetches a remote OpenAPI document and compiles it into a MetaUI ISchema.
-     * 
+     *
      * @param {string} url The URL to fetch the JSON payload from.
      * @param {string} [targetDefinition] Optional. The specific entity schema to extract.
      * @returns {Promise<ISchema>} A Promise resolving to the compiled ISchema.
@@ -64,8 +64,8 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
 
     /**
      * Synchronously builds a MetaUI ISchema from a provided OpenAPI root document.
-     * Delegates to HeuristicEngine and OpenApiParserFactory.
-     * 
+     * Clones the input document so heuristic AST transformations never mutate caller-owned objects.
+     *
      * @public
      * @param {unknown} openApiRoot The raw OpenAPI root JSON document.
      * @param {string} [targetDefinition] Optional target definition key to extract.
@@ -73,16 +73,18 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
      * @throws {Error} If the root object is invalid.
      */
     public static build(openApiRoot: unknown, targetDefinition?: string): ISchema {
-        if (!openApiRoot || typeof openApiRoot !== "object") {
+        if (!isRecord(openApiRoot)) {
             throw new Error("[MetaUI OpenApiBuilder] Invalid Swagger root object provided.");
         }
 
-        // 1. Run Heuristics to mutate AST (e.g., simulating oneOf)
+        const workingRoot = deepClone(openApiRoot);
+
+        // 1. Run Heuristics to mutate working AST copy (e.g., simulating oneOf)
         const heuristicEngine = new OpenApiHeuristicEngine();
-        heuristicEngine.run(openApiRoot);
+        heuristicEngine.run(workingRoot);
 
         // 2. Delegate to correct parser version
-        const parser = OpenApiParserFactory.getParser(openApiRoot);
-        return parser.parse(openApiRoot, targetDefinition);
+        const parser = OpenApiParserFactory.getParser(workingRoot);
+        return parser.parse(workingRoot, targetDefinition);
     }
 }

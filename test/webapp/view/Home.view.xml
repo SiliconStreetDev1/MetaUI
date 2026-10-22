@@ -31,6 +31,18 @@
 
                 <GenericTile
                     class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
+                    header="Data Inference Playpen"
+                    subheader="Live Bidirectional JSON Sync"
+                    press=".onNavToPlaypen">
+                    <tileContent>
+                        <TileContent>
+                            <NumericContent value="2" icon="sap-icon://synchronize" />
+                        </TileContent>
+                    </tileContent>
+                </GenericTile>
+
+                <GenericTile
+                    class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
                     header="OpenApi Integration"
                     subheader="OpenAPI v2 and v3 Tests"
                     press=".onNavToOpenApi">
@@ -40,6 +52,7 @@
                         </TileContent>
                     </tileContent>
                 </GenericTile>
+
                 <GenericTile
                     class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
                     header="Freeform Sandbox"
@@ -51,8 +64,19 @@
                         </TileContent>
                     </tileContent>
                 </GenericTile>
+
+                <GenericTile
+                    class="sapUiTinyMarginBegin sapUiTinyMarginTop tileLayout"
+                    header="OData V4 Binding"
+                    subheader="Live OData V4 Context"
+                    press=".onNavToOData">
+                    <tileContent>
+                        <TileContent>
+                            <NumericContent value="5" icon="sap-icon://database" />
+                        </TileContent>
+                    </tileContent>
+                </GenericTile>
             </layout:HorizontalLayout>
         </f:content>
     </f:DynamicPage>
 </mvc:View>
-

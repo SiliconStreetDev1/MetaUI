@@ -6,6 +6,9 @@
 
 import { ISchema } from "./ISchema";
 
+/**
+ * Contract for schema parser plugins (Native MetaUI JSON Schema, OpenAPI 2.0/3.0, etc.).
+ */
 export interface ISchemaBuilderPlugin {
     /**
      * Deterministically checks if this plugin can parse the given raw payload.

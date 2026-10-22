@@ -28,10 +28,9 @@ sap.ui.define([
                     type: "object",
                     title: "OData User Profile",
                     properties: {
-                        "ID": { type: "string", ui: { label: "User ID", editable: false } },
-                        "Name": { type: "string", ui: { label: "Full Name" } },
-                        "Email": { type: "string", ui: { label: "Email Address" } },
-                        "IsActive": { type: "boolean", ui: { label: "Active Status" } }
+                        "ID": { type: "string", readOnly: true, ui: { label: "Employee ID", readOnly: true } },
+                        "FirstName": { type: "string", ui: { label: "First Name" } },
+                        "LastName": { type: "string", ui: { label: "Last Name" } }
                     }
                 }
             });

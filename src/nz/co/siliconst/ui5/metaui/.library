@@ -2,6 +2,29 @@
 <library xmlns="http://www.sap.com/sap.ui.library.xsd">
 	<name>nz.co.siliconst.ui5.metaui</name>
 	<vendor>Siliconst</vendor>
-	<version>1.0.0</version>
+	<version>2.0.0</version>
 	<title>MetaUI Engine</title>
+	<dependencies>
+		<dependency>
+			<libraryName>sap.ui.core</libraryName>
+		</dependency>
+		<dependency>
+			<libraryName>sap.m</libraryName>
+		</dependency>
+		<dependency>
+			<libraryName>sap.ui.layout</libraryName>
+		</dependency>
+		<dependency>
+			<libraryName>sap.ui.unified</libraryName>
+			<lazy>true</lazy>
+		</dependency>
+		<dependency>
+			<libraryName>sap.ui.codeeditor</libraryName>
+			<lazy>true</lazy>
+		</dependency>
+		<dependency>
+			<libraryName>sap.ndc</libraryName>
+			<lazy>true</lazy>
+		</dependency>
+	</dependencies>
 </library>

@@ -3,88 +3,21 @@
  * @description Handles rendering logic for Time strings.
  */
 
-import { BasePlugin } from "./BasePlugin";
-import { IPropertyMetadata } from "../../interfaces/ISchema";
 import TimePicker from "sap/m/TimePicker";
-import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
+import { IPickerPluginConfig, PickerPlugin } from "./PickerPlugin";
 
 /**
- * Handles rendering and logic for time inputs.
+ * Handles rendering and logic for time inputs (`HH:mm:ss`).
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
  */
-export class TimePlugin extends BasePlugin {
-    /**
-     * Renders a `sap.m.TimePicker` component.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
-     * @param bindingPath The JSON path bound to this control.
-     * @param modelName The UI5 JSONModel name.
-     * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
-     * @returns {Control} The configured TimePicker control.
-     */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.startsWith('/') ? bindingPath.substring(1) : bindingPath;
-        
-        if (!this.isEditable) {
-            
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Time", {
-                    formatOptions: {
-                        source: { pattern: "HH:mm:ss" },
-                        pattern: "HH:mm:ss"
-                    }
-                })
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
-        }
-
-        this.control = new TimePicker({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName, "sap.ui.model.type.Time", {
-                formatOptions: {
-                    source: { pattern: "HH:mm:ss" },
-                    pattern: "HH:mm:ss"
-                }
-            }),
-            displayFormat: "HH:mm:ss",
-            editable: !fieldMetadata.ui?.readOnly,
-            required: fieldMetadata.required,
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as sap.ui.base.Event).getParameter("value");
-                const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
-                }
-            }
-        });
-
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-
-        return this.control as Control;
-    }
-
-    /**
-     * Retrieves the current time string.
-     * @returns {unknown} The time string.
-     */
-    protected getValue(): unknown {
-        return this.control ? (this.control as TimePicker).getProperty('value') : null;
-    }
-
-    /**
-     * Applies dynamic read-only state.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            const input = this.control as TimePicker;
-            input.setEditable(!this.metadata.ui?.readOnly);
-            input.setRequired(this.metadata.required);
-        }
-    }
+export class TimePlugin extends PickerPlugin {
+    protected readonly pickerConfig: IPickerPluginConfig = {
+        ControlClass: TimePicker,
+        bindingType: "sap.ui.model.type.Time",
+        sourcePattern: "HH:mm:ss",
+        displayFormat: "HH:mm:ss",
+        parseErrorMessage: "Please enter a valid time."
+    };
 }

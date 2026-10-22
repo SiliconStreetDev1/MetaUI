@@ -1,17 +1,26 @@
-import { IPolicy, IPolicyCondition, PolicyEffectType } from "../interfaces/ISchema";
+/**
+ * @file PolicyEngine.ts
+ * @description Evaluates declarative cross-field rules (`uiPolicies`) and emits differential UI state mutations.
+ */
+
+import { IPolicy, IPolicyCondition } from "../interfaces/ISchema";
 import { PluginRegistry } from "./PluginRegistry";
 import { Logger } from "../utils/Logger";
+import { isRecord } from "../utils/TypeGuards";
 
 export type PropertyName = "visibility" | "validity" | "required" | "editable";
 
+/**
+ * Represents a single differential UI state mutation emitted by {@link PolicyEngine} for a target JSON Pointer.
+ */
 export interface IDeltaState {
-    /** The absolute JSON pointer path of the target property (e.g., "/VisitorInfo/PassportNumber") */
+    /** The absolute JSON pointer path of the target property (e.g., `"/VisitorInfo/PassportNumber"`). */
     target: string;
-    /** The UI5 visual or structural state to mutate */
+    /** The UI5 visual or structural state to mutate. */
     property: PropertyName;
-    /** The boolean value to apply to the state */
+    /** The boolean value to apply to the state. */
     value: boolean;
-    /** An optional custom error message to paint onto the field if validity is false */
+    /** An optional custom error message to paint onto the field if validity is false. */
     errorMessage?: string;
 }
 
@@ -23,63 +32,115 @@ interface ITargetState {
     errorMessage?: string;
 }
 
+interface IPropertyCounts {
+    activeFalse: number;
+    activeTrue: number;
+    fallbackFalse: number;
+    fallbackTrue: number;
+    lastMessage?: string;
+}
+
 /**
  * The PolicyEngine is responsible for evaluating complex, cross-field conditional logic defined in the schema's `uiPolicies` array.
  * It operates strictly on the JSON payload structure and returns an array of `IDeltaState` mutations which the GeneratorHost
- * then applies to the individual active plugins.
- * 
- * 
+ * then applies to the individual active plugins or table row cells.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.core
+ * @public
  */
 export class PolicyEngine {
     private policies: IPolicy[];
+    private readonly pluginRegistry: PluginRegistry;
 
-    /** Caches the last computed state matrix for differential delta emission */
+    /** Caches the last computed state matrix for differential delta emission. */
     private lastStateMatrix: Map<string, ITargetState>;
 
     /**
      * Instantiates the PolicyEngine with an array of policies.
-     * @param policies Array of uiPolicies defined in the root schema.
+     *
+     * @param policies Array of `uiPolicies` defined in the root schema.
+     * @param pluginRegistry Optional injected `PluginRegistry` instance.
      */
-    constructor(policies: IPolicy[]) {
+    constructor(policies: IPolicy[], pluginRegistry: PluginRegistry = PluginRegistry.getInstance()) {
         this.policies = policies || [];
+        this.pluginRegistry = pluginRegistry;
         this.lastStateMatrix = new Map();
     }
 
     /**
      * Safely traverses a JSON payload using a JSON pointer.
-     * Handles UI5 model prefixes (like metaui>) seamlessly.
-     * 
-     * @param data The root JSON object representing the form payload.
-     * @param pointer The JSON pointer to traverse (e.g., "/Customer/Age").
-     * @returns The resolved value, or undefined if the path does not exist.
+     * Handles UI5 model prefixes (like `metaui>`) and wrapped `{ items: [...] }` root arrays seamlessly.
+     *
+     * @param data The root JSON object or array representing the form payload.
+     * @param pointer The JSON pointer to traverse (e.g., `"/Customer/Age"`).
+     * @returns {unknown} The resolved value, or `undefined` if the path does not exist.
      */
     private resolvePointer(data: unknown, pointer: string): unknown {
-        if (!data || !pointer) return undefined;
-        // Strip leading slash and any UI5 prefixes
+        if (!data || pointer === undefined || pointer === null) {
+            return undefined;
+        }
         const cleanPointer = pointer.replace(/^\//, "").replace(/^metaui>\/?/, "");
-        if (!cleanPointer) return data;
+        if (!cleanPointer) {
+            if (Array.isArray(data)) {
+                return data;
+            }
+            if (isRecord(data) && Array.isArray(data.items)) {
+                return data.items;
+            }
+            return data;
+        }
 
         const parts = cleanPointer.split("/");
-        let current = data as Record<string, unknown>;
-        for (const part of parts) {
-            if (current === undefined || current === null) return undefined;
-            current = current[part] as Record<string, unknown>;
+        let current: unknown = data;
+        for (let idx = 0; idx < parts.length; idx++) {
+            if (current === undefined || current === null) {
+                return undefined;
+            }
+            const part = parts[idx].replace(/~1/g, "/").replace(/~0/g, "~");
+            if (
+                idx === 0 &&
+                !Array.isArray(current) &&
+                isRecord(current) &&
+                Array.isArray(current.items) &&
+                /^\d+$/.test(part)
+            ) {
+                current = current.items[Number(part)];
+                continue;
+            }
+            if (Array.isArray(current)) {
+                const rowIdx = Number(part);
+                current = Number.isInteger(rowIdx) ? current[rowIdx] : undefined;
+            } else if (isRecord(current)) {
+                current = current[part];
+            } else {
+                return undefined;
+            }
         }
         return current;
     }
 
     /**
+     * Resets the internal differential state matrix so the next {@link evaluate} call emits full deltas.
+     */
+    public reset(): void {
+        this.lastStateMatrix.clear();
+    }
+
+    /**
      * Evaluates a complex condition tree against the live JSON payload.
-     * 
+     * Fails closed (`false`) if an unrecognized condition operator is encountered.
+     *
      * @param condition The condition block to evaluate.
      * @param data The live JSON payload from the StateManager.
-     * @returns True if all condition parameters are met, otherwise false.
+     * @returns {boolean} True if all condition parameters are met, otherwise false.
      */
     private evaluateCondition(condition: IPolicyCondition, data: unknown): boolean {
-        // If there are multiple operators, we treat them as AND for now
+        if (!isRecord(condition) || Object.keys(condition).length === 0) {
+            Logger.warn("[MetaUI PolicyEngine] Malformed or empty policy condition block. Failing closed (false).");
+            return false;
+        }
         let result = true;
-        const registry = PluginRegistry.getInstance();
+        const registry = this.pluginRegistry;
 
         for (const [key, payload] of Object.entries(condition)) {
             const plugin = registry.getPolicyConditionPlugin(key);
@@ -89,6 +150,7 @@ export class PolicyEngine {
                 }
             } else {
                 Logger.warn(`[MetaUI PolicyEngine] Unrecognized condition operator: ${key}`);
+                result = false;
             }
         }
 
@@ -96,28 +158,86 @@ export class PolicyEngine {
     }
 
     /**
-     * Expands relative $row policies into absolute index policies for each physical row.
-     * Uses generic stringification to decouple from specific condition operator plugins.
+     * Extracts the first `$row` array path from a policy's `targets` or `condition` pointers without scanning `policy.message`.
+     *
+     * @param policy The policy descriptor to inspect.
+     * @returns {string | null} The array pointer prefix preceding the first `$row` token, or `null` if none exists.
+     */
+    private findFirstRowArrayPath(policy: IPolicy): string | null {
+        const matchRow = (str: string): string | null => {
+            const m = /^(.*?)\/?\$row(?=\/|$)/.exec(str);
+            return m ? m[1] : null;
+        };
+        for (const t of policy.targets || []) {
+            const found = matchRow(t);
+            if (found !== null) return found;
+        }
+        const scanObj = (obj: unknown): string | null => {
+            if (typeof obj === "string") return matchRow(obj);
+            if (isRecord(obj)) {
+                for (const [k, v] of Object.entries(obj)) {
+                    const fromKey = matchRow(k);
+                    if (fromKey !== null) return fromKey;
+                    const fromVal = scanObj(v);
+                    if (fromVal !== null) return fromVal;
+                }
+            }
+            return null;
+        };
+        return scanObj(policy.condition);
+    }
+
+    /**
+     * Replaces the first `$row` token in a string with the given numeric row index.
+     */
+    private replaceFirstRowToken(str: string, index: number): string {
+        return str.replace(/\$row(?=\/|$)/, String(index));
+    }
+
+    /**
+     * Clones a policy condition, replacing the first `$row` token in all pointer keys and string values.
+     */
+    private replaceFirstRowInCondition(node: unknown, index: number): unknown {
+        if (typeof node === "string") {
+            return this.replaceFirstRowToken(node, index);
+        }
+        if (Array.isArray(node)) {
+            return node.map((item) => this.replaceFirstRowInCondition(item, index));
+        }
+        if (isRecord(node)) {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(node)) {
+                out[this.replaceFirstRowToken(k, index)] = this.replaceFirstRowInCondition(v, index);
+            }
+            return out;
+        }
+        return node;
+    }
+
+    /**
+     * Expands relative `$row` policies into absolute index policies for each physical row.
+     * Supports nested arrays (`"/Items/$row/SubItems/$row/..."`) and root arrays (`"/$row/..."` or `"$row/..."`)
+     * without touching `policy.message`.
+     *
+     * @param data The root JSON payload.
+     * @param policies The declared schema policies.
+     * @returns {IPolicy[]} The expanded policy list.
      */
     private expandRowPolicies(data: unknown, policies: IPolicy[]): IPolicy[] {
         const expanded: IPolicy[] = [];
         for (const policy of policies) {
-            const policyStr = JSON.stringify(policy);
-            if (policyStr.includes("$row")) {
-                // Extract the array path (everything before "/$row" inside a JSON string value)
-                const match = policyStr.match(/"([^"]+)\/\$row/);
-                if (match) {
-                    const arrayPath = match[1];
-                    const arrayData = this.resolvePointer(data, arrayPath);
-                    if (Array.isArray(arrayData)) {
-                        for (let i = 0; i < arrayData.length; i++) {
-                            const cloneStr = policyStr.replace(/\$row/g, String(i));
-                            expanded.push(JSON.parse(cloneStr));
-                        }
+            const arrayPath = this.findFirstRowArrayPath(policy);
+            if (arrayPath !== null) {
+                const arrayData = this.resolvePointer(data, arrayPath);
+                if (Array.isArray(arrayData)) {
+                    for (let i = 0; i < arrayData.length; i++) {
+                        const rowPolicy: IPolicy = {
+                            ...policy,
+                            targets: policy.targets.map((t) => this.replaceFirstRowToken(t, i)),
+                            condition: this.replaceFirstRowInCondition(policy.condition, i) as IPolicyCondition
+                        };
+                        expanded.push(...this.expandRowPolicies(data, [rowPolicy]));
                     }
-                } else {
-                    // Fallback if path couldn't be parsed
-                    expanded.push(policy);
                 }
             } else {
                 expanded.push(policy);
@@ -128,8 +248,11 @@ export class PolicyEngine {
 
     /**
      * Evaluates policies against the given data payload using a State Resolution Matrix.
+     * Distinguishes active rules (`isConditionMet === true`) from un-met fallback reversals so multiple
+     * `Show`/`Enable`/`Require`/`Optional` policies compose without cancelling each other out.
+     *
      * @param data The JSON data payload.
-     * @returns Array of delta states to apply to the UI.
+     * @returns {IDeltaState[]} Array of delta states to apply to the UI.
      */
     public evaluate(data: unknown): IDeltaState[] {
         if (!this.policies || this.policies.length === 0) {
@@ -137,22 +260,26 @@ export class PolicyEngine {
         }
 
         const expandedPolicies = this.expandRowPolicies(data, this.policies);
+        const ledger = new Map<string, Record<PropertyName, IPropertyCounts>>();
 
-        // Ledger: target -> property -> { forcedFalse: number, forcedTrue: number, lastMessage?: string }
-        const ledger = new Map<string, Record<PropertyName, { forcedFalse: number, forcedTrue: number, lastMessage?: string }>>();
+        const createCounts = (): IPropertyCounts => ({
+            activeFalse: 0,
+            activeTrue: 0,
+            fallbackFalse: 0,
+            fallbackTrue: 0
+        });
 
-        const initTargetInLedger = (target: string) => {
+        const initTargetInLedger = (target: string): void => {
             if (!ledger.has(target)) {
                 ledger.set(target, {
-                    visibility: { forcedFalse: 0, forcedTrue: 0 },
-                    validity: { forcedFalse: 0, forcedTrue: 0 },
-                    required: { forcedFalse: 0, forcedTrue: 0 },
-                    editable: { forcedFalse: 0, forcedTrue: 0 }
+                    visibility: createCounts(),
+                    validity: createCounts(),
+                    required: createCounts(),
+                    editable: createCounts()
                 });
             }
         };
 
-        // 1. Build the Composite State Ledger Matrix
         for (const policy of expandedPolicies) {
             const isConditionMet = this.evaluateCondition(policy.condition, data);
 
@@ -160,56 +287,87 @@ export class PolicyEngine {
                 initTargetInLedger(target);
                 const currentLedger = ledger.get(target)!;
 
-                const effectPlugin = PluginRegistry.getInstance().getPolicyEffectPlugin(policy.effect);
+                const effectPlugin = this.pluginRegistry.getPolicyEffectPlugin(policy.effect);
                 if (!effectPlugin) {
                     Logger.error(`[MetaUI PolicyEngine] Unrecognized policy effect: ${policy.effect}`);
                     continue;
                 }
                 const mapped = effectPlugin.resolveState(isConditionMet, policy.effect);
+                const bucket = currentLedger[mapped.property];
+                const isActiveTrigger = isConditionMet || (policy.effect === "Validate" && !isConditionMet);
 
-                // Track forces. For restrictable properties (visibility, validity, editable), forcedFalse acts as a lock.
-                // For required, forcedTrue acts as a lock.
-                if (mapped.value) {
-                    currentLedger[mapped.property].forcedTrue++;
-                } else {
-                    currentLedger[mapped.property].forcedFalse++;
-                    if (mapped.property === "validity" && isConditionMet && policy.message) {
-                        currentLedger.validity.lastMessage = policy.message;
+                if (isActiveTrigger) {
+                    if (mapped.value) {
+                        bucket.activeTrue++;
+                    } else {
+                        bucket.activeFalse++;
                     }
+                } else {
+                    if (mapped.value) {
+                        bucket.fallbackTrue++;
+                    } else {
+                        bucket.fallbackFalse++;
+                    }
+                }
+
+                if (mapped.property === "validity" && !mapped.value && policy.message) {
+                    bucket.lastMessage = policy.message;
                 }
             }
         }
 
         const newStateMatrix = new Map<string, ITargetState>();
+        const resolveBucket = (counts: IPropertyCounts, preferTrueOnActiveConflict: boolean): boolean | undefined => {
+            if (counts.activeFalse + counts.activeTrue > 0) {
+                if (preferTrueOnActiveConflict) {
+                    return counts.activeTrue > 0 ? true : false;
+                }
+                return counts.activeFalse > 0 ? false : true;
+            }
+            if (counts.fallbackFalse + counts.fallbackTrue > 0) {
+                return counts.fallbackFalse > 0 ? false : true;
+            }
+            return undefined;
+        };
 
-        // 2. Resolve the Ledger into a concrete State Matrix
         for (const [target, stateMap] of ledger.entries()) {
-            newStateMatrix.set(target, {
-                // False (Hidden) wins if ANY policy forced it false
-                visibility: stateMap.visibility.forcedFalse > 0 ? false : true,
-                // False (Invalid) wins if ANY policy forced it false
-                validity: stateMap.validity.forcedFalse > 0 ? false : true,
-                // True (Required) wins if ANY policy forced it true
-                required: stateMap.required.forcedTrue > 0 ? true : false,
-                // False (Disabled) wins if ANY policy forced it false
-                editable: stateMap.editable.forcedFalse > 0 ? false : true,
-                errorMessage: stateMap.validity.lastMessage
-            });
+            const entry: ITargetState = {};
+            const vis = resolveBucket(stateMap.visibility, false);
+            if (vis !== undefined) entry.visibility = vis;
+
+            const val = resolveBucket(stateMap.validity, false);
+            if (val !== undefined) {
+                entry.validity = val;
+                entry.errorMessage = val ? undefined : stateMap.validity.lastMessage;
+            }
+
+            const req = resolveBucket(stateMap.required, true);
+            if (req !== undefined) entry.required = req;
+
+            const edit = resolveBucket(stateMap.editable, false);
+            if (edit !== undefined) entry.editable = edit;
+
+            newStateMatrix.set(target, entry);
         }
 
         const deltas: IDeltaState[] = [];
 
-        // 3. Differential Emission
         for (const [target, newState] of newStateMatrix.entries()) {
             const lastState = this.lastStateMatrix.get(target) || {};
 
             if (newState.visibility !== undefined && newState.visibility !== lastState.visibility) {
                 deltas.push({ target, property: "visibility", value: newState.visibility });
             }
-            if (newState.validity !== undefined && newState.validity !== lastState.validity) {
-                if (newState.validity !== lastState.validity || newState.errorMessage !== lastState.errorMessage) {
-                    deltas.push({ target, property: "validity", value: newState.validity, errorMessage: newState.errorMessage });
-                }
+            if (
+                newState.validity !== undefined &&
+                (newState.validity !== lastState.validity || newState.errorMessage !== lastState.errorMessage)
+            ) {
+                deltas.push({
+                    target,
+                    property: "validity",
+                    value: newState.validity,
+                    errorMessage: newState.errorMessage
+                });
             }
             if (newState.required !== undefined && newState.required !== lastState.required) {
                 deltas.push({ target, property: "required", value: newState.required });
@@ -219,7 +377,24 @@ export class PolicyEngine {
             }
         }
 
-        // Cache for next evaluation sweep
+        // Emit cleanup deltas for targets that disappeared (e.g. deleted table rows)
+        for (const [prevTarget, lastState] of this.lastStateMatrix.entries()) {
+            if (!newStateMatrix.has(prevTarget)) {
+                if (lastState.validity === false) {
+                    deltas.push({ target: prevTarget, property: "validity", value: true });
+                }
+                if (lastState.visibility === false) {
+                    deltas.push({ target: prevTarget, property: "visibility", value: true });
+                }
+                if (lastState.required === true) {
+                    deltas.push({ target: prevTarget, property: "required", value: false });
+                }
+                if (lastState.editable === false) {
+                    deltas.push({ target: prevTarget, property: "editable", value: true });
+                }
+            }
+        }
+
         this.lastStateMatrix = newStateMatrix;
 
         return deltas;

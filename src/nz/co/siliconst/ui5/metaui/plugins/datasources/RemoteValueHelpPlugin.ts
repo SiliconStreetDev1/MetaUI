@@ -1,107 +1,188 @@
 /**
  * @file RemoteValueHelpPlugin.ts
- * @description A custom datasource plugin that simulates fetching data from a remote server.
+ * @description Renders a sap.m.Input with a ValueHelp icon that opens a sap.m.SelectDialog populated from a REST API.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
-import Event from "sap/ui/base/Event";
-
-import { IPropertyMetadata, IRemoteValueHelpConfig } from "../../interfaces/ISchema";
-import ComboBox from "sap/m/ComboBox";
-import Item from "sap/ui/core/Item";
+import { TextLikeInputPlugin } from "../controls/TextLikeInputPlugin";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { ControlDirectiveUtil, extractDataSourceList } from "../../utils/ControlDirectiveUtil";
+import Input from "sap/m/Input";
+import SelectDialog from "sap/m/SelectDialog";
+import StandardListItem from "sap/m/StandardListItem";
 import Control from "sap/ui/core/Control";
+import JSONModel from "sap/ui/model/json/JSONModel";
+import Filter from "sap/ui/model/Filter";
+import FilterOperator from "sap/ui/model/FilterOperator";
+import ListBinding from "sap/ui/model/ListBinding";
+import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { isRecord } from "../../utils/TypeGuards";
 
 /**
- * A custom datasource plugin that simulates fetching data from a remote server.
- * Proves out custom data sources that dynamically load value help.
- * 
+ * Plugin responsible for rendering an `Input` with a Value Help dialog (`sap.m.SelectDialog`)
+ * populated asynchronously from a REST endpoint (`ui.widget = "valueHelp"`).
+ *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
  * @public
  */
-export class RemoteValueHelpPlugin extends BasePlugin {
-    private isLoaded = false;
+export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
+    private selectDialog?: SelectDialog;
+    private dialogModel?: JSONModel;
+    private activeTargetInput?: Input;
 
     /**
-     * Renders a `ComboBox` that simulates fetching data from a remote server.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
+     * Constructs a `sap.m.Input` with `showValueHelp: true`.
+     *
+     * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
-     * @returns {Control} The configured ComboBox control.
+     * @param engineScopeId The deterministic scope ID.
+     * @returns {Control} The configured Input control.
      */
-    public render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName: string = "meta"): Control {
-        this.metadata = fieldMetadata;
-        
-        const comboBox = new ComboBox({
-            selectedKey: `{${modelName}>${bindingPath}}`,
-            enabled: !fieldMetadata.ui?.readOnly,
-            placeholder: "Select a country...",
+    protected createEditableControl(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        return new Input({
+            id: this.generateStableId(engineScopeId, bindingPath),
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
+            placeholder: metadata.ui?.placeholder || "Select a value...",
+            required: this.isRequired(),
+            showValueHelp: true,
+            valueHelpRequest: (oEvent: Event) => {
+                const src = oEvent.getSource() as Input;
+                void this.openValueHelpDialog(src, metadata);
+            },
             change: (oEvent: Event) => {
-                const item = (oEvent as Event).getParameter("selectedItem");
-                const val = item ? item.getKey() : (oEvent as Event).getParameter("value"); // Allow free text as well
-                this.validate();
+                const src = oEvent.getSource() as Input;
+                this.notifyChange(src.getId());
             }
         });
-
-        // Perform an async load against the REST endpoint
-        comboBox.attachEventOnce("loadItems", () => {
-            this.fetchData(comboBox);
-        });
-
-        this.control = comboBox;
-        return this.control as Control;
     }
 
     /**
-     * Executes the REST fetch for data.
-     * @param comboBox The UI5 ComboBox to populate.
+     * Lazily creates and opens the `sap.m.SelectDialog`, fetching remote items from `metadata.ui.dataSource`.
+     *
+     * @param input The owning `sap.m.Input` control.
+     * @param metadata The property metadata containing `ui.dataSource`.
      */
-    protected fetchData(comboBox: ComboBox): void {
-        const vhConfig = this.metadata?.valueHelp as IRemoteValueHelpConfig;
-        if (!vhConfig || !vhConfig.url) {
-            Logger.error("RemoteValueHelpPlugin requires a valid valueHelp configuration with a URL.", "", "RemoteValueHelpPlugin");
+    private async openValueHelpDialog(input: Input, metadata: IPropertyMetadata): Promise<void> {
+        const ds = ControlDirectiveUtil.resolveDataSourceConfig(metadata);
+        if (!ds || !ds.url) {
+            Logger.warn(
+                "[MetaUI RemoteValueHelpPlugin]",
+                "Missing dataSource.url for valueHelp widget.",
+                "RemoteValueHelpPlugin"
+            );
             return;
         }
-        
-        comboBox.setBusy(true);
-        
-        fetch(vhConfig.url)
-            .then(res => res.json())
-            .then((data: Record<string, unknown>[]) => {
-                const keyPath = vhConfig.keyPath || "key";
-                const textPath = vhConfig.textPath || "text";
-                
-                data.forEach(itemData => {
-                    comboBox.addItem(new Item({ 
-                        key: String(itemData[keyPath]), 
-                        text: String(itemData[textPath] || itemData[keyPath])
-                    }));
-                });
-            })
-            .catch(err => {
-                Logger.error("Failed to load value help from " + vhConfig.url, err.message, "RemoteValueHelpPlugin");
-            })
-            .finally(() => {
-                comboBox.setBusy(false);
-                this.isLoaded = true;
+
+        this.activeTargetInput = input;
+
+        if (!this.selectDialog) {
+            this.dialogModel = new JSONModel({ items: [] });
+            const applyDialogFilter = (oEvent: Event): void => {
+                const params = oEvent.getParameters() as { value?: string; itemsBinding?: ListBinding };
+                const sValue = (params.value || "").trim();
+                const binding = params.itemsBinding;
+                if (binding) {
+                    if (!sValue) {
+                        binding.filter([]);
+                        return;
+                    }
+                    const combinedFilter = new Filter({
+                        filters: [
+                            new Filter(ds.textField, FilterOperator.Contains, sValue),
+                            new Filter(ds.keyField, FilterOperator.Contains, sValue)
+                        ],
+                        and: false
+                    });
+                    binding.filter([combinedFilter]);
+                }
+            };
+            this.selectDialog = new SelectDialog({
+                title: metadata.ui?.label || "Select Value",
+                liveChange: applyDialogFilter,
+                search: applyDialogFilter,
+                confirm: (oEvent: Event) => {
+                    const targetInput = this.activeTargetInput || (this.control as Input);
+                    const params = oEvent.getParameters() as { selectedItem?: StandardListItem };
+                    const selectedItem = params.selectedItem;
+                    if (selectedItem && targetInput) {
+                        const selectedKey = selectedItem.getDescription() || selectedItem.getTitle();
+                        targetInput.setValue(selectedKey);
+                        const model = targetInput.getModel(this.modelName) as JSONModel | undefined;
+                        if (model) {
+                            model.setProperty(this.resolveAbsolutePath(targetInput), selectedKey);
+                        }
+                        this.notifyChange(targetInput.getId());
+                    }
+                }
             });
-    }
 
-    /**
-     * Retrieves the current selected key.
-     * @returns {unknown} The selected key.
-     */
-    protected getValue(): unknown {
-        return this.control ? (this.control as ComboBox).getSelectedKey() : null;
-    }
-
-    /**
-     * Applies dynamic read-only state.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            (this.control as ComboBox).setEnabled(!this.metadata.ui?.readOnly);
+            this.selectDialog.setModel(this.dialogModel, "vh");
+            this.selectDialog.bindAggregation("items", {
+                path: "vh>/items",
+                template: new StandardListItem({
+                    title: `{vh>${ds.textField}}`,
+                    description: `{vh>${ds.keyField}}`
+                })
+            });
         }
+
+        try {
+            const response = await fetch(ds.url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const rawData: unknown = await response.json();
+            if (!this.selectDialog || this.selectDialog.isDestroyed() || input.isDestroyed()) {
+                return;
+            }
+            const list = extractDataSourceList(rawData, ds.dataPath).map((entry) => {
+                if (!isRecord(entry)) {
+                    return entry;
+                }
+                const clone: Record<string, unknown> = { ...entry };
+                if (clone[ds.keyField] !== undefined && clone[ds.keyField] !== null) {
+                    clone[ds.keyField] = String(clone[ds.keyField]);
+                }
+                if (clone[ds.textField] !== undefined && clone[ds.textField] !== null) {
+                    clone[ds.textField] = String(clone[ds.textField]);
+                }
+                return clone;
+            });
+            this.dialogModel?.setProperty("/items", list);
+        } catch (err) {
+            Logger.error(
+                "[MetaUI RemoteValueHelpPlugin]",
+                `Failed to load ValueHelp data: ${(err as Error).message}`,
+                "RemoteValueHelpPlugin"
+            );
+            if (!this.selectDialog || this.selectDialog.isDestroyed() || input.isDestroyed()) {
+                return;
+            }
+        }
+
+        const itemsBinding = this.selectDialog.getBinding("items") as ListBinding | undefined;
+        itemsBinding?.filter([]);
+        this.selectDialog.open("");
+    }
+
+    /**
+     * Destroys the cached `SelectDialog`, its `JSONModel`, and the primary `Input` control.
+     */
+    public override destroy(): void {
+        if (this.selectDialog) {
+            this.selectDialog.destroy();
+            this.selectDialog = undefined;
+        }
+        if (this.dialogModel) {
+            this.dialogModel.destroy();
+            this.dialogModel = undefined;
+        }
+        super.destroy();
     }
 }

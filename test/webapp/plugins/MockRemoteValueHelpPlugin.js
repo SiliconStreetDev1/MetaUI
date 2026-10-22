@@ -10,19 +10,8 @@ sap.ui.define([
      * keeping the core MetaUI engine pure.
      */
     class MockRemoteValueHelpPlugin extends RemoteValueHelpPluginModule.RemoteValueHelpPlugin {
-        fetchData(comboBox) {
-            var vhConfig = this.metadata && this.metadata.valueHelp;
-            if (!vhConfig || !vhConfig.url) {
-                return;
-            }
-            
-            comboBox.setBusy(true);
-            
-            // Simulate network latency for sandbox testing
-            setTimeout(() => {
-                // Call the original fetchData method which performs the actual fetch
-                super.fetchData(comboBox);
-            }, 800); // 800ms artificial delay
+        openValueHelpDialog(input, metadata) {
+            return super.openValueHelpDialog(input, metadata);
         }
     }
 

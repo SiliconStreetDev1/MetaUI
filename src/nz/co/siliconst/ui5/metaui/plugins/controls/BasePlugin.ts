@@ -1,343 +1,434 @@
 /**
  * @file BasePlugin.ts
- * @description Abstract foundation for all MetaUI plugins, enforcing lifecycle hooks for v2 Schema.
+ * @description Abstract base class for all UI5 control plugins.
+ * Extends PluginStateBase with schema initialization, data-model binding helpers,
+ * validation pipeline execution, and nested modal dialog launching.
  */
 
-import { IPlugin } from "../../interfaces/IPlugin";
+import { IPlugin, IPluginEngineContext } from "../../interfaces/IPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { PipelineManager } from "../../core/PipelineManager";
+import { PluginStateBase } from "../../core/PluginStateBase";
 import Control from "sap/ui/core/Control";
-import { GlobalPipeline } from "../../core/PipelineManager";
-import * as coreLibrary from "sap/ui/core/library";
-import { Logger } from "../../utils/Logger";
+import Element from "sap/ui/core/Element";
+import JSONModel from "sap/ui/model/json/JSONModel";
+import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
+import { ControlDirectiveUtil, INestedEditorLaunchOptions } from "../../utils/ControlDirectiveUtil";
 
 /**
- * Abstract class representing a standard MetaUI Plugin.
- * Enforces the required rendering, state extraction, and validation contracts.
- * 
- * @abstract
+ * Abstract base class for all UI5 control plugins in the MetaUI framework.
+ * Implements the Template Method pattern for consistent validation, formatting,
+ * state management, and dynamic UI5 data binding across all widgets.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
-export abstract class BasePlugin implements IPlugin {
-    /** The instantiated UI5 control for this plugin. */
-    protected control: Control | null = null;
-
-    /** Explicit reference to the core data widget when this plugin is wrapped in a layout. */
-    protected mainControl?: Control;
-
-    /** Properties strictly protected by the Sandbox engine. */
-    protected BLOCKED_PROPS = ["value", "text", "selectedKey", "selected", "dateValue", "editable", "enabled", "visible", "valueState", "valueStateText", "items", "content", "pages", "formElements", "change", "press", "select", "submit"];
-
-    /** The metadata schema defining the field rules. */
-    protected metadata: IPropertyMetadata | null = null;
-
-    /** The internal JSON path of the field relative to its parent payload. */
-    protected fieldKey: string = "";
-
-    /** The UI5 JSONModel name used for absolute binding paths. */
+export abstract class BasePlugin extends PluginStateBase implements IPlugin {
+    protected bindingPath?: string;
     protected modelName: string = "meta";
-
-    /** Indicates if the engine is enforcing an editable mode. */
-    protected isEditable: boolean = true;
-
-    /** Indicates if the plugin should delegate visual validation to the MessageManager. */
-    protected useMessageManager: boolean = false;
-
-    /** Internal callback provided by GeneratorHost to signal validation/data changes upwards */
     protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
-
-    /** 
-     * Tracks explicitly forced invalid states pushed down from the PolicyEngine.
-     * When populated, this error takes absolute precedence over static SchemaValidator rules.
-     */
-    protected policyInvalidMessage: string | null = null;
-
-    /** Transient state tracking for PBRE required evaluations to prevent schema clobbering */
-    protected _isDynamicallyRequired?: boolean;
+    protected engineContext?: IPluginEngineContext;
+    protected readonly invalidParsePaths: Map<string, string> = new Map();
+    private readonly activeNestedHosts: Set<Control> = new Set();
 
     /**
-     * Injects the global editable mode context into the plugin before rendering.
-     * @param editable True if the plugin should render in editable mode.
+     * Injects the owning Engine context into the plugin.
+     *
+     * @param context The engine context interface.
      */
-    public setEditable(editable: boolean): void {
-        this.isEditable = editable;
+    public setEngineContext(context: IPluginEngineContext): void {
+        this.engineContext = context;
     }
 
     /**
-     * Retrieves the human-readable label for the field from its metadata.
+     * Initializes common plugin fields at the start of `render`.
+     *
+     * @param metadata The schema property metadata.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel alias.
+     * @param onChange Optional callback fired when the control value changes.
      */
-    public getFieldLabel(): string | undefined {
-        return this.metadata?.ui?.label || this.fieldKey;
+    protected initialize(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string = "meta",
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): void {
+        this.metadata = metadata;
+        this.bindingPath = bindingPath;
+        this.fieldKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
+        this.modelName = modelName;
+        this.onChange = onChange;
     }
 
     /**
-     * Injects the global MessageManager context into the plugin.
-     * @param useMessageManager True if the MessageManager is handling validation visual states.
+     * Evaluates whether the current property is marked as required in the schema metadata.
+     *
+     * @returns {boolean} True if the property is required.
      */
-    public setUseMessageManager(useMessageManager: boolean): void {
-        this.useMessageManager = useMessageManager;
+    protected isRequired(): boolean {
+        if (!this.metadata) {
+            return false;
+        }
+        if (typeof this.metadata.required === "boolean") {
+            return this.metadata.required;
+        }
+        return Boolean(
+            Array.isArray(this.metadata.required) && this.fieldKey && this.metadata.required.includes(this.fieldKey)
+        );
     }
 
     /**
-     * Instantiates the raw UI5 control and binds it to the model.
-     * 
-     * @param fieldMetadata The JSON Schema for the field.
-     * @param bindingPath The JSON path to bind to.
-     * @param modelName The UI5 model name.
-     * @param engineScopeId The deterministic scope ID provided by the Engine to prevent cloning collisions.
-     * @param onChange The callback fired natively when a field value blur/change occurs.
-     * @returns {Control} The generated UI5 control.
+     * Reads the current bound value from the underlying `JSONModel` for this control or a cloned row control.
+     *
+     * @param sourceControl Optional cloned row control instance.
+     * @returns {unknown} The model value at the resolved absolute path, or `undefined` if unavailable.
      */
-    public abstract render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
-
-    /**
-     * Generates a deterministic, globally unique ID for this control.
-     * Prefixes the sanitized binding path with the Engine's scoped ID.
-     */
-    protected generateStableId(engineScopeId: string | undefined, bindingPath: string): string | undefined {
-        if (!engineScopeId) return undefined;
-        // Strip leading slash and replace internal slashes with hyphens
-        const safePath = bindingPath.replace(/^\//, '').replace(/\//g, '-');
-        return `${engineScopeId}--${safePath}`;
+    protected getModelValue(sourceControl?: Control): unknown {
+        const target = sourceControl ?? this.mainControl ?? this.control;
+        const model = (target?.getModel(this.modelName) || this.engineContext?.getModel()) as JSONModel | undefined;
+        return model && typeof model.getProperty === "function"
+            ? model.getProperty(this.resolveAbsolutePath(target))
+            : undefined;
     }
 
     /**
-     * Extracts the current raw value from the underlying UI5 control.
+     * Returns the list of active formatter names configured on `metadata.ui` (`formatter` or `formatters`).
+     *
+     * @returns {string[] | undefined} The active formatter names, or `undefined` if none are configured.
      */
-    protected abstract getValue(): unknown;
-
-    /**
-     * Generates a standardized programmatic binding configuration object.
-     * Ensures perfect architectural consistency across all plugins instead of relying on string parsing.
-     * 
-     * @param bindingPath The relative or absolute path.
-     * @param modelName The target model name.
-     * @param typeInstance An optional UI5 Type instance (e.g. Integer, Float).
-     * @param additionalOptions Optional extra configurations (e.g. formatOptions, constraints).
-     * @returns A configuration object ready to be assigned to 'value', 'text', 'state', etc.
-     */
-    protected generateBindingInfo(bindingPath: string, modelName: string, typeInstance?: unknown, additionalOptions?: Record<string, unknown>): Record<string, unknown> {
-        return {
-            path: bindingPath,
-            model: modelName,
-            ...(typeInstance ? { type: typeInstance } : {}),
-            ...(additionalOptions || {})
-        };
+    protected getActiveFormatters(): string[] | undefined {
+        if (this.metadata?.ui?.formatters && this.metadata.ui.formatters.length > 0) {
+            return this.metadata.ui.formatters;
+        }
+        return this.metadata?.ui?.formatter ? [this.metadata.ui.formatter] : undefined;
     }
 
     /**
-     * Universal pipeline validation.
+     * Returns true when the active formatter chain is presentational (implements `IParser.parse`).
+     *
+     * @returns {boolean} True if at least one active formatter is presentational.
      */
-    public validate(): import("../../interfaces/IPlugin").IPluginValidationResult {
-        if (!this.control || !this.metadata) return { isValid: true };
+    protected hasPresentationalFormatter(): boolean {
+        const formatters = this.getActiveFormatters();
+        return Boolean(formatters && PipelineManager.getInstance().hasPresentationalParser(formatters));
+    }
 
-        // Skip validation for hidden fields (e.g. hidden by ConditionEngine visibleOn)
-        if (typeof (this.control as Control).getVisible === "function") {
-            if (!(this.control as Control).getVisible()) {
-                return { isValid: true };
+    /**
+     * Converts a live UI control value into the value to store in the underlying `JSONModel`.
+     * Presentational formatters parse the display string back into raw data via `runParsers()`;
+     * transforming formatters (those without `parse()`, such as `textCase`) write the formatted value.
+     *
+     * @param liveVal The value read from the UI control.
+     * @returns {unknown} The value to persist into the model.
+     */
+    protected resolveModelWriteValue(liveVal: unknown): unknown {
+        const formatters = this.getActiveFormatters();
+        if (!formatters || formatters.length === 0 || liveVal === undefined) {
+            return liveVal;
+        }
+        const pm = PipelineManager.getInstance();
+        if (pm.hasPresentationalParser(formatters)) {
+            return pm.runParsers(liveVal, formatters, this.metadata?.ui?.args);
+        }
+        return pm.runFormatters(liveVal, formatters, this.metadata?.ui?.args);
+    }
+
+    /**
+     * Runs the validation pipeline on the changed control (supporting both direct controls and cloned table row cells)
+     * and notifies the Engine's `onChange` listener.
+     *
+     * @param controlId Optional runtime ID of the control that triggered the change event.
+     */
+    protected notifyChange(controlId?: string): void {
+        const sourceControl = controlId ? (Element.getElementById(controlId) as Control | undefined) : undefined;
+        const formatters = this.getActiveFormatters();
+        if (sourceControl && sourceControl !== this.control && sourceControl !== this.mainControl && this.metadata) {
+            const targetPath = this.resolveAbsolutePath(sourceControl);
+            const rowFieldKey = targetPath.replace(/^\//, "") || this.fieldKey || "";
+            const liveVal = this.resolveModelWriteValue(this.getValue(sourceControl));
+            const model = sourceControl.getModel(this.modelName) as JSONModel | undefined;
+            if (model && liveVal !== undefined && !this.invalidParsePaths.has(rowFieldKey)) {
+                if (model.getProperty(targetPath) !== liveVal) {
+                    model.setProperty(targetPath, liveVal);
+                }
+                if (formatters) {
+                    sourceControl.getBinding("value")?.refresh(true);
+                }
+            }
+            const result = this.validate(sourceControl);
+            ControlDirectiveUtil.applyVisualValidationState(sourceControl, result.isValid, result.errorMessage);
+            if (this.onChange) {
+                this.onChange(result.isValid, rowFieldKey, result.errorMessage, controlId);
+            }
+            return;
+        }
+        const cleanKey = (this.bindingPath || this.fieldKey || "").replace(/^\//, "");
+        if (this.isEditable && formatters && !this.invalidParsePaths.has(cleanKey)) {
+            const target = this.mainControl ?? this.control;
+            const model = (target?.getModel(this.modelName) || this.engineContext?.getModel()) as JSONModel | undefined;
+            const liveVal = this.resolveModelWriteValue(this.getValue());
+            if (model && liveVal !== undefined) {
+                const absPath = this.resolveAbsolutePath(target);
+                if (model.getProperty(absPath) !== liveVal) {
+                    model.setProperty(absPath, liveVal);
+                }
+                target?.getBinding("value")?.refresh(true);
             }
         }
-
-        if (this.policyInvalidMessage) {
-            return { isValid: false, errorMessage: this.policyInvalidMessage, fieldKey: this.fieldKey };
+        const result = this.validate();
+        this.setVisualValidationState(result.isValid, result.errorMessage);
+        if (this.onChange) {
+            this.onChange(result.isValid, this.fieldKey, result.errorMessage, controlId ?? this.getControlId());
         }
-
-        const isRequired = this._isDynamicallyRequired !== undefined ? this._isDynamicallyRequired : this.metadata.required;
-
-        const val = this.getValue();
-        const result = GlobalPipeline.assembleAndExecute(this.metadata, val, isRequired);
-        return { isValid: result.isValid, errorMessage: result.errorMessage, fieldKey: this.fieldKey, fieldLabel: this.metadata?.ui?.label };
     }
 
     /**
-     * Natively manipulates the UI5 control's valueState if the control supports it.
-     * Uses reflection to safely apply styles without crashing on structural controls.
+     * Clears any visual error state and resets parse error flags on the plugin.
      */
-    public setVisualValidationState(isValid: boolean, errorMessage?: string): void {
-        if (!this.control) return;
+    public override clearError(): void {
+        this.invalidParsePaths.clear();
+        super.clearError();
+    }
 
+    /**
+     * Creates a read-only `sap.m.Text` control for display mode (`isEditable = false`).
+     *
+     * @param engineScopeId Deterministic scope ID prefix.
+     * @param bindingPath Property binding path.
+     * @param bindingInfo Optional custom binding descriptor.
+     * @returns {Control} The configured `sap.m.Text` control.
+     */
+    protected createDisplayText(
+        engineScopeId: string | undefined,
+        bindingPath: string,
+        bindingInfo?: PropertyBindingInfo | string
+    ): Control {
+        this.control = ControlDirectiveUtil.createDisplayTextControl(
+            this.generateStableId(engineScopeId, bindingPath),
+            bindingInfo ?? this.generateBindingInfo(bindingPath, this.modelName),
+            this.metadata,
+            this.bindingPath || this.fieldKey || "",
+            this.modelName
+        );
+        return this.control;
+    }
 
-        // Use reflection to check if the control supports ValueState (e.g. sap.m.Input does, sap.m.Text does not)
-        type StateControl = {
-            setValueState?: (state: string) => void;
-            setValueStateText?: (text: string) => void;
-        };
-        const ctrl = this.control as unknown as StateControl;
-        if (typeof ctrl.setValueState === "function") {
-            ctrl.setValueState(isValid ? coreLibrary.ValueState.None : coreLibrary.ValueState.Error);
+    /**
+     * Resolves the absolute model path for this plugin's control, taking table row binding contexts into account.
+     *
+     * @param control Optional control instance whose binding context should be inspected.
+     * @returns {string} The absolute JSONModel path (starting with `/`).
+     */
+    protected resolveAbsolutePath(control?: Control): string {
+        return ControlDirectiveUtil.resolveAbsolutePath(
+            control ?? this.mainControl ?? this.control,
+            this.bindingPath ?? this.fieldKey ?? "",
+            this.modelName
+        );
+    }
 
-            if (typeof ctrl.setValueStateText === "function") {
-                ctrl.setValueStateText(isValid ? "" : (errorMessage || ""));
+    /**
+     * Launches a modal `DynamicHost` dialog for editing or viewing a nested object, array, or `$ref` sub-schema.
+     *
+     * @param options Configuration for the nested modal editor.
+     */
+    protected openNestedEditorDialog(options: INestedEditorLaunchOptions): void {
+        ControlDirectiveUtil.openNestedHostDialog({
+            ...options,
+            onHostCreated: (nestedHost) => {
+                this.activeNestedHosts.add(nestedHost);
+                options.onHostCreated?.(nestedHost);
             }
-        } else {
-            // Quietly ignore. Controls like sap.m.Text natively do not support value states, which is completely valid.
+        });
+    }
+
+    /**
+     * Destroys any active nested modal `DynamicHost` instances alongside the plugin's own control.
+     */
+    public override destroy(): void {
+        for (const nestedHost of this.activeNestedHosts) {
+            if (!nestedHost.isDestroyed()) {
+                nestedHost.destroy();
+            }
         }
-    }
-
-
-
-    // --- IPluginStateReceiver Implementation for PBRE ---
-
-    /**
-     * Natively applies a forced error state from the PolicyEngine.
-     * Per MetaUI Architecture Rule 12, this explicitly forces the visual state red 
-     * independently of the MessageManager auto-sync.
-     * 
-     * @param errorMessage The custom error message to display.
-     */
-    public applyError(errorMessage: string): void {
-        this.policyInvalidMessage = errorMessage;
-        this.setVisualValidationState(false, errorMessage);
+        this.activeNestedHosts.clear();
+        super.destroy();
     }
 
     /**
-     * Clears a previously forced error state.
-     * Restores the visual boundary to standard (non-error) formatting.
+     * Renders the specific UI5 control based on the schema property metadata.
+     *
+     * @param metadata The property metadata.
+     * @param bindingPath The JSON path bound to this control.
+     * @param modelName The UI5 JSONModel alias.
+     * @param engineScopeId Deterministic scope ID prefix.
+     * @param onChange Callback invoked on value change.
+     * @param model Optional direct model reference.
+     * @returns {Control} The rendered UI5 control.
      */
-    public clearError(): void {
-        this.policyInvalidMessage = null;
-        this.setVisualValidationState(true);
-    }
+    public abstract render(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName?: string,
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void,
+        model?: unknown
+    ): Control;
 
     /**
-     * Dynamically manipulates the visibility state of the control based on PolicyEngine directives.
-     * 
-     * @param isVisible True to display the control, false to hide it.
+     * Retrieves the raw value from the concrete UI5 control for validation.
+     *
+     * @param sourceControl Optional runtime source control (e.g., a cloned table row cell).
+     * @returns {unknown} The current field value.
      */
-    public applyVisibility(isVisible: boolean): void {
-        const ctrl = this.control as unknown as { setVisible?: (b: boolean) => void };
-        if (ctrl && typeof ctrl.setVisible === "function") {
-            ctrl.setVisible(isVisible);
+    protected abstract getValue(sourceControl?: Control): unknown;
+
+    /**
+     * Checks whether the target control (either a cloned table row cell or this plugin's primary control) is visible.
+     *
+     * @param sourceControl Optional runtime source control.
+     * @returns {boolean} True if visible.
+     */
+    protected isTargetVisible(sourceControl?: Control): boolean {
+        if (sourceControl && sourceControl !== this.control && sourceControl !== this.mainControl) {
+            if (typeof sourceControl.data === "function" && sourceControl.data("metauiDynamicVisible") === false) {
+                return false;
+            }
+            if (typeof sourceControl.getVisible === "function" && !sourceControl.getVisible()) {
+                return false;
+            }
+            return true;
         }
+        return this.isVisible();
     }
 
     /**
-     * Dynamically alters the mandatory status of the field.
-     * Updates internal transient state to ensure the `validate()` pipeline enforces the change,
-     * and natively triggers the UI5 required indicator (asterisk) if supported,
-     * without permanently corrupting the shared global schema definition.
-     * 
-     * @param isRequired True to make the field mandatory, false to make it optional.
+     * Reads any dynamic `$row` policy `required` override stored on a cloned table row cell control.
+     *
+     * @param sourceControl Optional runtime source control.
+     * @returns {boolean | undefined} The dynamic required boolean if set, otherwise undefined.
      */
-    public applyRequired(isRequired: boolean): void {
-        this._isDynamicallyRequired = isRequired;
-        const ctrl = this.control as unknown as { setRequired?: (b: boolean) => void };
-        if (ctrl && typeof ctrl.setRequired === "function") {
-            ctrl.setRequired(isRequired);
+    protected getDynamicRequiredOverride(sourceControl?: Control): boolean | undefined {
+        if (sourceControl && typeof sourceControl.data === "function") {
+            const dynReq = sourceControl.data("metauiDynamicRequired");
+            if (typeof dynReq === "boolean") {
+                return dynReq;
+            }
         }
+        return undefined;
     }
 
     /**
-     * Dynamically alters the editability of the field.
-     * Falls back to `setEnabled` if the control is structural rather than purely input-driven.
-     * 
-     * @param isEditable True to allow user input, false to lock it.
+     * Hook for subclasses (such as `NumberPlugin` and `PickerPlugin`) to return a widget-level parse error message
+     * before running schema validators.
+     *
+     * @param sourceControl Optional runtime source control (e.g., a cloned table row cell).
+     * @returns {string | undefined} The parse error message if the input is unparseable, otherwise `undefined`.
      */
-    public applyEditable(isEditable: boolean): void {
-        const ctrl = this.control as unknown as { setEditable?: (b: boolean) => void, setEnabled?: (b: boolean) => void };
-        if (ctrl && typeof ctrl.setEditable === "function") {
-            ctrl.setEditable(isEditable);
-        } else if (ctrl && typeof ctrl.setEnabled === "function") {
-            ctrl.setEnabled(isEditable);
-        }
+    protected getParseError(sourceControl?: Control): string | undefined {
+        void sourceControl;
+        return undefined;
     }
 
     /**
-     * Executes when the condition engine pushes new schema metadata to this field (e.g. readOnly changing).
-     * @param newMetadata The mutated schema metadata.
+     * Validates the current value of the control against the schema rules via the `PipelineManager`.
+     *
+     * @param sourceControl Optional runtime source control (e.g., a cloned table row cell).
+     * @returns {{ isValid: boolean; errorMessage?: string }} The validation result.
+     */
+    public validate(sourceControl?: Control): { isValid: boolean; errorMessage?: string } {
+        const target = sourceControl ?? this.control;
+        if (!target || !this.metadata || !this.isTargetVisible(sourceControl)) {
+            return { isValid: true };
+        }
+        const cleanPath = (
+            sourceControl ? this.resolveAbsolutePath(sourceControl) : this.bindingPath || this.fieldKey || ""
+        ).replace(/^\//, "");
+        const parseErr = this.invalidParsePaths.get(cleanPath) || this.getParseError(sourceControl);
+        if (parseErr) {
+            return { isValid: false, errorMessage: parseErr };
+        }
+        const rawControlVal = !this.isEditable ? this.getModelValue(sourceControl) : this.getValue(sourceControl);
+        const valueToValidate =
+            this.isEditable && this.hasPresentationalFormatter()
+                ? this.resolveModelWriteValue(rawControlVal)
+                : rawControlVal;
+        return PipelineManager.getInstance().runValidators(
+            valueToValidate,
+            this.metadata,
+            this.getDynamicRequiredOverride(sourceControl)
+        );
+    }
+
+    /**
+     * Updates the internal metadata when dynamic schema state changes occur (`IPlugin.onStateChange`).
+     *
+     * @param newMetadata The updated property metadata.
      */
     public onStateChange(newMetadata: IPropertyMetadata): void {
-        this.metadata = newMetadata;
-        this.applyState();
+        this.updateMetadata(newMetadata);
     }
 
     /**
-     * Abstract hook for the plugin to apply state changes to its specific UI5 control (e.g. placeholders, labels).
+     * Updates the internal metadata and triggers the concrete control to apply the new state.
+     *
+     * @param newMeta The updated property metadata.
      */
-    protected abstract applyState(): void;
+    public updateMetadata(newMeta: IPropertyMetadata): void {
+        this.metadata = newMeta;
+        this.applyState();
+        this.validate();
+    }
 
     /**
-     * Helper to apply common UI directives (like readOnly, visibleOn) directly to any control.
+     * Applies common UI directives (`readOnly`, `visible`, `visibleOn`, `enabled`, `enabledOn`, `controlProps`).
+     *
+     * @param control The outer UI5 control.
+     * @param metadata The property metadata.
+     * @param modelName The UI5 JSONModel alias.
      */
     protected applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName: string = "meta"): void {
-        const ctrl = control as unknown as { setEditable?: (b: boolean) => void, setEnabled?: (b: boolean) => void };
-        if (metadata.ui?.readOnly !== undefined && typeof ctrl.setEditable === "function") {
-            ctrl.setEditable(!metadata.ui.readOnly);
-        }
-
-        if (metadata.ui?.visibleOn) {
-            const expr = `{= ${metadata.ui.visibleOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
-            control.bindProperty("visible", { parts: [{ path: "meta>/" }], formatter: () => false });
-            control.bindProperty("visible", expr);
-        }
-
-        if (metadata.ui?.enabledOn && typeof ctrl.setEnabled === "function") {
-            const expr = `{= ${metadata.ui.enabledOn.replace(/\$root\./g, `${modelName}>/`).replace(/\./g, '/')} }`;
-            control.bindProperty("enabled", expr);
-        }
-
-        if (metadata.ui?.controlProps) {
-            Logger.debug(`[BasePlugin] controlProps found for ${this.fieldKey}: ` + JSON.stringify(metadata.ui.controlProps), "BasePlugin");
-            const targetControl = this.mainControl || control;
-
-            // Narrow interface to access runtime UI5 ElementMetadata methods not exposed in TS types
-            type IUI5Metadata = { getName(): string; hasAggregation(name: string): boolean; hasEvent(name: string): boolean; };
-            const target = targetControl as unknown as {
-                getMetadata?: () => IUI5Metadata;
-                applySettings?: (settings: Record<string, unknown>) => void;
-            };
-
-            if (typeof target.getMetadata === "function") {
-                const targetMeta = target.getMetadata();
-                const settings: Record<string, unknown> = {};
-                for (const [propName, propValue] of Object.entries(metadata.ui.controlProps)) {
-                    if (this.BLOCKED_PROPS.includes(propName)) {
-                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Property is protected by sandbox)`);
-                        continue;
-                    }
-                    
-                    // Natively block any aggregations or events to prevent sandbox escapes
-                    if (typeof targetMeta.hasAggregation === "function" && targetMeta.hasAggregation(propName)) {
-                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack aggregations)`);
-                        continue;
-                    }
-
-                    if (typeof targetMeta.hasEvent === "function" && targetMeta.hasEvent(propName)) {
-                        Logger.warn(`[BasePlugin] Cannot apply controlProps '${propName}' for field '${this.fieldKey}' - ILLEGAL OVERRIDE (Cannot hijack events)`);
-                        continue;
-                    }
-
-                    if (typeof propValue === "string" && propValue.startsWith("{") && propValue.endsWith("}")) {
-                        // The JSON payloads often hardcode 'metaui>' in raw expression bindings, 
-                        // but the Engine dynamically generates model names like 'metaUI_Host1'. 
-                        // We must inject the actual modelName dynamically into the expression string.
-                        const injectedValue = propValue.replace(/metaui>/g, `${modelName}>`);
-                        settings[propName] = injectedValue;
-                    } else {
-                        settings[propName] = propValue;
-                    }
-                }
-
-                try {
-                    if (typeof target.applySettings === "function") {
-                        target.applySettings(settings);
-                    }
-                } catch (err: unknown) {
-                    Logger.warn(`[BasePlugin] Failed to apply controlProps for field '${this.fieldKey}' on control ${targetMeta.getName()}: ${(err as Error).message}`);
-                }
-            }
-        }
+        ControlDirectiveUtil.applyCommonDirectives(
+            control,
+            this.mainControl ?? control,
+            metadata,
+            this.bindingPath || this.fieldKey || "",
+            this.isEditable,
+            modelName
+        );
     }
 
-
+    /**
+     * Generates a binding info object or binding path string for UI5 controls.
+     *
+     * @param bindingPath The JSON path to bind.
+     * @param modelName The UI5 JSONModel alias.
+     * @param type Optional UI5 data type name.
+     * @param additionalOptions Optional extra binding options.
+     * @returns {PropertyBindingInfo | string} The binding descriptor.
+     */
+    protected generateBindingInfo(
+        bindingPath: string,
+        modelName: string = "meta",
+        type?: string,
+        additionalOptions?: Record<string, unknown>
+    ): PropertyBindingInfo | string {
+        return ControlDirectiveUtil.generateBindingInfo(bindingPath, modelName, this.metadata, type, additionalOptions);
+    }
 
     /**
-     * Natively destroys the instantiated UI5 control to prevent memory leaks.
-     * Can be overridden by subclasses if they manage secondary controls or custom models.
+     * Generates a deterministic, stable ID for UI5 controls based on the engine scope and binding path.
+     *
+     * @param engineScopeId Deterministic scope ID prefix.
+     * @param bindingPath Property binding path.
+     * @returns {string | undefined} The sanitized stable control ID.
      */
-    public destroy(): void {
-        if (this.control && typeof this.control.destroy === "function") {
-            this.control.destroy();
-            this.control = null;
+    protected generateStableId(engineScopeId: string | undefined, bindingPath: string): string | undefined {
+        if (!engineScopeId) {
+            return undefined;
         }
+        const cleanPath = bindingPath.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+/, "");
+        return `${engineScopeId}-${cleanPath}`;
     }
 }

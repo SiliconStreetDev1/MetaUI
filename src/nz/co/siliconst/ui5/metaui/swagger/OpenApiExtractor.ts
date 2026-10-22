@@ -1,160 +1,199 @@
-import UI5Object from "sap/ui/base/Object";
+/**
+ * @file OpenApiExtractor.ts
+ * @description Dynamically inspects OpenAPI 2.0 and 3.0 specifications to extract all selectable
+ * root schema definitions and HTTP operation endpoints, ranking the primary aggregate root first.
+ */
 
+import UI5Object from "sap/ui/base/Object";
+import { OPENAPI_PREFIX } from "../constants/MetaUIConstants";
+import { OpenApiParserFactory } from "../openapi/OpenApiParserFactory";
+import { OpenApiRefResolver } from "../openapi/OpenApiRefResolver";
+import { JsonRecord, isRecord, readString, readRecord, readStringArray } from "../utils/TypeGuards";
+
+/**
+ * Represents a selectable OpenAPI schema or operation target in the UI.
+ */
 export interface OpenApiTarget {
     key: string;
     text: string;
 }
 
+const GENERIC_ROOT_KEYWORDS: readonly string[] = ["root", "main", "app", "application", "payload", "document"];
+const HTTP_METHODS: ReadonlySet<string> = new Set([
+    "get",
+    "put",
+    "post",
+    "delete",
+    "options",
+    "head",
+    "patch",
+    "trace"
+]);
+
 /**
- * @class
- * OpenApiExtractor utility.
- * Dynamically crawls OpenAPI/Swagger JSON specifications to find all valid 
- * root endpoints and schema definitions that can be used as a schemaTarget.
- * 
+ * Dynamically crawls OpenAPI/Swagger JSON specifications to find all valid
+ * root endpoints and schema definitions that can be used as a `schemaTarget`.
+ *
  * @extends sap.ui.base.Object
  * @alias nz.co.siliconst.ui5.metaui.swagger.OpenApiExtractor
+ * @public
  */
 export default class OpenApiExtractor extends UI5Object {
-
     /**
-     * Parses an OpenAPI document and extracts an array of valid targets.
-     * 
-     * @public
-     * @param oSchema The parsed JSON schema object.
-     * @returns Array of target bindings.
+     * Parses an OpenAPI document and extracts an ordered array of valid targets,
+     * placing the highest-scoring aggregate root schema first as `(Recommended)`.
+     *
+     * @param rawSchema The parsed JSON schema object.
+     * @returns {OpenApiTarget[]} Array of target descriptors.
      */
     public static extractTargets(rawSchema: unknown): OpenApiTarget[] {
-        const aTargets: OpenApiTarget[] = [];
-        if (!rawSchema || typeof rawSchema !== "object") {
-            return aTargets;
+        const targets: OpenApiTarget[] = [];
+        if (!isRecord(rawSchema)) {
+            return targets;
         }
 
-        const oSchema = rawSchema as Record<string, unknown>;
+        const specVersion = OpenApiParserFactory.detectSpecVersion(rawSchema);
+        const components = readRecord(rawSchema, "components");
+        const oa3Schemas = components ? readRecord(components, "schemas") : undefined;
+        const oa2Defs = readRecord(rawSchema, "definitions");
 
-        // OpenAPI 3.0 (components/schemas)
-        if (typeof oSchema.openapi === "string" && oSchema.openapi.startsWith("3.") && oSchema.components && typeof (oSchema.components as Record<string,unknown>).schemas === "object") {
-            Object.keys((oSchema.components as Record<string,unknown>).schemas as Record<string,unknown>).forEach((sKey) => {
-                aTargets.push({
-                    key: "#/components/schemas/" + sKey,
-                    text: "Schema: " + sKey
+        if (specVersion === "3.0" && oa3Schemas) {
+            for (const key of Object.keys(oa3Schemas)) {
+                targets.push({
+                    key: `${OPENAPI_PREFIX.COMPONENTS_SCHEMAS}${key}`,
+                    text: `Schema: ${key}`
                 });
-            });
-        }
-        
-        // Swagger 2.0 (definitions)
-        if (typeof oSchema.swagger === "string" && oSchema.swagger.startsWith("2.") && typeof oSchema.definitions === "object" && oSchema.definitions !== null) {
-            Object.keys(oSchema.definitions as Record<string,unknown>).forEach((sKey) => {
-                aTargets.push({
-                    key: "#/definitions/" + sKey,
-                    text: "Definition: " + sKey
-                });
-            });
-        }
-
-        // Extract endpoints
-        if (typeof oSchema.paths === "object" && oSchema.paths !== null) {
-            Object.keys(oSchema.paths as Record<string,unknown>).forEach((sPath) => {
-                const methods = (oSchema.paths as Record<string,unknown>)[sPath];
-                if (methods && typeof methods === "object") {
-                    Object.keys(methods).forEach((sMethod) => {
-                        const escapedPath = sPath.replace(/\//g, "~1");
-                        aTargets.push({
-                            key: "#/paths/" + escapedPath + "/" + sMethod,
-                            text: "Operation: " + sMethod.toUpperCase() + " " + sPath
-                        });
-                    });
-                }
-            });
-        }
-
-        // Primary Schema Detection
-        if (aTargets.length > 1) {
-            let bestScore = -1;
-            let bestIndex = -1;
-            
-                    const info = oSchema.info as Record<string, unknown> | undefined;
-            const title = (info && typeof info.title === "string") ? info.title.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
-            const titleWords = (info && typeof info.title === "string") ? info.title.toLowerCase().split(/[\s_-]+/) : [];
-            
-            aTargets.forEach((target, index) => {
-                let score = 0;
-                
-                // Only score Schemas/Definitions, not operations for the primary node heuristic
-                if (target.key.includes("/schemas/") || target.key.includes("/definitions/")) {
-                    const name = target.key.split("/").pop() || "";
-                    const nameLower = name.toLowerCase();
-                    const nameClean = nameLower.replace(/[^a-z0-9]/g, "");
-                    
-                    if (title && nameClean === title) score += 30; // Reduced from 100
-                    else if (title && title.includes(nameClean)) score += 15; // Reduced from 50
-                    else if (title && nameClean.includes(title)) score += 15; // Reduced from 50
-                    
-                    titleWords.forEach((word: string) => {
-                        if (word.length > 3 && nameLower.includes(word)) score += 5; // Reduced from 10
-                    });
-                    
-                    const genericRoots = ["root", "main", "app", "application", "payload", "document"];
-                    if (genericRoots.some(r => nameLower.includes(r))) score += 5;
-
-                    // Complexity Fallback
-                    let schemaDef: Record<string, unknown> | null = null;
-                    if (target.key.startsWith("#/components/schemas/") && typeof oSchema.components === "object" && oSchema.components !== null) {
-                        const components = oSchema.components as Record<string, unknown>;
-                        if (typeof components.schemas === "object" && components.schemas !== null) {
-                            schemaDef = (components.schemas as Record<string, Record<string, unknown>>)[name] || null;
-                        }
-                    } else if (target.key.startsWith("#/definitions/") && typeof oSchema.definitions === "object" && oSchema.definitions !== null) {
-                        schemaDef = (oSchema.definitions as Record<string, Record<string, unknown>>)[name] || null;
-                    }
-
-                    if (schemaDef && typeof schemaDef === "object") {
-                        const scoreSchemaNode = (node: unknown) => {
-                            if (!node || typeof node !== "object") return;
-                            const nodeObj = node as Record<string, unknown>;
-                            if (nodeObj.properties && typeof nodeObj.properties === "object") {
-                                score += Object.keys(nodeObj.properties).length * 2; // +2 per property
-                                Object.values(nodeObj.properties).forEach((prop: unknown) => {
-                                    if (prop && typeof prop === "object") {
-                                        const propObj = prop as Record<string, unknown>;
-                                        if (propObj.$ref) score += 20; // +20 for referencing sub-schemas (aggregate root)
-                                        if (propObj.items && typeof propObj.items === "object" && (propObj.items as Record<string, unknown>).$ref) score += 20;
-                                    }
-                                });
-                            }
-                            
-                            if (nodeObj.required && Array.isArray(nodeObj.required)) {
-                                score += nodeObj.required.length * 5; // +5 per required constraint
-                            }
-                        };
-
-                        scoreSchemaNode(schemaDef);
-
-                        // Handle OpenAPI composition structures
-                        if (schemaDef.allOf && Array.isArray(schemaDef.allOf)) {
-                            schemaDef.allOf.forEach(scoreSchemaNode);
-                        }
-                        if (schemaDef.anyOf && Array.isArray(schemaDef.anyOf)) {
-                            schemaDef.anyOf.forEach(scoreSchemaNode);
-                        }
-                        if (schemaDef.oneOf && Array.isArray(schemaDef.oneOf)) {
-                            schemaDef.oneOf.forEach(scoreSchemaNode);
-                        }
-                    }
-                }
-                
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestIndex = index;
-                }
-            });
-
-            if (bestIndex !== -1 && bestScore > 0) {
-                const primary = aTargets.splice(bestIndex, 1)[0];
-                primary.text = `(Recommended) ${primary.text}`;
-                aTargets.unshift(primary);
             }
         }
 
-        return aTargets;
+        if (specVersion === "2.0" && oa2Defs) {
+            for (const key of Object.keys(oa2Defs)) {
+                targets.push({
+                    key: `${OPENAPI_PREFIX.DEFINITIONS}${key}`,
+                    text: `Definition: ${key}`
+                });
+            }
+        }
+
+        const paths = readRecord(rawSchema, "paths");
+        if (paths) {
+            for (const [pathKey, methods] of Object.entries(paths)) {
+                if (isRecord(methods)) {
+                    const escapedPath = OpenApiRefResolver.escapePointerSegment(pathKey);
+                    for (const methodKey of Object.keys(methods)) {
+                        if (HTTP_METHODS.has(methodKey.toLowerCase()) && isRecord(methods[methodKey])) {
+                            targets.push({
+                                key: `#/paths/${escapedPath}/${methodKey}`,
+                                text: `Operation: ${methodKey.toUpperCase()} ${pathKey}`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (targets.length > 1) {
+            this.promotePrimaryTarget(targets, rawSchema, oa3Schemas, oa2Defs);
+        }
+
+        return targets;
+    }
+
+    /**
+     * Scores candidate schema targets by title affinity and structural complexity,
+     * moving the highest-scoring aggregate root to index 0 with a `(Recommended)` prefix.
+     */
+    private static promotePrimaryTarget(
+        targets: OpenApiTarget[],
+        rawSchema: JsonRecord,
+        oa3Schemas?: JsonRecord,
+        oa2Defs?: JsonRecord
+    ): void {
+        const info = readRecord(rawSchema, "info");
+        const rawTitle = info ? readString(info, "title") || "" : "";
+        const titleClean = rawTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const titleWords = rawTitle.toLowerCase().split(/[\s_-]+/);
+
+        let bestScore = -1;
+        let bestIndex = -1;
+
+        targets.forEach((target, index) => {
+            if (!target.key.includes("/schemas/") && !target.key.includes("/definitions/")) {
+                return;
+            }
+
+            const name = target.key.split("/").pop() || "";
+            const nameLower = name.toLowerCase();
+            const nameClean = nameLower.replace(/[^a-z0-9]/g, "");
+            let score = 0;
+
+            if (titleClean && nameClean === titleClean) score += 30;
+            else if (titleClean && (titleClean.includes(nameClean) || nameClean.includes(titleClean))) score += 15;
+
+            for (const word of titleWords) {
+                if (word.length > 3 && nameLower.includes(word)) {
+                    score += 5;
+                }
+            }
+            if (GENERIC_ROOT_KEYWORDS.some((kw) => nameLower.includes(kw))) {
+                score += 5;
+            }
+
+            const schemaDef = target.key.startsWith(OPENAPI_PREFIX.COMPONENTS_SCHEMAS)
+                ? readRecord(oa3Schemas || {}, name)
+                : readRecord(oa2Defs || {}, name);
+
+            if (schemaDef) {
+                score += this.scoreSchemaComplexity(schemaDef);
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = index;
+            }
+        });
+
+        if (bestIndex !== -1 && bestScore > 0) {
+            const primary = targets.splice(bestIndex, 1)[0];
+            primary.text = `(Recommended) ${primary.text}`;
+            targets.unshift(primary);
+        }
+    }
+
+    /**
+     * Calculates a structural complexity score for a schema node based on its properties, `$ref` links, and required constraints.
+     */
+    private static scoreSchemaComplexity(schemaDef: JsonRecord): number {
+        let score = 0;
+        const scoreNode = (node: unknown): void => {
+            if (!isRecord(node)) return;
+            if (readString(node, "$ref")) {
+                score += 20;
+            }
+            const props = readRecord(node, "properties");
+            if (props) {
+                score += Object.keys(props).length * 2;
+                for (const prop of Object.values(props)) {
+                    if (isRecord(prop)) {
+                        if (readString(prop, "$ref")) score += 20;
+                        const items = readRecord(prop, "items");
+                        if (items && readString(items, "$ref")) score += 20;
+                    }
+                }
+            }
+            const req = readStringArray(node, "required");
+            if (req) {
+                score += req.length * 5;
+            }
+        };
+
+        scoreNode(schemaDef);
+        for (const compKey of ["allOf", "anyOf", "oneOf"]) {
+            const list = schemaDef[compKey];
+            if (Array.isArray(list)) {
+                list.forEach(scoreNode);
+            }
+        }
+        return score;
     }
 }

@@ -1,87 +1,49 @@
 /**
  * @file StringPlugin.ts
- * @description Renders a sap.m.Input for string data and validates lengths.
+ * @description Renders a standard sap.m.Input control for string properties.
  */
 
-import { BasePlugin } from "./BasePlugin";
+import { TextLikeInputPlugin } from "./TextLikeInputPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Control from "sap/ui/core/Control";
-import TextControl from "sap/m/Text";
+import Event from "sap/ui/base/Event";
 
 /**
- * Handles rendering and logic for basic text inputs.
- * Maps schema properties like `maxLength` and `required` natively to `sap.m.Input`.
- * 
+ * Plugin responsible for rendering standard text inputs (`sap.m.Input`).
+ * Supports `maxLength`, `placeholder`, and live validation hooks.
+ *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
-export class StringPlugin extends BasePlugin {
+export class StringPlugin extends TextLikeInputPlugin {
+    protected override readonly syncPlaceholderAndMaxLength: boolean = true;
+
     /**
-     * Renders a `sap.m.Input` control configured via the provided schema metadata.
-     * 
-     * @param fieldMetadata The specific JSON schema properties for this field.
+     * Constructs the editable `sap.m.Input` control.
+     *
+     * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
      * @returns {Control} The configured Input control.
      */
-    public render(fieldMetadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = fieldMetadata;
-        this.fieldKey = bindingPath.replace("/", ""); // For EventBus
-        
-        if (!this.isEditable) {
-            
-            this.control = new TextControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                text: this.generateBindingInfo(bindingPath, modelName)
-            });
-            this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-            return this.control as Control;
-        }
-
-        this.control = new Input({
+    protected createEditableControl(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        return new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            maxLength: fieldMetadata.maxLength || 0,
-            required: !!fieldMetadata.required,
-            showValueHelp: fieldMetadata.ui?.widget === "searchHelp",
-            change: (oEvent: sap.ui.base.Event) => {
-                const val = (oEvent as sap.ui.base.Event).getParameter("value");
-                const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
-                }
+            value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
+            placeholder: metadata.ui?.placeholder || "",
+            maxLength: metadata.maxLength || 0,
+            required: this.isRequired(),
+            change: (oEvent: Event) => {
+                const src = oEvent.getSource() as Control;
+                this.notifyChange(src.getId());
             }
         });
-
-        this.applyCommonDirectives(this.control, fieldMetadata, modelName);
-
-        return this.control as Control;
-    }
-
-    /**
-     * Retrieves the current string value from the input.
-     * @returns {unknown} The string value.
-     */
-    protected getValue(): unknown {
-        return this.control ? (this.control as Input).getProperty('value') : null;
-    }
-
-    /**
-     * Adjusts dynamic state properties (editable/required) based on ConditionEngine mutations.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) {
-                // Text doesn't have editable/required state
-                return;
-            }
-            const input = this.control as Input;
-            input.setEditable(!this.metadata.ui?.readOnly);
-            input.setRequired(this.metadata.required);
-        }
     }
 }

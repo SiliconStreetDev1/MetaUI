@@ -1,227 +1,223 @@
-import BaseHardwareControl from "./BaseHardwareControl";
-import Button from "sap/m/Button";
-import VBox from "sap/m/VBox";
-import TextArea from "sap/m/TextArea";
-import MessageToast from "sap/m/MessageToast";
+/**
+ * @file VoiceInputControl.ts
+ * @description Hardware control for speech-to-text transcription using the Web Speech API.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.controls
+ */
+import BaseHardwareControl, { $BaseHardwareControlSettings } from "./BaseHardwareControl";
+import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
 import HBox from "sap/m/HBox";
+import Input from "sap/m/Input";
+import Button from "sap/m/Button";
+import FlexItemData from "sap/m/FlexItemData";
+import { ButtonType, FlexAlignItems } from "sap/m/library";
 import { Logger } from "../utils/Logger";
 
-import Event from "sap/ui/base/Event";
-declare global {
-    interface Window {
-        SpeechRecognition: new () => SpeechRecognition;
-        webkitSpeechRecognition: new () => SpeechRecognition;
-    }
-    interface SpeechRecognition {
-        continuous: boolean;
-        interimResults: boolean;
-        onresult: (event: SpeechRecognitionEvent) => void;
-        onstart: () => void;
-        onerror: (event: SpeechRecognitionErrorEvent) => void;
-        onend: () => void;
-        start(): void;
-        stop(): void;
-    }
-    interface SpeechRecognitionEvent {
-        resultIndex: number;
-        results: {
-            length: number;
-            [index: number]: {
-                isFinal: boolean;
-                [index: number]: {
-                    transcript: string;
-                };
-            };
-        };
-    }
-    interface SpeechRecognitionErrorEvent {
-        error: string;
-    }
+/**
+ * Minimal structural typing for the browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`).
+ */
+interface ISpeechRecognitionAlternative {
+    transcript: string;
+}
+
+interface ISpeechRecognitionResult {
+    0: ISpeechRecognitionAlternative;
+    length: number;
+}
+
+interface ISpeechRecognitionEvent {
+    results: ArrayLike<ISpeechRecognitionResult>;
+}
+
+interface ISpeechRecognitionInstance {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((event: ISpeechRecognitionEvent) => void) | null;
+    onerror: ((event: { error?: string }) => void) | null;
+    onend: (() => void) | null;
+    start(): void;
+    stop(): void;
+}
+
+interface IWindowWithSpeechRecognition {
+    SpeechRecognition?: new () => ISpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => ISpeechRecognitionInstance;
 }
 
 /**
- * VoiceInputControl
- * Provides a UI to dictate text using the browser's native Web Speech API.
+ * Custom UI5 control combining a text `Input` with a microphone `Button` powered by the Web Speech API.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.controls
+ * @public
  */
 export default class VoiceInputControl extends BaseHardwareControl {
-
-
-    private vBox!: VBox;
-    private textArea!: TextArea;
-    private startBtn!: Button;
-    private stopBtn!: Button;
-    
-    private recognition: SpeechRecognition | null = null;
+    static renderer = BaseHardwareControlRenderer;
+    private textInput!: Input;
+    private recordBtn!: Button;
+    private recognition: ISpeechRecognitionInstance | null = null;
     private isRecording: boolean = false;
 
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings) {
+        super(idOrSettings, settings);
+    }
+
     /**
-     * Initializes the dictation interface and requests Web Speech API setup.
+     * Initializes the internal HBox layout containing the transcription `Input` and Microphone `Button`.
      */
     public init(): void {
-        super.init();
+        if (BaseHardwareControl.prototype.init) {
+            BaseHardwareControl.prototype.init.call(this);
+        }
 
-        this.textArea = new TextArea({
-            rows: 3,
+        this.textInput = new Input({
             width: "100%",
-            placeholder: "Dictated text will appear here...",
-            liveChange: (oEvent: Event) => {
-                this.setValueAndFire((oEvent.getParameter("value") as any));
+            placeholder: "Speak or type here...",
+            layoutData: new FlexItemData({ growFactor: 1 }),
+            change: () => {
+                const newVal = this.textInput.getValue();
+                this.setProperty("value", newVal, true);
+                this.fireEvent("capture", { value: newVal });
+            }
+        }).addStyleClass("sapUiTinyMarginEnd");
+
+        this.recordBtn = new Button({
+            icon: "sap-icon://microphone",
+            tooltip: "Start Voice Input",
+            type: ButtonType.Default,
+            press: () => {
+                this.toggleRecording();
             }
         });
 
-        this.startBtn = new Button({
-            icon: "sap-icon://microphone",
-            text: "Start Dictation",
-            type: "Emphasized",
-            press: this.toggleDictation.bind(this)
+        const layout = new HBox({
+            width: "100%",
+            alignItems: FlexAlignItems.Center,
+            items: [this.textInput, this.recordBtn]
         });
 
-        const hBox = new HBox({
-            items: [this.startBtn]
-        }).addStyleClass("sapUiSmallMarginTop");
-
-        this.vBox = new VBox({
-            items: [this.textArea, hBox]
-        });
-
-        this.setAggregation("_content", this.vBox);
-        this.initSpeechRecognition();
-    }
-
-    private toggleDictation(): void {
-        if (this.isRecording) {
-            this.stopDictation();
-        } else {
-            this.startDictation();
-        }
-    }
-
-    private initSpeechRecognition(): void {
-        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognitionClass) {
-            this.recognition = new SpeechRecognitionClass();
-            this.recognition.continuous = true;
-            this.recognition.interimResults = true;
-
-            this.recognition.onresult = (event: SpeechRecognitionEvent) => {
-                let finalTranscript = "";
-                let interimTranscript = "";
-
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
-                }
-
-                // Append the new final transcript to whatever was already in the textarea
-                const currentVal = this.getProperty("value") as string || "";
-                const newVal = currentVal ? currentVal + " " + finalTranscript : finalTranscript;
-                
-                if (finalTranscript) {
-                    this.textArea.setValue(newVal);
-                    this.setValueAndFire(newVal);
-                } else if (interimTranscript) {
-                    // Just show interim temporarily in textarea without saving to model
-                    this.textArea.setValue(currentVal ? currentVal + " " + interimTranscript : interimTranscript);
-                }
-            };
-
-            this.recognition.onstart = () => {
-                this.isRecording = true;
-                this.startBtn.setIcon("sap-icon://stop");
-                this.startBtn.setText("Stop Recording");
-                this.startBtn.setType("Reject");
-                MessageToast.show("Listening... Please speak now.");
-            };
-
-            this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-                Logger.error("Speech recognition error", event.error, "VoiceInputControl");
-                sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => {
-                    MessageBox.error("Microphone Error: " + event.error + "\n\nPlease ensure you have a working microphone attached and have not blocked access in your browser settings.");
-                });
-                this.stopDictation();
-            };
-            
-            this.recognition.onend = () => {
-                // If it ends natively (e.g. timeout), update UI
-                this.stopDictation();
-            };
-        } else {
-            Logger.warn("Web Speech API not supported in this browser.", "", "VoiceInputControl");
-            this.startBtn.setEnabled(false);
-            this.startBtn.setTooltip("Speech Recognition is not supported in this browser.");
-        }
-    }
-
-    private startDictation(): void {
-        if (!this.recognition) return;
-        
-        try {
-            this.recognition.start();
-            MessageToast.show("Requesting microphone access...");
-            // Provide immediate UI feedback in case browser delays the onstart event
-            this.startBtn.setIcon("sap-icon://stop");
-            this.startBtn.setText("Requesting mic...");
-            this.startBtn.setType("Reject");
-        } catch (err) {
-            const error = err as Error;
-            Logger.error("Failed to start speech recognition", error.message || String(error), "VoiceInputControl");
-            sap.ui.require(["sap/m/MessageBox"], (MessageBox: typeof import("sap/m/MessageBox").default) => {
-                MessageBox.error("Failed to start dictation. Please ensure you have a working microphone and have granted browser permissions.\n\nDetails: " + (error.message || String(error)));
-            });
-            this.stopDictation();
-        }
-    }
-
-    private stopDictation(): void {
-        if (!this.recognition) return;
-        
-        try {
-            this.recognition.stop();
-        } catch(e) {
-            Logger.warn("Failed to gracefully stop speech recognition.", String(e), "VoiceInputControl");
-        }
-        
-        this.isRecording = false;
-        this.startBtn.setIcon("sap-icon://microphone");
-        this.startBtn.setText("Start Dictation");
-        this.startBtn.setType("Emphasized");
+        this.setAggregation("_content", layout);
     }
 
     /**
-     * Lifecycle hook called before the control is rendered to the DOM.
-     * Handles browser support visual state.
+     * Synchronizes the `Input` and `Button` editability/value before rendering.
      */
     public onBeforeRendering(): void {
-        const readOnly = this.getProperty("readOnly");
-        this.textArea.setEditable(!readOnly);
-        
-        // Only enable if it's not readonly AND the browser supports speech recognition
-        this.startBtn.setEnabled(!readOnly && !!this.recognition);
-
-        const currentVal = this.getProperty("value");
-        if (currentVal !== undefined && currentVal !== null) {
-            // Only update text area if we aren't currently dictating interim results
-            if (!this.isRecording) {
-                this.textArea.setValue(currentVal as string);
+        this.syncHardwareState();
+        if (this.textInput) {
+            const currentVal = this.getProperty("value");
+            const nextStr = typeof currentVal === "string" ? currentVal : "";
+            if (this.textInput.getValue() !== nextStr) {
+                this.textInput.setValue(nextStr);
             }
         }
     }
 
     /**
-     * Cleans up hardware event listeners when the control is destroyed.
+     * Synchronizes the inner transcription `Input` and microphone `Button` with `readOnly`, `valueState`, and `valueStateText`.
+     */
+    protected override syncHardwareState(): void {
+        const isReadOnly = Boolean(this.getProperty("readOnly"));
+        if (this.textInput) {
+            this.textInput.setEditable(!isReadOnly);
+            this.textInput.setValueState(this.getValueState());
+            this.textInput.setValueStateText(this.getValueStateText());
+        }
+        if (this.recordBtn) {
+            this.recordBtn.setEnabled(!isReadOnly);
+        }
+    }
+
+    /**
+     * Updates the `value` property and synchronizes the internal `Input` text.
+     *
+     * @param sValue The new transcription text string.
+     * @returns {this} This control instance for chaining.
+     */
+    public setValue(sValue: string | null): this {
+        this.setProperty("value", sValue, true);
+        if (this.textInput) {
+            const nextStr = sValue || "";
+            if (this.textInput.getValue() !== nextStr) {
+                this.textInput.setValue(nextStr);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Starts or stops Web Speech API recognition.
+     */
+    private toggleRecording(): void {
+        if (this.getProperty("readOnly")) {
+            return;
+        }
+
+        if (this.isRecording && this.recognition) {
+            this.recognition.stop();
+            return;
+        }
+
+        const speechWindow: IWindowWithSpeechRecognition = window as IWindowWithSpeechRecognition;
+        const SpeechRecognitionCtor =
+            speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+        if (!SpeechRecognitionCtor) {
+            Logger.warn(
+                "[MetaUI VoiceInputControl]",
+                "Web Speech API is not supported in this browser.",
+                "VoiceInputControl"
+            );
+            return;
+        }
+
+        this.recognition = new SpeechRecognitionCtor();
+        this.recognition.continuous = false;
+        this.recognition.interimResults = false;
+        this.recognition.lang = navigator.language || "en-US";
+
+        this.recognition.onresult = (event: ISpeechRecognitionEvent) => {
+            if (this.isDestroyed()) {
+                return;
+            }
+            if (event.results && event.results.length > 0 && event.results[0][0]) {
+                const transcript = event.results[0][0].transcript;
+                this.setValue(transcript);
+                this.fireEvent("capture", { value: transcript });
+            }
+        };
+
+        this.recognition.onerror = (event: { error?: string }) => {
+            if (this.isDestroyed()) {
+                return;
+            }
+            Logger.warn(
+                "[MetaUI VoiceInputControl]",
+                `Speech recognition error: ${event.error || "unknown"}`,
+                "VoiceInputControl"
+            );
+        };
+
+        this.recognition.onend = () => {
+            this.isRecording = false;
+            if (this.recordBtn && !this.recordBtn.isDestroyed()) {
+                this.recordBtn.setType(ButtonType.Default);
+            }
+        };
+
+        this.isRecording = true;
+        this.recordBtn.setType(ButtonType.Emphasized);
+        this.recognition.start();
+    }
+
+    /**
+     * Stops any active speech recognition session when the control is destroyed.
      */
     public exit(): void {
-        this.stopDictation();
-        if (this.recognition) {
-            (this.recognition as any).onstart = null;
-            (this.recognition as any).onresult = null;
-            (this.recognition as any).onerror = null;
-            (this.recognition as any).onend = null;
+        if (this.isRecording && this.recognition) {
+            this.recognition.stop();
             this.recognition = null;
+            this.isRecording = false;
         }
-        super.exit();
     }
 }

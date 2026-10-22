@@ -1,314 +1,346 @@
-﻿/**
+/**
  * @file OpenApiPropertyMapper.ts
- * @description Extracts and maps OpenAPI properties into MetaUI IPropertyMetadata.
+ * @description Extracts and maps OpenAPI properties into MetaUI IPropertyMetadata using strict type guards.
  */
 
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { OpenApiRefResolver } from "../OpenApiRefResolver";
-import { OpenApiTypeMapper } from "../OpenApiTypeMapper";
 import { OpenApiUIMapper } from "../OpenApiUIMapper";
-import { FieldType } from "../../interfaces/ISchema";
+import { OpenApiConstraintMapper } from "./OpenApiConstraintMapper";
+import { DataInferenceBuilder } from "../../core/DataInferenceBuilder";
+import { SchemaDirectiveNormalizer } from "../../core/SchemaDirectiveNormalizer";
+import { WIDGET_TYPE } from "../../constants/MetaUIConstants";
+import { Logger } from "../../utils/Logger";
+import {
+    JsonRecord,
+    isRecord,
+    readString,
+    readBoolean,
+    readRecord,
+    readStringArray
+} from "../../utils/TypeGuards";
 
 /**
- * Utility class responsible for extracting and mapping OpenAPI properties into the native MetaUI IPropertyMetadata schema format.
- * 
+ * Translates OpenAPI 2.0 and 3.0 property definitions into normalized MetaUI `IPropertyMetadata` descriptors.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
  * @public
  */
 export class OpenApiPropertyMapper {
+    private static readonly MAX_MAPPING_DEPTH = 8;
+
     /**
-     * Recursively traverses and translates an OpenAPI properties block into a MetaUI IPropertyMetadata dictionary.
-     * 
-     * @param {unknown} properties The OpenAPI properties block.
-     * @param {string[]} requiredKeys Array of required property keys.
-     * @param {unknown} openApiRoot The OpenAPI root document for resolving references.
-     * @param {"2.0" | "3.0"} version The OpenAPI version.
-     * @param {number} [depth=0] Recursion depth limiter to prevent stack overflows on circular refs.
-     * @returns {Record<string, IPropertyMetadata>} The normalized MetaUI properties mapping.
+     * Recursively translates an OpenAPI `properties` block into a MetaUI `IPropertyMetadata` dictionary.
+     *
+     * @param properties The OpenAPI `properties` record.
+     * @param requiredKeys Array of required property keys from the parent object.
+     * @param openApiRoot The OpenAPI root document for resolving `$ref` pointers.
+     * @param depth Current recursion depth to prevent stack overflows on circular references.
+     * @param activeRefs Set of active `$ref` strings on the recursion stack.
+     * @returns {Record<string, IPropertyMetadata>} The normalized MetaUI property dictionary.
      */
     public static mapProperties(
-        properties: unknown, 
-        requiredKeys: string[], 
-        openApiRoot: unknown, 
-        version: "2.0" | "3.0", 
-        depth: number = 0
+        properties: unknown,
+        requiredKeys: string[],
+        openApiRoot: unknown,
+        depth: number = 0,
+        activeRefs: Set<string> = new Set()
     ): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
-        
-        if (depth > 8) return normalizedProps;
-        const props = (properties || {}) as Record<string, unknown>;
-
-        for (const key of Object.keys(props)) {
-            const isRequired = requiredKeys.includes(key);
-            let propDef = props[key] as Record<string, unknown>;
-
-            if (propDef.$ref) {
-                const resolved = OpenApiRefResolver.resolve(propDef.$ref as string, openApiRoot) as Record<string, unknown>;
-                if (resolved) {
-                    propDef = { ...resolved, ...propDef };
-                }
-            }
-
-            normalizedProps[key] = this.mapPropertyMetadata(propDef, key, isRequired, openApiRoot, version, depth + 1);
+        if (depth > this.MAX_MAPPING_DEPTH) {
+            Logger.warn(
+                `Nested schema exceeded MAX_MAPPING_DEPTH (${this.MAX_MAPPING_DEPTH}); ` +
+                `${isRecord(properties) ? Object.keys(properties).length : 0} propert(ies) were dropped.`,
+                undefined,
+                "OpenApiPropertyMapper"
+            );
+            return normalizedProps;
         }
-        
+        if (!isRecord(properties)) {
+            return normalizedProps;
+        }
+
+        for (const key of Object.keys(properties)) {
+            const isRequired = requiredKeys.includes(key);
+            const rawProp = properties[key];
+            const propDef: JsonRecord = isRecord(rawProp) ? rawProp : {};
+
+            // Not depth + 1: mapProperties and mapPropertyMetadata are the two halves of a
+            // single nesting level (mapProperties -> mapPropertyMetadata -> applyNestedTypes
+            // -> mapProperties). Incrementing in both halves charged two units per level and
+            // made MAX_MAPPING_DEPTH bite at half its stated value.
+            normalizedProps[key] = this.mapPropertyMetadata(
+                propDef,
+                key,
+                isRequired,
+                openApiRoot,
+                depth,
+                activeRefs
+            );
+        }
+
         return normalizedProps;
     }
 
     /**
-     * Translates a single OpenAPI property schema block into a MetaUI IPropertyMetadata block.
-     * Delegates specific mapping tasks to focused private methods to adhere to SRP.
-     * 
-     * @param {unknown} swaggerProp The specific OpenAPI property schema to map.
-     * @param {string} keyName The key/name of this property.
-     * @param {boolean} isRequired Whether this property is strictly required.
-     * @param {unknown} openApiRoot The OpenAPI root document for resolving references.
-     * @param {"2.0" | "3.0"} version The OpenAPI version.
-     * @param {number} [depth=0] Recursion depth limiter.
+     * Translates a single OpenAPI property schema block into a MetaUI `IPropertyMetadata` descriptor.
+     *
+     * @param swaggerProp The raw OpenAPI property schema to map.
+     * @param keyName The property key name.
+     * @param isRequired Whether this property is mandatory on its parent object.
+     * @param openApiRoot The OpenAPI root document for resolving `$ref` pointers.
+     * @param depth Current recursion depth.
+     * @param activeRefs Set of active `$ref` strings on the recursion stack.
      * @returns {IPropertyMetadata} The normalized MetaUI property metadata.
      */
     public static mapPropertyMetadata(
-        swaggerProp: unknown, 
-        keyName: string, 
-        isRequired: boolean, 
-        openApiRoot: unknown, 
-        version: "2.0" | "3.0", 
-        depth: number = 0
+        swaggerProp: unknown,
+        keyName: string,
+        isRequired: boolean,
+        openApiRoot: unknown,
+        depth: number = 0,
+        activeRefs: Set<string> = new Set()
     ): IPropertyMetadata {
-        let currentProp = swaggerProp as Record<string, unknown>;
+        if (depth > this.MAX_MAPPING_DEPTH) {
+            // The descriptor below is a placeholder, not a mapping: the real type and every
+            // constraint on this property are discarded. Say so rather than letting a field
+            // silently render as an empty object.
+            Logger.warn(
+                `Property '${keyName}' exceeded MAX_MAPPING_DEPTH (${this.MAX_MAPPING_DEPTH}); ` +
+                `its type and constraints were not mapped.`,
+                undefined,
+                "OpenApiPropertyMapper"
+            );
+            return {
+                type: "object",
+                ui: { label: DataInferenceBuilder.generateLabel(keyName) }
+            };
+        }
+        let currentProp: JsonRecord = isRecord(swaggerProp) ? swaggerProp : {};
 
-        // 1. Resolve References
-        const refResult = this._resolveReference(currentProp, keyName, isRequired, openApiRoot, version, depth);
+        const refResult = this.resolveReference(currentProp, keyName, isRequired, openApiRoot, depth, activeRefs);
         if (refResult) {
             return refResult;
         }
 
-        // 2. Resolve Composition (allOf)
-        currentProp = this._resolveAllOf(currentProp, openApiRoot) as Record<string, unknown>;
+        currentProp = OpenApiConstraintMapper.resolveAllOf(currentProp, openApiRoot, 0, activeRefs);
 
-        // 3. Base Initialization
-        const type = OpenApiTypeMapper.mapType(currentProp.type as string);
+        const { type } = SchemaDirectiveNormalizer.resolveSchemaType(currentProp);
         const metaProp: IPropertyMetadata = {
-            type: type,
+            type,
+            title: readString(currentProp, "title"),
+            description: readString(currentProp, "description"),
+            format: readString(currentProp, "format"),
             required: isRequired
         };
 
-        // 4. UI Directive Binding
         const uiDirective = OpenApiUIMapper.build(currentProp, keyName);
         if (Object.keys(uiDirective).length > 0) {
             metaProp.ui = uiDirective;
         }
 
-        // 5. Constraints & State Modifiers
-        this._applyConstraints(metaProp, currentProp, version);
-        this._applyStateModifiers(metaProp, currentProp);
+        OpenApiConstraintMapper.applyConstraints(metaProp, currentProp);
+        OpenApiConstraintMapper.applyStateModifiers(metaProp, currentProp);
 
-        if (currentProp.default !== undefined) {
-            metaProp.default = currentProp.default;
+        const enumValues = SchemaDirectiveNormalizer.normalizeEnum(currentProp.enum);
+        if (enumValues) {
+            metaProp.enum = enumValues;
+            metaProp.valueHelp = enumValues.map((val) => ({ key: String(val), text: String(val) }));
+            metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.SELECT, valueHelp: metaProp.valueHelp };
         }
 
-        if (Array.isArray(currentProp.enum)) {
-            metaProp.enum = currentProp.enum;
-            if (!metaProp.ui) metaProp.ui = {};
-            metaProp.ui.widget = "dropdown";
-        }
-
-        // 6. Polymorphism & Nesting
-        this._applyPolymorphism(metaProp, currentProp, openApiRoot, version, depth);
-        this._applyNestedTypes(metaProp, currentProp, openApiRoot, version, depth, type);
+        this.applyPolymorphism(metaProp, currentProp, openApiRoot, depth, activeRefs);
+        this.applyNestedTypes(metaProp, currentProp, openApiRoot, depth, type, activeRefs);
 
         return metaProp;
     }
 
-    private static _resolveReference(
-        currentProp: Record<string, unknown>, 
-        keyName: string, 
-        isRequired: boolean, 
-        openApiRoot: unknown, 
-        version: "2.0" | "3.0", 
-        depth: number
+    private static resolveReference(
+        currentProp: JsonRecord,
+        keyName: string,
+        isRequired: boolean,
+        openApiRoot: unknown,
+        depth: number,
+        activeRefs: Set<string>
     ): IPropertyMetadata | null {
-        if (!currentProp.$ref) {
+        const refPath = readString(currentProp, "$ref");
+        if (!refPath) {
             return null;
         }
 
-        const resolved = OpenApiRefResolver.resolve(currentProp.$ref as string, openApiRoot) as Record<string, unknown>;
-        const resolvedType = currentProp.type || (resolved && resolved.type);
-        
-        if (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType as string)) {
-            const inlineProp = { ...resolved, ...currentProp };
+        const uiDirective = OpenApiUIMapper.build(currentProp, keyName);
+        if (activeRefs.has(refPath)) {
+            return {
+                type: "object",
+                $ref: refPath,
+                title: readString(currentProp, "title"),
+                description: readString(currentProp, "description"),
+                required: isRequired,
+                nullable: readBoolean(currentProp, "nullable"),
+                readOnly: readBoolean(currentProp, "readOnly"),
+                ui: { ...uiDirective, widget: WIDGET_TYPE.REFERENCE }
+            };
+        }
+
+        const resolvedRaw = OpenApiRefResolver.resolve(refPath, openApiRoot);
+        const resolved = isRecord(resolvedRaw) ? resolvedRaw : undefined;
+        const resolvedType = readString(currentProp, "type") || (resolved ? readString(resolved, "type") : undefined);
+        const isPolymorphicRef =
+            resolved !== undefined &&
+            (Array.isArray(resolved.oneOf) || Array.isArray(resolved.anyOf) || resolved.discriminator !== undefined);
+
+        if (
+            (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType)) ||
+            isPolymorphicRef ||
+            keyName === "items"
+        ) {
+            const inlineProp: JsonRecord = { ...(resolved || {}), ...currentProp };
             delete inlineProp.$ref;
-            return this.mapPropertyMetadata(inlineProp, keyName, isRequired, openApiRoot, version, depth + 1);
+            const nextRefs = new Set(activeRefs);
+            nextRefs.add(refPath);
+            const mapped = this.mapPropertyMetadata(inlineProp, keyName, isRequired, openApiRoot, depth + 1, nextRefs);
+            if (keyName === "items") {
+                mapped.$ref = refPath;
+            }
+            return mapped;
         }
 
         return {
             type: "object",
-            $ref: currentProp.$ref as string,
+            $ref: refPath,
+            title: readString(currentProp, "title") || (resolved ? readString(resolved, "title") : undefined),
+            description: readString(currentProp, "description") || (resolved ? readString(resolved, "description") : undefined),
             required: isRequired,
-            ui: { widget: "reference" }
+            nullable: readBoolean(currentProp, "nullable"),
+            readOnly: readBoolean(currentProp, "readOnly"),
+            ui: { ...uiDirective, widget: WIDGET_TYPE.REFERENCE }
         };
     }
 
-    private static _resolveAllOf(currentProp: Record<string, unknown>, openApiRoot: unknown): unknown {
-        if (!Array.isArray(currentProp.allOf)) {
-            return currentProp;
-        }
-        
-        let merged = { ...currentProp };
-        delete merged.allOf;
-        for (const subSchema of currentProp.allOf) {
-            let resolvedSub = subSchema as Record<string, unknown>;
-            if (subSchema.$ref) {
-                resolvedSub = (OpenApiRefResolver.resolve(subSchema.$ref as string, openApiRoot) as Record<string, unknown>) || {};
-            }
-            merged = this.deepMergeSchemas(merged, resolvedSub) as Record<string, unknown>;
-        }
-        return merged;
-    }
-
-    private static _applyConstraints(metaProp: IPropertyMetadata, currentProp: Record<string, unknown>, version: "2.0" | "3.0"): void {
-        // String Constraints
-        if (typeof currentProp.maxLength === "number") metaProp.maxLength = currentProp.maxLength;
-        if (typeof currentProp.minLength === "number") metaProp.minLength = currentProp.minLength;
-        if (typeof currentProp.pattern === "string") metaProp.pattern = currentProp.pattern;
-
-        // Numeric Constraints
-        if (typeof currentProp.maximum === "number") metaProp.maximum = currentProp.maximum;
-        if (typeof currentProp.minimum === "number") metaProp.minimum = currentProp.minimum;
-        if (typeof currentProp.multipleOf === "number") metaProp.multipleOf = currentProp.multipleOf;
-        
-        // Array Constraints
-        if (typeof currentProp.maxItems === "number") metaProp.maxItems = currentProp.maxItems;
-        if (typeof currentProp.minItems === "number") metaProp.minItems = currentProp.minItems;
-        if (typeof currentProp.uniqueItems === "boolean") metaProp.uniqueItems = currentProp.uniqueItems;
-
-        // Object Constraints
-        if (typeof currentProp.maxProperties === "number") metaProp.maxProperties = currentProp.maxProperties;
-        if (typeof currentProp.minProperties === "number") metaProp.minProperties = currentProp.minProperties;
-
-        // Exclusive Min/Max version-specific logic
-        if (version === "2.0") {
-            if (currentProp.exclusiveMaximum === true && typeof currentProp.maximum === "number") {
-                metaProp.exclusiveMaximum = true;
-            }
-            if (currentProp.exclusiveMinimum === true && typeof currentProp.minimum === "number") {
-                metaProp.exclusiveMinimum = true;
-            }
-        } else if (version === "3.0") {
-            if (typeof currentProp.exclusiveMaximum === "number" || typeof currentProp.exclusiveMaximum === "boolean") {
-                metaProp.exclusiveMaximum = currentProp.exclusiveMaximum as boolean;
-            }
-            if (typeof currentProp.exclusiveMinimum === "number" || typeof currentProp.exclusiveMinimum === "boolean") {
-                metaProp.exclusiveMinimum = currentProp.exclusiveMinimum as boolean;
-            }
-        }
-    }
-
-    private static _applyStateModifiers(metaProp: IPropertyMetadata, currentProp: Record<string, unknown>): void {
-        if (currentProp.readOnly === true) metaProp.readOnly = true;
-        if (currentProp.writeOnly === true) metaProp.writeOnly = true;
-        if (currentProp.nullable === true) metaProp.nullable = true;
-        if (currentProp.deprecated === true) metaProp.deprecated = true;
-    }
-
-    private static _applyPolymorphism(
-        metaProp: IPropertyMetadata, 
-        currentProp: Record<string, unknown>, 
-        openApiRoot: unknown, 
-        version: "2.0" | "3.0", 
-        depth: number
+    private static applyPolymorphism(
+        metaProp: IPropertyMetadata,
+        currentProp: JsonRecord,
+        openApiRoot: unknown,
+        depth: number,
+        activeRefs: Set<string>
     ): void {
-        if (currentProp.discriminator) {
-            if (version === "2.0" && typeof currentProp.discriminator === "string") {
-                metaProp.discriminator = { propertyName: currentProp.discriminator };
-            } else if (version === "3.0" && typeof currentProp.discriminator === "object") {
-                const disc = currentProp.discriminator as Record<string, unknown>;
-                metaProp.discriminator = {
-                    propertyName: disc.propertyName as string,
-                    mapping: disc.mapping as Record<string, string>
+        OpenApiConstraintMapper.applyDiscriminator(metaProp, currentProp);
+
+        if (Array.isArray(currentProp.oneOf)) {
+            metaProp.oneOf = currentProp.oneOf.map((item, i) =>
+                this.mapPolymorphicBranch(item, `Variant${i}`, openApiRoot, depth + 1, activeRefs)
+            );
+        }
+
+        if (Array.isArray(currentProp.anyOf)) {
+            metaProp.anyOf = currentProp.anyOf.map((item, i) =>
+                this.mapPolymorphicBranch(item, `AnyVariant${i}`, openApiRoot, depth + 1, activeRefs)
+            );
+        }
+
+        if (isRecord(currentProp.not)) {
+            metaProp.not = this.mapPropertyMetadata(currentProp.not, "NotVariant", false, openApiRoot, depth + 1, activeRefs);
+        }
+
+        if (metaProp.oneOf || metaProp.anyOf || metaProp.discriminator) {
+            metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.POLYMORPHIC };
+        }
+    }
+
+    private static mapPolymorphicBranch(
+        rawItem: unknown,
+        fallbackName: string,
+        openApiRoot: unknown,
+        depth: number,
+        activeRefs: Set<string>
+    ): IPropertyMetadata {
+        if (!isRecord(rawItem)) {
+            return this.mapPropertyMetadata({}, fallbackName, false, openApiRoot, depth, activeRefs);
+        }
+        const refPath = readString(rawItem, "$ref");
+        if (refPath && !activeRefs.has(refPath)) {
+            const refName = OpenApiRefResolver.extractRefName(refPath);
+            const resolved = OpenApiRefResolver.resolve(refPath, openApiRoot);
+            if (isRecord(resolved)) {
+                const inlined: JsonRecord = {
+                    ...resolved,
+                    ...rawItem,
+                    title: readString(rawItem, "title") || readString(resolved, "title") || refName
+                };
+                delete inlined.$ref;
+                const nextRefs = new Set(activeRefs);
+                nextRefs.add(refPath);
+                const mapped = this.mapPropertyMetadata(inlined, refName, false, openApiRoot, depth, nextRefs);
+                mapped.$ref = refPath;
+                mapped.title = readString(inlined, "title") || refName;
+                const resolvedReq = readStringArray(inlined, "required");
+                if (resolvedReq) {
+                    mapped.required = resolvedReq;
+                }
+                return mapped;
+            }
+        }
+        const explicitTitle = readString(rawItem, "title");
+        const mapped = this.mapPropertyMetadata(rawItem, explicitTitle || "", false, openApiRoot, depth, activeRefs);
+        if (!explicitTitle && mapped.ui && !mapped.ui.label) {
+            delete mapped.ui.label;
+        }
+        const branchReq = readStringArray(rawItem, "required");
+        if (branchReq) {
+            mapped.required = branchReq;
+        }
+        return mapped;
+    }
+
+    private static applyNestedTypes(
+        metaProp: IPropertyMetadata,
+        currentProp: JsonRecord,
+        openApiRoot: unknown,
+        depth: number,
+        type: string,
+        activeRefs: Set<string>
+    ): void {
+        if (type === "object") {
+            const rawProps = readRecord(currentProp, "properties");
+            if (rawProps) {
+                const childRequired = readStringArray(currentProp, "required") || [];
+                metaProp.properties = this.mapProperties(rawProps, childRequired, openApiRoot, depth + 1, activeRefs);
+            }
+
+            if (currentProp.additionalProperties === true) {
+                metaProp.additionalProperties = true;
+            } else if (isRecord(currentProp.additionalProperties)) {
+                metaProp.additionalProperties = this.mapPropertyMetadata(
+                    currentProp.additionalProperties,
+                    "value",
+                    false,
+                    openApiRoot,
+                    depth + 1,
+                    activeRefs
+                );
+                metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.DICTIONARY_MAP };
+            }
+
+            if (
+                !rawProps &&
+                !currentProp.additionalProperties &&
+                !metaProp.oneOf &&
+                !metaProp.anyOf &&
+                !metaProp.enum &&
+                !metaProp.format &&
+                !metaProp.ui?.widget
+            ) {
+                metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.CODE_EDITOR };
+            }
+        } else if (type === "array" && isRecord(currentProp.items)) {
+            metaProp.items = this.mapPropertyMetadata(currentProp.items, "items", false, openApiRoot, depth + 1, activeRefs);
+            if (metaProp.items.type !== "object") {
+                const itemEnum = metaProp.items.enum;
+                metaProp.ui = {
+                    ...(metaProp.ui || {}),
+                    widget: itemEnum && itemEnum.length > 0 ? WIDGET_TYPE.MULTI_SELECT : WIDGET_TYPE.MULTI_INPUT
                 };
             }
         }
-
-        if (Array.isArray(currentProp.oneOf)) {
-            metaProp.oneOf = [];
-            for (let i = 0; i < currentProp.oneOf.length; i++) {
-                metaProp.oneOf.push(this.mapPropertyMetadata(currentProp.oneOf[i], `Variant${i}`, false, openApiRoot, version, depth + 1));
-            }
-            if (!metaProp.ui) metaProp.ui = {};
-            metaProp.ui.widget = "polymorphic";
-        }
-        
-        if (Array.isArray(currentProp.anyOf)) {
-            metaProp.anyOf = [];
-            for (let i = 0; i < currentProp.anyOf.length; i++) {
-                metaProp.anyOf.push(this.mapPropertyMetadata(currentProp.anyOf[i], `AnyVariant${i}`, false, openApiRoot, version, depth + 1));
-            }
-        }
-
-        if (currentProp.not) {
-            metaProp.not = this.mapPropertyMetadata(currentProp.not, `NotVariant`, false, openApiRoot, version, depth + 1);
-        }
-    }
-
-    private static _applyNestedTypes(
-        metaProp: IPropertyMetadata, 
-        currentProp: Record<string, unknown>, 
-        openApiRoot: unknown, 
-        version: "2.0" | "3.0", 
-        depth: number,
-        type: string
-    ): void {
-        if (type === "object") {
-            if (currentProp.properties) {
-                const childRequired = Array.isArray(currentProp.required) ? currentProp.required : [];
-                metaProp.properties = this.mapProperties(currentProp.properties, childRequired, openApiRoot, version, depth + 1);
-            }
-            
-            if (currentProp.additionalProperties) {
-                if (currentProp.additionalProperties === true) {
-                    metaProp.additionalProperties = true;
-                } else if (typeof currentProp.additionalProperties === "object") {
-                    metaProp.additionalProperties = this.mapPropertyMetadata(currentProp.additionalProperties, "value", false, openApiRoot, version, depth + 1);
-                    if (!metaProp.ui) metaProp.ui = {};
-                    metaProp.ui.widget = "dictionary";
-                }
-            }
-            
-            if (!currentProp.properties && !currentProp.additionalProperties) {
-                if (!metaProp.ui) metaProp.ui = {};
-                metaProp.ui.widget = "codeEditor";
-            }
-        } else if (type === "array" && currentProp.items) {
-            metaProp.items = this.mapPropertyMetadata(currentProp.items, "items", false, openApiRoot, version, depth + 1);
-            if (metaProp.items.type !== "object") {
-                if (!metaProp.ui) metaProp.ui = {};
-                metaProp.ui.widget = "multiInput";
-            }
-        }
-    }
-
-    public static deepMergeSchemas(target: unknown, source: unknown): unknown {
-        const outTarget = (target || {}) as Record<string, unknown>;
-        const output: Record<string, unknown> = Object.assign({}, outTarget);
-        if (source === null || typeof source !== "object") return output;
-        
-        const srcObj = source as Record<string, unknown>;
-
-        Object.keys(srcObj).forEach(key => {
-            if (Array.isArray(srcObj[key])) {
-                output[key] = Array.isArray(outTarget[key]) 
-                    ? Array.from(new Set([...(outTarget[key] as unknown[]), ...(srcObj[key] as unknown[])])) 
-                    : [...(srcObj[key] as unknown[])];
-            } else if (typeof srcObj[key] === "object" && srcObj[key] !== null) {
-                if (outTarget[key] && typeof outTarget[key] === "object") {
-                    output[key] = this.deepMergeSchemas(outTarget[key], srcObj[key]);
-                } else {
-                    output[key] = Object.assign({}, srcObj[key]);
-                }
-            } else {
-                output[key] = srcObj[key];
-            }
-        });
-        return output;
     }
 }

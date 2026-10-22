@@ -41,3 +41,12 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
 6. [Extensibility](CreatingPlugins.md)
    - Creating Custom Plugins
    - The BasePlugin Lifecycle
+7. [Policy-Based Rules Engine (PBRE)](PolicyBasedRulesEngine.md)
+   - Declarative Conditions (`NumericGreaterThan`, `NumericLessThan`, `StringEquals`, `DateLessThan`, `IsNull`, `IsNotNull`)
+   - Symmetrical Effects (`Show`, `Hide`, `Require`, `Optional`, `Validate`, `Invalidate`, `Enable`, `Disable`)
+8. [AI Instruction Manual & Schema Cheat Sheet](AI_Schema_CheatSheet.md)
+   - Exhaustive Schema Dictionary & Widget Registry
+9. [Testing Routines & Automated Verification](09_Testing_Routines_and_Automation.md)
+   - `TestOracle.js`, QUnit Physical DOM Unit Tests, E2E Matrix, Sandbox Smoke Tests, and Standalone Consumer Verification
+10. [Supported Features & Known Limitations](SupportedFeatures.md)
+   - Complete Source-Derived Capability Inventory (`52` Widget Mappings, `14` Validators, `4` Formatters, `3` Parsers, `6` Policy Conditions, `8` Policy Effects) and Honest Known Limitations

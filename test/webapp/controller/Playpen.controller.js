@@ -1,7 +1,7 @@
 sap.ui.define([
-    "sap/ui/core/mvc/Controller",
+    "metaui/sandbox/controller/BaseController",
     "sap/ui/model/json/JSONModel"
-], function (Controller, JSONModel) {
+], function (BaseController, JSONModel) {
     "use strict";
 
     /**
@@ -9,36 +9,37 @@ sap.ui.define([
      * Controller for the experimental Playpen view.
      * Serves as a scratchpad for testing pure bidirectional data binding synchronization
      * between raw JSON strings and dynamically bound Fiori objects.
-     * 
-     * @extends sap.ui.core.mvc.Controller
+     *
+     * @extends metaui.sandbox.controller.BaseController
      * @alias metaui.sandbox.controller.Playpen
      */
-    return Controller.extend("metaui.sandbox.controller.Playpen", {
-        
+    return BaseController.extend("metaui.sandbox.controller.Playpen", {
+
         /**
          * Lifecycle hook.
          * Bootstraps the local view model with an initial payload to test live sync capabilities.
-         * 
+         *
          * @public
          */
         onInit: function () {
+            this.setupViewModel();
             var initialData = {
                 username: "admin123",
                 isActive: true,
                 rating: 8.5,
                 roles: ["User", "Admin"]
             };
-            
+
             var oViewModel = new JSONModel({
                 jsonString: JSON.stringify(initialData, null, 4),
                 parsedData: initialData
             });
             this.getView().setModel(oViewModel, "view");
         },
-        
+
         /**
          * Explicitly triggers a one-way sync from the CodeEditor string over to the parsed object model.
-         * 
+         *
          * @public
          */
         onGenerate: function() {
@@ -47,7 +48,7 @@ sap.ui.define([
 
         /**
          * Event handler attached to the CodeEditor to support live-typing synchronization.
-         * 
+         *
          * @public
          */
         onCodeEditorChange: function() {
@@ -55,9 +56,9 @@ sap.ui.define([
         },
 
         /**
-         * Intercepts updates bubbled up from the dynamically generated MetaUI form 
+         * Intercepts updates bubbled up from the dynamically generated MetaUI form
          * and serializes them back into the CodeEditor as a formatted string.
-         * 
+         *
          * @public
          */
         onFieldChange: function() {
@@ -69,7 +70,7 @@ sap.ui.define([
         /**
          * Private utility to parse the current raw string payload into an object.
          * Silently catches syntax errors to prevent the UI from crashing mid-keystroke.
-         * 
+         *
          * @private
          */
         _syncLeftToRight: function() {

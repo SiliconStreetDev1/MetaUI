@@ -1,38 +1,73 @@
 /**
  * @file SchemaNormalizer.ts
  * @description Transforms and validates incoming JSON payloads into the strict v2 ISchema dictionary matrix.
+ * Pure, idempotent, and lossless across all IPropertyMetadata and ISchema keywords.
  */
 
-import { ISchema, IPropertyMetadata, FieldType } from "../interfaces/ISchema";
-import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
+import { ISchema, IPropertyMetadata } from "../interfaces/ISchema";
+import { SCHEMA_TYPE, WIDGET_TYPE } from "../constants/MetaUIConstants";
 import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
+import { DataInferenceBuilder } from "./DataInferenceBuilder";
+import { SchemaDirectiveNormalizer } from "./SchemaDirectiveNormalizer";
+import { OpenApiConstraintMapper } from "../openapi/parsers/OpenApiConstraintMapper";
+import { OpenApiRefResolver } from "../openapi/OpenApiRefResolver";
+import { PolymorphicUtil } from "../utils/PolymorphicUtil";
 import { Logger } from "../utils/Logger";
+import {
+    JsonRecord, isRecord, readString, readNumber, readBoolean, readRecord, readStringArray, deepClone
+} from "../utils/TypeGuards";
 
+const MAX_NORMALIZE_DEPTH = 10;
+
+/**
+ * Normalizes raw JSON schemas (or raw data, via {@link DataInferenceBuilder}) into the strict {@link ISchema} contract.
+ * Acts as the final fallback {@link ISchemaBuilderPlugin} in the `SchemaBuilderRegistry`.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.core
+ * @public
+ */
 export class SchemaNormalizer implements ISchemaBuilderPlugin {
-
-    /**
-     * ISchemaBuilderPlugin Contract
-     */
-    public canHandle(rawSchema: unknown): boolean {
-        // Fallback for native ISchemas or data inference.
-        // It always returns true because it is the final fallback builder in the registry.
+    /** ISchemaBuilderPlugin contract. Always true because this is the terminal fallback builder. */
+    public canHandle(): boolean {
         return true;
     }
 
-    /**
-     * ISchemaBuilderPlugin Contract
-     */
-    public build(rawSchema: unknown, targetDefinition?: string): ISchema {
+    /** ISchemaBuilderPlugin contract. Delegates to {@link SchemaNormalizer.normalize}. */
+    public build(rawSchema: unknown): ISchema {
         return SchemaNormalizer.normalize(rawSchema);
     }
 
     /**
-     * Validates that the provided raw payload conforms to the required ISchema structures.
+     * Normalizes a single `$ref` definition entry, preserving all `IPropertyMetadata` and `ISchema` fields
+     * (including `oneOf`, `anyOf`, `discriminator`, `enum`, constraints, and primitive types).
+     *
+     * @param rawDef The raw definition object.
+     * @param key The definition key name.
+     * @param rootSource Optional root schema document for resolving inner `$ref` pointers.
+     * @returns {ISchema} The normalized definition schema.
+     */
+    public static normalizeDefinition(rawDef: unknown, key: string, rootSource?: JsonRecord): ISchema {
+        const defSchema = this.normalize(rawDef);
+        if (isRecord(rawDef)) {
+            const defMeta = this.normalizePropertyMetadata(rawDef, key, false, rootSource || rawDef);
+            Object.assign(defSchema, {
+                ...defMeta,
+                title: defSchema.title || defMeta.title || key,
+                type: defMeta.type === "array" ? "array" : (defMeta.type || defSchema.type),
+                required: readStringArray(rawDef, "required")
+            });
+        }
+        return defSchema;
+    }
+
+    /**
+     * Normalizes a raw schema. Falls back to full data inference when no usable schema is supplied,
+     * and merges inferred properties when the schema opts into hybrid inference (`additionalProperties: true`).
      */
     public static normalize(rawSchema?: unknown, data?: unknown): ISchema {
-        let schemaObj = rawSchema;
+        let schemaObj: unknown = rawSchema;
 
-        if (typeof schemaObj === SCHEMA_TYPE.STRING) {
+        if (typeof schemaObj === "string") {
             if (!schemaObj.trim()) {
                 schemaObj = null;
             } else {
@@ -45,293 +80,356 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 }
             }
         }
-
-        if (!schemaObj || typeof schemaObj !== 'object' || Array.isArray(schemaObj)) {
-            return this.inferSchemaFromData(data);
+        if (!isRecord(schemaObj)) {
+            return DataInferenceBuilder.inferSchemaFromData(data);
         }
 
-        try {
-            // It is an object. Ensure it conforms to v2 structure.
-            const normalized: ISchema = {
-                title: schemaObj.title,
-                type: schemaObj.type || (schemaObj.items ? "array" : "object"),
-                layoutStrategy: schemaObj.layoutStrategy,
-                uiLayout: schemaObj.uiLayout ? JSON.parse(JSON.stringify(schemaObj.uiLayout)) : undefined,
-                additionalProperties: schemaObj.additionalProperties,
-                uiPolicies: schemaObj.uiPolicies ? JSON.parse(JSON.stringify(schemaObj.uiPolicies)) : undefined
-            };
-
-            let targetProperties = schemaObj.properties || {};
-
-            if (schemaObj.additionalProperties === true && data) {
-                const inferred = this.inferSchemaFromData(data);
-                if (inferred.type === "object" && inferred.properties) {
-                    targetProperties = this.deepMergeProperties(inferred.properties, targetProperties);
-                } else if (inferred.type === "array" && inferred.items && inferred.items.properties) {
-                    // Array schema merging could be added here if we want full support.
-                }
+        const rootSource: JsonRecord = schemaObj;
+        const rootRef = readString(schemaObj, "$ref");
+        if (rootRef) {
+            const resolvedRoot = OpenApiRefResolver.resolve(rootRef, rootSource);
+            if (isRecord(resolvedRoot)) {
+                schemaObj = { ...resolvedRoot, ...schemaObj };
+                delete (schemaObj as JsonRecord).$ref;
             }
-
-            if (normalized.type === "object") {
-                const requiredKeys = Array.isArray(schemaObj.required) ? schemaObj.required : [];
-                normalized.properties = this.normalizeProperties(targetProperties, requiredKeys);
-            } else if (normalized.type === "array") {
-                // Future expansion: array deep merge
-                normalized.items = this.normalizePropertyMetadata(schemaObj.items || { type: "object", properties: {} }, "items", false);
-            }
-
-            return normalized;
-        } catch (error) {
-            const msg = "Critical error normalizing schema object: " + (error as Error).message;
-            Logger.error("[MetaUI SchemaNormalizer]", msg);
-            throw new Error(msg);
         }
+        if (isRecord(schemaObj) && Array.isArray(schemaObj.allOf)) {
+            schemaObj = OpenApiConstraintMapper.resolveAllOf(schemaObj, rootSource);
+        }
+        if (!isRecord(schemaObj)) {
+            return DataInferenceBuilder.inferSchemaFromData(data);
+        }
+
+        const rawType = Array.isArray(schemaObj.type)
+            ? schemaObj.type.find((t): t is string => typeof t === "string" && t !== "null")
+            : readString(schemaObj, "type");
+        const isArray = rawType === SCHEMA_TYPE.ARRAY || (!rawType && isRecord(schemaObj.items));
+        const additionalBool = readBoolean(schemaObj, "additionalProperties");
+        const additionalProperties: boolean | IPropertyMetadata | undefined =
+            additionalBool !== undefined
+                ? additionalBool
+                : isRecord(schemaObj.additionalProperties)
+                  ? this.normalizePropertyMetadata(schemaObj.additionalProperties, "value", false, rootSource)
+                  : undefined;
+        const requiredKeys = readStringArray(schemaObj, "required");
+
+        const normalized: ISchema = {
+            title: readString(schemaObj, "title"),
+            type: isArray ? "array" : "object",
+            ui: isRecord(schemaObj.ui)
+                ? SchemaDirectiveNormalizer.normalizeUI(
+                      schemaObj.ui,
+                      schemaObj,
+                      "root",
+                      isArray ? "array" : "object",
+                      false
+                  )
+                : undefined,
+            layoutStrategy: readString(schemaObj, "layoutStrategy"),
+            uiLayout: SchemaDirectiveNormalizer.normalizeLayout(schemaObj.uiLayout),
+            additionalProperties,
+            required: requiredKeys,
+            readOnly: readBoolean(schemaObj, "readOnly"),
+            maxItems: readNumber(schemaObj, "maxItems"),
+            minItems: readNumber(schemaObj, "minItems"),
+            uniqueItems: readBoolean(schemaObj, "uniqueItems"),
+            maxProperties: readNumber(schemaObj, "maxProperties"),
+            minProperties: readNumber(schemaObj, "minProperties"),
+            uiPolicies: SchemaDirectiveNormalizer.normalizePolicies(schemaObj.uiPolicies)
+        };
+
+        const defsA = readRecord(rootSource, "definitions");
+        const defsB = readRecord(rootSource, "$defs");
+        const definitions: JsonRecord | undefined = defsA || defsB ? { ...(defsA || {}), ...(defsB || {}) } : undefined;
+        if (definitions) {
+            normalized.definitions = {};
+            for (const key of Object.keys(definitions)) {
+                normalized.definitions[key] = this.normalizeDefinition(definitions[key], key, rootSource);
+            }
+        }
+
+        const inferred = additionalBool === true && data ? DataInferenceBuilder.inferSchemaFromData(data) : undefined;
+        if (isArray) {
+            let rawItems: JsonRecord = readRecord(schemaObj, "items") || { type: SCHEMA_TYPE.OBJECT, properties: {} };
+            const inferredItemProps = inferred?.items?.properties;
+            if (inferredItemProps) {
+                rawItems = {
+                    ...rawItems,
+                    properties: DataInferenceBuilder.mergeHybridProperties(inferredItemProps, readRecord(rawItems, "properties") || {})
+                };
+            }
+            const sampleRow = Array.isArray(data) ? data.find(isRecord) : undefined;
+            normalized.items = this.normalizePropertyMetadata(rawItems, "items", false, rootSource, sampleRow);
+        } else {
+            let targetProperties: JsonRecord = readRecord(schemaObj, "properties") || {};
+            if (inferred?.properties) {
+                targetProperties = DataInferenceBuilder.mergeHybridProperties(inferred.properties, targetProperties);
+            }
+            normalized.properties = this.normalizeProperties(targetProperties, requiredKeys || [], rootSource, data);
+
+            if (Array.isArray(schemaObj.oneOf) || Array.isArray(schemaObj.anyOf)) {
+                this.mergeRootPolymorphicBranches(normalized, schemaObj, rootSource);
+            } else if (
+                Object.keys(normalized.properties).length === 0 &&
+                ((rawType && rawType !== SCHEMA_TYPE.OBJECT) || Array.isArray(schemaObj.enum))
+            ) {
+                const valueKey = readString(schemaObj, "title") || "value";
+                normalized.properties[valueKey] = this.normalizePropertyMetadata(schemaObj, valueKey, false, rootSource);
+            }
+        }
+        return normalized;
     }
 
-    /**
-     * Recursively deep merges an inferred schema over a base schema.
-     * @param base The base property dictionary.
-     * @param override The overriding inferred dictionary.
-     * @returns A new deeply merged property dictionary.
-     */
-    private static deepMergeProperties(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
-        const merged = { ...base };
-        for (const key of Object.keys(override)) {
-            const overrideVal = override[key];
-            const baseVal = merged[key];
-
-            if (baseVal && typeof baseVal === "object" && !Array.isArray(baseVal) &&
-                overrideVal && typeof overrideVal === "object" && !Array.isArray(overrideVal)) {
-                merged[key] = this.deepMergeProperties(baseVal, overrideVal);
-            } else {
-                merged[key] = overrideVal;
-            }
-        }
-        return merged;
+    /** Infers a v2 `ISchema` structure dynamically from a plain data payload (Full Inference Mode). */
+    public static inferSchemaFromData(data: unknown): ISchema {
+        return DataInferenceBuilder.inferSchemaFromData(data);
     }
 
-    /**
-     * Normalizes a collection of properties.
-     * @param properties The raw properties map.
-     * @param requiredKeys An optional array of keys that are required by the parent object.
-     * @returns A map of strict IPropertyMetadata objects.
-     */
-    private static normalizeProperties(properties: Record<string, unknown>, requiredKeys: string[] = []): Record<string, IPropertyMetadata> {
+    private static mergeRootPolymorphicBranches(normalized: ISchema, schemaObj: JsonRecord, rootSource: JsonRecord): void {
+        const rootMeta = this.normalizePropertyMetadata(schemaObj, normalized.title || "Root", false, rootSource);
+        PolymorphicUtil.mergePolymorphicRootBranches(normalized, rootMeta);
+    }
+
+    /** Normalizes a dictionary of raw property definitions. */
+    private static normalizeProperties(
+        properties: JsonRecord, requiredKeys: string[], rootSchema?: JsonRecord,
+        data?: unknown, depth: number = 0, activeRefs: Set<string> = new Set()
+    ): Record<string, IPropertyMetadata> {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
+        if (depth > MAX_NORMALIZE_DEPTH) return normalizedProps;
         for (const key of Object.keys(properties)) {
-            const isRequired = requiredKeys.includes(key);
-            normalizedProps[key] = this.normalizePropertyMetadata(properties[key], key, isRequired);
+            const raw = properties[key];
+            if (!isRecord(raw)) {
+                Logger.warn("[MetaUI SchemaNormalizer]", `Property '${key}' is not a schema object; treating it as a plain string field.`);
+            }
+            const childData = isRecord(data) ? data[key] : undefined;
+            normalizedProps[key] = this.normalizePropertyMetadata(
+                isRecord(raw) ? raw : {}, key, requiredKeys.includes(key), rootSchema, childData, depth + 1, activeRefs
+            );
         }
         return normalizedProps;
     }
 
-    /**
-     * Normalizes a single property against the ISchema specification.
-     * @param prop The raw property definition.
-     * @param keyName The string key name for generating default labels.
-     * @param isRequired Indicates if the parent object mandated this property as required.
-     * @returns A strict IPropertyMetadata instance.
-     */
-    private static normalizePropertyMetadata(rawProp: unknown, keyName: string, isRequired: boolean = false): IPropertyMetadata {
-        const prop = (rawProp || {}) as Record<string, unknown>;
-        const ui = (prop.ui || {}) as Record<string, unknown>;
-        
+    /** Normalizes a single raw property definition. */
+    private static normalizePropertyMetadata(
+        rawProp: JsonRecord, keyName: string, isRequired: boolean, rootSchema?: JsonRecord,
+        data?: unknown, depth: number = 0, activeRefs: Set<string> = new Set()
+    ): IPropertyMetadata {
+        if (depth > MAX_NORMALIZE_DEPTH) {
+            return { type: SCHEMA_TYPE.OBJECT, ui: { label: DataInferenceBuilder.generateLabel(keyName) } };
+        }
+        const rawAllOf = rawProp.allOf;
+        const prop: JsonRecord = Array.isArray(rawAllOf)
+            ? OpenApiConstraintMapper.resolveAllOf(rawProp, rootSchema, 0, activeRefs)
+            : rawProp;
+        const { type, hasNullType } = SchemaDirectiveNormalizer.resolveSchemaType(prop, keyName);
+        const rawUi = readRecord(prop, "ui") || {};
+        const valueHelp = SchemaDirectiveNormalizer.normalizeValueHelp(prop.valueHelp ?? rawUi.valueHelp);
+        const enumValues = SchemaDirectiveNormalizer.normalizeEnum(prop.enum);
+        const itemsRecord = readRecord(prop, "items");
+        const itemsEnum = itemsRecord ? SchemaDirectiveNormalizer.normalizeEnum(itemsRecord.enum) : undefined;
+        const hasChoices = Array.isArray(valueHelp) || !!enumValues || !!itemsEnum;
+
         const normalized: IPropertyMetadata = {
-            type: (prop.type as FieldType) || "string",
-            $ref: prop.$ref as string | undefined,
-            ui: {
-                label: ui.label as string || this.generateLabel(keyName),
-                isKey: !!ui.isKey,
-                readOnly: !!ui.readOnly,
-                widget: ui.widget as string || (prop.valueHelp || prop.enum ? "select" : undefined),
-                visibleOn: prop.ui?.visibleOn,
-                enabledOn: prop.ui?.enabledOn,
-                format: prop.ui?.format,
-                validators: prop.ui?.validators,
-                formatter: prop.ui?.formatter,
-                args: prop.ui?.args,
-                rows: prop.ui?.rows,
-                fullWidth: prop.ui?.fullWidth,
-                dialogButtonText: prop.ui?.dialogButtonText,
-                controlProps: prop.ui?.controlProps
-            },
-            required: isRequired || !!prop.required,
-            maxLength: prop.maxLength as number,
-            minLength: prop.minLength as number,
-            minimum: prop.minimum,
-            maximum: prop.maximum,
-            pattern: prop.pattern,
-            precision: prop.precision,
-            scale: prop.scale,
-            multipleOf: prop.multipleOf as number,
-            valueHelp: prop.valueHelp,
-            enum: prop.enum
+            type,
+            $ref: readString(prop, "$ref"),
+            title: readString(prop, "title"),
+            description: readString(prop, "description"),
+            format: readString(prop, "format"),
+            const: prop.const === undefined ? undefined : deepClone(prop.const),
+            ui: SchemaDirectiveNormalizer.normalizeUI(rawUi, prop, keyName, type, hasChoices),
+            required: isRequired || prop.required === true,
+            maxLength: readNumber(prop, "maxLength"),
+            minLength: readNumber(prop, "minLength"),
+            minimum: readNumber(prop, "minimum"),
+            maximum: readNumber(prop, "maximum"),
+            pattern: readString(prop, "pattern"),
+            precision: readNumber(prop, "precision"),
+            scale: readNumber(prop, "scale"),
+            multipleOf: readNumber(prop, "multipleOf"),
+            valueHelp,
+            enum: enumValues,
+            default: prop.default === undefined ? undefined : deepClone(prop.default),
+            nullable: readBoolean(prop, "nullable") ?? (hasNullType ? true : undefined),
+            writeOnly: readBoolean(prop, "writeOnly"),
+            readOnly: readBoolean(prop, "readOnly"),
+            example: prop.example === undefined ? undefined : deepClone(prop.example),
+            deprecated: readBoolean(prop, "deprecated"),
+            exclusiveMinimum: readBoolean(prop, "exclusiveMinimum") ?? readNumber(prop, "exclusiveMinimum"),
+            exclusiveMaximum: readBoolean(prop, "exclusiveMaximum") ?? readNumber(prop, "exclusiveMaximum"),
+            maxItems: readNumber(prop, "maxItems"),
+            minItems: readNumber(prop, "minItems"),
+            uniqueItems: readBoolean(prop, "uniqueItems"),
+            maxProperties: readNumber(prop, "maxProperties"),
+            minProperties: readNumber(prop, "minProperties"),
+            oneOf: this.normalizeSchemaList(prop.oneOf, rootSchema, depth + 1, activeRefs),
+            anyOf: this.normalizeSchemaList(prop.anyOf, rootSchema, depth + 1, activeRefs),
+            allOf: this.normalizeSchemaList(rawAllOf, rootSchema, depth + 1, activeRefs),
+            not: isRecord(prop.not)
+                ? this.normalizePropertyMetadata(
+                      prop.not,
+                      keyName,
+                      false,
+                      rootSchema,
+                      undefined,
+                      depth + 1,
+                      activeRefs
+                  )
+                : undefined,
+            discriminator: SchemaDirectiveNormalizer.normalizeDiscriminator(prop.discriminator),
+            uiLayout: SchemaDirectiveNormalizer.normalizeLayout(prop.uiLayout)
         };
 
-        if (normalized.type === "object" && prop.properties) {
-            const requiredKeys = Array.isArray(prop.required) ? prop.required : [];
-            normalized.properties = this.normalizeProperties(prop.properties as Record<string, unknown>, requiredKeys);
-            normalized.uiLayout = prop.uiLayout;
-        } else if (normalized.type === "array") {
-            // Auto-correct arrays that were mistakenly flattened with 'properties' instead of 'items.properties'
-            if (prop.properties && !prop.items) {
-                prop.items = {
-                    type: "object",
-                    properties: prop.properties
-                };
-                delete prop.properties;
-            }
+        const additional = prop.additionalProperties;
+        if (typeof additional === "boolean") {
+            normalized.additionalProperties = additional;
+        } else if (isRecord(additional)) {
+            normalized.additionalProperties = this.normalizePropertyMetadata(
+                additional,
+                "value",
+                false,
+                rootSchema,
+                undefined,
+                depth + 1,
+                activeRefs
+            );
+        }
 
-            if (prop.items) {
-                normalized.items = this.normalizePropertyMetadata(prop.items as Record<string, unknown>, "items", false);
+        let rawProperties = readRecord(prop, "properties");
+        const rawItems = readRecord(prop, "items");
+
+        if (type === SCHEMA_TYPE.OBJECT) {
+            if (additional === true && isRecord(data)) {
+                const inferredChild = DataInferenceBuilder.inferPropertiesFromObject(data);
+                rawProperties = DataInferenceBuilder.mergeHybridProperties(inferredChild, rawProperties || {});
             }
-            normalized.uiLayout = prop.uiLayout;
+            if (rawProperties) {
+                normalized.properties = this.normalizeProperties(
+                    rawProperties,
+                    readStringArray(prop, "required") || [],
+                    rootSchema,
+                    data,
+                    depth + 1,
+                    activeRefs
+                );
+            }
+        } else if (type === SCHEMA_TYPE.ARRAY) {
+            let itemsSource: JsonRecord | undefined =
+                rawItems ||
+                (rawProperties
+                    ? { type: SCHEMA_TYPE.OBJECT, properties: rawProperties, required: prop.required }
+                    : undefined);
+            if (itemsSource) {
+                if (itemsSource.additionalProperties === true && Array.isArray(data)) {
+                    const inferredItemProps = DataInferenceBuilder.inferPropertiesFromRows(data);
+                    itemsSource = {
+                        ...itemsSource,
+                        properties: DataInferenceBuilder.mergeHybridProperties(
+                            inferredItemProps,
+                            readRecord(itemsSource, "properties") || {}
+                        )
+                    };
+                }
+                const sampleRow = Array.isArray(data) ? data.find(isRecord) : undefined;
+                normalized.items = this.normalizePropertyMetadata(
+                    itemsSource,
+                    "items",
+                    false,
+                    rootSchema,
+                    sampleRow,
+                    depth + 1,
+                    activeRefs
+                );
+            }
         }
 
         return normalized;
     }
 
-    /**
-     * Generates a Title Case label from camelCase or snake_case technical names.
-     */
-    private static generateLabel(name: string): string {
-        if (!name) return "";
-        let spaced = name.replace(/([A-Z])/g, " $1").replace(/_/g, " ");
-        return spaced.split(' ')
-            .filter(w => w.length > 0)
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ')
-            .trim();
-    }
-
-    /**
-     * Infers a v2 ISchema structure dynamically from a plain data payload.
-     */
-    public static inferSchemaFromData(data: unknown): ISchema {
-        const schema: ISchema = { type: "object", properties: {}, layoutStrategy: "compact", title: "" };
-
-        if (!data || typeof data !== "object") {
-            return schema;
+    private static normalizeSchemaList(
+        raw: unknown,
+        rootSchema?: JsonRecord,
+        depth: number = 0,
+        activeRefs: Set<string> = new Set()
+    ): IPropertyMetadata[] | undefined {
+        if (!Array.isArray(raw) || depth > MAX_NORMALIZE_DEPTH) {
+            return undefined;
         }
-
-        if (Array.isArray(data)) {
-            schema.type = "array";
-            if (data.length > 0 && typeof data[0] !== "object") {
-                schema.layoutStrategy = "compact";
-                schema.items = { type: typeof data[0] as FieldType };
-            } else {
-                schema.layoutStrategy = "table";
-                
-                let mergedProperties: Record<string, unknown> = {};
-                const limit = Math.min(data.length, 50);
-                for (let i = 0; i < limit; i++) {
-                    const inferred = this.inferPropertiesFromObject(data[i] as Record<string, any>);
-                    mergedProperties = this.deepMergeProperties(mergedProperties, inferred as unknown as Record<string, unknown>);
-                }
-
-                schema.items = {
-                    type: "object",
-                    layoutStrategy: "compact",
-                    properties: mergedProperties as Record<string, IPropertyMetadata>
-                } as any;
-            }
-        } else {
-            schema.type = "object";
-            schema.properties = this.inferPropertiesFromObject(data);
-        }
-
-        return schema;
-    }
-
-    /**
-     * Infers field metadata recursively from a raw data object.
-     * @param obj The raw JavaScript object.
-     * @returns A dictionary of inferred IPropertyMetadata.
-     */
-    private static inferPropertiesFromObject(obj: Record<string, unknown>): Record<string, IPropertyMetadata> {
-        const properties: Record<string, IPropertyMetadata> = {};
-        if (!obj || typeof obj !== "object") return properties;
-
-        for (const key of Object.keys(obj)) {
-            const val = obj[key];
-            if (val === null || val === undefined) continue;
-
-            let type: FieldType = SCHEMA_TYPE.STRING;
-            let items: IPropertyMetadata | undefined;
-            let nestedProps: Record<string, IPropertyMetadata> | undefined;
-
-            if (typeof val === "number") type = "number";
-            else if (typeof val === "boolean") type = "boolean";
-            else if (Array.isArray(val)) {
-                type = "array";
-                if (val.length > 0 && typeof val[0] !== "object") {
-                    items = {
-                        type: typeof val[0] as FieldType
-                    };
-                } else {
-                    items = {
-                        type: "object",
-                        properties: val.length > 0 ? this.inferPropertiesFromObject(val[0] as Record<string, unknown>) : {}
+        return raw.filter(isRecord).map((entry) => {
+            let sourceEntry: JsonRecord = entry;
+            const refPath = readString(entry, "$ref");
+            let fallbackKey = readString(entry, "title") || "";
+            const nextRefs = new Set(activeRefs);
+            if (refPath && rootSchema) {
+                const refName = OpenApiRefResolver.extractRefName(refPath);
+                fallbackKey = fallbackKey || refName;
+                if (nextRefs.has(refPath)) {
+                    return {
+                        type: SCHEMA_TYPE.OBJECT,
+                        $ref: refPath,
+                        title: fallbackKey,
+                        ui: { label: fallbackKey, widget: WIDGET_TYPE.REFERENCE }
                     };
                 }
-            } else if (typeof val === "object") {
-                type = "object";
-                nestedProps = this.inferPropertiesFromObject(val as Record<string, unknown>);
-            }
-
-            properties[key] = {
-                type,
-                items,
-                properties: nestedProps,
-                ui: {
-                    label: this.generateLabel(key),
-                    isKey: false,
-                    readOnly: false,
-                    widget: type === "array" && items?.type !== "object" ? "multiInput" : undefined
+                nextRefs.add(refPath);
+                const resolved = OpenApiRefResolver.resolve(refPath, rootSchema);
+                if (isRecord(resolved)) {
+                    sourceEntry = {
+                        ...resolved,
+                        ...entry,
+                        title: readString(entry, "title") || readString(resolved, "title") || refName
+                    };
+                    delete sourceEntry.$ref;
                 }
-            };
-        }
-
-        return properties;
+            }
+            const normalizedBranch = this.normalizePropertyMetadata(
+                sourceEntry,
+                fallbackKey,
+                false,
+                rootSchema,
+                undefined,
+                depth + 1,
+                nextRefs
+            );
+            if (refPath) {
+                normalizedBranch.$ref = refPath;
+            }
+            const branchReq = readStringArray(sourceEntry, "required");
+            if (branchReq) {
+                normalizedBranch.required = branchReq;
+            }
+            return normalizedBranch;
+        });
     }
 
-    /**
-     * Resolves a JSON Schema scope (e.g. '#/properties/header/properties/id')
-     * against the ISchema, returning the PropertyMetadata and the UI5 binding path.
-     */
-    public static resolveScope(schema: ISchema, scope: string): { meta: IPropertyMetadata | undefined, bindingPath: string, propKey: string } {
+    /** Resolves a JSON Schema scope (e.g. `'#/properties/header/properties/id'`) against the `ISchema`. */
+    public static resolveScope(
+        schema: ISchema,
+        scope: string
+    ): { meta: IPropertyMetadata | undefined; bindingPath: string; propKey: string } {
         if (!scope || !scope.startsWith("#/properties/")) {
             return { meta: undefined, bindingPath: scope || "", propKey: scope || "" };
         }
-        
-        const pathSegments = scope.replace("#/properties/", "").split("/properties/");
+        const pathSegments = scope
+            .replace("#/properties/", "")
+            .split("/properties/")
+            .map((segment) => OpenApiRefResolver.unescapePointerSegment(segment));
         let current: Record<string, IPropertyMetadata> | undefined = schema.properties;
         let meta: IPropertyMetadata | undefined;
-        
-        Logger.debug("[MetaUI SchemaNormalizer]", `Resolving scope '${scope}' with segments: ${JSON.stringify(pathSegments)}`, "SchemaNormalizer");
-        Logger.debug("[MetaUI SchemaNormalizer]", `Root schema keys: ${Object.keys(schema.properties || {})}`, "SchemaNormalizer");
-
         for (let i = 0; i < pathSegments.length; i++) {
             const segment = pathSegments[i];
             if (!current) {
-                Logger.debug("[MetaUI SchemaNormalizer]", `current is undefined at segment '${segment}'`, "SchemaNormalizer");
                 meta = undefined;
                 break;
             }
             meta = current[segment];
-            Logger.debug("[MetaUI SchemaNormalizer]", `Segment '${segment}' resolved to meta: ${!!meta}. Available keys in current: ${Object.keys(current)}`, "SchemaNormalizer");
             if (i < pathSegments.length - 1) {
                 current = meta?.properties;
             }
         }
-        
-        const bindingPath = pathSegments.join("/");
-        const propKey = scope.replace("#/properties/", ""); // The original raw string for logging
-        
-        return {
-            meta,
-            bindingPath,
-            propKey
-        };
+        if (!meta) {
+            Logger.warn("[MetaUI SchemaNormalizer]", `Scope '${scope}' does not resolve to a schema property.`);
+        }
+        return { meta, bindingPath: pathSegments.join("/"), propKey: pathSegments.join("/properties/") };
     }
 }

@@ -1,73 +1,37 @@
-import { BasePlugin } from "../controls/BasePlugin";
+/**
+ * @file CameraPlugin.ts
+ * @description Renders a CameraControl component in edit mode and an Image in display mode.
+ */
+
+import { HardwareControlPlugin } from "./HardwareControlPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import CameraControl from "../../controls/CameraControl";
-import ImageControl from "sap/m/Image";
 
-export class CameraPlugin extends BasePlugin {
+/**
+ * Plugin responsible for rendering the hardware `CameraControl` widget.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
+ */
+export class CameraPlugin extends HardwareControlPlugin<CameraControl> {
+    protected readonly HardwareControlClass = CameraControl;
+
     /**
-     * Renders a `CameraControl` component.
-     * 
-     * @param metadata The specific JSON schema properties for this field.
+     * Renders a URL-validated `sap.m.Image` in display mode.
+     *
+     * @param metadata The property metadata.
      * @param bindingPath The JSON path bound to this control.
      * @param modelName The UI5 JSONModel name.
      * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
-     * @returns {Control} The configured CameraControl.
+     * @returns {Control} The configured Image control.
      */
-    public render(metadata: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = metadata;
-        this.fieldKey = bindingPath.replace('/', '');
-        this.modelName = modelName;
-
-        if (!this.isEditable) {
-            
-            this.control = new ImageControl({
-                id: this.generateStableId(engineScopeId, bindingPath),
-                src: this.generateBindingInfo(bindingPath, modelName),
-                width: "400px",
-                alt: metadata.ui?.label || "Image"
-            });
-            this.applyCommonDirectives(this.control, metadata, modelName);
-            return this.control as Control;
-        }
-
-        this.control = new CameraControl({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            value: this.generateBindingInfo(bindingPath, modelName),
-            schemaMetadata: metadata,
-            readOnly: !!metadata.ui?.readOnly
-        });
-
-        this.applyCommonDirectives(this.control, metadata, modelName);
-
-        // Validation mapping could be hooked into the 'capture' event if needed, but Two-Way binding updates the model naturally.
-        (this.control as CameraControl).attachEvent('capture', () => {
-            const result = this.validate();
-                if (this.onChange) {
-                    this.onChange(result.isValid, this.fieldKey, result.errorMessage);
-                }
-        });
-
-        return this.control as Control;
-    }
-
-    /**
-     * Retrieves the current base64 image state.
-     * @returns {unknown} The image value.
-     */
-    protected getValue(): unknown {
-        return this.control ? (this.control as CameraControl).getProperty('value') : null;
-    }
-
-    /**
-     * Applies dynamic read-only state.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            if (!this.isEditable) return;
-            (this.control as sap.ui.core.Control).setProperty("readOnly", !!this.metadata.ui?.readOnly);
-        }
+    protected renderDisplayControl(
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string,
+        engineScopeId?: string
+    ): Control {
+        return this.renderSafeImageDisplay(metadata, bindingPath, modelName, engineScopeId, "Image");
     }
 }

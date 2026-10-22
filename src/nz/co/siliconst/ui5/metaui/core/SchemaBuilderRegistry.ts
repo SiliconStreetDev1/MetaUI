@@ -9,6 +9,10 @@ import { SchemaNormalizer } from "./SchemaNormalizer";
 import { OpenApiBuilder } from "../openapi/OpenApiBuilder";
 import { Logger } from "../utils/Logger";
 
+/**
+ * Singleton registry for Schema Builder plugins that routes raw JSON or OpenAPI payloads
+ * to the appropriate {@link ISchemaBuilderPlugin} parser.
+ */
 export class SchemaBuilderRegistry {
     private static _plugins: ISchemaBuilderPlugin[] = [
         new OpenApiBuilder(),
@@ -16,11 +20,16 @@ export class SchemaBuilderRegistry {
     ];
 
     /**
-     * Registers a new schema builder plugin into the engine.
+     * Registers a new schema builder plugin into the engine before the terminal `SchemaNormalizer` fallback.
      * @param plugin An instance of ISchemaBuilderPlugin
      */
     public static register(plugin: ISchemaBuilderPlugin): void {
-        this._plugins.push(plugin);
+        const fallbackIdx = this._plugins.findIndex((p) => p instanceof SchemaNormalizer);
+        if (fallbackIdx >= 0) {
+            this._plugins.splice(fallbackIdx, 0, plugin);
+        } else {
+            this._plugins.push(plugin);
+        }
     }
 
     /**
@@ -38,7 +47,7 @@ export class SchemaBuilderRegistry {
                 return plugin;
             }
         }
-        
+
         Logger.warn("[SchemaBuilderRegistry]", "No suitable Schema Builder plugin found for the provided payload.");
         return null;
     }

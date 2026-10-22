@@ -5,12 +5,15 @@
     <!-- Authentic OData Binding: Resolving the global 'odata' model natively -->
     <meta:DynamicHost
         binding="{odata>/Employees('E100')}"
+        schemaDefinition="{ path: '/current/schemaObj', mode: 'OneWay' }"
         liveUpdate="{/settings/liveUpdate}"
         editable="{/settings/editable}"
         debugMode="{/settings/debugMode}"
-        useMessageManager="true"
+        useMessageManager="{/settings/useMessageManager}"
+        layoutBudget="{/settings/layoutBudget}"
         error=".onHostError"
         fieldChange=".onHostFieldChange"
-        submit=".onHostSubmit" />
+        submit=".onHostSubmit"
+        beforeLayoutSectionChange=".onBeforeLayoutSectionChange" />
         
 </core:FragmentDefinition>

@@ -35,7 +35,7 @@ This means you can throw raw JSON or OData contexts at the UI without ever writi
 
 If you prefer continuous two-way binding over a sandboxed approach, you can set `liveUpdate="true"` on the `DynamicHost`. 
 
-When enabled, every field `change` event (e.g. blurring a field or pressing Enter) completely bypasses the validation queue and forcefully synchronizes the data directly back into the upstream `data` / `dataJson` bound models in real-time.
+When enabled, every field `change` event (e.g. blurring a field or pressing Enter) immediately runs local field validation (`ValueState.Error`) and synchronizes the updated sandbox payload directly back into the upstream `data` / `dataJson` / OData bound models without waiting for `triggerSubmit()`.
 
 ---
 
@@ -58,23 +58,19 @@ To release the data upstream, you must explicitly invoke the validation pipeline
 
 ---
 
-## Error Handling & Visual Validation
+## Error Handling & Single-Authority Validation (`ValidationLedger`)
 
-How validation errors are visually surfaced to the user depends entirely on whether the engine is in Sandboxed Mode or Live Update Mode.
+MetaUI uses `ValidationLedger` as the single authoritative coordinator for field and form validation across three error channels (`schemaError`, `policyError`, and `customError`).
 
-### Visual Errors in Sandboxed Mode (Default)
-In Sandboxed mode, the engine intentionally suppresses visual error messages while the user is typing. Errors are **only evaluated** when the Validation Pipeline is explicitly triggered (via the Submit button or `triggerSubmit()`).
-1. The engine evaluates the schema rules.
-2. If invalid, it halts the submit event and logs the violations to the console.
-3. The framework then falls back to a **Local Visual State** implementation, directly applying red borders to the offending UI controls without relying on the global UI5 core.
+### Local Visual Validation & Sandbox Isolation
+1. **Interactive Field Changes (`change` event)**: Whenever a user completes a field edit (e.g. blurring an input, selecting an item, or picking a date), the plugin runs its `validate()` pipeline via `PipelineManager` and notifies the `Engine` and `ValidationLedger`. If invalid, the plugin immediately applies `ValueState.Error` and `ValueStateText` to the UI5 control.
+2. **Sandboxed Mode (`liveUpdate="false"`, default) vs. Live Mode (`liveUpdate="true"`)**:
+   - When `liveUpdate="false"`, edits remain isolated inside the internal `StateManager` (`SandboxJSONModel`). The parent application's bound `data` / `dataJson` / OData model is shielded from unsubmitted edits until `triggerSubmit()` succeeds with zero active errors.
+   - When `liveUpdate="true"`, `DataSyncDelegate` continuously pushes every field change back to the parent `data` / `dataJson` / OData binding while still evaluating and displaying validation state on the controls.
+3. **Full Form Validation Gate (`triggerSubmit()`)**: Calling `triggerSubmit()` (or pressing the dialog submit button) runs `Engine.validateAll()` across all registered plugins, cloned table rows, and nested array/object payloads (`PayloadValidator`), and blocks submission if any visible field has an active `schemaError`, `policyError`, or `customError`.
 
-### Visual Errors in Live Update Mode
-In Live Update Mode, the engine aggressively syncs data on standard field completions (blur, selection, pressing Enter). To provide immediate feedback without annoying the user while they type, the engine natively intercepts every `change` event, runs the field's data against the schema validator, and instantly applies the **Local Visual State** (red borders) to the control if it fails.
-
-### Global Message Manager Integration (Centralized Errors)
-By default, validation errors are handled locally by the plugins (creating red borders, but no popups). If you want to aggregate these errors into a centralized UI (such as a standard Fiori Message Popover button in the footer), you can set `useMessageManager="true"` on the `DynamicHost`.
-
-When enabled, the localized fallback is bypassed. Instead, the `ValidationDelegate` automatically pushes all schema violations directly into the global `sap.ui.core.message.MessageManager`, which handles the red highlights natively and makes the errors instantly accessible to any standard UI5 error aggregation controls.
+### Global Message Manager Integration (`useMessageManager="true"`)
+As documented in [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) §6, plugins always manage their own `ValueState.Error` manually on the control so UI5's internal binding sync never overwrites custom schema or policy errors. When you additionally set `useMessageManager="true"` on the `DynamicHost`, `ValidationLedger` synchronizes scoped `sap/ui/core/message/Message` instances (tagged with `processor: stateManager.getModel()`) into `sap/ui/core/Messaging`. This populates centralized Fiori `MessagePopover` controls while ensuring every message is deterministically cleaned up when the field is fixed or when the host is destroyed.
 
 ---
 
@@ -125,7 +121,7 @@ The `ui.controlProps` object acts as an escape hatch in your JSON Schema, allowi
 You can write full UI5 `{= ... }` expressions to dynamically toggle UI states based on other fields in the payload, or even bind to external models supplied by your parent application.
 
 **Binding to the Internal MetaUI Payload:**
-The MetaUI Engine is smart enough to intercept the generic model placeholder `metaui>` and inject the correct dynamic scope at runtime (`metaUI_Host1>`). This entirely shields you from sandbox model collisions and safely avoids conflicts with Fiori Elements metadata models.
+The MetaUI Engine intercepts both the host's configured `modelName` (default `meta>`) and the generic placeholder `metaui>` (rewriting `${metaui>` to `${<modelName>>` in `ControlDirectiveUtil.ts`). This shields you from sandbox model collisions and avoids conflicts with Fiori Elements metadata models.
 ```json
 "controlProps": {
   "placeholder": "{= ${metaui>/AgreeTerms} ? 'Please leave a comment...' : 'You must agree to terms first!' }"
@@ -141,9 +137,9 @@ Because the engine selectively routes the `metaui>` prefix, you can freely bind 
 ```
 
 ### Blocked Properties (Sandbox Integrity)
-To maintain the security and architectural integrity of the two-way data binding engine, certain critical properties are blocked and cannot be overridden via expression bindings in `controlProps`. These include:
-- `value`, `text`, `selected`, `dateValue` (Data paths managed strictly by the `StateManager`)
+To maintain the security and architectural integrity of the two-way data binding engine, certain critical properties (`BLOCKED_CONTROL_PROPS` in `ControlCapabilities.ts`) are blocked and cannot be overridden in `controlProps`. These include:
+- `value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens` (Data paths managed strictly by the `StateManager`)
 - `editable`, `enabled`, `visible` (Managed strictly by `visibleOn`, `enabledOn`, and `readOnly` schema directives)
-- `valueState`, `valueStateText` (Managed exclusively by the `SchemaValidator`)
+- `valueState`, `valueStateText` (Managed exclusively by the validation pipeline)
 
-If you attempt to inject these, the Engine will block them and log an `ILLEGAL OVERRIDE` warning to the console.
+If you attempt to inject these, the Engine will block them and log an `ILLEGAL OVERRIDE` warning via `Logger.warn`.

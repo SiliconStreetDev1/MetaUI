@@ -62,7 +62,7 @@ sap.ui.define([
      */
     ScenarioManager.prototype.getScenario = function (sKey) {
         if (this._cache[sKey]) {
-            return Promise.resolve(this._cache[sKey]);
+            return Promise.resolve(JSON.parse(JSON.stringify(this._cache[sKey])));
         }
 
         var sUrl = sap.ui.require.toUrl("metaui/sandbox/mockData/scenarios/" + sKey + ".json");
@@ -73,7 +73,7 @@ sap.ui.define([
             })
             .then(function (data) {
                 this._cache[sKey] = data;
-                return data;
+                return JSON.parse(JSON.stringify(data));
             }.bind(this))
             .catch(function (err) {
                 Log.error("[ScenarioManager]", "Failed to fetch scenario " + sKey + ": " + err.message);

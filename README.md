@@ -13,6 +13,17 @@ It is important to note that MetaUI is **not** an attempt to replace SAP Fiori E
 
 MetaUI is designed as a complementary tool for highly dynamic use cases where CDS annotations are unavailable, impossible, or too rigid. By relying on universal JSON Schema, MetaUI provides a flexible alternative for scenarios that demand on-the-fly, runtime layout generation.
 
+## Requirements
+
+> **MetaUI requires SAPUI5, not OpenUI5.** It depends on the `sap.ndc` library
+> (barcode scanning), which ships with SAPUI5 but is not part of OpenUI5.
+> Bootstrapping from an OpenUI5 distribution fails while resolving
+> `sap/ndc/library.js`. Use the SAPUI5 CDN (`https://ui5.sap.com/`) or declare
+> the framework libraries through UI5 Tooling.
+
+Its other UI5 library dependencies are `sap.ui.core`, `sap.m`, `sap.ui.layout`,
+`sap.ui.unified` and `sap.ui.codeeditor`.
+
 ## Quickstart
 
 **1. Install**
@@ -48,7 +59,7 @@ That's it. MetaUI handles the `sap.m.Input`, `sap.m.DatePicker`, `sap.m.Switch`,
 
 ## Key Features
 
-- **31 field plugins** — Strings, dates, cameras, barcode scanners, signatures, code editors, and more
+- **52 `(type, widget)` plugin mappings** (canonical counts via `npm run metrics`) — Strings, numbers, dates, polymorphic `oneOf`/`anyOf` selectors, dictionary maps, cameras, barcode scanners, signatures, code editors, OData/REST value helps, and more
 - **4 layout strategies** — Form, Table, Wizard (step-by-step), Compact
 - **Policy-Based Rules Engine** — Declarative cross-field logic (Show/Hide/Require/Disable) with automatic symmetrical reversals
 - **Tri-Binding Engine** — Feed data as an object, JSON string, or OData context
@@ -59,7 +70,8 @@ That's it. MetaUI handles the `sap.m.Input`, `sap.m.DatePicker`, `sap.m.Switch`,
 
 Full documentation covering schemas, plugins, policies, and integration guides:
 
-**→ [MetaUI Documentation Wiki](docs/wiki/Home.md)**
+- **→ [MetaUI Documentation Wiki](docs/wiki/Home.md)**
+- **→ [Supported Features & Known Limitations](docs/wiki/SupportedFeatures.md)**
 
 ## ⚖️ License
 

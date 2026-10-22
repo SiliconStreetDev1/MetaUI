@@ -1,6 +1,56 @@
 {
   "key": "odata_v4",
-  "name": "OData V4 Mock",
-  "data": {},
-  "schema": {}
+  "name": "OData V4 Bindings",
+  "data": {
+    "ID": "E100",
+    "FirstName": "Alice",
+    "LastName": "Smith",
+    "Role": "Senior Architect",
+    "Department": "Engineering"
+  },
+  "schema": {
+    "title": "OData V4 Employee Record",
+    "type": "object",
+    "layoutStrategy": "form",
+    "properties": {
+      "ID": {
+        "type": "string",
+        "readOnly": true,
+        "ui": {
+          "label": "Employee ID",
+          "readOnly": true
+        }
+      },
+      "FirstName": {
+        "type": "string",
+        "required": true,
+        "minLength": 2,
+        "ui": {
+          "label": "First Name"
+        }
+      },
+      "LastName": {
+        "type": "string",
+        "required": true,
+        "minLength": 2,
+        "ui": {
+          "label": "Last Name"
+        }
+      },
+      "Role": {
+        "type": "string",
+        "ui": {
+          "label": "Job Role"
+        }
+      },
+      "Department": {
+        "type": "string",
+        "enum": ["Engineering", "Finance", "Operations", "Product"],
+        "ui": {
+          "label": "Department",
+          "widget": "select"
+        }
+      }
+    }
+  }
 }

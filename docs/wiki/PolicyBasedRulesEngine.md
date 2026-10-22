@@ -41,7 +41,7 @@ If the user selects "South African" in the example above, the condition (`String
 
 | Effect | Description | Reversal (Automatic) |
 |---|---|---|
-| `Hide` | Hides the field from the layout. Natively cleans up unbound data. | `Show` |
+| `Hide` | Hides the field (and its companion label) from the layout and suppresses validation errors while hidden. | `Show` |
 | `Show` | Displays a previously hidden field. | `Hide` |
 | `Require` | Makes a field mandatory (shows red asterisk). Blocks submission. | `Optional` |
 | `Optional` | Removes mandatory enforcement. | `Require` |
@@ -67,6 +67,14 @@ Strictly matches string variants.
 ```json
 "condition": {
   "StringEquals": { "/AccommodationType": "Campsite" }
+}
+```
+
+### DateLessThan
+Compares an ISO date string or `Date` value against a threshold date string (`"YYYY-MM-DD"` or `"$today"`).
+```json
+"condition": {
+  "DateLessThan": { "/CheckInDate": "$today" }
 }
 ```
 
@@ -100,7 +108,7 @@ When the user types `16` into `/Age`, the field instantly turns red and displays
 
 ## Tutorial: Building a Custom Policy Plugin
 
-Because PBRE is plugin-based, you can introduce custom conditions and effects tailored to your enterprise logic without touching the core `PolicyEngine`.
+Because PBRE is plugin-based, you can introduce custom conditions and effects tailored to your domain logic without touching the core `PolicyEngine`.
 
 ### 1. Creating a Custom Condition Plugin
 Let's build a plugin that checks if a string contains a specific substring.

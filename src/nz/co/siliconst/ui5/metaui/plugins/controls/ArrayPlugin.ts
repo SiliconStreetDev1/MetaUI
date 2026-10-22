@@ -1,118 +1,81 @@
 /**
  * @file ArrayPlugin.ts
- * @description Renders a button that drills down into a nested table (array) via a recursive Dialog using v2 schema.
+ * @description Renders a button in table cells or compact forms that opens a modal table editor for nested arrays.
  */
 
-import { BasePlugin } from "./BasePlugin";
+import { INestedDialogDescriptor, NestedDialogPlugin } from "./NestedDialogPlugin";
 import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
-import { IPluginValidationResult } from "../../interfaces/IPlugin";
-import Control from "sap/ui/core/Control";
-import Button from "sap/m/Button";
-import JSONModel from "sap/ui/model/json/JSONModel";
-import { SCHEMA_TYPE, UI5_EVENT } from "../../constants/MetaUIConstants";
 
-export class ArrayPlugin extends BasePlugin {
+/**
+ * Plugin responsible for rendering nested array triggers (`sap.m.Button`) inside table cells or forms,
+ * launching a modal `DynamicHost` table dialog when pressed.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
+ * @public
+ */
+export class ArrayPlugin extends NestedDialogPlugin {
+    protected readonly defaultErrorTooltip: string = "Invalid nested array";
+    protected readonly emptyFallbackValue: unknown = [];
+
     /**
-     * Renders a `sap.m.Button` to open a nested array form dialog.
-     * 
-     * @param field The specific JSON schema properties for this field.
-     * @param bindingPath The JSON path bound to this control.
-     * @param modelName The UI5 JSONModel name.
-     * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
-     * @returns {Control} The configured Button control.
+     * Resolves the default button label for nested arrays.
+     *
+     * @param metadata The property metadata.
+     * @returns {string} The button label stem.
      */
-    public render(field: IPropertyMetadata,  bindingPath: string,  modelName: string = "meta", engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control {
-        this.onChange = onChange;
-        this.metadata = field;
-        const propKey = bindingPath.startsWith("/") ? bindingPath.substring(1) : bindingPath;
-        
+    protected getDefaultLabel(metadata: IPropertyMetadata): string {
+        return metadata.ui?.label || "Items";
+    }
+
+    /**
+     * Resolves the list icon for the nested array trigger button.
+     *
+     * @param _canEdit Unused editability flag.
+     * @returns {string} The SAP icon URI.
+     */
+    protected getButtonIcon(_canEdit: boolean): string {
+        return "sap-icon://list";
+    }
+
+    /**
+     * Coerces the current raw model value to an array.
+     *
+     * @param rawCurrent The raw model value.
+     * @returns {unknown[]} The array payload.
+     */
+    protected override coerceCurrentData(rawCurrent: unknown): unknown {
+        return Array.isArray(rawCurrent) ? rawCurrent : [];
+    }
+
+    /**
+     * Coerces the saved modal payload to an array.
+     *
+     * @param extractedData The payload returned by the nested `DynamicHost`.
+     * @returns {unknown[]} The saved array.
+     */
+    protected override coerceSavedData(extractedData: unknown): unknown {
+        return Array.isArray(extractedData) ? extractedData : [];
+    }
+
+    /**
+     * Builds the modal `layoutStrategy: "table"` sub-schema descriptor for the nested array.
+     *
+     * @param metadata The array property metadata.
+     * @returns {INestedDialogDescriptor} The modal dialog descriptor.
+     */
+    protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor {
+        const title = metadata.ui?.label || "Items";
         const subSchema: ISchema = {
-            type: SCHEMA_TYPE.ARRAY,
-            title: field.ui?.label || propKey,
-            items: field.items || {
-                type: SCHEMA_TYPE.OBJECT,
-                properties: {} // inference will handle it if empty
-            }
+            title,
+            type: "array",
+            layoutStrategy: "table",
+            items: metadata.items || { type: "object", properties: {} },
+            uiLayout: metadata.items?.uiLayout || metadata.uiLayout,
+            readOnly: metadata.readOnly,
+            minItems: metadata.minItems,
+            maxItems: metadata.maxItems,
+            uniqueItems: metadata.uniqueItems
         };
-
-        if (field.uiLayout) {
-            subSchema.uiLayout = field.uiLayout;
-        }
-
-        this.control = new Button({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            text: !this.isEditable ? "View Records" : "Edit Records",
-            icon: !this.isEditable ? "sap-icon://display" : "sap-icon://list",
-            press: (oEvent: sap.ui.base.Event) => {
-                const btn = oEvent.getSource() as Button;
-                const parentModel = btn.getModel(modelName) as JSONModel;
-                if (!parentModel) return;
-                
-                const bindingContext = btn.getBindingContext(modelName);
-                let updatePath = bindingPath;
-                if (bindingContext && !bindingPath.startsWith("/")) {
-                    const ctxPath = bindingContext.getPath();
-                    updatePath = ctxPath.endsWith("/") ? ctxPath + bindingPath : (ctxPath === "/" ? "/" + bindingPath : ctxPath + "/" + bindingPath);
-                }
-                
-                // Deep clone to prevent live-mutations on the parent model before 'Submit' is clicked
-                const nestedData = JSON.parse(JSON.stringify(parentModel.getProperty(updatePath) || []));
-
-                // schemaDefinitions is passed downwards from the root host. 
-                // We'll need a different way to access it, but for now we can still pull it from the parentModel if we have to, 
-                // wait, schemaDefinitions is not on the model, it's on the host. 
-                // But the engine has it! Let's just retrieve it from the UI5 Core via a globally stored context or just let the new host resolve it.
-                // Wait! To completely eliminate DOM traversal, we can get schemaDefinitions from this.metadata! But it's not there.
-                // For now, let's just use sap.ui.core.Core().byId to find the host? No, that's still a hack.
-                // Let's look at how we can get schemaDefinitions. We can pass them via a global model 'metaUIConfig'.
-                // But since we are removing the parent DOM traversal, let's just assume we can get it or we don't need it.
-                // Wait, if I just remove the parentHost, schemaDefs will be null. Let's see if that breaks anything.
-
-                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DynamicHostClass: typeof import("../../controls/DynamicHost").default) => {
-                    const host = new DynamicHostClass({
-                        schemaDefinition: subSchema,
-                        schemaDefinitions: undefined,
-                        data: nestedData,
-                        editable: this.isEditable, // Pass the display mode down to the child Engine!
-                        layoutBudget: this.metadata?.ui?.layoutBudget || 0
-                    } as object);
-
-                    // Only attach submit event if we are not in display mode
-                    if (!!this.isEditable) {
-                        host.attachEvent(UI5_EVENT.SUBMIT, (e: sap.ui.base.Event) => {
-                            const payload = e.getParameter("payload");
-                            parentModel.setProperty(updatePath, payload);
-
-                            // CRITICAL: Notify the parent Engine that this field mutated
-                            // so it can trigger LiveUpdate syncs and validate!
-                            if (this.onChange) {
-                                this.onChange(true, propKey);
-                            }
-                        });
-                    }
-
-                    const buttonText = field.ui?.dialogButtonText || (!this.isEditable ? "Close" : "OK");
-                    host.openInDialog(`Nested Records: ${field.ui?.label || propKey}`, buttonText);
-                });
-            }
-        });
-        this.applyCommonDirectives(this.control, field, modelName);
-        
-        return this.control as Control;
-    }
-
-    /**
-     * Read-only component for the engine, returns null.
-     */
-    protected getValue(): unknown {
-        return null;
-    }
-
-    /**
-     * Read-only component, no dynamic state handling needed for the button itself.
-     */
-    protected applyState(): void {
-        // dynamic state changes
+        return { title, subSchema, isArrayRoot: true };
     }
 }

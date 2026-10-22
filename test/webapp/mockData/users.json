@@ -1,0 +1,6 @@
+[
+  { "id": "1", "name": "Alice Johnson", "department": "Engineering" },
+  { "id": "2", "name": "Bob Smith", "department": "Finance" },
+  { "id": "3", "name": "Carol Williams", "department": "Operations" }
+]
+

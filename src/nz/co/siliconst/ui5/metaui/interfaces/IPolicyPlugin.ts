@@ -12,11 +12,13 @@ import { PropertyName } from "../core/PolicyEngine";
  */
 export interface IPolicyConditionPlugin {
     /**
-     * Identifies if this plugin handles a specific condition key (e.g., "NumericGreaterThan", "StringEquals").
+     * Optional legacy identifier for condition keys. `PolicyEngine` dispatches purely by registered
+     * operator key in `PluginRegistry.registerPolicyConditionPath`.
+     * @deprecated Dispatched by `PluginRegistry` operator key.
      * @param conditionKey The key extracted from the IPolicyCondition block.
      * @returns True if this plugin should evaluate the block, false otherwise.
      */
-    canHandle(conditionKey: string): boolean;
+    canHandle?(conditionKey: string): boolean;
 
     /**
      * Evaluates the condition payload against the live data.
@@ -33,17 +35,23 @@ export interface IPolicyConditionPlugin {
  */
 export interface IPolicyEffectPlugin {
     /**
-     * Identifies if this plugin translates a specific semantic effect string.
+     * Optional legacy identifier for effect keys. `PolicyEngine` dispatches purely by registered
+     * effect key in `PluginRegistry.registerPolicyEffectPath`.
+     * @deprecated Dispatched by `PluginRegistry` effect key.
      * @param effect The semantic string defined in the schema (e.g., "Hide", "Require").
      * @returns True if this plugin owns the translation, false otherwise.
      */
-    canHandle(effect: PolicyEffectType | string): boolean;
+    canHandle?(effect: PolicyEffectType | string): boolean;
 
     /**
      * Resolves the effect into a concrete structural delta for the UI components.
      * Automatically handles the symmetrical reversal if the condition is false.
      * @param isConditionMet Whether the governing policy condition passed or failed.
+     * @param originalEffect The semantic effect string declared in the schema.
      * @returns An object containing the exact property to alter (e.g., "visibility") and its new boolean state.
      */
-    resolveState(isConditionMet: boolean, originalEffect: PolicyEffectType | string): { property: PropertyName, value: boolean };
+    resolveState(
+        isConditionMet: boolean,
+        originalEffect: PolicyEffectType | string
+    ): { property: PropertyName; value: boolean };
 }
