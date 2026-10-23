@@ -14,6 +14,7 @@ import { ISchema } from "../../../interfaces/ISchema";
 import { SchemaWalker } from "../../../core/SchemaWalker";
 import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
 import { SchemaBuilderRegistry } from "../../../core/SchemaBuilderRegistry";
+import { OpenApiBuilder } from "../../../openapi/OpenApiBuilder";
 import { SchemaValidator } from "../../../core/SchemaValidator";
 import { LayoutScorer } from "../../../core/LayoutScorer";
 import { LayoutMutator } from "../../../core/LayoutMutator";
@@ -72,6 +73,7 @@ export class GenerationDelegate {
             rawSchema = deepClone(rawSchema);
         }
         let builtDefinitions: Record<string, ISchema> | undefined;
+        let isOpenApiBuilt = false;
         if (isRecord(rawSchema)) {
             type CustomBuilderLookup = {
                 getBuilderFor?: (
@@ -82,11 +84,15 @@ export class GenerationDelegate {
             const builder = customRegistry?.getBuilderFor
                 ? customRegistry.getBuilderFor(rawSchema)
                 : SchemaBuilderRegistry.getBuilderFor(rawSchema);
-            if (builder) {
+            if (builder && !(builder instanceof SchemaNormalizer)) {
                 const target = (this.host.getProperty("schemaTarget") as string | null) || undefined;
                 const built = builder.build(rawSchema, target);
+                isOpenApiBuilt = builder instanceof OpenApiBuilder;
                 if (built.definitions) {
                     builtDefinitions = built.definitions;
+                    if (isOpenApiBuilt) {
+                        delete built.definitions;
+                    }
                 }
                 rawSchema = built;
             }
@@ -108,7 +114,11 @@ export class GenerationDelegate {
         }
 
         let finalData: unknown = rawFinalData !== undefined && rawFinalData !== null ? deepClone(rawFinalData) : {};
-        const normalizedSchema = SchemaNormalizer.normalize(isSchemaEmpty ? null : rawSchema, finalData);
+        const hasHybridInference = this.containsAdditionalProperties(rawSchema);
+        const normalizedSchema: ISchema =
+            isOpenApiBuilt && !isSchemaEmpty && !hasHybridInference
+                ? (rawSchema as ISchema)
+                : SchemaNormalizer.normalize(isSchemaEmpty ? null : rawSchema, finalData);
         if (
             normalizedSchema.type === "array" &&
             !Array.isArray(finalData) &&
@@ -117,7 +127,6 @@ export class GenerationDelegate {
         ) {
             finalData = [];
         }
-        const hasHybridInference = this.containsAdditionalProperties(rawSchema);
         const inferredBaseline =
             isSchemaEmpty || hasHybridInference ? SchemaNormalizer.inferSchemaFromData(finalData) : null;
 
@@ -134,7 +143,8 @@ export class GenerationDelegate {
         const normalizedDefinitions = this.extractAndNormalizeDefinitions(
             normalizedSchema,
             rawSchema,
-            builtDefinitions
+            builtDefinitions,
+            isOpenApiBuilt
         );
 
         if (DefaultLayoutGenerator.ensureLayout(normalizedSchema)) {
@@ -329,7 +339,8 @@ export class GenerationDelegate {
     private extractAndNormalizeDefinitions(
         normalizedSchema: ISchema,
         rawSchema: unknown,
-        builtDefinitions?: Record<string, ISchema>
+        builtDefinitions?: Record<string, ISchema>,
+        isOpenApiBuilt: boolean = false
     ): Record<string, ISchema> | undefined {
         const normalized: Record<string, ISchema> = {};
         const rawDefinitionsProp = this.host.getProperty("schemaDefinitions");
@@ -347,10 +358,18 @@ export class GenerationDelegate {
         if (builtDefinitions) {
             for (const key of Object.keys(builtDefinitions)) {
                 if (!normalizedSchema.definitions?.[key]) {
-                    try {
-                        normalized[key] = SchemaNormalizer.normalizeDefinition(builtDefinitions[key], key, rootRecord);
-                    } catch (_e) {
-                        Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+                    if (isOpenApiBuilt) {
+                        normalized[key] = builtDefinitions[key];
+                    } else {
+                        try {
+                            normalized[key] = SchemaNormalizer.normalizeDefinition(
+                                builtDefinitions[key],
+                                key,
+                                rootRecord
+                            );
+                        } catch (_e) {
+                            Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+                        }
                     }
                 }
             }

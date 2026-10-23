@@ -8,7 +8,12 @@ import { OpenApiRefResolver } from "../OpenApiRefResolver";
 import { OpenApiUIMapper } from "../OpenApiUIMapper";
 import { OpenApiConstraintMapper } from "./OpenApiConstraintMapper";
 import { DataInferenceBuilder } from "../../core/DataInferenceBuilder";
-import { SchemaDirectiveNormalizer } from "../../core/SchemaDirectiveNormalizer";
+import {
+    DeclinedSchemaFieldsMap,
+    IPropertyProducerContract,
+    SchemaDirectiveNormalizer
+} from "../../core/SchemaDirectiveNormalizer";
+import { ITreeChild, ITreeShape, RawRecordShape, SchemaWalker } from "../../core/SchemaWalker";
 import { WIDGET_TYPE, MAX_SCHEMA_DEPTH } from "../../constants/MetaUIConstants";
 import { Logger } from "../../utils/Logger";
 import {
@@ -19,6 +24,123 @@ import {
     readRecord,
     readStringArray
 } from "../../utils/TypeGuards";
+
+/** Internal descriptor for a polymorphic (`oneOf` / `anyOf`) child branch during `OpenApiPropertyMapper` traversal. */
+interface IOpenApiPolymorphicBranchTask {
+    node: IOpenApiMappingNode;
+    isRawRecord: boolean;
+    refPath?: string;
+    refName?: string;
+    inlined?: JsonRecord;
+    explicitTitle?: string;
+    branchReq?: string[];
+}
+
+/** Internal mutable frame walked by `SchemaWalker` during `OpenApiPropertyMapper.mapPropertyMetadata`. */
+interface IOpenApiMappingNode {
+    rawProp: unknown;
+    keyName: string;
+    isRequired: boolean;
+    activeRefs: Set<string>;
+    result?: IPropertyMetadata;
+    refPath?: string;
+    inlineChild?: IOpenApiMappingNode;
+    metaProp?: IPropertyMetadata;
+    currentProp?: JsonRecord;
+    resolvedType?: string;
+    oneOfBranches?: IOpenApiPolymorphicBranchTask[];
+    anyOfBranches?: IOpenApiPolymorphicBranchTask[];
+    notChild?: IOpenApiMappingNode;
+    propChildren?: IOpenApiMappingNode[];
+    additionalPropChild?: IOpenApiMappingNode;
+    itemsChild?: IOpenApiMappingNode;
+}
+
+/** Tree shape yielding the prepared child tasks of an `IOpenApiMappingNode` in pre-order sequence. */
+const OpenApiMappingShape: ITreeShape<IOpenApiMappingNode> = {
+    defaultMaxDepth: MAX_SCHEMA_DEPTH,
+    *children(node: IOpenApiMappingNode): Iterable<ITreeChild<IOpenApiMappingNode>> {
+        if (node.inlineChild) {
+            yield {
+                key: node.inlineChild.keyName,
+                node: node.inlineChild,
+                kind: "branch",
+                branchKeyword: "$ref",
+                scopeSegment: "$ref",
+                bindingSegment: node.inlineChild.keyName
+            };
+            return;
+        }
+        if (node.oneOfBranches) {
+            for (let i = 0; i < node.oneOfBranches.length; i++) {
+                const child = node.oneOfBranches[i].node;
+                const idxKey = String(i);
+                yield {
+                    key: idxKey,
+                    node: child,
+                    kind: "branch",
+                    branchKeyword: "oneOf",
+                    scopeSegment: `oneOf/${idxKey}`,
+                    bindingSegment: `oneOf/${idxKey}`
+                };
+            }
+        }
+        if (node.anyOfBranches) {
+            for (let i = 0; i < node.anyOfBranches.length; i++) {
+                const child = node.anyOfBranches[i].node;
+                const idxKey = String(i);
+                yield {
+                    key: idxKey,
+                    node: child,
+                    kind: "branch",
+                    branchKeyword: "anyOf",
+                    scopeSegment: `anyOf/${idxKey}`,
+                    bindingSegment: `anyOf/${idxKey}`
+                };
+            }
+        }
+        if (node.notChild) {
+            yield {
+                key: "not",
+                node: node.notChild,
+                kind: "branch",
+                branchKeyword: "not",
+                scopeSegment: "not",
+                bindingSegment: "not"
+            };
+        }
+        if (node.propChildren) {
+            for (const child of node.propChildren) {
+                yield {
+                    key: child.keyName,
+                    node: child,
+                    kind: "property",
+                    scopeSegment: `properties/${child.keyName}`,
+                    bindingSegment: child.keyName
+                };
+            }
+        }
+        if (node.additionalPropChild) {
+            yield {
+                key: "additionalProperties",
+                node: node.additionalPropChild,
+                kind: "additional",
+                branchKeyword: "additionalProperties",
+                scopeSegment: "additionalProperties",
+                bindingSegment: "additionalProperties"
+            };
+        }
+        if (node.itemsChild) {
+            yield {
+                key: "items",
+                node: node.itemsChild,
+                kind: "item",
+                scopeSegment: "items",
+                bindingSegment: "items"
+            };
+        }
+    }
+};
 
 /**
  * Members of `IPropertyMetadata` and `IUIDirective` that the OpenAPI producer
@@ -37,7 +159,7 @@ import {
  * The gate separately asserts the Object.assign pass-through still exists, because these declines
  * depend on it.
  */
-export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>> = {
+export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap = {
     allOf:
         "OpenApiConstraintMapper.resolveAllOf merges every branch into the parent before mapping, so each " +
             "branch's properties and constraints already appear on the parent; the unmerged branches have no " +
@@ -112,6 +234,17 @@ export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>> = {
  * @public
  */
 export class OpenApiPropertyMapper {
+    /** Shared producer contract descriptor for OpenAPI 2.0/3.0 property metadata extraction. */
+    public static readonly PRODUCER_CONTRACT: IPropertyProducerContract<unknown, unknown> = {
+        name: "OpenApiPropertyMapper",
+        declinedFields: DECLINED_SCHEMA_FIELDS,
+        extractPropertyMetadata: (
+            input: unknown,
+            keyName: string,
+            isRequired: boolean,
+            openApiRoot?: unknown
+        ): IPropertyMetadata => OpenApiPropertyMapper.mapPropertyMetadata(input, keyName, isRequired, openApiRoot)
+    };
 
     /**
      * Recursively translates an OpenAPI `properties` block into a MetaUI `IPropertyMetadata` dictionary.
@@ -130,7 +263,6 @@ export class OpenApiPropertyMapper {
         depth: number = 0,
         activeRefs: Set<string> = new Set()
     ): Record<string, IPropertyMetadata> {
-        // WALKER_EXEMPT: OpenApiPropertyMapper.mapProperties is the bottom-up OpenAPI IPropertyMetadata producer dictionary loop audited by [PRODUCER_COMPLETENESS].
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         if (depth > MAX_SCHEMA_DEPTH) {
             Logger.warn(
@@ -144,25 +276,42 @@ export class OpenApiPropertyMapper {
         if (!isRecord(properties)) {
             return normalizedProps;
         }
-
-        for (const key of Object.keys(properties)) {
-            const isRequired = requiredKeys.includes(key);
-            const rawProp = properties[key];
-            const propDef: JsonRecord = isRecord(rawProp) ? rawProp : {};
-
-            // Not depth + 1: mapProperties and mapPropertyMetadata are the two halves of a
-            // single nesting level (mapProperties -> mapPropertyMetadata -> applyNestedTypes
-            // -> mapProperties). Incrementing in both halves charged two units per level and
-            // made MAX_SCHEMA_DEPTH bite at half its stated value.
-            normalizedProps[key] = this.mapPropertyMetadata(
-                propDef,
-                key,
-                isRequired,
-                openApiRoot,
-                depth,
-                activeRefs
-            );
-        }
+        const rootContainer: JsonRecord = { properties };
+        SchemaWalker.walk(
+            rootContainer,
+            (ctx) => {
+                const isRequired = requiredKeys.includes(ctx.key);
+                // Not depth + 1: mapProperties and mapPropertyMetadata are the two halves of a
+                // single nesting level (mapProperties -> mapPropertyMetadata -> applyNestedTypes
+                // -> mapProperties). Incrementing in both halves charged two units per level and
+                // made MAX_SCHEMA_DEPTH bite at half its stated value.
+                normalizedProps[ctx.key] = this.mapPropertyMetadata(
+                    ctx.node,
+                    ctx.key,
+                    isRequired,
+                    openApiRoot,
+                    depth,
+                    activeRefs
+                );
+                return "skip-subtree";
+            },
+            {
+                shape: RawRecordShape,
+                maxDepth: 0,
+                silentTruncationLog: true,
+                onInvalidProperty: (propKey) => {
+                    const isRequired = requiredKeys.includes(propKey);
+                    normalizedProps[propKey] = this.mapPropertyMetadata(
+                        {},
+                        propKey,
+                        isRequired,
+                        openApiRoot,
+                        depth,
+                        activeRefs
+                    );
+                }
+            }
+        );
 
         return normalizedProps;
     }
@@ -186,70 +335,119 @@ export class OpenApiPropertyMapper {
         depth: number = 0,
         activeRefs: Set<string> = new Set()
     ): IPropertyMetadata {
-        // WALKER_EXEMPT: OpenApiPropertyMapper.mapPropertyMetadata is the bottom-up OpenAPI IPropertyMetadata producer audited directly by [PRODUCER_COMPLETENESS].
-        if (depth > MAX_SCHEMA_DEPTH) {
-            // The descriptor below is a placeholder, not a mapping: the real type and every
-            // constraint on this property are discarded. Say so rather than letting a field
-            // silently render as an empty object.
-            Logger.warn(
-                `Property '${keyName}' exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                `its type and constraints were not mapped.`,
-                undefined,
-                "OpenApiPropertyMapper"
-            );
-            return {
-                type: "object",
-                ui: { label: DataInferenceBuilder.generateLabel(keyName) }
-            };
-        }
-        let currentProp: JsonRecord = isRecord(swaggerProp) ? swaggerProp : {};
-
-        const refResult = this.resolveReference(currentProp, keyName, isRequired, openApiRoot, depth, activeRefs);
-        if (refResult) {
-            return refResult;
-        }
-
-        currentProp = OpenApiConstraintMapper.resolveAllOf(currentProp, openApiRoot, 0, activeRefs);
-
-        const { type } = SchemaDirectiveNormalizer.resolveSchemaType(currentProp);
-        const metaProp: IPropertyMetadata = {
-            type,
-            title: readString(currentProp, "title"),
-            description: readString(currentProp, "description"),
-            format: readString(currentProp, "format"),
-            required: isRequired
+        const rootTask: IOpenApiMappingNode = {
+            rawProp: swaggerProp,
+            keyName,
+            isRequired,
+            activeRefs
         };
+        const maxDepth = MAX_SCHEMA_DEPTH - depth;
 
-        const uiDirective = OpenApiUIMapper.build(currentProp, keyName);
-        if (Object.keys(uiDirective).length > 0) {
-            metaProp.ui = uiDirective;
-        }
+        SchemaWalker.walk(
+            rootTask,
+            (ctx) => {
+                const task = ctx.node;
+                let currentProp: JsonRecord = isRecord(task.rawProp) ? task.rawProp : {};
 
-        OpenApiConstraintMapper.applyConstraints(metaProp, currentProp);
-        OpenApiConstraintMapper.applyStateModifiers(metaProp, currentProp);
+                const refResult = this.resolveReference(task, currentProp, openApiRoot);
+                if (refResult) {
+                    task.result = refResult;
+                    return "skip-subtree";
+                }
+                if (task.inlineChild) {
+                    return;
+                }
 
-        // A MetaUI 'uiLayout' block authored inside an OpenAPI property schema was dropped here,
-        // so the layout silently vanished for OpenAPI sources while surviving for JSON Schema.
-        // Found by [PRODUCER_COMPLETENESS]. Validation is shared with SchemaNormalizer and is
-        // deliberately loud: an unknown element type throws rather than hiding a field.
-        const mappedLayout = SchemaDirectiveNormalizer.normalizeLayout(currentProp.uiLayout);
-        if (mappedLayout) {
-            metaProp.uiLayout = mappedLayout;
-        }
+                currentProp = OpenApiConstraintMapper.resolveAllOf(currentProp, openApiRoot, 0, task.activeRefs);
 
-        const enumValues = SchemaDirectiveNormalizer.normalizeEnum(currentProp.enum);
-        if (enumValues) {
-            metaProp.enum = enumValues;
-            metaProp.valueHelp = enumValues.map((val) => ({ key: String(val), text: String(val) }));
-            metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.SELECT, valueHelp: metaProp.valueHelp };
-        } else if (Array.isArray(currentProp.enum)) {
-            this.applyUnsatisfiableEnum(metaProp, keyName);
-        }
+                const { type } = SchemaDirectiveNormalizer.resolveSchemaType(currentProp);
+                const metaProp: IPropertyMetadata = {
+                    type,
+                    title: readString(currentProp, "title"),
+                    description: readString(currentProp, "description"),
+                    format: readString(currentProp, "format"),
+                    required: task.isRequired
+                };
 
-        this.applyPolymorphism(metaProp, currentProp, openApiRoot, depth, activeRefs);
-        this.applyNestedTypes(metaProp, currentProp, openApiRoot, depth, type, activeRefs);
+                const uiDirective = OpenApiUIMapper.build(currentProp, task.keyName);
+                if (Object.keys(uiDirective).length > 0) {
+                    metaProp.ui = uiDirective;
+                }
 
-        return metaProp;
+                OpenApiConstraintMapper.applyConstraints(metaProp, currentProp);
+                OpenApiConstraintMapper.applyStateModifiers(metaProp, currentProp);
+
+                // A MetaUI 'uiLayout' block authored inside an OpenAPI property schema was dropped here,
+                // so the layout silently vanished for OpenAPI sources while surviving for JSON Schema.
+                // Found by [PRODUCER_COMPLETENESS]. Validation is shared with SchemaNormalizer and is
+                // deliberately loud: an unknown element type throws rather than hiding a field.
+                const mappedLayout = SchemaDirectiveNormalizer.normalizeLayout(currentProp.uiLayout);
+                if (mappedLayout) {
+                    metaProp.uiLayout = mappedLayout;
+                }
+
+                const enumValues = SchemaDirectiveNormalizer.normalizeEnum(currentProp.enum);
+                if (enumValues) {
+                    metaProp.enum = enumValues;
+                    metaProp.valueHelp = enumValues.map((val) => ({ key: String(val), text: String(val) }));
+                    metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.SELECT, valueHelp: metaProp.valueHelp };
+                } else if (Array.isArray(currentProp.enum)) {
+                    this.applyUnsatisfiableEnum(metaProp, task.keyName);
+                }
+
+                task.metaProp = metaProp;
+                task.currentProp = currentProp;
+                task.resolvedType = type;
+
+                this.prepareChildTasks(task, currentProp, type, openApiRoot, ctx.depth + 1 > maxDepth);
+                return;
+            },
+            {
+                shape: OpenApiMappingShape,
+                visitRoot: true,
+                maxDepth,
+                silentTruncationLog: true,
+                onTruncate: (_scope, _reason, rawNode) => {
+                    if (!rawNode) {
+                        return;
+                    }
+                    // The descriptor below is a placeholder, not a mapping: the real type and every
+                    // constraint on this property are discarded. Say so rather than letting a field
+                    // silently render as an empty object.
+                    Logger.warn(
+                        `Property '${rawNode.keyName}' exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                        `its type and constraints were not mapped.`,
+                        undefined,
+                        "OpenApiPropertyMapper"
+                    );
+                    rawNode.result = {
+                        type: "object",
+                        ui: { label: DataInferenceBuilder.generateLabel(rawNode.keyName) }
+                    };
+                },
+                onLeave: (ctx) => {
+                    const task = ctx.node;
+                    if (task.inlineChild && task.inlineChild.result) {
+                        const mapped = task.inlineChild.result;
+                        if (task.keyName === "items" && task.refPath) {
+                            mapped.$ref = task.refPath;
+                        }
+                        task.result = mapped;
+                        return;
+                    }
+                    if (task.metaProp && task.currentProp && task.resolvedType) {
+                        this.applyPolymorphism(task.metaProp, task.currentProp, task);
+                        this.applyNestedTypes(task.metaProp, task.currentProp, task.resolvedType, task);
+                        task.result = task.metaProp;
+                    }
+                }
+            }
+        );
+
+        return rootTask.result || {
+            type: "object",
+            ui: { label: DataInferenceBuilder.generateLabel(keyName) }
+        };
     }
 
     /**
@@ -269,28 +467,147 @@ export class OpenApiPropertyMapper {
         metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.SELECT, valueHelp: [], enabled: false };
     }
 
-    private static resolveReference(
+    private static prepareChildTasks(
+        task: IOpenApiMappingNode,
         currentProp: JsonRecord,
-        keyName: string,
-        isRequired: boolean,
+        type: string,
         openApiRoot: unknown,
-        depth: number,
+        nextLevelExceedsDepth: boolean
+    ): void {
+        if (Array.isArray(currentProp.oneOf)) {
+            task.oneOfBranches = currentProp.oneOf.map((item, i) =>
+                this.preparePolymorphicBranch(item, `Variant${i}`, openApiRoot, task.activeRefs)
+            );
+        }
+
+        if (Array.isArray(currentProp.anyOf)) {
+            task.anyOfBranches = currentProp.anyOf.map((item, i) =>
+                this.preparePolymorphicBranch(item, `AnyVariant${i}`, openApiRoot, task.activeRefs)
+            );
+        }
+
+        if (isRecord(currentProp.not)) {
+            task.notChild = {
+                rawProp: currentProp.not,
+                keyName: "NotVariant",
+                isRequired: false,
+                activeRefs: task.activeRefs
+            };
+        }
+
+        if (type === "object") {
+            const rawProps = readRecord(currentProp, "properties");
+            if (rawProps) {
+                if (nextLevelExceedsDepth) {
+                    Logger.warn(
+                        `Nested schema exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                        `${Object.keys(rawProps).length} propert(ies) were dropped.`,
+                        undefined,
+                        "OpenApiPropertyMapper"
+                    );
+                    task.propChildren = [];
+                } else {
+                    const childRequired = readStringArray(currentProp, "required") || [];
+                    task.propChildren = Object.keys(rawProps).map((key) => {
+                        const rawChild = rawProps[key];
+                        return {
+                            rawProp: isRecord(rawChild) ? rawChild : {},
+                            keyName: key,
+                            isRequired: childRequired.includes(key),
+                            activeRefs: task.activeRefs
+                        };
+                    });
+                }
+            }
+
+            if (isRecord(currentProp.additionalProperties)) {
+                task.additionalPropChild = {
+                    rawProp: currentProp.additionalProperties,
+                    keyName: "value",
+                    isRequired: false,
+                    activeRefs: task.activeRefs
+                };
+            }
+        } else if (type === "array" && isRecord(currentProp.items)) {
+            task.itemsChild = {
+                rawProp: currentProp.items,
+                keyName: "items",
+                isRequired: false,
+                activeRefs: task.activeRefs
+            };
+        }
+    }
+
+    private static preparePolymorphicBranch(
+        rawItem: unknown,
+        fallbackName: string,
+        openApiRoot: unknown,
         activeRefs: Set<string>
+    ): IOpenApiPolymorphicBranchTask {
+        if (!isRecord(rawItem)) {
+            return {
+                isRawRecord: false,
+                node: {
+                    rawProp: {},
+                    keyName: fallbackName,
+                    isRequired: false,
+                    activeRefs
+                }
+            };
+        }
+        const refPath = readString(rawItem, "$ref");
+        if (refPath && !activeRefs.has(refPath)) {
+            const resolvedBranch = SchemaDirectiveNormalizer.inlinePolymorphicBranchRef(rawItem, refPath, openApiRoot);
+            if (resolvedBranch) {
+                const { inlined, refName } = resolvedBranch;
+                const nextRefs = new Set(activeRefs);
+                nextRefs.add(refPath);
+                return {
+                    isRawRecord: true,
+                    refPath,
+                    refName,
+                    inlined,
+                    node: {
+                        rawProp: inlined,
+                        keyName: refName,
+                        isRequired: false,
+                        activeRefs: nextRefs
+                    }
+                };
+            }
+        }
+        const explicitTitle = readString(rawItem, "title");
+        return {
+            isRawRecord: true,
+            explicitTitle,
+            branchReq: readStringArray(rawItem, "required"),
+            node: {
+                rawProp: rawItem,
+                keyName: explicitTitle || "",
+                isRequired: false,
+                activeRefs
+            }
+        };
+    }
+
+    private static resolveReference(
+        task: IOpenApiMappingNode,
+        currentProp: JsonRecord,
+        openApiRoot: unknown
     ): IPropertyMetadata | null {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiPropertyMapper.mapPropertyMetadata for raw OpenAPI $ref ingestion audited by [PRODUCER_COMPLETENESS].
         const refPath = readString(currentProp, "$ref");
         if (!refPath) {
             return null;
         }
 
-        const uiDirective = OpenApiUIMapper.build(currentProp, keyName);
-        if (activeRefs.has(refPath)) {
+        const uiDirective = OpenApiUIMapper.build(currentProp, task.keyName);
+        if (task.activeRefs.has(refPath)) {
             return {
                 type: "object",
                 $ref: refPath,
                 title: readString(currentProp, "title"),
                 description: readString(currentProp, "description"),
-                required: isRequired,
+                required: task.isRequired,
                 nullable: readBoolean(currentProp, "nullable"),
                 readOnly: readBoolean(currentProp, "readOnly"),
                 ui: { ...uiDirective, widget: WIDGET_TYPE.REFERENCE }
@@ -307,25 +624,32 @@ export class OpenApiPropertyMapper {
         if (
             (resolvedType && ["string", "number", "integer", "boolean"].includes(resolvedType)) ||
             isPolymorphicRef ||
-            keyName === "items"
+            task.keyName === "items"
         ) {
             const inlineProp: JsonRecord = { ...(resolved || {}), ...currentProp };
             delete inlineProp.$ref;
-            const nextRefs = new Set(activeRefs);
+            const nextRefs = new Set(task.activeRefs);
             nextRefs.add(refPath);
-            const mapped = this.mapPropertyMetadata(inlineProp, keyName, isRequired, openApiRoot, depth + 1, nextRefs);
-            if (keyName === "items") {
-                mapped.$ref = refPath;
-            }
-            return mapped;
+            task.refPath = refPath;
+            task.inlineChild = {
+                rawProp: inlineProp,
+                keyName: task.keyName,
+                isRequired: task.isRequired,
+                activeRefs: nextRefs
+            };
+            return null;
         }
+
+        const resolvedTitle = readString(currentProp, "title") || (resolved ? readString(resolved, "title") : undefined);
+        const resolvedDesc =
+            readString(currentProp, "description") || (resolved ? readString(resolved, "description") : undefined);
 
         return {
             type: "object",
             $ref: refPath,
-            title: readString(currentProp, "title") || (resolved ? readString(resolved, "title") : undefined),
-            description: readString(currentProp, "description") || (resolved ? readString(resolved, "description") : undefined),
-            required: isRequired,
+            title: resolvedTitle,
+            description: resolvedDesc,
+            required: task.isRequired,
             nullable: readBoolean(currentProp, "nullable"),
             readOnly: readBoolean(currentProp, "readOnly"),
             ui: { ...uiDirective, widget: WIDGET_TYPE.REFERENCE }
@@ -335,27 +659,20 @@ export class OpenApiPropertyMapper {
     private static applyPolymorphism(
         metaProp: IPropertyMetadata,
         currentProp: JsonRecord,
-        openApiRoot: unknown,
-        depth: number,
-        activeRefs: Set<string>
+        task: IOpenApiMappingNode
     ): void {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiPropertyMapper.mapPropertyMetadata for raw OpenAPI oneOf/anyOf/not ingestion audited by [PRODUCER_COMPLETENESS].
         OpenApiConstraintMapper.applyDiscriminator(metaProp, currentProp);
 
-        if (Array.isArray(currentProp.oneOf)) {
-            metaProp.oneOf = currentProp.oneOf.map((item, i) =>
-                this.mapPolymorphicBranch(item, `Variant${i}`, openApiRoot, depth + 1, activeRefs)
-            );
+        if (task.oneOfBranches) {
+            metaProp.oneOf = task.oneOfBranches.map((branch) => this.mapPolymorphicBranch(branch));
         }
 
-        if (Array.isArray(currentProp.anyOf)) {
-            metaProp.anyOf = currentProp.anyOf.map((item, i) =>
-                this.mapPolymorphicBranch(item, `AnyVariant${i}`, openApiRoot, depth + 1, activeRefs)
-            );
+        if (task.anyOfBranches) {
+            metaProp.anyOf = task.anyOfBranches.map((branch) => this.mapPolymorphicBranch(branch));
         }
 
-        if (isRecord(currentProp.not)) {
-            metaProp.not = this.mapPropertyMetadata(currentProp.not, "NotVariant", false, openApiRoot, depth + 1, activeRefs);
+        if (task.notChild && task.notChild.result) {
+            metaProp.not = task.notChild.result;
         }
 
         if (metaProp.oneOf || metaProp.anyOf || metaProp.discriminator) {
@@ -363,42 +680,24 @@ export class OpenApiPropertyMapper {
         }
     }
 
-    private static mapPolymorphicBranch(
-        rawItem: unknown,
-        fallbackName: string,
-        openApiRoot: unknown,
-        depth: number,
-        activeRefs: Set<string>
-    ): IPropertyMetadata {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiPropertyMapper.mapPropertyMetadata for raw OpenAPI polymorphic branch ingestion audited by [PRODUCER_COMPLETENESS].
-        if (!isRecord(rawItem)) {
-            return this.mapPropertyMetadata({}, fallbackName, false, openApiRoot, depth, activeRefs);
-        }
-        const refPath = readString(rawItem, "$ref");
-        if (refPath && !activeRefs.has(refPath)) {
-            const resolvedBranch = SchemaDirectiveNormalizer.inlinePolymorphicBranchRef(rawItem, refPath, openApiRoot);
-            if (resolvedBranch) {
-                const { inlined, refName } = resolvedBranch;
-                const nextRefs = new Set(activeRefs);
-                nextRefs.add(refPath);
-                const mapped = this.mapPropertyMetadata(inlined, refName, false, openApiRoot, depth, nextRefs);
-                mapped.$ref = refPath;
-                mapped.title = readString(inlined, "title") || refName;
-                const resolvedReq = readStringArray(inlined, "required");
-                if (resolvedReq) {
-                    mapped.required = resolvedReq;
-                }
-                return mapped;
+    private static mapPolymorphicBranch(branch: IOpenApiPolymorphicBranchTask): IPropertyMetadata {
+        const mapped: IPropertyMetadata = branch.node.result || { type: "object" };
+        if (branch.inlined && branch.refPath && branch.refName) {
+            mapped.$ref = branch.refPath;
+            mapped.title = readString(branch.inlined, "title") || branch.refName;
+            const resolvedReq = readStringArray(branch.inlined, "required");
+            if (resolvedReq) {
+                mapped.required = resolvedReq;
             }
+            return mapped;
         }
-        const explicitTitle = readString(rawItem, "title");
-        const mapped = this.mapPropertyMetadata(rawItem, explicitTitle || "", false, openApiRoot, depth, activeRefs);
-        if (!explicitTitle && mapped.ui && !mapped.ui.label) {
-            delete mapped.ui.label;
-        }
-        const branchReq = readStringArray(rawItem, "required");
-        if (branchReq) {
-            mapped.required = branchReq;
+        if (branch.isRawRecord) {
+            if (!branch.explicitTitle && mapped.ui && !mapped.ui.label) {
+                delete mapped.ui.label;
+            }
+            if (branch.branchReq) {
+                mapped.required = branch.branchReq;
+            }
         }
         return mapped;
     }
@@ -406,17 +705,21 @@ export class OpenApiPropertyMapper {
     private static applyNestedTypes(
         metaProp: IPropertyMetadata,
         currentProp: JsonRecord,
-        openApiRoot: unknown,
-        depth: number,
         type: string,
-        activeRefs: Set<string>
+        task: IOpenApiMappingNode
     ): void {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiPropertyMapper.mapPropertyMetadata for raw OpenAPI nested object/array/dictionary ingestion audited by [PRODUCER_COMPLETENESS].
         if (type === "object") {
             const rawProps = readRecord(currentProp, "properties");
             if (rawProps) {
-                const childRequired = readStringArray(currentProp, "required") || [];
-                metaProp.properties = this.mapProperties(rawProps, childRequired, openApiRoot, depth + 1, activeRefs);
+                const mappedProps: Record<string, IPropertyMetadata> = {};
+                if (task.propChildren) {
+                    for (const child of task.propChildren) {
+                        if (child.result) {
+                            mappedProps[child.keyName] = child.result;
+                        }
+                    }
+                }
+                metaProp.properties = mappedProps;
             }
 
             if (currentProp.additionalProperties === true) {
@@ -425,15 +728,8 @@ export class OpenApiPropertyMapper {
                 // A closed object. Carried through verbatim: DataInferenceBuilder.mergeHybridProperties
                 // keys off `=== false` to stop inferred keys leaking into it.
                 metaProp.additionalProperties = false;
-            } else if (isRecord(currentProp.additionalProperties)) {
-                metaProp.additionalProperties = this.mapPropertyMetadata(
-                    currentProp.additionalProperties,
-                    "value",
-                    false,
-                    openApiRoot,
-                    depth + 1,
-                    activeRefs
-                );
+            } else if (task.additionalPropChild && task.additionalPropChild.result) {
+                metaProp.additionalProperties = task.additionalPropChild.result;
                 metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.DICTIONARY_MAP };
             }
 
@@ -448,8 +744,8 @@ export class OpenApiPropertyMapper {
             ) {
                 metaProp.ui = { ...(metaProp.ui || {}), widget: WIDGET_TYPE.CODE_EDITOR };
             }
-        } else if (type === "array" && isRecord(currentProp.items)) {
-            metaProp.items = this.mapPropertyMetadata(currentProp.items, "items", false, openApiRoot, depth + 1, activeRefs);
+        } else if (type === "array" && task.itemsChild && task.itemsChild.result) {
+            metaProp.items = task.itemsChild.result;
             if (metaProp.items.type !== "object") {
                 const itemEnum = metaProp.items.enum;
                 metaProp.ui = {

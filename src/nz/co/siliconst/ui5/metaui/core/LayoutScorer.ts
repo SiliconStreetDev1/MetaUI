@@ -180,8 +180,11 @@ export class LayoutScorer {
         depth: number
     ): number {
         if (!node || typeof node !== "object") return 0;
-        // WALKER_EXEMPT: LayoutScorer performs memoized bottom-up footprint aggregation with isolated per-(ref, budget)
-        // sub-table swapping and dialog score clamping (returning 1 when a subtree overflows into a dialog).
+        // WALKER_EXEMPT: scoreNode combines top-down inherited budget overrides (effectiveBudget = node.ui?.layoutBudget || budget)
+        // with bottom-up non-monotonic score clamping (returning 1 instead of totalScore when decide() yields RENDER_MODE.DIALOG
+        // or when depth/visited guards trigger), skips recursion on scalar children (adding registry.getPluginScore directly
+        // without advancing depth or recording a decision), and delegates $ref and array nodes to scoreRefNode/scoreArrayNode
+        // at the same depth and scope while holding node in context.visited.
         // A field the user never sees costs nothing. Scoring it pushes forms the user experiences as
         // three fields over the budget and into a dialog. Every other walker honours this rule.
         if (node.ui?.visible === false) return 0;
@@ -274,7 +277,11 @@ export class LayoutScorer {
         depth: number,
         explicitRenderMode?: RenderModeType
     ): number {
-        // WALKER_EXEMPT: Mutually-recursive helper of LayoutScorer.scoreNode for bottom-up synthesized-attribute scoring and memoized $ref sub-table isolation.
+        // WALKER_EXEMPT: scoreRefNode memoizes (score, renderMode, resolvedMeta, subTable) in context.refMemo keyed by
+        // `${key}::${effectiveBudget}`, swaps context.table = privateTable before re-entering scoreNode(resolvedMeta, scope,
+        // effectiveBudget, context, depth) at the same scope and depth (whereas SchemaWalker always increments depth and appends
+        // a scopeSegment per child edge), and only replays subTable via replaySubTable when refFitInline or explicit INLINE
+        // holds, discarding privateTable on DIALOG overflow so diamond $ref graphs do not materialize 2^N dead decisions.
         const key = OpenApiRefResolver.extractRefName(node.$ref || "");
 
         if (context.activeRefs.has(key)) {
@@ -383,7 +390,10 @@ export class LayoutScorer {
         depth: number,
         explicitRenderMode?: RenderModeType
     ): number {
-        // WALKER_EXEMPT: Mutually-recursive helper of LayoutScorer.scoreNode for bottom-up synthesized-attribute array footprint scoring.
+        // WALKER_EXEMPT: scoreArrayNode is entered from scoreNode at the same scope and depth without advancing depth,
+        // conditionally calls scoreNode(itemsMeta, itemsScope, effectiveBudget, context, depth + 1) only when itemsMeta is
+        // OBJECT, ARRAY, or $ref, and then reads context.table.get(itemsScope)?.renderMode to force the parent array's own
+        // decision to RENDER_MODE.DIALOG with clamped score 1 whenever items overflowed into a dialog.
         let arrayScore = context.registry.getPluginScore(SCHEMA_TYPE.ARRAY, node.ui?.widget);
         const itemsScope = `${scope}/items`;
 

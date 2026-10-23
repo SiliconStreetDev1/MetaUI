@@ -862,7 +862,8 @@ module nz/co/siliconst/ui5/metaui/core/DataInferenceBuilder
     static inferSchemaFromData(data: unknown): ISchema;
     static mergeHybridProperties(inferredProps: JsonRecord, explicitProps: JsonRecord): JsonRecord;
     static mergeInferredProperties(base: Record<string, IPropertyMetadata>, next: Record<string, IPropertyMetadata>): Record<string, IPropertyMetadata>;
-  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+    static readonly PRODUCER_CONTRACT: IPropertyProducerContract<unknown, number>;
+  export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap;
 module nz/co/siliconst/ui5/metaui/core/DefaultLayoutGenerator
   class DefaultLayoutGenerator
     static ensureLayout(schema: ISchema): boolean;
@@ -937,6 +938,12 @@ module nz/co/siliconst/ui5/metaui/core/SchemaDirectiveNormalizer
     static normalizeValidators(raw: unknown): (string | IValidationRule)[] | undefined;
     static normalizeValueHelp(raw: unknown): IValueHelp[] | IRemoteValueHelpConfig | undefined;
     static resolveSchemaType(prop: JsonRecord, keyName?: string): { type: FieldType; rawType: unknown; hasNullType: boolean; };
+  export type DeclinedSchemaFieldsMap = Partial<Readonly<Record<PropertySchemaMemberKey, string>>>;
+  export type PropertySchemaMemberKey = keyof IPropertyMetadata | `ui.${keyof IUIDirective}`;
+  interface IPropertyProducerContract<TInput = unknown, TContext = unknown>
+    extractPropertyMetadata(input: TInput, keyName: string, isRequired: boolean, context?: TContext): IPropertyMetadata;
+    readonly declinedFields: DeclinedSchemaFieldsMap;
+    readonly name: string;
 module nz/co/siliconst/ui5/metaui/core/SchemaNormalizer
   class SchemaNormalizer implements ISchemaBuilderPlugin
     build(rawSchema: unknown): ISchema;
@@ -944,9 +951,10 @@ module nz/co/siliconst/ui5/metaui/core/SchemaNormalizer
     static inferSchemaFromData(data: unknown): ISchema;
     static normalize(rawSchema?: unknown, data?: unknown): ISchema;
     static normalizeDefinition(rawDef: unknown, key: string, rootSource?: JsonRecord): ISchema;
+    static readonly PRODUCER_CONTRACT: IPropertyProducerContract<JsonRecord, JsonRecord>;
     static resolveScope(schema: ISchema, scope: string, resolveDefinition?: (ref: string) => ISchema | null, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata | undefined; bindingPath: string; propKey: string; };
     static stripWriteOnlyValues(schema: ISchema | undefined, data: unknown): void;
-  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+  export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap;
 module nz/co/siliconst/ui5/metaui/core/SchemaValidator
   class SchemaValidator
     static validateSchemaStructure(schema: unknown, initialDepth?: number): string[];
@@ -954,35 +962,76 @@ module nz/co/siliconst/ui5/metaui/core/SchemaWalker
   class SchemaWalker
     static resolveScope(schema: ISchema, scope: string, resolveDefinition?: (ref: string) => ISchema | null, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata | undefined; bindingPath: string; propKey: string; };
     static toBindingPath(scope: string): string;
-    static walk(root: Partial<ISchema> | IPropertyMetadata | Record<string, unknown> | null | undefined, visitor: SchemaVisitor, options?: ISchemaWalkOptions): void;
-  export type SchemaVisitor = (ctx: ISchemaVisitContext) => SchemaVisitorResult;
+    static walk<TNode = IPropertyMetadata>(root: NoInfer<TNode> | ReadonlyArray<NoInfer<TNode>> | Partial<ISchema> | IPropertyMetadata | Record<string, unknown> | null | undefined, visitor: SchemaVisitor<TNode>, options?: ISchemaWalkOptions<TNode>): void;
+    static walkPaired<TNode = IPropertyMetadata, TOther = unknown>(root: NoInfer<TNode> | ReadonlyArray<NoInfer<TNode>> | Partial<ISchema> | IPropertyMetadata | Record<string, unknown> | null | undefined, otherRoot: TOther | undefined, cursor: IPairCursor<TNode, TOther>, visitor: PairedSchemaVisitor<TNode, TOther>, options?: ISchemaWalkPairedOptions<TNode, TOther>): void;
+  export const JsonPayloadShape: ITreeShape<unknown>;
+  export const LayoutElementShape: ITreeShape<ILayoutElement>;
+  export const RawRecordShape: ITreeShape<JsonRecord>;
+  export const SchemaShape: ITreeShape<IPropertyMetadata>;
+  export type ChildKind = "property" | "item" | "branch" | "additional" | "element";
+  export type PairedSchemaVisitor<TNode = IPropertyMetadata, TOther = unknown> = (ctx: IPairedVisitContext<TNode, TOther>) => SchemaVisitorResult;
+  export type SchemaVisitor<TNode = IPropertyMetadata> = (ctx: ISchemaVisitContext<TNode>) => SchemaVisitorResult;
   export type SchemaVisitorResult = void | "skip-subtree" | "stop";
-  interface ISchemaVisitContext
+  interface IPairCursor<TNode, TOther>
+    stepAdditional?(other: TOther, childNode: TNode, parentNode: TNode): ReadonlyArray<{ key: string; value: TOther; }> | undefined;
+    stepArray?(other: TOther, childNode: TNode, key: string): ReadonlyArray<{ key: string; value: TOther; }> | undefined;
+    stepBranch?(other: TOther, branchKeyword: string, key: string, childNode: TNode): TOther | undefined;
+    stepProperty(other: TOther, key: string, childNode: TNode): TOther | undefined;
+  interface IPairedVisitContext<TNode = IPropertyMetadata, TOther = unknown> extends ISchemaVisitContext<TNode>
+    readonly other: TOther | undefined;
+    readonly parentOther: TOther | undefined;
+    readonly replaceOther: (next: TOther | undefined) => void;
+  interface ISchemaVisitContext<TNode = IPropertyMetadata>
     readonly bindingPath: string;
+    readonly branchKeyword?: string;
     readonly depth: number;
     readonly isArrayItem: boolean;
     readonly key: string;
-    readonly node: IPropertyMetadata;
-    readonly parent: IPropertyMetadata | null;
-    readonly rawNode: IPropertyMetadata;
+    readonly kind: ChildKind;
+    readonly node: TNode;
+    readonly parent: TNode | null;
+    readonly rawNode: TNode;
     readonly scope: string;
-  interface ISchemaWalkOptions
+  interface ISchemaWalkOptions<TNode = IPropertyMetadata>
+    readonly activeNodes?: WeakSet<object>;
+    readonly activeRefs?: Set<string>;
     readonly baseBindingPath?: string;
     readonly baseScope?: string;
     readonly definitions?: Record<string, ISchema | IPropertyMetadata>;
     readonly initialDepth?: number;
+    readonly maxArrayItems?: number;
     readonly maxDepth?: number;
-    readonly onInvalidProperty?: (key: string, rawValue: unknown, parent: IPropertyMetadata) => void;
-    readonly onLeave?: (ctx: ISchemaVisitContext) => void;
-    readonly onTruncate?: (scope: string, reason: "depth" | "cycle") => void;
+    readonly onInvalidProperty?: (key: string, rawValue: unknown, parent: TNode) => void;
+    readonly onLeave?: (ctx: ISchemaVisitContext<TNode>) => void;
+    readonly onTruncate?: (scope: string, reason: "depth" | "cycle", rawNode?: TNode, other?: unknown) => void;
+    readonly resolveDynamicChildren?: (node: TNode, ctx: ISchemaVisitContext<TNode>) => Iterable<ITreeChild<TNode>> | undefined;
     readonly resolveRef?: (ref: string) => ISchema | IPropertyMetadata | undefined;
     readonly resolveRefs?: boolean;
-    readonly shouldVisitChild?: (child: IPropertyMetadata, key: string, parent: IPropertyMetadata, isArrayItem: boolean) => boolean;
+    readonly shape?: ITreeShape<TNode>;
+    readonly shouldVisitChild?: (child: TNode, key: string, parent: TNode, isArrayItem: boolean) => boolean;
     readonly silentTruncationLog?: boolean;
     readonly skipHidden?: boolean;
     readonly visitAdditionalProperties?: boolean;
     readonly visitCombinators?: boolean;
+    readonly visitDefinitions?: boolean;
     readonly visitRoot?: boolean;
+  interface ISchemaWalkPairedOptions<TNode = IPropertyMetadata, TOther = unknown> extends Omit<ISchemaWalkOptions<TNode>, "onLeave" | "resolveDynamicChildren">
+    readonly activeOthers?: WeakSet<object>;
+    readonly detectOtherCycles?: boolean;
+    readonly onLeave?: (ctx: IPairedVisitContext<TNode, TOther>) => void;
+    readonly resolveDynamicChildren?: (node: TNode, ctx: IPairedVisitContext<TNode, TOther>) => Iterable<ITreeChild<TNode>> | undefined;
+  interface ITreeChild<TNode>
+    readonly bindingSegment: string;
+    readonly branchKeyword?: string;
+    readonly key: string;
+    readonly kind: ChildKind;
+    readonly node: TNode;
+    readonly scopeSegment: string;
+  interface ITreeShape<TNode>
+    children(node: TNode, options?: ISchemaWalkOptions<TNode>): Iterable<ITreeChild<TNode>>;
+    isHidden?(node: TNode): boolean;
+    readonly defaultMaxDepth: number;
+    resolveRef?(node: TNode, scope: string, options: ISchemaWalkOptions<TNode> | undefined, definitions: Record<string, ISchema | IPropertyMetadata> | undefined, activeNodes: WeakSet<object>, activeRefs: Set<string>, addedNodes: object[], addedRefs: string[], onCycle: (scope: string) => void): TNode | null;
 module nz/co/siliconst/ui5/metaui/core/StateManager
   class StateManager
     clearArrayMessages(arrayPath: string): void;
@@ -1126,7 +1175,8 @@ module nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApiPropertyMapper
   class OpenApiPropertyMapper
     static mapProperties(properties: unknown, requiredKeys: string[], openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): Record<string, IPropertyMetadata>;
     static mapPropertyMetadata(swaggerProp: unknown, keyName: string, isRequired: boolean, openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): IPropertyMetadata;
-  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+    static readonly PRODUCER_CONTRACT: IPropertyProducerContract<unknown, unknown>;
+  export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap;
 module nz/co/siliconst/ui5/metaui/plugins/actions/ActionButtonPlugin
   abstract class ActionButtonPlugin extends BasePlugin
     protected abstract onPress(event: Event): void;
@@ -1677,5 +1727,5 @@ module nz/co/siliconst/ui5/metaui/utils/TypeGuards
   export type JsonRecord = Record<string, unknown>;
 
 # modules: 151 (public 6, extension 16, internal 132)
-# declarations: 290 (public 30, extension 25, internal 235)
+# declarations: 304 (public 30, extension 25, internal 249)
 # excluded, not MetaUI's API: sap/ui/base/BindingParser, sap/ui/richtexteditor/RichTextEditor

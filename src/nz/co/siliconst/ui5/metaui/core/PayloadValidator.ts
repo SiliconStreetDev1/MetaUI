@@ -6,7 +6,7 @@
 import { IPropertyMetadata, ISchema } from "../interfaces/ISchema";
 import { IPlugin, IPluginValidationResult } from "../interfaces/IPlugin";
 import { PipelineManager } from "./PipelineManager";
-import { SchemaWalker } from "./SchemaWalker";
+import { SchemaWalker, IPairCursor } from "./SchemaWalker";
 import { isRecord } from "../utils/TypeGuards";
 import { I18n, TEXT_KEY } from "../utils/I18n";
 import { SCHEMA_TYPE, MAX_SCHEMA_DEPTH } from "../constants/MetaUIConstants";
@@ -113,211 +113,265 @@ export class PayloadValidator {
         activeNodes: WeakSet<object> = new WeakSet<object>(),
         activeRefs: Set<string> = new Set<string>()
     ): { isValid: boolean; errorMessage?: string } {
-        // WALKER_EXEMPT: PayloadValidator.validateTree co-inductively validates (metadata, value) pairs across runtime array elements, dictionary entries, and negated `not` sub-schemas.
-        if (depth > MAX_SCHEMA_DEPTH) {
-            // Reporting valid here is a claim the validator has not checked. Say so: a silent
-            // 'isValid: true' from an unvalidated subtree is exactly the plausible-looking green
-            // that nobody investigates.
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
-                    `valid without being validated.`,
-                "PayloadValidator"
-            );
-            return { isValid: true };
-        }
-        if (metadata.ui?.visible === false) {
-            return { isValid: true };
-        }
-        if (activeNodes.has(metadata)) {
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                "Circular schema reference detected; stopping recursion to prevent infinite loop.",
-                "PayloadValidator"
-            );
-            return { isValid: true };
-        }
-        if (metadata.$ref && activeRefs.has(metadata.$ref)) {
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                `Circular $ref detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`,
-                "PayloadValidator"
-            );
-            return { isValid: true };
-        }
+        let lastVerdict: { isValid: boolean; errorMessage?: string } = { isValid: true };
 
-        let effectiveMeta: IPropertyMetadata = metadata;
-        let resolved: ISchema | null = null;
-        let resolvedRequiredList: string[] | undefined;
-        if (metadata.$ref && resolveDefinition) {
-            resolved = resolveDefinition(metadata.$ref);
-            if (resolved) {
-                if (activeNodes.has(resolved)) {
-                    Logger.warn(
-                        "[MetaUI PayloadValidator]",
-                        `Circular $ref definition detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`,
-                        "PayloadValidator"
-                    );
-                    return { isValid: true };
+        SchemaWalker.walkPaired(
+            metadata,
+            value,
+            {
+                stepProperty: (currentVal, key) => (isRecord(currentVal) ? currentVal[key] : undefined),
+                stepBranch: (currentVal, branchKeyword, key) => {
+                    if (branchKeyword === "not") {
+                        return currentVal;
+                    }
+                    return Array.isArray(currentVal) ? currentVal[Number(key)] : undefined;
                 }
-                effectiveMeta = this.mergeResolvedDefinition(resolved as IPropertyMetadata, metadata);
-                if (Array.isArray(resolved.required)) {
-                    resolvedRequiredList = resolved.required;
-                }
-            }
-        }
-
-        activeNodes.add(metadata);
-        if (metadata.$ref) {
-            activeRefs.add(metadata.$ref);
-        }
-        if (resolved) {
-            activeNodes.add(resolved);
-        }
-
-        try {
-            // 1. Validate top-level constraints on this node (including required, const, enum, integer, min/maxProperties)
-            const selfResult = PipelineManager.getInstance().runValidators(value, effectiveMeta, isDynamicallyRequired);
-            if (!selfResult.isValid) {
-                return selfResult;
-            }
-
-            if (value === undefined || value === null) {
-                return { isValid: true };
-            }
-
-            // 2. Reject a value whose shape contradicts the declared type. Without this, an object or
-            // array schema handed a scalar (or a scalar schema handed an object) reported `isValid: true`
-            // and skipped the whole subtree, because the recursion below is guarded on the value's shape
-            // and no registered validator asserts structure.
-            if (!PayloadValidator.matchesStructuralType(effectiveMeta, value)) {
-                return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.invalidValue) };
-            }
-
-            // 3. A `not` sub-schema rejects exactly the values that satisfy it.
-            if (effectiveMeta.not) {
-                const notResult = PayloadValidator.evaluateNot(
-                    effectiveMeta.not,
-                    value,
-                    resolveDefinition,
-                    depth,
-                    activeNodes,
-                    activeRefs
-                );
-                if (!notResult.isValid) {
-                    return notResult;
-                }
-            }
-
-            // 4. Recursively validate object properties and dictionary entries
-            if (effectiveMeta.type === "object" && isRecord(value)) {
-                if (effectiveMeta.properties) {
-                    for (const [propKey, rawPropMeta] of Object.entries(effectiveMeta.properties)) {
-                        if (rawPropMeta.ui?.visible === false) {
-                            continue;
-                        }
-                        const needsReqOverride =
-                            Boolean(resolvedRequiredList && resolvedRequiredList.includes(propKey)) &&
-                            rawPropMeta.required === undefined &&
-                            !activeNodes.has(rawPropMeta);
-                        const propMeta: IPropertyMetadata = needsReqOverride
-                            ? { ...rawPropMeta, required: true }
-                            : rawPropMeta;
-                        if (needsReqOverride) {
-                            activeNodes.add(rawPropMeta);
-                        }
-                        let childResult: { isValid: boolean; errorMessage?: string };
-                        try {
-                            childResult = PayloadValidator.validateTree(
-                                propMeta,
-                                value[propKey],
-                                resolveDefinition,
-                                depth + 1,
-                                undefined,
-                                activeNodes,
-                                activeRefs
+            },
+            () => undefined,
+            {
+                visitRoot: true,
+                resolveRefs: false,
+                initialDepth: depth,
+                activeNodes,
+                activeRefs,
+                silentTruncationLog: true,
+                onTruncate: (_scope, reason) => {
+                    if (reason === "depth") {
+                        // Reporting valid here is a claim the validator has not checked. Say so: a silent
+                        // 'isValid: true' from an unvalidated subtree is exactly the plausible-looking green
+                        // that nobody investigates.
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                                "this subtree was reported valid without being validated.",
+                            "PayloadValidator"
+                        );
+                    } else if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            "Circular schema reference detected; stopping recursion to prevent infinite loop.",
+                            "PayloadValidator"
+                        );
+                    }
+                    lastVerdict = { isValid: true };
+                },
+                resolveDynamicChildren: function* (rawNode, ctx) {
+                    if (rawNode.ui?.visible === false) {
+                        lastVerdict = { isValid: true };
+                        return;
+                    }
+                    if (rawNode.$ref && activeRefs.has(rawNode.$ref)) {
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            `Circular $ref detected (${rawNode.$ref}); stopping recursion to prevent infinite loop.`,
+                            "PayloadValidator"
+                        );
+                        lastVerdict = { isValid: true };
+                        return;
+                    }
+                    let effectiveMeta: IPropertyMetadata = rawNode;
+                    let resolved: ISchema | null = null;
+                    let resolvedRequiredList: string[] | undefined;
+                    if (rawNode.$ref && resolveDefinition) {
+                        resolved = resolveDefinition(rawNode.$ref);
+                        if (resolved) {
+                            if (activeNodes.has(resolved)) {
+                                Logger.warn(
+                                    "[MetaUI PayloadValidator]",
+                                    `Circular $ref definition detected (${rawNode.$ref}); ` +
+                                        "stopping recursion to prevent infinite loop.",
+                                    "PayloadValidator"
+                                );
+                                lastVerdict = { isValid: true };
+                                return;
+                            }
+                            effectiveMeta = PayloadValidator.mergeResolvedDefinition(
+                                resolved as IPropertyMetadata,
+                                rawNode
                             );
-                        } finally {
-                            if (needsReqOverride) {
-                                activeNodes.delete(rawPropMeta);
+                            if (Array.isArray(resolved.required)) {
+                                resolvedRequiredList = resolved.required;
                             }
                         }
-                        if (!childResult.isValid) {
-                            const label = propMeta.ui?.label || propKey;
-                            return {
+                    }
+                    if (rawNode.$ref) {
+                        activeRefs.add(rawNode.$ref);
+                    }
+                    if (resolved) {
+                        activeNodes.add(resolved);
+                    }
+
+                    try {
+                        const val = ctx.other;
+                        const dynReq = ctx.scope === "#" ? isDynamicallyRequired : undefined;
+
+                        // 1. Validate top-level constraints on this node
+                        const selfResult = PipelineManager.getInstance().runValidators(val, effectiveMeta, dynReq);
+                        if (!selfResult.isValid) {
+                            lastVerdict = selfResult;
+                            return;
+                        }
+                        if (val === undefined || val === null) {
+                            lastVerdict = { isValid: true };
+                            return;
+                        }
+
+                        // 2. Reject a value whose shape contradicts the declared type
+                        if (!PayloadValidator.matchesStructuralType(effectiveMeta, val)) {
+                            lastVerdict = {
                                 isValid: false,
-                                errorMessage: I18n.getText(TEXT_KEY.fieldPrefix, [
-                                    label,
-                                    childResult.errorMessage || I18n.getText(TEXT_KEY.invalidValue)
-                                ])
+                                errorMessage: I18n.getText(TEXT_KEY.invalidValue)
                             };
+                            return;
+                        }
+
+                        // 3. A `not` sub-schema rejects exactly the values that satisfy it
+                        if (effectiveMeta.not) {
+                            if (!PayloadValidator.isEvaluableNot(effectiveMeta.not)) {
+                                Logger.warn(
+                                    "[MetaUI PayloadValidator]",
+                                    "A 'not' sub-schema declares no constraint this engine can evaluate; " +
+                                        "it is not enforced. Give it one of: " +
+                                        EVALUABLE_NOT_KEYWORDS.join(", ") +
+                                        "."
+                                );
+                            } else {
+                                lastVerdict = { isValid: true };
+                                yield {
+                                    key: "not",
+                                    node: effectiveMeta.not,
+                                    kind: "branch",
+                                    branchKeyword: "not",
+                                    scopeSegment: "not",
+                                    bindingSegment: ""
+                                };
+                                if (lastVerdict.isValid) {
+                                    lastVerdict = {
+                                        isValid: false,
+                                        errorMessage: I18n.getText(TEXT_KEY.invalidValue)
+                                    };
+                                    return;
+                                }
+                                lastVerdict = { isValid: true };
+                            }
+                        }
+
+                        // 4. Recursively validate object properties and dictionary entries
+                        if (effectiveMeta.type === "object" && isRecord(val)) {
+                            if (effectiveMeta.properties) {
+                                for (const [propKey, rawPropMeta] of Object.entries(effectiveMeta.properties)) {
+                                    if (rawPropMeta.ui?.visible === false) {
+                                        continue;
+                                    }
+                                    const needsReqOverride =
+                                        Boolean(resolvedRequiredList && resolvedRequiredList.includes(propKey)) &&
+                                        rawPropMeta.required === undefined &&
+                                        !activeNodes.has(rawPropMeta);
+                                    const propMeta: IPropertyMetadata = needsReqOverride
+                                        ? { ...rawPropMeta, required: true }
+                                        : rawPropMeta;
+                                    if (needsReqOverride) {
+                                        activeNodes.add(rawPropMeta);
+                                    }
+                                    try {
+                                        lastVerdict = { isValid: true };
+                                        yield {
+                                            key: propKey,
+                                            node: propMeta,
+                                            kind: "property",
+                                            scopeSegment: `properties/${propKey}`,
+                                            bindingSegment: propKey
+                                        };
+                                    } finally {
+                                        if (needsReqOverride) {
+                                            activeNodes.delete(rawPropMeta);
+                                        }
+                                    }
+                                    if (!lastVerdict.isValid) {
+                                        const label = propMeta.ui?.label || propKey;
+                                        lastVerdict = {
+                                            isValid: false,
+                                            errorMessage: I18n.getText(TEXT_KEY.fieldPrefix, [
+                                                label,
+                                                lastVerdict.errorMessage || I18n.getText(TEXT_KEY.invalidValue)
+                                            ])
+                                        };
+                                        return;
+                                    }
+                                }
+                            }
+
+                            if (
+                                effectiveMeta.additionalProperties &&
+                                typeof effectiveMeta.additionalProperties === "object"
+                            ) {
+                                const valueMeta = effectiveMeta.additionalProperties;
+                                for (const entryKey of Object.keys(val)) {
+                                    if (effectiveMeta.properties && entryKey in effectiveMeta.properties) {
+                                        continue;
+                                    }
+                                    lastVerdict = { isValid: true };
+                                    yield {
+                                        key: entryKey,
+                                        node: valueMeta,
+                                        kind: "property",
+                                        scopeSegment: `additionalProperties/${entryKey}`,
+                                        bindingSegment: entryKey
+                                    };
+                                    if (!lastVerdict.isValid) {
+                                        lastVerdict = {
+                                            isValid: false,
+                                            errorMessage: I18n.getText(TEXT_KEY.fieldPrefix, [
+                                                entryKey,
+                                                lastVerdict.errorMessage || I18n.getText(TEXT_KEY.invalidValue)
+                                            ])
+                                        };
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 5. Recursively validate array items
+                        if (effectiveMeta.type === "array" && Array.isArray(val) && effectiveMeta.items) {
+                            const itemMeta = effectiveMeta.items;
+                            for (let i = 0; i < val.length; i++) {
+                                lastVerdict = { isValid: true };
+                                yield {
+                                    key: String(i),
+                                    node: itemMeta,
+                                    kind: "branch",
+                                    branchKeyword: "item",
+                                    scopeSegment: `items/${i}`,
+                                    bindingSegment: String(i)
+                                };
+                                if (!lastVerdict.isValid) {
+                                    lastVerdict = {
+                                        isValid: false,
+                                        errorMessage: I18n.getText(TEXT_KEY.rowPrefix, [
+                                            i + 1,
+                                            lastVerdict.errorMessage || I18n.getText(TEXT_KEY.invalidItem)
+                                        ])
+                                    };
+                                    return;
+                                }
+                            }
+                        }
+
+                        lastVerdict = { isValid: true };
+                    } finally {
+                        if (rawNode.$ref) {
+                            activeRefs.delete(rawNode.$ref);
+                        }
+                        if (resolved) {
+                            activeNodes.delete(resolved);
                         }
                     }
                 }
+            }
+        );
 
-                if (effectiveMeta.additionalProperties && typeof effectiveMeta.additionalProperties === "object") {
-                    const valueMeta = effectiveMeta.additionalProperties;
-                    for (const [entryKey, entryVal] of Object.entries(value)) {
-                        if (effectiveMeta.properties && entryKey in effectiveMeta.properties) {
-                            continue;
-                        }
-                        const entryResult = PayloadValidator.validateTree(
-                            valueMeta,
-                            entryVal,
-                            resolveDefinition,
-                            depth + 1,
-                            undefined,
-                            activeNodes,
-                            activeRefs
-                        );
-                        if (!entryResult.isValid) {
-                            return {
-                                isValid: false,
-                                errorMessage: I18n.getText(TEXT_KEY.fieldPrefix, [
-                                    entryKey,
-                                    entryResult.errorMessage || I18n.getText(TEXT_KEY.invalidValue)
-                                ])
-                            };
-                        }
-                    }
-                }
-            }
-
-            // 5. Recursively validate array items
-            if (effectiveMeta.type === "array" && Array.isArray(value) && effectiveMeta.items) {
-                const itemMeta = effectiveMeta.items;
-                for (let i = 0; i < value.length; i++) {
-                    const itemResult = PayloadValidator.validateTree(
-                        itemMeta,
-                        value[i],
-                        resolveDefinition,
-                        depth + 1,
-                        undefined,
-                        activeNodes,
-                        activeRefs
-                    );
-                    if (!itemResult.isValid) {
-                        return {
-                            isValid: false,
-                            errorMessage: I18n.getText(TEXT_KEY.rowPrefix, [
-                                i + 1,
-                                itemResult.errorMessage || I18n.getText(TEXT_KEY.invalidItem)
-                            ])
-                        };
-                    }
-                }
-            }
-
-            return { isValid: true };
-        } finally {
-            activeNodes.delete(metadata);
-            if (metadata.$ref) {
-                activeRefs.delete(metadata.$ref);
-            }
-            if (resolved) {
-                activeNodes.delete(resolved);
-            }
-        }
+        return lastVerdict;
     }
 
     /**
@@ -416,54 +470,6 @@ export class PayloadValidator {
     }
 
     /**
-     * Evaluates a `not` sub-schema. A value that *satisfies* the sub-schema violates the constraint,
-     * so the sub-schema is run through {@link PayloadValidator.validateTree} and the verdict inverted.
-     *
-     * A sub-schema that asserts nothing the pipeline can evaluate would invert to "reject everything",
-     * which is worse than the gap it replaces, so it is reported and the value is accepted instead.
-     * `SchemaValidator` reports the same condition once per schema, before anything is rendered.
-     *
-     * @param notMeta The normalized `not` sub-schema.
-     * @param value The live value from the model.
-     * @param resolveDefinition Optional resolver for `$ref` schema definitions.
-     * @param depth Current recursion depth guard.
-     * @param activeNodes Path-scoped set of visited schema objects for cycle detection.
-     * @param activeRefs Path-scoped set of active `$ref` pointers for cycle detection.
-     * @returns {{ isValid: boolean; errorMessage?: string }} Invalid when the value matches the sub-schema.
-     */
-    private static evaluateNot(
-        notMeta: IPropertyMetadata,
-        value: unknown,
-        resolveDefinition: ((ref: string) => ISchema | null) | undefined,
-        depth: number,
-        activeNodes: WeakSet<object>,
-        activeRefs: Set<string>
-    ): { isValid: boolean; errorMessage?: string } {
-        // WALKER_EXEMPT: Mutually-recursive helper of PayloadValidator.validateTree for co-inductive (notMeta, value) negation evaluation.
-        if (!PayloadValidator.isEvaluableNot(notMeta)) {
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                "A 'not' sub-schema declares no constraint this engine can evaluate; it is not enforced. " +
-                    "Give it one of: " +
-                    EVALUABLE_NOT_KEYWORDS.join(", ") +
-                    "."
-            );
-            return { isValid: true };
-        }
-        // `validateTree` evaluates a nested `not` itself, so double negation resolves without a second path.
-        const matches = PayloadValidator.validateTree(
-            notMeta,
-            value,
-            resolveDefinition,
-            depth + 1,
-            undefined,
-            activeNodes,
-            activeRefs
-        ).isValid;
-        return matches ? { isValid: false, errorMessage: I18n.getText(TEXT_KEY.invalidValue) } : { isValid: true };
-    }
-
-    /**
      * Reports whether a `not` sub-schema declares at least one assertion the validation pipeline can
      * evaluate. `SchemaValidator` uses the same predicate so the structural report and the runtime
      * behaviour can never disagree about which `not` blocks are enforced.
@@ -502,239 +508,281 @@ export class PayloadValidator {
         activeNodes: WeakSet<object> = new WeakSet<object>(),
         activeRefs: Set<string> = new Set<string>()
     ): IPluginValidationResult[] {
-        // WALKER_EXEMPT: PayloadValidator.validatePayloadArrays co-inductively walks (schema, payload) across runtime array rows (targetArray[index]) and registered UI5 plugin paths.
         const errors: IPluginValidationResult[] = [];
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                `Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                    `subtree '${currentPath || "/"}' was not validated.`,
-                "PayloadValidator"
-            );
-            return errors;
-        }
-        if (!schema || payload === null || payload === undefined || typeof payload !== "object") return errors;
-        if (currentPath && (getPluginByPath(currentPath) || isPathHidden?.(currentPath))) return errors;
-        if (schema.ui?.visible === false) return errors;
+        const arrayCursor: IPairCursor<ISchema, unknown> = {
+            stepProperty: (parentOther, key) => (isRecord(parentOther) ? parentOther[key] : undefined)
+        };
+        const baseScope = currentPath ? `#/properties/${currentPath.split("/").join("/properties/")}` : "#";
 
-        const schemaRef = "$ref" in schema ? (schema as IPropertyMetadata).$ref : undefined;
-        if (activeNodes.has(schema) || (schemaRef && activeRefs.has(schemaRef))) {
-            Logger.warn(
-                "[MetaUI PayloadValidator]",
-                "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
-                "PayloadValidator"
-            );
-            return errors;
-        }
-        let effectiveSchema: ISchema = schema;
-        let resolved: ISchema | null = null;
-        if (schemaRef && resolveDefinition) {
-            resolved = resolveDefinition(schemaRef);
-            if (resolved) {
-                if (activeNodes.has(resolved)) {
-                    Logger.warn(
-                        "[MetaUI PayloadValidator]",
-                        `Circular $ref definition detected (${schemaRef}) in validatePayloadArrays; stopping recursion.`,
-                        "PayloadValidator"
-                    );
-                    return errors;
-                }
-                effectiveSchema = this.mergeResolvedDefinition(resolved as ISchema, schema);
+        const resolveRefTarget = (
+            raw: ISchema | IPropertyMetadata,
+            isChildProp: boolean
+        ): { effective: ISchema; resolved: ISchema | null; ref: string | undefined } | null => {
+            const ref = "$ref" in raw ? (raw as IPropertyMetadata).$ref : undefined;
+            if (!ref) {
+                return { effective: raw as ISchema, resolved: null, ref: undefined };
             }
-        }
-        activeNodes.add(schema);
-        if (schemaRef) {
-            activeRefs.add(schemaRef);
-        }
-        if (resolved) {
-            activeNodes.add(resolved);
-        }
-        const parentRequiredList = Array.isArray(effectiveSchema.required) ? effectiveSchema.required : undefined;
-
-        try {
-            if (effectiveSchema.type === "object" && effectiveSchema.properties && isRecord(payload)) {
-                for (const key of Object.keys(effectiveSchema.properties)) {
-                    const rawPropSchema = effectiveSchema.properties[key];
-                    const childPath = currentPath ? `${currentPath}/${key}` : key;
-                    if (rawPropSchema.ui?.visible === false || isPathHidden?.(childPath)) {
-                        continue;
-                    }
-                    let propSchema: IPropertyMetadata = rawPropSchema;
-                    if (rawPropSchema.$ref && resolveDefinition) {
-                        if (activeRefs.has(rawPropSchema.$ref)) {
-                            Logger.warn(
-                                "[MetaUI PayloadValidator]",
-                                `Circular $ref detected (${rawPropSchema.$ref}) in validatePayloadArrays; stopping recursion.`,
-                                "PayloadValidator"
-                            );
-                            continue;
-                        }
-                        const resolvedProp = resolveDefinition(rawPropSchema.$ref);
-                        if (resolvedProp) {
-                            if (activeNodes.has(resolvedProp)) {
-                                Logger.warn(
-                                    "[MetaUI PayloadValidator]",
-                                    `Circular $ref definition detected (${rawPropSchema.$ref}) ` +
-                                        "in validatePayloadArrays; stopping recursion.",
-                                    "PayloadValidator"
-                                );
-                                continue;
-                            }
-                            propSchema = this.mergeResolvedDefinition(
-                                resolvedProp as IPropertyMetadata,
-                                rawPropSchema as IPropertyMetadata
-                            );
-                        }
-                    }
-                    const isPropRequired =
-                        propSchema.required === true || Boolean(parentRequiredList && parentRequiredList.includes(key));
-                    if (isPropRequired && propSchema.required !== true && !activeNodes.has(rawPropSchema)) {
-                        propSchema = { ...propSchema, required: true };
-                    }
-                    const childValue = payload[key];
-                    if (propSchema.type === "object" || propSchema.type === "array") {
-                        if (childValue === undefined) {
-                            if (!getPluginByPath(childPath)) {
-                                const valToTest =
-                                    propSchema.type === "array" && (propSchema.minItems ?? 0) > 0 && !isPropRequired
-                                        ? []
-                                        : childValue;
-                                const selfRes = PipelineManager.getInstance().assembleAndExecute(
-                                    propSchema,
-                                    valToTest,
-                                    isPropRequired
-                                );
-                                if (!selfRes.isValid) {
-                                    errors.push({
-                                        isValid: false,
-                                        errorMessage: selfRes.errorMessage,
-                                        fieldKey: childPath,
-                                        fieldLabel: propSchema.ui?.label || key
-                                    });
-                                }
-                            }
-                        } else {
-                            errors.push(
-                                ...PayloadValidator.validatePayloadArrays(
-                                    propSchema as ISchema,
-                                    childValue,
-                                    childPath,
-                                    getPluginByPath,
-                                    resolveDefinition,
-                                    getDynamicRowRequired,
-                                    isPathHidden,
-                                    depth + 1,
-                                    activeNodes,
-                                    activeRefs
-                                )
-                            );
-                        }
-                    }
-                }
-            } else if (
-                effectiveSchema.type === "array" &&
-                (Array.isArray(payload) || (!currentPath && isRecord(payload) && Array.isArray(payload.items)))
-            ) {
-                const targetArray: unknown[] = Array.isArray(payload)
-                    ? payload
-                    : ((payload as Record<string, unknown>).items as unknown[]);
-                const arrayPathPrefix = Array.isArray(payload) ? currentPath : "items";
-                const constraintTargetPath = currentPath || "items";
-                const arrayRes = PipelineManager.getInstance().assembleAndExecute(
-                    effectiveSchema as IPropertyMetadata,
-                    targetArray
+            if (activeRefs.has(ref)) {
+                Logger.warn(
+                    "[MetaUI PayloadValidator]",
+                    isChildProp
+                        ? `Circular $ref detected (${ref}) in validatePayloadArrays; stopping recursion.`
+                        : "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+                    "PayloadValidator"
                 );
-                if (!arrayRes.isValid) {
-                    const fieldLabel = effectiveSchema.ui?.label || effectiveSchema.title || constraintTargetPath;
-                    errors.push({
-                        isValid: false,
-                        errorMessage: arrayRes.errorMessage,
-                        fieldKey: constraintTargetPath,
-                        fieldLabel
-                    });
-                } else {
-                    errors.push({ isValid: true, fieldKey: constraintTargetPath });
-                }
-                if (effectiveSchema.items) {
-                    const rawItems = effectiveSchema.items;
-                    const resolvedItems = rawItems.$ref ? resolveDefinition?.(rawItems.$ref) || rawItems : rawItems;
-                    const reqArray = Array.isArray(resolvedItems?.required) ? resolvedItems.required : undefined;
-                    targetArray.forEach((item: unknown, index: number) => {
-                        const itemPath = arrayPathPrefix ? `${arrayPathPrefix}/${index}` : `${index}`;
-                        if (resolvedItems && resolvedItems.type === "object" && resolvedItems.properties) {
-                            const rowRecord = isRecord(item) ? item : {};
-                            for (const key of Object.keys(resolvedItems.properties)) {
-                                const rawPropMeta = resolvedItems.properties[key];
-                                const propPath = `${itemPath}/${key}`;
-                                if (rawPropMeta.ui?.visible === false || isPathHidden?.(propPath)) {
-                                    errors.push({ isValid: true, fieldKey: propPath });
+                return null;
+            }
+            const resolved = resolveDefinition ? resolveDefinition(ref) : null;
+            if (!resolved) {
+                return { effective: raw as ISchema, resolved: null, ref };
+            }
+            if (activeNodes.has(resolved)) {
+                Logger.warn(
+                    "[MetaUI PayloadValidator]",
+                    `Circular $ref definition detected (${ref}) in validatePayloadArrays; stopping recursion.`,
+                    "PayloadValidator"
+                );
+                return null;
+            }
+            return {
+                effective: PayloadValidator.mergeResolvedDefinition(resolved as ISchema, raw as ISchema),
+                resolved,
+                ref
+            };
+        };
+
+        SchemaWalker.walkPaired(
+            schema,
+            payload as unknown,
+            arrayCursor,
+            () => undefined,
+            {
+                visitRoot: true,
+                resolveRefs: false,
+                maxDepth: MAX_SCHEMA_DEPTH,
+                initialDepth: depth,
+                baseScope,
+                baseBindingPath: currentPath,
+                activeNodes,
+                activeRefs,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason) => {
+                    if (reason === "depth") {
+                        const truncPath = SchemaWalker.toBindingPath(scope);
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            `Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                                `subtree '${truncPath || "/"}' was not validated.`,
+                            "PayloadValidator"
+                        );
+                    } else if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+                            "PayloadValidator"
+                        );
+                    }
+                },
+                resolveDynamicChildren: function* (node, ctx) {
+                    const curPayload = ctx.other;
+                    const curPath = ctx.bindingPath;
+                    if (!node || curPayload === null || curPayload === undefined || typeof curPayload !== "object") {
+                        return;
+                    }
+                    if (curPath && (getPluginByPath(curPath) || isPathHidden?.(curPath))) return;
+                    if (node.ui?.visible === false) return;
+
+                    const refInfo = resolveRefTarget(node, false);
+                    if (!refInfo) {
+                        return;
+                    }
+                    const { effective: effectiveSchema, resolved, ref: schemaRef } = refInfo;
+                    if (schemaRef) {
+                        activeRefs.add(schemaRef);
+                    }
+                    if (resolved) {
+                        activeNodes.add(resolved);
+                    }
+                    const parentRequiredList = Array.isArray(effectiveSchema.required)
+                        ? effectiveSchema.required
+                        : undefined;
+
+                    try {
+                        if (
+                            effectiveSchema.type === "object" &&
+                            effectiveSchema.properties &&
+                            isRecord(curPayload)
+                        ) {
+                            for (const key of Object.keys(effectiveSchema.properties)) {
+                                const rawPropSchema = effectiveSchema.properties[key];
+                                const childPath = curPath ? `${curPath}/${key}` : key;
+                                if (rawPropSchema.ui?.visible === false || isPathHidden?.(childPath)) {
                                     continue;
                                 }
-                                const dynReq = getDynamicRowRequired?.(propPath);
-                                const isReq =
-                                    dynReq !== undefined
-                                        ? dynReq
-                                        : rawPropMeta.required === true || Boolean(reqArray && reqArray.includes(key));
-                                const propMeta: IPropertyMetadata = { ...rawPropMeta, required: isReq };
-                                // Every cell goes through validateTree, scalar or not. Routing simple cells
-                                // straight to the pipeline skipped the two checks validateTree adds on top of
-                                // it — the `not` sub-schema and the structural type guard — so a table column
-                                // enforced less than the same property did outside a table.
-                                const res = PayloadValidator.validateTree(
-                                    propMeta,
-                                    rowRecord[key],
-                                    resolveDefinition,
-                                    depth + 1,
-                                    isReq,
-                                    activeNodes,
-                                    activeRefs
-                                );
-                                const fieldLabel = propMeta.ui?.label || key;
-                                errors.push(
-                                    res.isValid
-                                        ? { isValid: true, fieldKey: propPath }
-                                        : {
-                                              isValid: false,
-                                              errorMessage: res.errorMessage,
-                                              fieldKey: propPath,
-                                              fieldLabel
-                                          }
-                                );
+                                const propRefInfo = resolveRefTarget(rawPropSchema, true);
+                                if (!propRefInfo) {
+                                    continue;
+                                }
+                                let propSchema = propRefInfo.effective as IPropertyMetadata;
+                                const isPropRequired =
+                                    propSchema.required === true ||
+                                    Boolean(parentRequiredList && parentRequiredList.includes(key));
+                                if (isPropRequired && propSchema.required !== true && !activeNodes.has(rawPropSchema)) {
+                                    propSchema = { ...propSchema, required: true };
+                                }
+                                const childValue = curPayload[key];
+                                if (propSchema.type === "object" || propSchema.type === "array") {
+                                    if (childValue === undefined) {
+                                        if (!getPluginByPath(childPath)) {
+                                            const valToTest =
+                                                propSchema.type === "array" &&
+                                                (propSchema.minItems ?? 0) > 0 &&
+                                                !isPropRequired
+                                                    ? []
+                                                    : childValue;
+                                            const selfRes = PipelineManager.getInstance().assembleAndExecute(
+                                                propSchema,
+                                                valToTest,
+                                                isPropRequired
+                                            );
+                                            if (!selfRes.isValid) {
+                                                errors.push({
+                                                    isValid: false,
+                                                    errorMessage: selfRes.errorMessage,
+                                                    fieldKey: childPath,
+                                                    fieldLabel: propSchema.ui?.label || key
+                                                });
+                                            }
+                                        }
+                                    } else {
+                                        yield {
+                                            key,
+                                            kind: "property",
+                                            scopeSegment: `properties/${key}`,
+                                            bindingSegment: key,
+                                            node: propSchema as ISchema
+                                        };
+                                    }
+                                }
                             }
-                        } else if (resolvedItems) {
-                            const itemMeta = resolvedItems as IPropertyMetadata;
-                            if (itemMeta.ui?.visible === false || isPathHidden?.(itemPath)) {
-                                errors.push({ isValid: true, fieldKey: itemPath });
-                                return;
+                        } else if (
+                            effectiveSchema.type === "array" &&
+                            (Array.isArray(curPayload) ||
+                                (!curPath && isRecord(curPayload) && Array.isArray(curPayload.items)))
+                        ) {
+                            const targetArray: unknown[] = Array.isArray(curPayload)
+                                ? curPayload
+                                : ((curPayload as Record<string, unknown>).items as unknown[]);
+                            const arrayPathPrefix = Array.isArray(curPayload) ? curPath : "items";
+                            const constraintTargetPath = curPath || "items";
+                            const arrayRes = PipelineManager.getInstance().assembleAndExecute(
+                                effectiveSchema as IPropertyMetadata,
+                                targetArray
+                            );
+                            if (!arrayRes.isValid) {
+                                const fieldLabel =
+                                    effectiveSchema.ui?.label || effectiveSchema.title || constraintTargetPath;
+                                errors.push({
+                                    isValid: false,
+                                    errorMessage: arrayRes.errorMessage,
+                                    fieldKey: constraintTargetPath,
+                                    fieldLabel
+                                });
+                            } else {
+                                errors.push({ isValid: true, fieldKey: constraintTargetPath });
                             }
-                            const res = PayloadValidator.validateTree(
-                                itemMeta,
-                                item,
-                                resolveDefinition,
-                                depth + 1,
-                                undefined,
-                                activeNodes,
-                                activeRefs
-                            );
-                            const fieldLabel = itemMeta.ui?.label || itemPath;
-                            errors.push(
-                                res.isValid
-                                    ? { isValid: true, fieldKey: itemPath }
-                                    : { isValid: false, errorMessage: res.errorMessage, fieldKey: itemPath, fieldLabel }
-                            );
+                            if (effectiveSchema.items) {
+                                const rawItems = effectiveSchema.items;
+                                const resolvedItems = rawItems.$ref
+                                    ? resolveDefinition?.(rawItems.$ref) || rawItems
+                                    : rawItems;
+                                const reqArray = Array.isArray(resolvedItems?.required)
+                                    ? resolvedItems.required
+                                    : undefined;
+                                targetArray.forEach((item: unknown, index: number) => {
+                                    const itemPath = arrayPathPrefix ? `${arrayPathPrefix}/${index}` : `${index}`;
+                                    if (resolvedItems && resolvedItems.type === "object" && resolvedItems.properties) {
+                                        const rowRecord = isRecord(item) ? item : {};
+                                        for (const key of Object.keys(resolvedItems.properties)) {
+                                            const rawPropMeta = resolvedItems.properties[key];
+                                            const propPath = `${itemPath}/${key}`;
+                                            if (rawPropMeta.ui?.visible === false || isPathHidden?.(propPath)) {
+                                                errors.push({ isValid: true, fieldKey: propPath });
+                                                continue;
+                                            }
+                                            const dynReq = getDynamicRowRequired?.(propPath);
+                                            const isReq =
+                                                dynReq !== undefined
+                                                    ? dynReq
+                                                    : rawPropMeta.required === true ||
+                                                      Boolean(reqArray && reqArray.includes(key));
+                                            const propMeta: IPropertyMetadata = { ...rawPropMeta, required: isReq };
+                                            // Every cell goes through validateTree, scalar or not. Routing simple cells
+                                            // straight to the pipeline skipped the two checks validateTree adds on top of
+                                            // it — the `not` sub-schema and the structural type guard — so a table column
+                                            // enforced less than the same property did outside a table.
+                                            const res = PayloadValidator.validateTree(
+                                                propMeta,
+                                                rowRecord[key],
+                                                resolveDefinition,
+                                                ctx.depth + 1,
+                                                isReq,
+                                                activeNodes,
+                                                activeRefs
+                                            );
+                                            const fieldLabel = propMeta.ui?.label || key;
+                                            errors.push(
+                                                res.isValid
+                                                    ? { isValid: true, fieldKey: propPath }
+                                                    : {
+                                                          isValid: false,
+                                                          errorMessage: res.errorMessage,
+                                                          fieldKey: propPath,
+                                                          fieldLabel
+                                                      }
+                                            );
+                                        }
+                                    } else if (resolvedItems) {
+                                        const itemMeta = resolvedItems as IPropertyMetadata;
+                                        if (itemMeta.ui?.visible === false || isPathHidden?.(itemPath)) {
+                                            errors.push({ isValid: true, fieldKey: itemPath });
+                                            return;
+                                        }
+                                        const res = PayloadValidator.validateTree(
+                                            itemMeta,
+                                            item,
+                                            resolveDefinition,
+                                            ctx.depth + 1,
+                                            undefined,
+                                            activeNodes,
+                                            activeRefs
+                                        );
+                                        const fieldLabel = itemMeta.ui?.label || itemPath;
+                                        errors.push(
+                                            res.isValid
+                                                ? { isValid: true, fieldKey: itemPath }
+                                                : {
+                                                      isValid: false,
+                                                      errorMessage: res.errorMessage,
+                                                      fieldKey: itemPath,
+                                                      fieldLabel
+                                                  }
+                                        );
+                                    }
+                                });
+                            }
                         }
-                    });
+                    } finally {
+                        if (schemaRef) {
+                            activeRefs.delete(schemaRef);
+                        }
+                        if (resolved) {
+                            activeNodes.delete(resolved);
+                        }
+                    }
                 }
             }
-            return errors;
-        } finally {
-            activeNodes.delete(schema);
-            if (schemaRef) {
-                activeRefs.delete(schemaRef);
-            }
-            if (resolved) {
-                activeNodes.delete(resolved);
-            }
-        }
+        );
+        return errors;
     }
 }

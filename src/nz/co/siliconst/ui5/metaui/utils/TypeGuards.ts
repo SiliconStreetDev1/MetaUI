@@ -107,8 +107,11 @@ function cloneInternal(value: unknown, seen: WeakMap<object, unknown>, depth: nu
     if (seen.has(value)) {
         return seen.get(value);
     }
-    // WALKER_EXEMPT: deepClone recursively copies arbitrary consumer JavaScript values (Dates, arrays, plain objects)
-    // with WeakMap reference-cycle preservation capped at MAX_CLONE_DEPTH rather than traversing an ISchema tree.
+    // WALKER_EXEMPT: cloneInternal copies arbitrary untyped JavaScript graphs (Dates, arrays, plain objects, __proto__
+    // own-properties) capped at MAX_CLONE_DEPTH rather than MAX_SCHEMA_DEPTH, and must register the newly allocated copy
+    // in seen: WeakMap<object, unknown> (seen.set(value, copy)) before descending so cycle back-edges return that exact
+    // allocated reference via seen.get(value), whereas SchemaWalker truncates cycles without returning a synthesized value
+    // and itself depends on deepClone from this module.
     if (depth >= MAX_CLONE_DEPTH) {
         // Returning {} or [] here replaces the consumer's own data with nothing. That is the
         // most expensive silent truncation in the library, so it must never be silent.

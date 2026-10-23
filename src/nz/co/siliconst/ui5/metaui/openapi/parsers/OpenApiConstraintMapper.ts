@@ -7,6 +7,7 @@
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { OpenApiRefResolver } from "../OpenApiRefResolver";
 import { SchemaDirectiveNormalizer } from "../../core/SchemaDirectiveNormalizer";
+import { SchemaWalker, RawRecordShape } from "../../core/SchemaWalker";
 import { Logger } from "../../utils/Logger";
 import { JsonRecord, isRecord, readString, readNumber, readBoolean, deepClone } from "../../utils/TypeGuards";
 import { MAX_SCHEMA_DEPTH } from "../../constants/MetaUIConstants";
@@ -88,7 +89,6 @@ export class OpenApiConstraintMapper {
         depth: number = 0,
         activeRefs: Set<string> = new Set()
     ): JsonRecord {
-        // WALKER_EXEMPT: OpenApiConstraintMapper.resolveAllOf folds nested allOf composition branch arrays via deepMergeSchemas into a single intersection record before property mapping begins.
         if (!Array.isArray(currentProp.allOf)) {
             return currentProp;
         }
@@ -101,35 +101,80 @@ export class OpenApiConstraintMapper {
             return currentProp;
         }
 
-        let accumulatedBase: JsonRecord = {};
-        for (const subSchema of currentProp.allOf) {
-            if (!isRecord(subSchema)) {
-                continue;
-            }
-            let resolvedSub: JsonRecord = subSchema;
-            const refPath = readString(resolvedSub, "$ref");
-            const nextRefs = new Set(activeRefs);
-            if (refPath) {
-                if (nextRefs.has(refPath)) {
-                    continue;
+        const refsByScope = new Map<string, Set<string>>([["#", new Set(activeRefs)]]);
+        const resolvedByScope = new Map<string, JsonRecord>();
+
+        SchemaWalker.walk(
+            currentProp,
+            () => undefined,
+            {
+                shape: RawRecordShape,
+                visitRoot: true,
+                initialDepth: depth,
+                resolveRefs: false,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason, rawNode) => {
+                    if (reason === "depth" && isRecord(rawNode) && Array.isArray(rawNode.allOf)) {
+                        Logger.warn(
+                            `[MetaUI OpenApiConstraintMapper] allOf nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                                `${rawNode.allOf.length} branch(es) were not merged, so their properties and ` +
+                                `constraints are missing from this schema.`
+                        );
+                    }
+                    if (isRecord(rawNode)) {
+                        resolvedByScope.set(scope, rawNode);
+                    }
+                },
+                resolveDynamicChildren: function* (node, ctx) {
+                    const currentRefs = refsByScope.get(ctx.scope) ?? new Set<string>();
+                    const allOfList = Array.isArray(node.allOf) ? node.allOf : [];
+                    let accumulatedBase: JsonRecord = {};
+                    for (let i = 0; i < allOfList.length; i++) {
+                        const subSchema: unknown = allOfList[i];
+                        if (!isRecord(subSchema)) {
+                            continue;
+                        }
+                        let resolvedSub: JsonRecord = subSchema;
+                        const refPath = readString(resolvedSub, "$ref");
+                        const nextRefs = new Set(currentRefs);
+                        if (refPath) {
+                            if (nextRefs.has(refPath)) {
+                                continue;
+                            }
+                            nextRefs.add(refPath);
+                            const resolved = OpenApiRefResolver.resolve(refPath, openApiRoot);
+                            resolvedSub = isRecord(resolved) ? { ...resolved, ...resolvedSub } : { ...resolvedSub };
+                            delete resolvedSub.$ref;
+                        }
+                        if (Array.isArray(resolvedSub.allOf)) {
+                            const childScopeSeg = `allOf/${i}`;
+                            const childScope = `${ctx.scope}/${childScopeSeg}`;
+                            refsByScope.set(childScope, nextRefs);
+                            const childNode: JsonRecord = { ...resolvedSub };
+                            yield {
+                                key: String(i),
+                                node: childNode,
+                                kind: "branch",
+                                branchKeyword: "allOf",
+                                scopeSegment: childScopeSeg,
+                                bindingSegment: String(i)
+                            };
+                            resolvedSub = resolvedByScope.get(childScope) ?? resolvedSub;
+                        }
+                        const mergedSub = OpenApiConstraintMapper.deepMergeSchemas(accumulatedBase, resolvedSub);
+                        if (isRecord(mergedSub)) {
+                            accumulatedBase = mergedSub;
+                        }
+                    }
+                    const ownProps: JsonRecord = { ...node };
+                    delete ownProps.allOf;
+                    const finalMerged = OpenApiConstraintMapper.deepMergeSchemas(accumulatedBase, ownProps);
+                    resolvedByScope.set(ctx.scope, isRecord(finalMerged) ? finalMerged : ownProps);
                 }
-                nextRefs.add(refPath);
-                const resolved = OpenApiRefResolver.resolve(refPath, openApiRoot);
-                resolvedSub = isRecord(resolved) ? { ...resolved, ...resolvedSub } : { ...resolvedSub };
-                delete resolvedSub.$ref;
             }
-            if (Array.isArray(resolvedSub.allOf)) {
-                resolvedSub = this.resolveAllOf(resolvedSub, openApiRoot, depth + 1, nextRefs);
-            }
-            const mergedSub = this.deepMergeSchemas(accumulatedBase, resolvedSub);
-            if (isRecord(mergedSub)) {
-                accumulatedBase = mergedSub;
-            }
-        }
-        const ownProps: JsonRecord = { ...currentProp };
-        delete ownProps.allOf;
-        const finalMerged = this.deepMergeSchemas(accumulatedBase, ownProps);
-        return isRecord(finalMerged) ? finalMerged : ownProps;
+        );
+
+        return resolvedByScope.get("#") ?? currentProp;
     }
 
     /**
@@ -246,9 +291,8 @@ export class OpenApiConstraintMapper {
      *
      * Both arguments are treated as schema objects, so every key is a JSON Schema keyword. Dictionaries whose
      * keys are caller-chosen names (`properties`, `patternProperties`, `definitions`, `$defs`, `dependentSchemas`)
-     * are routed through {@link OpenApiConstraintMapper.mergeSchemaMap}, which re-enters this method one level
-     * down. Without that routing a property literally named `type`, `enum` or `pattern` would be merged by the
-     * keyword rules and lose its definition.
+     * step entry-by-entry into their sub-schema pairs one level down. Without that routing a property literally
+     * named `type`, `enum` or `pattern` would be merged by the keyword rules and lose its definition.
      *
      * Every keyword without an explicit rule below falls through to `output[key] = srcVal`, which is
      * *override* and not intersection. That default is safe only for keywords that carry no assertion
@@ -262,124 +306,214 @@ export class OpenApiConstraintMapper {
      * @returns {unknown} A new merged schema record.
      */
     public static deepMergeSchemas(target: unknown, source: unknown): unknown {
-        return this.deepMergeSchemasInternal(target, source, 0, new WeakSet<object>());
-    }
-
-    private static deepMergeSchemasInternal(
-        target: unknown,
-        source: unknown,
-        depth: number,
-        activeRecords: WeakSet<object>
-    ): unknown {
-        // WALKER_EXEMPT: OpenApiConstraintMapper.deepMergeSchemasInternal performs a binary allOf intersection over two raw JsonRecord trees (target and source), not a single-schema walk.
-        const outTarget: JsonRecord = isRecord(target) ? target : {};
-        const output: JsonRecord = { ...outTarget };
+        const rootTarget: JsonRecord = isRecord(target) ? target : {};
         if (!isRecord(source)) {
-            return output;
+            return { ...rootTarget };
         }
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                `[MetaUI OpenApiConstraintMapper] Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in ` +
-                    `deepMergeSchemas; truncating recursive allOf merge.`
-            );
-            return output;
-        }
-        if ((isRecord(target) && activeRecords.has(target)) || activeRecords.has(source)) {
-            Logger.warn(
-                "[MetaUI OpenApiConstraintMapper] Circular schema record detected in deepMergeSchemas; " +
-                    "truncating recursive allOf merge."
-            );
-            return output;
-        }
-        if (isRecord(target)) {
-            activeRecords.add(target);
-        }
-        activeRecords.add(source);
-        try {
-            let contradictoryConst = false;
+        const activeRecords = new WeakSet<object>();
+        const mergedByScope = new Map<string, JsonRecord>();
 
-            for (const key of Object.keys(source)) {
-                const srcVal = source[key];
-                const targetVal = outTarget[key];
-                if (key === "const" && "const" in outTarget && !this.isSameJsonValue(targetVal, srcVal)) {
-                    contradictoryConst = true;
-                    Logger.error(
-                        `[MetaUI OpenApiConstraintMapper] Contradictory 'const' in allOf merge ` +
-                            `(${JSON.stringify(targetVal)} vs ${JSON.stringify(srcVal)}); ` +
-                            `no value satisfies both branches.`
-                    );
-                } else if (key === "multipleOf" && typeof targetVal === "number" && typeof srcVal === "number") {
-                    output[key] = this.intersectMultipleOf(targetVal, srcVal);
-                } else if (EXCLUSIVE_BOUND_KEYS.has(key) && this.isMixedExclusiveDialect(targetVal, srcVal)) {
-                    output[key] = this.intersectMixedExclusive(key, outTarget, source);
-                } else if (
-                    OR_BOOLEAN_KEYWORDS.has(key) &&
-                    typeof targetVal === "boolean" &&
-                    typeof srcVal === "boolean"
-                ) {
-                    output[key] = targetVal || srcVal;
-                } else if (key === "additionalProperties" && targetVal !== undefined) {
-                    output[key] = this.intersectAdditionalProperties(targetVal, srcVal, depth + 1, activeRecords);
-                } else if (SCHEMA_MAP_KEYWORDS.has(key) && isRecord(targetVal) && isRecord(srcVal)) {
-                    output[key] = this.mergeSchemaMap(targetVal, srcVal, depth + 1, activeRecords);
-                } else if (key === "type" && targetVal !== undefined && srcVal !== undefined && targetVal !== srcVal) {
-                    Logger.error(
-                        `[MetaUI OpenApiConstraintMapper] Conflicting 'type' in allOf merge ` +
-                            `('${String(targetVal)}' vs '${String(srcVal)}'); keeping '${String(targetVal)}'.`
-                    );
-                    output[key] = targetVal;
-                } else if (MAX_BOUND_KEYS.has(key) && typeof targetVal === "number" && typeof srcVal === "number") {
-                    output[key] = Math.max(targetVal, srcVal);
-                } else if (MIN_BOUND_KEYS.has(key) && typeof targetVal === "number" && typeof srcVal === "number") {
-                    output[key] = Math.min(targetVal, srcVal);
-                } else if (
-                    (key === "exclusiveMinimum" || key === "exclusiveMaximum") &&
-                    typeof targetVal === "boolean" &&
-                    typeof srcVal === "boolean"
-                ) {
-                    output[key] = targetVal || srcVal;
-                } else if (key === "enum" && Array.isArray(targetVal) && Array.isArray(srcVal)) {
-                    output[key] = this.intersectEnums(targetVal, srcVal);
-                } else if (
-                    key === "pattern" &&
-                    typeof targetVal === "string" &&
-                    typeof srcVal === "string" &&
-                    targetVal !== srcVal
-                ) {
-                    output[key] = this.composePatterns(targetVal, srcVal);
-                } else if (COMPOSITION_KEYWORDS.has(key) && Array.isArray(targetVal) && Array.isArray(srcVal)) {
-                    Logger.warn(
-                        `[MetaUI OpenApiConstraintMapper] Two allOf branches declare '${key}'. ` +
-                            `A single schema cannot express the intersection of two branch lists, so the ` +
-                            `${srcVal.length} branch(es) of the later '${key}' are not enforced.`
-                    );
-                    output[key] = targetVal;
-                } else if (Array.isArray(srcVal)) {
-                    output[key] = Array.isArray(targetVal)
-                        ? Array.from(new Set([...targetVal, ...srcVal]))
-                        : [...srcVal];
-                } else if (isRecord(srcVal)) {
-                    output[key] = isRecord(targetVal)
-                        ? this.deepMergeSchemasInternal(targetVal, srcVal, depth + 1, activeRecords)
-                        : { ...srcVal };
-                } else {
-                    output[key] = srcVal;
+        SchemaWalker.walkPaired(
+            source,
+            isRecord(target) ? target : undefined,
+            {
+                stepProperty: (targetRec, key) => {
+                    const val = targetRec[key];
+                    return isRecord(val) ? val : undefined;
+                },
+                stepBranch: (targetRec, mapKeyword, compositeKey) => {
+                    const mapVal = targetRec[mapKeyword];
+                    if (!isRecord(mapVal)) {
+                        return undefined;
+                    }
+                    const entryName = compositeKey.slice(mapKeyword.length + 1);
+                    const entryVal = mapVal[entryName];
+                    return isRecord(entryVal) ? entryVal : undefined;
+                }
+            },
+            () => undefined,
+            {
+                shape: RawRecordShape,
+                visitRoot: true,
+                resolveRefs: false,
+                detectOtherCycles: true,
+                activeNodes: activeRecords,
+                activeOthers: activeRecords,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason, _rawNode, otherRec) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            `[MetaUI OpenApiConstraintMapper] Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in ` +
+                                `deepMergeSchemas; truncating recursive allOf merge.`
+                        );
+                    } else if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI OpenApiConstraintMapper] Circular schema record detected in deepMergeSchemas; " +
+                                "truncating recursive allOf merge."
+                        );
+                    }
+                    mergedByScope.set(scope, { ...(otherRec ?? {}) });
+                },
+                resolveDynamicChildren: function* (srcRec, ctx) {
+                    const outTarget: JsonRecord = ctx.other ?? {};
+                    const output: JsonRecord = { ...outTarget };
+                    let contradictoryConst = false;
+
+                    for (const key of Object.keys(srcRec)) {
+                        const srcVal = srcRec[key];
+                        const targetVal = outTarget[key];
+                        if (
+                            key === "const" &&
+                            "const" in outTarget &&
+                            !OpenApiConstraintMapper.isSameJsonValue(targetVal, srcVal)
+                        ) {
+                            contradictoryConst = true;
+                            Logger.error(
+                                `[MetaUI OpenApiConstraintMapper] Contradictory 'const' in allOf merge ` +
+                                    `(${JSON.stringify(targetVal)} vs ${JSON.stringify(srcVal)}); ` +
+                                    `no value satisfies both branches.`
+                            );
+                        } else if (
+                            key === "multipleOf" &&
+                            typeof targetVal === "number" &&
+                            typeof srcVal === "number"
+                        ) {
+                            output[key] = OpenApiConstraintMapper.intersectMultipleOf(targetVal, srcVal);
+                        } else if (
+                            EXCLUSIVE_BOUND_KEYS.has(key) &&
+                            OpenApiConstraintMapper.isMixedExclusiveDialect(targetVal, srcVal)
+                        ) {
+                            output[key] = OpenApiConstraintMapper.intersectMixedExclusive(key, outTarget, srcRec);
+                        } else if (
+                            OR_BOOLEAN_KEYWORDS.has(key) &&
+                            typeof targetVal === "boolean" &&
+                            typeof srcVal === "boolean"
+                        ) {
+                            output[key] = targetVal || srcVal;
+                        } else if (key === "additionalProperties" && targetVal !== undefined) {
+                            if (targetVal === false || srcVal === false) {
+                                output[key] = false;
+                            } else if (isRecord(targetVal) && isRecord(srcVal)) {
+                                yield {
+                                    key,
+                                    node: srcVal,
+                                    kind: "property",
+                                    scopeSegment: key,
+                                    bindingSegment: key
+                                };
+                                output[key] = mergedByScope.get(`${ctx.scope}/${key}`) ?? { ...targetVal };
+                            } else if (isRecord(targetVal)) {
+                                output[key] = targetVal;
+                            } else if (isRecord(srcVal)) {
+                                output[key] = deepClone(srcVal);
+                            } else {
+                                output[key] = targetVal === true && srcVal === true ? true : (srcVal ?? targetVal);
+                            }
+                        } else if (SCHEMA_MAP_KEYWORDS.has(key) && isRecord(targetVal) && isRecord(srcVal)) {
+                            const mapOut: JsonRecord = { ...targetVal };
+                            for (const name of Object.keys(srcVal)) {
+                                const srcEntry = srcVal[name];
+                                const targetEntry = targetVal[name];
+                                if (isRecord(targetEntry) && isRecord(srcEntry)) {
+                                    const compositeKey = `${key}/${name}`;
+                                    yield {
+                                        key: compositeKey,
+                                        node: srcEntry,
+                                        kind: "branch",
+                                        branchKeyword: key,
+                                        scopeSegment: compositeKey,
+                                        bindingSegment: compositeKey
+                                    };
+                                    const merged = mergedByScope.get(`${ctx.scope}/${compositeKey}`);
+                                    mapOut[name] = isRecord(merged) ? merged : srcEntry;
+                                } else {
+                                    mapOut[name] = srcEntry;
+                                }
+                            }
+                            output[key] = mapOut;
+                        } else if (
+                            key === "type" &&
+                            targetVal !== undefined &&
+                            srcVal !== undefined &&
+                            targetVal !== srcVal
+                        ) {
+                            Logger.error(
+                                `[MetaUI OpenApiConstraintMapper] Conflicting 'type' in allOf merge ` +
+                                    `('${String(targetVal)}' vs '${String(srcVal)}'); keeping '${String(targetVal)}'.`
+                            );
+                            output[key] = targetVal;
+                        } else if (
+                            MAX_BOUND_KEYS.has(key) &&
+                            typeof targetVal === "number" &&
+                            typeof srcVal === "number"
+                        ) {
+                            output[key] = Math.max(targetVal, srcVal);
+                        } else if (
+                            MIN_BOUND_KEYS.has(key) &&
+                            typeof targetVal === "number" &&
+                            typeof srcVal === "number"
+                        ) {
+                            output[key] = Math.min(targetVal, srcVal);
+                        } else if (
+                            (key === "exclusiveMinimum" || key === "exclusiveMaximum") &&
+                            typeof targetVal === "boolean" &&
+                            typeof srcVal === "boolean"
+                        ) {
+                            output[key] = targetVal || srcVal;
+                        } else if (key === "enum" && Array.isArray(targetVal) && Array.isArray(srcVal)) {
+                            output[key] = OpenApiConstraintMapper.intersectEnums(targetVal, srcVal);
+                        } else if (
+                            key === "pattern" &&
+                            typeof targetVal === "string" &&
+                            typeof srcVal === "string" &&
+                            targetVal !== srcVal
+                        ) {
+                            output[key] = OpenApiConstraintMapper.composePatterns(targetVal, srcVal);
+                        } else if (
+                            COMPOSITION_KEYWORDS.has(key) &&
+                            Array.isArray(targetVal) &&
+                            Array.isArray(srcVal)
+                        ) {
+                            Logger.warn(
+                                `[MetaUI OpenApiConstraintMapper] Two allOf branches declare '${key}'. ` +
+                                    `A single schema cannot express the intersection of two branch lists, so the ` +
+                                    `${srcVal.length} branch(es) of the later '${key}' are not enforced.`
+                            );
+                            output[key] = targetVal;
+                        } else if (Array.isArray(srcVal)) {
+                            output[key] = Array.isArray(targetVal)
+                                ? Array.from(new Set([...targetVal, ...srcVal]))
+                                : [...srcVal];
+                        } else if (isRecord(srcVal)) {
+                            if (isRecord(targetVal)) {
+                                yield {
+                                    key,
+                                    node: srcVal,
+                                    kind: "property",
+                                    scopeSegment: key,
+                                    bindingSegment: key
+                                };
+                                output[key] = mergedByScope.get(`${ctx.scope}/${key}`) ?? { ...targetVal };
+                            } else {
+                                output[key] = { ...srcVal };
+                            }
+                        } else {
+                            output[key] = srcVal;
+                        }
+                    }
+                    if (contradictoryConst) {
+                        // Follow the `enum` precedent: an intersection no value satisfies is published as an
+                        // empty choice list, which `OpenApiPropertyMapper` renders as a disabled, empty select
+                        // rather than as unconstrained free text. The first branch's `const` is kept so the
+                        // constraint stays enforced on the plain JSON Schema path, which drops an empty `enum`.
+                        output.enum = [];
+                    }
+                    mergedByScope.set(ctx.scope, output);
                 }
             }
-            if (contradictoryConst) {
-                // Follow the `enum` precedent: an intersection no value satisfies is published as an
-                // empty choice list, which `OpenApiPropertyMapper` renders as a disabled, empty select
-                // rather than as unconstrained free text. The first branch's `const` is kept so the
-                // constraint stays enforced on the plain JSON Schema path, which drops an empty `enum`.
-                output.enum = [];
-            }
-            return output;
-        } finally {
-            if (isRecord(target)) {
-                activeRecords.delete(target);
-            }
-            activeRecords.delete(source);
-        }
+        );
+
+        return mergedByScope.get("#") ?? { ...rootTarget };
     }
 
     /**
@@ -496,36 +630,6 @@ export class OpenApiConstraintMapper {
         return undefined;
     }
 
-    /**
-     * Intersects two `additionalProperties` declarations. `false` closes an object and therefore wins over
-     * both `true` and a sub-schema; a sub-schema is narrower than `true`; two sub-schemas merge as schemas.
-     *
-     * @param targetVal The target `additionalProperties`.
-     * @param srcVal The source `additionalProperties`.
-     * @returns {unknown} The intersected declaration.
-     */
-    private static intersectAdditionalProperties(
-        targetVal: unknown,
-        srcVal: unknown,
-        depth: number = 0,
-        activeRecords: WeakSet<object> = new WeakSet<object>()
-    ): unknown {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiConstraintMapper.deepMergeSchemas for binary allOf intersection over two raw JsonRecord trees.
-        if (targetVal === false || srcVal === false) {
-            return false;
-        }
-        if (isRecord(targetVal) && isRecord(srcVal)) {
-            return this.deepMergeSchemasInternal(targetVal, srcVal, depth, activeRecords);
-        }
-        if (isRecord(targetVal)) {
-            return targetVal;
-        }
-        if (isRecord(srcVal)) {
-            return deepClone(srcVal);
-        }
-        return targetVal === true && srcVal === true ? true : (srcVal ?? targetVal);
-    }
-
     /** Key-order-independent structural equality for two JSON values, used to compare `const` declarations. */
     private static isSameJsonValue(a: unknown, b: unknown): boolean {
         return this.canonicalJson(a) === this.canonicalJson(b);
@@ -543,35 +647,6 @@ export class OpenApiConstraintMapper {
                 .join(",")}}`;
         }
         return JSON.stringify(value) ?? "undefined";
-    }
-
-    /**
-     * Merges two dictionaries of name-to-sub-schema entries. Entry keys are caller-chosen names, so no
-     * keyword rule is applied at this level; each pair of sub-schemas is merged as a schema object again.
-     *
-     * @param target The target dictionary.
-     * @param source The source dictionary to merge into `target`.
-     * @returns {JsonRecord} A new merged dictionary.
-     */
-    private static mergeSchemaMap(
-        target: JsonRecord,
-        source: JsonRecord,
-        depth: number = 0,
-        activeRecords: WeakSet<object> = new WeakSet<object>()
-    ): JsonRecord {
-        // WALKER_EXEMPT: Mutually-recursive helper of OpenApiConstraintMapper.deepMergeSchemas for binary allOf intersection over two raw JsonRecord property maps.
-        const output: JsonRecord = { ...target };
-        for (const name of Object.keys(source)) {
-            const srcEntry = source[name];
-            const targetEntry = target[name];
-            if (isRecord(targetEntry) && isRecord(srcEntry)) {
-                const merged = this.deepMergeSchemasInternal(targetEntry, srcEntry, depth, activeRecords);
-                output[name] = isRecord(merged) ? merged : srcEntry;
-            } else {
-                output[name] = srcEntry;
-            }
-        }
-        return output;
     }
 
     /**

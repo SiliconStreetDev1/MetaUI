@@ -9,6 +9,8 @@ import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { SCHEMA_TYPE, WIDGET_TYPE, LAYOUT_STRATEGY, MAX_SCHEMA_DEPTH } from "../constants/MetaUIConstants";
 import { JsonRecord, isRecord, readRecord } from "../utils/TypeGuards";
 import { Logger } from "../utils/Logger";
+import { SchemaWalker, ITreeChild, RawRecordShape, JsonPayloadShape } from "./SchemaWalker";
+import { DeclinedSchemaFieldsMap, IPropertyProducerContract } from "./SchemaDirectiveNormalizer";
 
 /** Maximum number of array rows sampled when inferring a table schema. */
 const INFERENCE_SAMPLE_LIMIT = 50;
@@ -26,7 +28,7 @@ const INFERENCE_SAMPLE_LIMIT = 50;
  * to declare (a bound, an enum, a validator, a layout). Guessing the second kind from a 50-row sample
  * produces a schema that rejects valid data on row 51, which is worse than omitting it.
  */
-export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>> = {
+export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap = {
     $ref: "Inference always emits inline structure; a payload contains no pointers to name.",
     title: "A payload has no schema title; the human-readable name is synthesized into ui.label instead.",
     description: "A payload carries no prose; there is nothing to put in a tooltip.",
@@ -121,6 +123,21 @@ export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>> = {
  * @public
  */
 export class DataInferenceBuilder implements ISchemaBuilderPlugin {
+    /** Shared producer contract descriptor for data-driven property metadata inference. */
+    public static readonly PRODUCER_CONTRACT: IPropertyProducerContract<unknown, number> = {
+        name: "DataInferenceBuilder",
+        declinedFields: DECLINED_SCHEMA_FIELDS,
+        extractPropertyMetadata: (input: unknown, keyName: string, _isRequired: boolean, depth: number = 0): IPropertyMetadata => {
+            const inferred = DataInferenceBuilder.inferPropertiesFromObject({ [keyName]: input }, depth);
+            return (
+                inferred[keyName] || {
+                    type: SCHEMA_TYPE.STRING,
+                    ui: { label: DataInferenceBuilder.generateLabel(keyName), readOnly: false }
+                }
+            );
+        }
+    };
+
     /**
      * Checks whether the input is a plain data object/array rather than an explicit schema.
      *
@@ -209,7 +226,6 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
         depth: number = 0,
         seen: WeakSet<object> = new WeakSet()
     ): Record<string, IPropertyMetadata> {
-        // WALKER_EXEMPT: DataInferenceBuilder.inferPropertiesFromRows walks raw JavaScript array payloads (sampling up to INFERENCE_SAMPLE_LIMIT rows) to synthesize an ISchema when no schema exists.
         if (depth >= MAX_SCHEMA_DEPTH) {
             Logger.warn(
                 "[MetaUI DataInferenceBuilder]",
@@ -219,14 +235,33 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
             return {};
         }
         let merged: Record<string, IPropertyMetadata> = {};
-        const limit = Math.min(rows.length, INFERENCE_SAMPLE_LIMIT);
-        for (let i = 0; i < limit; i++) {
-            const row = rows[i];
-            // `inferPropertiesFromObject` pushes and pops `row` itself, so two sibling rows that are the
-            // same object are both inferred; only a row that is its own ancestor is a cycle.
-            if (isRecord(row) && !seen.has(row)) {
-                merged = this.mergeInferredProperties(merged, this.inferPropertiesFromObject(row, depth, seen));
+        const hadRows = seen.has(rows);
+        if (hadRows) {
+            seen.delete(rows);
+        }
+        SchemaWalker.walk(
+            rows,
+            (ctx) => {
+                if (isRecord(ctx.node)) {
+                    seen.delete(ctx.node);
+                    merged = this.mergeInferredProperties(
+                        merged,
+                        this.inferPropertiesFromObject(ctx.node, depth, seen)
+                    );
+                }
+                return "skip-subtree";
+            },
+            {
+                shape: JsonPayloadShape,
+                maxArrayItems: INFERENCE_SAMPLE_LIMIT,
+                initialDepth: depth,
+                activeNodes: seen,
+                resolveRefs: false,
+                silentTruncationLog: true
             }
+        );
+        if (hadRows) {
+            seen.add(rows);
         }
         return merged;
     }
@@ -243,116 +278,191 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
         base: Record<string, IPropertyMetadata>,
         next: Record<string, IPropertyMetadata>
     ): Record<string, IPropertyMetadata> {
-        return this.mergeInferredPropertiesInternal(base, next, 0, new WeakSet<object>());
-    }
+        type PropMap = Record<string, IPropertyMetadata>;
+        const activeMaps = new WeakSet<object>();
+        const mergedByScope = new Map<string, PropMap>();
 
-    private static mergeInferredPropertiesInternal(
-        base: Record<string, IPropertyMetadata>,
-        next: Record<string, IPropertyMetadata>,
-        depth: number,
-        activeMaps: WeakSet<object>
-    ): Record<string, IPropertyMetadata> {
-        // WALKER_EXEMPT: DataInferenceBuilder.mergeInferredPropertiesInternal performs a binary zip-merge of two inferred Record<string, IPropertyMetadata> property maps across multi-row samples, not a single-schema walk.
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
-                `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; truncating recursive merge.`,
-                "DataInferenceBuilder"
+        const isDirectOverride = (existing: IPropertyMetadata, incoming: IPropertyMetadata): boolean => {
+            const isNullPlaceholder =
+                existing.type === SCHEMA_TYPE.STRING &&
+                !existing.properties &&
+                !existing.items &&
+                existing.nullable === true;
+            if (isNullPlaceholder && !incoming.nullable) {
+                return true;
+            }
+            if (
+                existing.type === SCHEMA_TYPE.ARRAY &&
+                existing.items?.type !== SCHEMA_TYPE.OBJECT &&
+                incoming.items?.type === SCHEMA_TYPE.OBJECT &&
+                incoming.items.properties &&
+                Object.keys(incoming.items.properties).length > 0
+            ) {
+                return true;
+            }
+            if (
+                existing.type === SCHEMA_TYPE.ARRAY &&
+                existing.items?.type === SCHEMA_TYPE.STRING &&
+                incoming.type === SCHEMA_TYPE.ARRAY &&
+                incoming.items?.type &&
+                incoming.items.type !== SCHEMA_TYPE.STRING &&
+                incoming.items.type !== SCHEMA_TYPE.OBJECT
+            ) {
+                return true;
+            }
+            return (
+                existing.type === SCHEMA_TYPE.DATE &&
+                incoming.type === SCHEMA_TYPE.STRING &&
+                !incoming.nullable
             );
-            return { ...base };
-        }
-        if (activeMaps.has(base) || activeMaps.has(next)) {
-            Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
-                "Circular property map detected in mergeInferredProperties; truncating recursive merge.",
-                "DataInferenceBuilder"
-            );
-            return { ...base };
-        }
-        activeMaps.add(base);
-        activeMaps.add(next);
-        try {
-            const merged: Record<string, IPropertyMetadata> = { ...base };
-            for (const key of Object.keys(next)) {
-                const existing = merged[key];
-                const incoming = next[key];
-                if (!existing) {
-                    merged[key] = incoming;
-                    continue;
-                }
-                const combinedNullable = existing.nullable || incoming.nullable ? true : undefined;
-                const isExistingNullPlaceholder =
-                    existing.type === SCHEMA_TYPE.STRING &&
-                    !existing.properties &&
-                    !existing.items &&
-                    existing.nullable === true;
-                if (isExistingNullPlaceholder && !incoming.nullable) {
-                    merged[key] = { ...incoming, nullable: true };
-                    continue;
-                }
-                if (
-                    existing.type === SCHEMA_TYPE.ARRAY &&
-                    existing.items?.type !== SCHEMA_TYPE.OBJECT &&
-                    incoming.items?.type === SCHEMA_TYPE.OBJECT &&
-                    incoming.items.properties &&
-                    Object.keys(incoming.items.properties).length > 0
-                ) {
-                    merged[key] = { ...incoming, nullable: combinedNullable };
-                    continue;
-                }
-                if (
-                    existing.type === SCHEMA_TYPE.ARRAY &&
-                    existing.items?.type === SCHEMA_TYPE.STRING &&
-                    incoming.type === SCHEMA_TYPE.ARRAY &&
-                    incoming.items?.type &&
-                    incoming.items.type !== SCHEMA_TYPE.STRING &&
-                    incoming.items.type !== SCHEMA_TYPE.OBJECT
-                ) {
-                    merged[key] = { ...incoming, nullable: combinedNullable };
-                    continue;
-                }
-                if (
-                    existing.type === SCHEMA_TYPE.DATE &&
-                    incoming.type === SCHEMA_TYPE.STRING &&
-                    !incoming.nullable
-                ) {
-                    merged[key] = { ...existing, type: SCHEMA_TYPE.STRING, nullable: combinedNullable };
-                    continue;
-                }
-                if (existing.properties && incoming.properties) {
-                    merged[key] = {
-                        ...existing,
-                        nullable: combinedNullable,
-                        properties: this.mergeInferredPropertiesInternal(
-                            existing.properties,
-                            incoming.properties,
-                            depth + 1,
-                            activeMaps
-                        )
-                    };
-                } else if (existing.items?.properties && incoming.items?.properties) {
-                    merged[key] = {
-                        ...existing,
-                        nullable: combinedNullable,
-                        items: {
-                            ...existing.items,
-                            properties: this.mergeInferredPropertiesInternal(
-                                existing.items.properties,
-                                incoming.items.properties,
-                                depth + 1,
-                                activeMaps
-                            )
+        };
+
+        SchemaWalker.walkPaired<PropMap, PropMap>(
+            next,
+            base,
+            {
+                stepProperty: (baseMap, key) => baseMap[key]?.properties,
+                stepBranch: (baseMap, _kw, key) => baseMap[key]?.items?.properties
+            },
+            () => undefined,
+            {
+                shape: {
+                    defaultMaxDepth: MAX_SCHEMA_DEPTH,
+                    children: () => []
+                },
+                visitRoot: true,
+                resolveRefs: false,
+                detectOtherCycles: true,
+                activeNodes: activeMaps,
+                activeOthers: activeMaps,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason, _rawNode, otherMap) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            "[MetaUI DataInferenceBuilder]",
+                            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; ` +
+                                "truncating recursive merge.",
+                            "DataInferenceBuilder"
+                        );
+                    } else if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI DataInferenceBuilder]",
+                            "Circular property map detected in mergeInferredProperties; truncating recursive merge.",
+                            "DataInferenceBuilder"
+                        );
+                    }
+                    mergedByScope.set(scope, { ...(otherMap ?? {}) });
+                },
+                resolveDynamicChildren: (nextMap, ctx) => {
+                    const baseMap = ctx.other;
+                    if (!baseMap) {
+                        return [];
+                    }
+                    const children: Array<ITreeChild<PropMap>> = [];
+                    for (const key of Object.keys(nextMap)) {
+                        const existing = baseMap[key];
+                        const incoming = nextMap[key];
+                        if (!existing || isDirectOverride(existing, incoming)) {
+                            continue;
                         }
-                    };
-                } else if (combinedNullable !== existing.nullable) {
-                    merged[key] = { ...existing, nullable: combinedNullable };
+                        if (existing.properties && incoming.properties) {
+                            children.push({
+                                key,
+                                node: incoming.properties,
+                                kind: "property",
+                                scopeSegment: key,
+                                bindingSegment: key
+                            });
+                        } else if (existing.items?.properties && incoming.items?.properties) {
+                            children.push({
+                                key,
+                                node: incoming.items.properties,
+                                kind: "branch",
+                                branchKeyword: "items",
+                                scopeSegment: key,
+                                bindingSegment: key
+                            });
+                        }
+                    }
+                    return children;
+                },
+                onLeave: (ctx) => {
+                    const baseMap = ctx.other ?? {};
+                    const nextMap = ctx.node;
+                    const merged: PropMap = { ...baseMap };
+                    for (const key of Object.keys(nextMap)) {
+                        const existing = merged[key];
+                        const incoming = nextMap[key];
+                        if (!existing) {
+                            merged[key] = incoming;
+                            continue;
+                        }
+                        const combinedNullable = existing.nullable || incoming.nullable ? true : undefined;
+                        const isExistingNullPlaceholder =
+                            existing.type === SCHEMA_TYPE.STRING &&
+                            !existing.properties &&
+                            !existing.items &&
+                            existing.nullable === true;
+                        if (isExistingNullPlaceholder && !incoming.nullable) {
+                            merged[key] = { ...incoming, nullable: true };
+                            continue;
+                        }
+                        if (
+                            existing.type === SCHEMA_TYPE.ARRAY &&
+                            existing.items?.type !== SCHEMA_TYPE.OBJECT &&
+                            incoming.items?.type === SCHEMA_TYPE.OBJECT &&
+                            incoming.items.properties &&
+                            Object.keys(incoming.items.properties).length > 0
+                        ) {
+                            merged[key] = { ...incoming, nullable: combinedNullable };
+                            continue;
+                        }
+                        if (
+                            existing.type === SCHEMA_TYPE.ARRAY &&
+                            existing.items?.type === SCHEMA_TYPE.STRING &&
+                            incoming.type === SCHEMA_TYPE.ARRAY &&
+                            incoming.items?.type &&
+                            incoming.items.type !== SCHEMA_TYPE.STRING &&
+                            incoming.items.type !== SCHEMA_TYPE.OBJECT
+                        ) {
+                            merged[key] = { ...incoming, nullable: combinedNullable };
+                            continue;
+                        }
+                        if (
+                            existing.type === SCHEMA_TYPE.DATE &&
+                            incoming.type === SCHEMA_TYPE.STRING &&
+                            !incoming.nullable
+                        ) {
+                            merged[key] = { ...existing, type: SCHEMA_TYPE.STRING, nullable: combinedNullable };
+                            continue;
+                        }
+                        if (existing.properties && incoming.properties) {
+                            merged[key] = {
+                                ...existing,
+                                nullable: combinedNullable,
+                                properties:
+                                    mergedByScope.get(`${ctx.scope}/${key}`) ?? { ...existing.properties }
+                            };
+                        } else if (existing.items?.properties && incoming.items?.properties) {
+                            merged[key] = {
+                                ...existing,
+                                nullable: combinedNullable,
+                                items: {
+                                    ...existing.items,
+                                    properties:
+                                        mergedByScope.get(`${ctx.scope}/${key}`) ?? { ...existing.items.properties }
+                                }
+                            };
+                        } else if (combinedNullable !== existing.nullable) {
+                            merged[key] = { ...existing, nullable: combinedNullable };
+                        }
+                    }
+                    mergedByScope.set(ctx.scope, merged);
                 }
             }
-            return merged;
-        } finally {
-            activeMaps.delete(base);
-            activeMaps.delete(next);
-        }
+        );
+
+        return mergedByScope.get("#") ?? { ...base };
     }
 
     private static inferPrimitiveType(value: unknown): FieldType {
@@ -400,7 +510,6 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
         depth: number = 0,
         seen: WeakSet<object> = new WeakSet()
     ): Record<string, IPropertyMetadata> {
-        // WALKER_EXEMPT: DataInferenceBuilder.inferPropertiesFromObject walks raw JavaScript data objects to synthesize IPropertyMetadata and is audited directly by [PRODUCER_COMPLETENESS].
         if (depth >= MAX_SCHEMA_DEPTH) {
             Logger.warn(
                 "[MetaUI DataInferenceBuilder]",
@@ -409,79 +518,133 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
             );
             return {};
         }
-        seen.add(obj);
-        const properties: Record<string, IPropertyMetadata> = {};
-
-        for (const key of Object.keys(obj)) {
-            const val = obj[key];
-            let type: FieldType = SCHEMA_TYPE.STRING;
-            let items: IPropertyMetadata | undefined;
-            let nestedProps: Record<string, IPropertyMetadata> | undefined;
-
-            if (Array.isArray(val)) {
-                type = SCHEMA_TYPE.ARRAY;
-                if (seen.has(val) || depth + 1 >= MAX_SCHEMA_DEPTH) {
-                    if (depth + 1 >= MAX_SCHEMA_DEPTH) {
-                        Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
-                            `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on array '${key}'; truncating nested inference.`,
-                            "DataInferenceBuilder"
-                        );
+        if (seen.has(obj)) {
+            seen.delete(obj);
+        }
+        const propsByScope = new Map<string, Record<string, IPropertyMetadata>>();
+        SchemaWalker.walk(
+            obj,
+            () => undefined,
+            {
+                shape: JsonPayloadShape,
+                visitRoot: true,
+                initialDepth: depth,
+                activeNodes: seen,
+                resolveRefs: false,
+                silentTruncationLog: true,
+                resolveDynamicChildren: function* (curNode, ctx) {
+                    if (!isRecord(curNode)) {
+                        return;
                     }
-                    items = { type: SCHEMA_TYPE.STRING };
-                } else {
-                    seen.add(val);
-                    const firstNonNull: unknown = val.find((el) => el !== null && el !== undefined);
-                    if (val.length === 0 || firstNonNull === undefined) {
-                        items = { type: SCHEMA_TYPE.STRING };
-                    } else if (!isRecord(firstNonNull)) {
-                        items = { type: this.inferPrimitiveType(firstNonNull) };
-                    } else {
-                        items = {
-                            type: SCHEMA_TYPE.OBJECT,
-                            properties: this.inferPropertiesFromRows(val, depth + 1, seen)
+                    const properties: Record<string, IPropertyMetadata> = {};
+                    for (const key of Object.keys(curNode)) {
+                        const val = curNode[key];
+                        let type: FieldType = SCHEMA_TYPE.STRING;
+                        let items: IPropertyMetadata | undefined;
+                        let nestedProps: Record<string, IPropertyMetadata> | undefined;
+
+                        if (Array.isArray(val)) {
+                            type = SCHEMA_TYPE.ARRAY;
+                            if (seen.has(val) || ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
+                                if (ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
+                                    Logger.warn(
+                                        "[MetaUI DataInferenceBuilder]",
+                                        `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on array '${key}'; ` +
+                                            "truncating nested inference.",
+                                        "DataInferenceBuilder"
+                                    );
+                                }
+                                items = { type: SCHEMA_TYPE.STRING };
+                            } else {
+                                seen.add(val);
+                                try {
+                                    const firstNonNull: unknown = val.find((el) => el !== null && el !== undefined);
+                                    if (val.length === 0 || firstNonNull === undefined) {
+                                        items = { type: SCHEMA_TYPE.STRING };
+                                    } else if (!isRecord(firstNonNull)) {
+                                        items = { type: DataInferenceBuilder.inferPrimitiveType(firstNonNull) };
+                                    } else {
+                                        let merged: Record<string, IPropertyMetadata> = {};
+                                        const limit = Math.min(val.length, INFERENCE_SAMPLE_LIMIT);
+                                        for (let i = 0; i < limit; i++) {
+                                            const row = val[i];
+                                            // `SchemaWalker` pushes and pops `row` itself, so two sibling rows that are the
+                                            // same object are both inferred; only a row that is its own ancestor is a cycle.
+                                            if (isRecord(row) && !seen.has(row)) {
+                                                const rowScopeSeg = `properties/${key}/items/${i}`;
+                                                const rowScope = `${ctx.scope}/${rowScopeSeg}`;
+                                                yield {
+                                                    key: String(i),
+                                                    node: row,
+                                                    kind: "item",
+                                                    scopeSegment: rowScopeSeg,
+                                                    bindingSegment: `${key}/${i}`
+                                                };
+                                                merged = DataInferenceBuilder.mergeInferredProperties(
+                                                    merged,
+                                                    propsByScope.get(rowScope) ?? {}
+                                                );
+                                            }
+                                        }
+                                        items = {
+                                            type: SCHEMA_TYPE.OBJECT,
+                                            properties: merged
+                                        };
+                                    }
+                                } finally {
+                                    seen.delete(val);
+                                }
+                            }
+                        } else if (isRecord(val)) {
+                            if (seen.has(val)) {
+                                type = SCHEMA_TYPE.STRING;
+                            } else if (ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
+                                Logger.warn(
+                                    "[MetaUI DataInferenceBuilder]",
+                                    `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on object '${key}'; ` +
+                                        "truncating nested inference.",
+                                    "DataInferenceBuilder"
+                                );
+                                type = SCHEMA_TYPE.OBJECT;
+                                nestedProps = {};
+                            } else {
+                                type = SCHEMA_TYPE.OBJECT;
+                                const childScopeSeg = `properties/${key}`;
+                                const childScope = `${ctx.scope}/${childScopeSeg}`;
+                                yield {
+                                    key,
+                                    node: val,
+                                    kind: "property",
+                                    scopeSegment: childScopeSeg,
+                                    bindingSegment: key
+                                };
+                                nestedProps = propsByScope.get(childScope) ?? {};
+                            }
+                        } else if (val !== null && val !== undefined) {
+                            type = DataInferenceBuilder.inferPrimitiveType(val);
+                        }
+
+                        properties[key] = {
+                            type,
+                            items,
+                            properties: nestedProps,
+                            nullable: val === null || val === undefined ? true : undefined,
+                            ui: {
+                                label: DataInferenceBuilder.generateLabel(key),
+                                isKey: false,
+                                readOnly: false,
+                                widget:
+                                    type === SCHEMA_TYPE.ARRAY && items?.type !== SCHEMA_TYPE.OBJECT
+                                        ? WIDGET_TYPE.MULTI_INPUT
+                                        : undefined
+                            }
                         };
                     }
-                    seen.delete(val);
+                    propsByScope.set(ctx.scope, properties);
                 }
-            } else if (isRecord(val)) {
-                if (seen.has(val)) {
-                    type = SCHEMA_TYPE.STRING;
-                } else if (depth + 1 >= MAX_SCHEMA_DEPTH) {
-                    Logger.warn(
-                        "[MetaUI DataInferenceBuilder]",
-                        `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on object '${key}'; truncating nested inference.`,
-                        "DataInferenceBuilder"
-                    );
-                    type = SCHEMA_TYPE.OBJECT;
-                    nestedProps = {};
-                } else {
-                    type = SCHEMA_TYPE.OBJECT;
-                    nestedProps = this.inferPropertiesFromObject(val, depth + 1, seen);
-                }
-            } else if (val !== null && val !== undefined) {
-                type = this.inferPrimitiveType(val);
             }
-
-            properties[key] = {
-                type,
-                items,
-                properties: nestedProps,
-                nullable: val === null || val === undefined ? true : undefined,
-                ui: {
-                    label: this.generateLabel(key),
-                    isKey: false,
-                    readOnly: false,
-                    widget:
-                        type === SCHEMA_TYPE.ARRAY && items?.type !== SCHEMA_TYPE.OBJECT
-                            ? WIDGET_TYPE.MULTI_INPUT
-                            : undefined
-                }
-            };
-        }
-
-        seen.delete(obj);
-        return properties;
+        );
+        return propsByScope.get("#") ?? {};
     }
 
     /**
@@ -496,114 +659,194 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
         inferredProps: JsonRecord,
         explicitProps: JsonRecord
     ): JsonRecord {
-        return this.mergeHybridPropertiesInternal(inferredProps, explicitProps, 0, new WeakSet<object>());
-    }
+        const activeMaps = new WeakSet<object>();
+        const mergedByScope = new Map<string, JsonRecord>();
 
-    private static mergeHybridPropertiesInternal(
-        inferredProps: JsonRecord,
-        explicitProps: JsonRecord,
-        depth: number,
-        activeMaps: WeakSet<object>
-    ): JsonRecord {
-        // WALKER_EXEMPT: DataInferenceBuilder.mergeHybridPropertiesInternal performs a binary zip-merge of inferred and explicit JsonRecord property maps for hybrid inference, not a single-schema walk.
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
-                `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; truncating recursive merge.`,
-                "DataInferenceBuilder"
-            );
-            return { ...inferredProps, ...explicitProps };
-        }
-        if (activeMaps.has(inferredProps) || activeMaps.has(explicitProps)) {
-            Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
-                "Circular property map detected in mergeHybridProperties; truncating recursive merge.",
-                "DataInferenceBuilder"
-            );
-            return { ...inferredProps, ...explicitProps };
-        }
-        activeMaps.add(inferredProps);
-        activeMaps.add(explicitProps);
-        try {
-            const cleanedBase: JsonRecord = {};
-            for (const key of Object.keys(inferredProps)) {
-                const infProp = inferredProps[key];
-                const expProp = explicitProps[key];
-                if (isRecord(infProp) && isRecord(expProp)) {
-                    const infClone: JsonRecord = { ...infProp };
-                    if (isRecord(infClone.ui)) {
-                        const uiClone: JsonRecord = { ...infClone.ui };
-                        const expUi = readRecord(expProp, "ui");
-                        if (expProp.title !== undefined && !expUi?.label) delete uiClone.label;
-                        if (expProp.readOnly !== undefined && expUi?.readOnly === undefined) delete uiClone.readOnly;
-                        if (expProp.type !== undefined && expProp.type !== infClone.type && !expUi?.widget) {
-                            delete uiClone.widget;
-                        }
-                        infClone.ui = uiClone;
-                    }
-                    if (isRecord(infClone.properties) && isRecord(expProp.properties)) {
-                        let allowedInferredNested = infClone.properties;
-                        if (expProp.additionalProperties === false) {
-                            allowedInferredNested = {};
-                            for (const nestedKey of Object.keys(expProp.properties)) {
-                                if (nestedKey in infClone.properties) {
-                                    allowedInferredNested[nestedKey] = infClone.properties[nestedKey];
-                                }
-                            }
-                        }
-                        infClone.properties = this.mergeHybridPropertiesInternal(
-                            allowedInferredNested,
-                            expProp.properties,
-                            depth + 1,
-                            activeMaps
+        SchemaWalker.walkPaired(
+            inferredProps,
+            explicitProps,
+            {
+                stepProperty: (expProps, key) => {
+                    const expProp = expProps[key];
+                    return isRecord(expProp) && isRecord(expProp.properties) ? expProp.properties : undefined;
+                }
+            },
+            () => undefined,
+            {
+                shape: RawRecordShape,
+                visitRoot: true,
+                resolveRefs: false,
+                detectOtherCycles: true,
+                activeNodes: activeMaps,
+                activeOthers: activeMaps,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason, rawNode, otherMap) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            "[MetaUI DataInferenceBuilder]",
+                            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; ` +
+                                "truncating recursive merge.",
+                            "DataInferenceBuilder"
+                        );
+                    } else if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI DataInferenceBuilder]",
+                            "Circular property map detected in mergeHybridProperties; truncating recursive merge.",
+                            "DataInferenceBuilder"
                         );
                     }
-                    cleanedBase[key] = infClone;
-                } else {
-                    cleanedBase[key] = infProp;
+                    mergedByScope.set(scope, { ...(rawNode ?? {}), ...(otherMap ?? {}) });
+                },
+                resolveDynamicChildren: (infProps, ctx) => {
+                    const expProps = ctx.other;
+                    if (!expProps) {
+                        return [];
+                    }
+                    const children: Array<ITreeChild<JsonRecord>> = [];
+                    for (const key of Object.keys(infProps)) {
+                        const infProp = infProps[key];
+                        const expProp = expProps[key];
+                        if (
+                            isRecord(infProp) &&
+                            isRecord(expProp) &&
+                            isRecord(infProp.properties) &&
+                            isRecord(expProp.properties)
+                        ) {
+                            let allowedInferredNested: JsonRecord = infProp.properties;
+                            if (expProp.additionalProperties === false) {
+                                allowedInferredNested = {};
+                                for (const nestedKey of Object.keys(expProp.properties)) {
+                                    if (nestedKey in infProp.properties) {
+                                        allowedInferredNested[nestedKey] = infProp.properties[nestedKey];
+                                    }
+                                }
+                            }
+                            children.push({
+                                key,
+                                node: allowedInferredNested,
+                                kind: "property",
+                                scopeSegment: key,
+                                bindingSegment: key
+                            });
+                        }
+                    }
+                    return children;
+                },
+                onLeave: (ctx) => {
+                    const infProps = ctx.node;
+                    const expProps = ctx.other ?? {};
+                    const cleanedBase: JsonRecord = {};
+                    for (const key of Object.keys(infProps)) {
+                        const infProp = infProps[key];
+                        const expProp = expProps[key];
+                        if (isRecord(infProp) && isRecord(expProp)) {
+                            const infClone: JsonRecord = { ...infProp };
+                            if (isRecord(infClone.ui)) {
+                                const uiClone: JsonRecord = { ...infClone.ui };
+                                const expUi = readRecord(expProp, "ui");
+                                if (expProp.title !== undefined && !expUi?.label) delete uiClone.label;
+                                if (expProp.readOnly !== undefined && expUi?.readOnly === undefined) {
+                                    delete uiClone.readOnly;
+                                }
+                                if (expProp.type !== undefined && expProp.type !== infClone.type && !expUi?.widget) {
+                                    delete uiClone.widget;
+                                }
+                                infClone.ui = uiClone;
+                            }
+                            if (isRecord(infClone.properties) && isRecord(expProp.properties)) {
+                                infClone.properties =
+                                    mergedByScope.get(`${ctx.scope}/${key}`) ??
+                                    { ...infClone.properties, ...expProp.properties };
+                            }
+                            cleanedBase[key] = infClone;
+                        } else {
+                            cleanedBase[key] = infProp;
+                        }
+                    }
+                    mergedByScope.set(ctx.scope, this.deepMergeRecords(cleanedBase, expProps, ctx.depth));
                 }
             }
-            return this.deepMergeRecords(cleanedBase, explicitProps, depth);
-        } finally {
-            activeMaps.delete(inferredProps);
-            activeMaps.delete(explicitProps);
-        }
+        );
+
+        return mergedByScope.get("#") ?? { ...inferredProps, ...explicitProps };
     }
 
     private static deepMergeRecords(
         base: JsonRecord,
         override: JsonRecord,
-        depth: number = 0,
-        activeRecords: WeakSet<object> = new WeakSet<object>()
+        initialDepth: number = 0
     ): JsonRecord {
-        // WALKER_EXEMPT: Mutually-recursive helper of DataInferenceBuilder.mergeHybridProperties for binary zip-merge of two JsonRecord dictionaries.
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
-                `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; truncating recursive merge.`,
-                "DataInferenceBuilder"
-            );
-            return { ...base, ...override };
-        }
-        if (activeRecords.has(base) || activeRecords.has(override)) {
-            return { ...base, ...override };
-        }
-        activeRecords.add(base);
-        activeRecords.add(override);
-        try {
-            const merged: JsonRecord = { ...base };
-            for (const key of Object.keys(override)) {
-                const overrideVal = override[key];
-                const baseVal = merged[key];
-                merged[key] =
-                    isRecord(baseVal) && isRecord(overrideVal)
-                        ? this.deepMergeRecords(baseVal, overrideVal, depth + 1, activeRecords)
-                        : overrideVal;
+        const activeRecords = new WeakSet<object>();
+        const mergedByScope = new Map<string, JsonRecord>();
+
+        SchemaWalker.walkPaired(
+            override,
+            base,
+            {
+                stepProperty: (baseRec, key) => {
+                    const val = baseRec[key];
+                    return isRecord(val) ? val : undefined;
+                }
+            },
+            () => undefined,
+            {
+                shape: RawRecordShape,
+                visitRoot: true,
+                resolveRefs: false,
+                initialDepth,
+                detectOtherCycles: true,
+                activeNodes: activeRecords,
+                activeOthers: activeRecords,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason, rawNode, otherRec) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            "[MetaUI DataInferenceBuilder]",
+                            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; ` +
+                                "truncating recursive merge.",
+                            "DataInferenceBuilder"
+                        );
+                    }
+                    mergedByScope.set(scope, { ...(otherRec ?? {}), ...(rawNode ?? {}) });
+                },
+                resolveDynamicChildren: (overrideRec, ctx) => {
+                    const baseRec = ctx.other;
+                    if (!baseRec) {
+                        return [];
+                    }
+                    const children: Array<ITreeChild<JsonRecord>> = [];
+                    for (const key of Object.keys(overrideRec)) {
+                        const overrideVal = overrideRec[key];
+                        const baseVal = baseRec[key];
+                        if (isRecord(baseVal) && isRecord(overrideVal)) {
+                            children.push({
+                                key,
+                                node: overrideVal,
+                                kind: "property",
+                                scopeSegment: key,
+                                bindingSegment: key
+                            });
+                        }
+                    }
+                    return children;
+                },
+                onLeave: (ctx) => {
+                    const baseRec = ctx.other ?? {};
+                    const overrideRec = ctx.node;
+                    const merged: JsonRecord = { ...baseRec };
+                    for (const key of Object.keys(overrideRec)) {
+                        const overrideVal = overrideRec[key];
+                        const baseVal = merged[key];
+                        merged[key] =
+                            isRecord(baseVal) && isRecord(overrideVal)
+                                ? (mergedByScope.get(`${ctx.scope}/${key}`) ?? { ...baseVal, ...overrideVal })
+                                : overrideVal;
+                    }
+                    mergedByScope.set(ctx.scope, merged);
+                }
             }
-            return merged;
-        } finally {
-            activeRecords.delete(base);
-            activeRecords.delete(override);
-        }
+        );
+
+        return mergedByScope.get("#") ?? { ...base, ...override };
     }
 }

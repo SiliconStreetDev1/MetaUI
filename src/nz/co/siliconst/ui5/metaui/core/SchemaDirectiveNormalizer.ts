@@ -16,6 +16,7 @@ import {
     MAX_LAYOUT_DEPTH
 } from "../constants/MetaUIConstants";
 import { DataInferenceBuilder } from "./DataInferenceBuilder";
+import { SchemaWalker, LayoutElementShape } from "./SchemaWalker";
 import { OpenApiRefResolver } from "../openapi/OpenApiRefResolver";
 import { Logger } from "../utils/Logger";
 import {
@@ -35,6 +36,36 @@ const POLICY_EFFECTS: readonly PolicyEffectType[] = [
 /** Render modes understood by the LayoutMutator. */
 const RENDER_MODES: readonly string[] = Object.values(RENDER_MODE);
 const FIELD_TYPES: readonly string[] = Object.values(SCHEMA_TYPE);
+
+/**
+ * Union of every property key in {@link IPropertyMetadata} and `ui.`-prefixed key in {@link IUIDirective}.
+ * Used to type each producer's `DECLINED_SCHEMA_FIELDS` record so any unknown member key fails compilation.
+ */
+export type PropertySchemaMemberKey = keyof IPropertyMetadata | `ui.${keyof IUIDirective}`;
+
+/**
+ * Compile-time checked map of declined `IPropertyMetadata` / `IUIDirective` members to their justification strings.
+ */
+export type DeclinedSchemaFieldsMap = Partial<Readonly<Record<PropertySchemaMemberKey, string>>>;
+
+/**
+ * Shared contract implemented by the three `IPropertyMetadata` producer front-ends
+ * (`SchemaNormalizer`, `OpenApiPropertyMapper`, and `DataInferenceBuilder`), modelled on
+ * `PipelineManager`'s `extractRule` contract.
+ */
+export interface IPropertyProducerContract<TInput = unknown, TContext = unknown> {
+    /** Canonical producer identifier. */
+    readonly name: string;
+    /** Explicit map of `IPropertyMetadata` and `IUIDirective` fields declined by this producer. */
+    readonly declinedFields: DeclinedSchemaFieldsMap;
+    /** Extracts a normalized `IPropertyMetadata` descriptor from a single raw property or value input. */
+    extractPropertyMetadata(
+        input: TInput,
+        keyName: string,
+        isRequired: boolean,
+        context?: TContext
+    ): IPropertyMetadata;
+}
 
 function isFieldType(value: unknown): value is FieldType {
     return typeof value === "string" && FIELD_TYPES.includes(value);
@@ -375,55 +406,67 @@ export class SchemaDirectiveNormalizer {
      * @throws {Error} If an element declares an unsupported type.
      */
     public static normalizeLayout(raw: unknown): ILayoutElement[] | undefined {
-        return this.normalizeLayoutInternal(raw, 0, new WeakSet<object>());
-    }
-
-    private static normalizeLayoutInternal(
-        raw: unknown,
-        depth: number,
-        activeElements: WeakSet<object>
-    ): ILayoutElement[] | undefined {
-        // WALKER_EXEMPT: SchemaDirectiveNormalizer.normalizeLayoutInternal validates and clones a raw ILayoutElement[] uiLayout tree (Group/WizardStep/Control nodes), not an ISchema property tree.
         if (!Array.isArray(raw)) return undefined;
-        if (depth > MAX_LAYOUT_DEPTH) {
-            Logger.warn(
-                "[MetaUI SchemaNormalizer]",
-                `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
-            );
-            return [];
-        }
-        const normalized: ILayoutElement[] = [];
-        for (let index = 0; index < raw.length; index++) {
-            const entry = raw[index];
-            if (!isRecord(entry) || !isLayoutElementType(entry.type)) {
-                const entryType = isRecord(entry) ? String(entry.type) : typeof entry;
-                const msg =
-                    `uiLayout element #${index} has unsupported type '${entryType}'. ` +
-                    `Allowed: ${LAYOUT_ELEMENT_TYPES.join(", ")}.`;
-                Logger.error("[MetaUI SchemaNormalizer]", msg);
-                throw new Error(msg);
+        const childrenStack: ILayoutElement[][] = [[]];
+        SchemaWalker.walk<ILayoutElement>(
+            raw,
+            (ctx) => {
+                const entry: JsonRecord = isRecord(ctx.node) ? ctx.node : {};
+                if (!isLayoutElementType(entry.type)) {
+                    const msg =
+                        `uiLayout element #${ctx.key} has unsupported type '${String(entry.type)}'. ` +
+                        `Allowed: ${LAYOUT_ELEMENT_TYPES.join(", ")}.`;
+                    Logger.error("[MetaUI SchemaNormalizer]", msg);
+                    throw new Error(msg);
+                }
+                if (Array.isArray(entry.elements)) {
+                    childrenStack.push([]);
+                    if (ctx.depth >= MAX_LAYOUT_DEPTH) {
+                        Logger.warn(
+                            "[MetaUI SchemaNormalizer]",
+                            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
+                        );
+                        return "skip-subtree";
+                    }
+                    return undefined;
+                }
+                return "skip-subtree";
+            },
+            {
+                shape: LayoutElementShape,
+                silentTruncationLog: true,
+                onLeave: (ctx) => {
+                    const entry: JsonRecord = isRecord(ctx.node) ? ctx.node : {};
+                    const childElements = Array.isArray(entry.elements) ? childrenStack.pop() : undefined;
+                    if (isLayoutElementType(entry.type)) {
+                        childrenStack[childrenStack.length - 1].push({
+                            type: entry.type,
+                            label: readString(entry, "label"),
+                            scope: readString(entry, "scope"),
+                            widget: readString(entry, "widget"),
+                            elements: childElements
+                        });
+                    }
+                },
+                onInvalidProperty: (key, rawValue) => {
+                    const msg =
+                        `uiLayout element #${key} has unsupported type '${typeof rawValue}'. ` +
+                        `Allowed: ${LAYOUT_ELEMENT_TYPES.join(", ")}.`;
+                    Logger.error("[MetaUI SchemaNormalizer]", msg);
+                    throw new Error(msg);
+                },
+                onTruncate: (scope, reason) => {
+                    if (reason === "cycle") {
+                        const index = scope.split("/").pop() ?? "0";
+                        Logger.warn(
+                            "[MetaUI SchemaNormalizer]",
+                            `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
+                        );
+                    }
+                }
             }
-            if (activeElements.has(entry)) {
-                Logger.warn(
-                    "[MetaUI SchemaNormalizer]",
-                    `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
-                );
-                continue;
-            }
-            activeElements.add(entry);
-            try {
-                normalized.push({
-                    type: entry.type,
-                    label: readString(entry, "label"),
-                    scope: readString(entry, "scope"),
-                    widget: readString(entry, "widget"),
-                    elements: this.normalizeLayoutInternal(entry.elements, depth + 1, activeElements)
-                });
-            } finally {
-                activeElements.delete(entry);
-            }
-        }
-        return normalized;
+        );
+        return childrenStack[0];
     }
 
     /**

@@ -15,7 +15,7 @@ import SimpleForm from "sap/ui/layout/form/SimpleForm";
 import GridData from "sap/ui/layout/GridData";
 import { ILayoutElement, IPropertyMetadata, ISchema, IUIDirective } from "../interfaces/ISchema";
 import { Engine } from "../core/Engine";
-import { SchemaWalker } from "../core/SchemaWalker";
+import { SchemaWalker, LayoutElementShape } from "../core/SchemaWalker";
 import { ILayoutDecision, LayoutScorer } from "../core/LayoutScorer";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
 import { Logger } from "../utils/Logger";
@@ -473,23 +473,16 @@ export class LayoutElementWalker {
         activeNodes: WeakSet<object> = new WeakSet<object>(),
         activeRefs: Set<string> = new Set<string>()
     ): number {
-        // WALKER_EXEMPT: LayoutElementWalker.walk traverses the ILayoutElement[] (uiLayout) container tree (Group, WizardStep, HorizontalLayout, VerticalLayout, Control) capped by MAX_LAYOUT_DEPTH, not ISchema.properties.
         if (depth > MAX_LAYOUT_DEPTH) {
             Logger.warn(`[MetaUI ${layoutName}] Max layout nesting depth (${MAX_LAYOUT_DEPTH}) exceeded.`, "", layoutName);
             return 0;
         }
         let controlCount = 0;
-        for (const element of elements) {
-            if (activeNodes.has(element)) {
-                Logger.warn(
-                    `[MetaUI ${layoutName}] Circular layout element reference detected; stopping recursion.`,
-                    "",
-                    layoutName
-                );
-                continue;
-            }
-            activeNodes.add(element);
-            try {
+        const warnedDepthContainers = new Set<string>();
+        SchemaWalker.walk(
+            elements,
+            (ctx) => {
+                const element = ctx.node;
                 if (element.type === "HorizontalLayout") {
                     if (element.label) {
                         sink.onSectionHeader?.(element.label, element.type);
@@ -519,35 +512,16 @@ export class LayoutElementWalker {
                         if (resolvedControls.length > 0) {
                             sink.onHorizontalControls(resolvedControls);
                         }
-                        if (nonControls.length > 0) {
-                            controlCount += this.walk(
-                                nonControls,
-                                schema,
-                                engine,
-                                sink,
-                                layoutName,
-                                depth + 1,
-                                activeNodes,
-                                activeRefs
-                            );
-                        }
-                    } else {
-                        sink.onEnterContainer?.(element);
-                        if (Array.isArray(element.elements) && element.elements.length > 0) {
-                            controlCount += this.walk(
-                                element.elements,
-                                schema,
-                                engine,
-                                sink,
-                                layoutName,
-                                depth + 1,
-                                activeNodes,
-                                activeRefs
-                            );
-                        }
-                        sink.onExitContainer?.(element);
+                        return nonControls.length > 0 ? undefined : "skip-subtree";
                     }
-                } else if (
+                    sink.onEnterContainer?.(element);
+                    if (!Array.isArray(element.elements) || element.elements.length === 0) {
+                        sink.onExitContainer?.(element);
+                        return "skip-subtree";
+                    }
+                    return undefined;
+                }
+                if (
                     element.type === "Group" ||
                     element.type === "WizardStep" ||
                     element.type === "VerticalLayout"
@@ -556,20 +530,13 @@ export class LayoutElementWalker {
                     if (element.label) {
                         sink.onSectionHeader?.(element.label, element.type);
                     }
-                    if (Array.isArray(element.elements) && element.elements.length > 0) {
-                        controlCount += this.walk(
-                            element.elements,
-                            schema,
-                            engine,
-                            sink,
-                            layoutName,
-                            depth + 1,
-                            activeNodes,
-                            activeRefs
-                        );
+                    if (!Array.isArray(element.elements) || element.elements.length === 0) {
+                        sink.onExitContainer?.(element);
+                        return "skip-subtree";
                     }
-                    sink.onExitContainer?.(element);
-                } else if (element.type === "Control") {
+                    return undefined;
+                }
+                if (element.type === "Control") {
                     const resolved = this.resolveControlElement(
                         element,
                         schema,
@@ -579,7 +546,7 @@ export class LayoutElementWalker {
                         activeRefs
                     );
                     if (!resolved) {
-                        continue;
+                        return "skip-subtree";
                     }
                     // Counted only after the scope resolves: the count is consumed by TableLayout as
                     // "this uiLayout produced columns", so counting unresolvable elements yielded a
@@ -602,13 +569,57 @@ export class LayoutElementWalker {
                             activeRefs.delete(resolved.meta.$ref);
                         }
                     }
-                } else {
-                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", layoutName);
+                    return "skip-subtree";
                 }
-            } finally {
-                activeNodes.delete(element);
+                Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", layoutName);
+                return "skip-subtree";
+            },
+            {
+                shape: LayoutElementShape,
+                initialDepth: depth,
+                activeNodes,
+                activeRefs,
+                silentTruncationLog: true,
+                shouldVisitChild: (child, _key, parent) => {
+                    if (parent.type === "HorizontalLayout" && sink.onHorizontalControls !== undefined) {
+                        return child.type !== "Control";
+                    }
+                    return true;
+                },
+                onLeave: (ctx) => {
+                    const element = ctx.node;
+                    if (
+                        element.type === "Group" ||
+                        element.type === "WizardStep" ||
+                        element.type === "VerticalLayout" ||
+                        (element.type === "HorizontalLayout" && !sink.onHorizontalControls)
+                    ) {
+                        if (Array.isArray(element.elements) && element.elements.length > 0) {
+                            sink.onExitContainer?.(element);
+                        }
+                    }
+                },
+                onTruncate: (scope, reason) => {
+                    if (reason === "cycle") {
+                        Logger.warn(
+                            `[MetaUI ${layoutName}] Circular layout element reference detected; stopping recursion.`,
+                            "",
+                            layoutName
+                        );
+                        return;
+                    }
+                    const parentContainer = scope.replace(/\/elements\/\d+$/, "");
+                    if (!warnedDepthContainers.has(parentContainer)) {
+                        warnedDepthContainers.add(parentContainer);
+                        Logger.warn(
+                            `[MetaUI ${layoutName}] Max layout nesting depth (${MAX_LAYOUT_DEPTH}) exceeded.`,
+                            "",
+                            layoutName
+                        );
+                    }
+                }
             }
-        }
+        );
         return controlCount;
     }
 }

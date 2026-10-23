@@ -9,6 +9,8 @@
  */
 
 import * as assert from "assert";
+import * as fs from "fs";
+import * as path from "path";
 import { fc } from "./fc-config";
 import {
     JsonRecord,
@@ -24,9 +26,15 @@ import {
 } from "./arbitraries";
 import { OpenApi2Parser } from "../../src/nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApi2Parser";
 import { OpenApi3Parser } from "../../src/nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApi3Parser";
+import { OpenApiBuilder } from "../../src/nz/co/siliconst/ui5/metaui/openapi/OpenApiBuilder";
 import { OpenApiParserFactory } from "../../src/nz/co/siliconst/ui5/metaui/openapi/OpenApiParserFactory";
+import { GenerationDelegate } from "../../src/nz/co/siliconst/ui5/metaui/controls/host/delegates/GenerationDelegate";
+import { DataInferenceBuilder } from "../../src/nz/co/siliconst/ui5/metaui/core/DataInferenceBuilder";
 import { SchemaNormalizer } from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaNormalizer";
+import { SchemaWalker } from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaWalker";
+import { OpenApiPropertyMapper } from "../../src/nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApiPropertyMapper";
 import { ISchema } from "../../src/nz/co/siliconst/ui5/metaui/interfaces/ISchema";
+import type GeneratorHost from "../../src/nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost";
 
 const parser2 = new OpenApi2Parser();
 const parser3 = new OpenApi3Parser();
@@ -175,5 +183,76 @@ describe("dialect parity — JSON Schema versus OpenAPI", () => {
         const parsed = parser3.parse(toOpenApi3({ root: schema, defs: {} }), "Root");
         assert.strictEqual(normalized.properties?.id.pattern, undefined);
         assert.strictEqual(typeof parsed.properties?.id.pattern, "string");
+    });
+
+    it("walks an OpenAPI document once without duplicate definition or stacked normalizer passes", () => {
+        const directPath = path.join(__dirname, "..", "webapp", "mockData", "scenarios", "openapi_v3_complex.json");
+        const scenarioPath = fs.existsSync(directPath)
+            ? directPath
+            : path.resolve(__dirname, "..", "..", "..", "..", "test", "webapp", "mockData", "scenarios", "openapi_v3_complex.json");
+        const scenario = JSON.parse(fs.readFileSync(scenarioPath, "utf8")) as { schema: JsonRecord; data: JsonRecord };
+        const origWalk = SchemaWalker.walk.bind(SchemaWalker);
+        let visits = 0;
+        SchemaWalker.walk = (<TNode = JsonRecord>(
+            root: TNode,
+            visitor: Parameters<typeof SchemaWalker.walk<TNode>>[1],
+            opts?: Parameters<typeof SchemaWalker.walk<TNode>>[2]
+        ): void => {
+            origWalk(
+                root,
+                (ctx) => {
+                    visits++;
+                    return visitor(ctx);
+                },
+                opts
+            );
+        }) as typeof SchemaWalker.walk;
+
+        try {
+            visits = 0;
+            OpenApiBuilder.build(scenario.schema);
+            const buildVisits = visits;
+            assert.strictEqual(buildVisits, 58, `expected 58 single-walk visits in OpenApiBuilder.build, got ${buildVisits}`);
+
+            visits = 0;
+            const hostProps: Record<string, unknown> = {
+                schemaDefinition: scenario.schema,
+                data: scenario.data,
+                schemaTarget: null,
+                schemaBuilderRegistry: null,
+                schemaDefinitions: null,
+                debugMode: false
+            };
+            const mockHost = {
+                getBaseProperty: (k: string) => hostProps[k],
+                getProperty: (k: string) => hostProps[k],
+                fireEvent: () => undefined,
+                setBusy: () => undefined
+            } as unknown as GeneratorHost;
+            const delegate = new GenerationDelegate(mockHost);
+            const prepared = delegate.prepareSchemaAndData( undefined );
+            const hostTotalVisits = visits;
+            assert.ok(prepared && prepared.normalizedSchema.properties?.ApplicationId);
+            assert.strictEqual(
+                hostTotalVisits,
+                73,
+                `expected 73 total SchemaWalker visits in GenerationDelegate.prepareSchemaAndData (58 build + 0 re-normalize + 15 validation), got ${hostTotalVisits}`
+            );
+
+            assert.strictEqual(
+                SchemaNormalizer.PRODUCER_CONTRACT.extractPropertyMetadata({ type: "string", minLength: 3 }, "code", true).minLength,
+                3
+            );
+            assert.strictEqual(
+                OpenApiPropertyMapper.PRODUCER_CONTRACT.extractPropertyMetadata({ type: "string", minLength: 3 }, "code", true).minLength,
+                3
+            );
+            assert.strictEqual(
+                DataInferenceBuilder.PRODUCER_CONTRACT.extractPropertyMetadata("sample", "code", false).type,
+                "string"
+            );
+        } finally {
+            SchemaWalker.walk = origWalk;
+        }
     });
 });

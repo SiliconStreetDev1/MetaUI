@@ -6,7 +6,14 @@
 
 import assert from "node:assert/strict";
 import { withLogCapture, reported } from "./fc-config";
-import { SchemaWalker, ISchemaVisitContext } from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaWalker";
+import {
+    SchemaWalker,
+    ISchemaVisitContext,
+    SchemaShape,
+    RawRecordShape,
+    LayoutElementShape,
+    JsonPayloadShape
+} from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaWalker";
 import { PluginRegistry } from "../../src/nz/co/siliconst/ui5/metaui/core/PluginRegistry";
 import { DialogDelegate, IHostDialog } from "../../src/nz/co/siliconst/ui5/metaui/controls/host/delegates/DialogDelegate";
 import { LayoutMutator } from "../../src/nz/co/siliconst/ui5/metaui/core/LayoutMutator";
@@ -1148,5 +1155,562 @@ describe("SchemaWalker — Stage 2 direct unit tests", () => {
         assert.strictEqual(refSchema.properties?.LockedGroup.properties?.NestedTags.readOnly, true);
         assert.strictEqual(refSchema.properties?.LockedGroup.properties?.NestedTags.items?.readOnly, true);
         assert.strictEqual(refSchema.properties?.LockedGroup.properties?.NestedTags.items?.ui?.readOnly, true);
+    });
+
+    it("TraversalPrimitive §3.1: supports pluggable ITreeShape (SchemaShape, RawRecordShape, LayoutElementShape, JsonPayloadShape) and resolveDynamicChildren", () => {
+        // 1. LayoutElementShape over root array and nested elements with MAX_LAYOUT_DEPTH default and cycle detection
+        const cyclicLayout: ILayoutElement = { type: "Group", label: "RootGroup", elements: [] };
+        const controlLeaf: ILayoutElement = { type: "Control", scope: "#/properties/Name" };
+        cyclicLayout.elements!.push(cyclicLayout, controlLeaf);
+
+        const layoutScopes: string[] = [];
+        const layoutLeaves: string[] = [];
+        const layoutTruncations: Array<{ scope: string; reason: "depth" | "cycle" }> = [];
+        SchemaWalker.walk<ILayoutElement>(
+            [cyclicLayout],
+            (ctx) => {
+                layoutScopes.push(`${ctx.kind}:${ctx.scope}:${ctx.node.type}`);
+            },
+            {
+                shape: LayoutElementShape,
+                onLeave: (ctx) => layoutLeaves.push(ctx.scope),
+                onTruncate: (scope, reason) => layoutTruncations.push({ scope, reason })
+            }
+        );
+        assert.deepEqual(layoutScopes, [
+            "element:#/elements/0:Group",
+            "element:#/elements/0/elements/1:Control"
+        ]);
+        assert.deepEqual(layoutLeaves, ["#/elements/0/elements/1", "#/elements/0"]);
+        assert.deepEqual(layoutTruncations, [{ scope: "#/elements/0/elements/0", reason: "cycle" }]);
+
+        // 2. resolveDynamicChildren synthesizes children during LayoutElementShape walk
+        const expandedScopes: string[] = [];
+        SchemaWalker.walk<ILayoutElement>(
+            [{ type: "Control", scope: "#/properties/Addr" }],
+            (ctx) => {
+                expandedScopes.push(ctx.node.scope || ctx.node.type);
+            },
+            {
+                shape: LayoutElementShape,
+                resolveDynamicChildren: (node) => {
+                    if (node.scope === "#/properties/Addr") {
+                        return [
+                            {
+                                key: "0",
+                                node: { type: "Control", scope: "#/properties/Addr/properties/City" },
+                                kind: "element",
+                                scopeSegment: "elements/0",
+                                bindingSegment: "0"
+                            }
+                        ];
+                    }
+                    return undefined;
+                }
+            }
+        );
+        assert.deepEqual(expandedScopes, ["#/properties/Addr", "#/properties/Addr/properties/City"]);
+
+        // 3. RawRecordShape with visitDefinitions, visitCombinators, and invalid property callback
+        const rawDoc: Record<string, unknown> = {
+            type: "object",
+            definitions: {
+                DefA: { type: "string" }
+            },
+            $defs: {
+                DefB: { type: "number" }
+            },
+            properties: {
+                validProp: {
+                    type: "array",
+                    items: { type: "boolean" },
+                    oneOf: [{ type: "boolean" }],
+                    not: { type: "null" },
+                    additionalProperties: { type: "string" }
+                },
+                invalidProp: 42
+            }
+        };
+        const rawVisited: Array<{ scope: string; kind: string; branchKeyword?: string }> = [];
+        const invalidKeys: string[] = [];
+        SchemaWalker.walk<Record<string, unknown>>(
+            rawDoc,
+            (ctx) => {
+                rawVisited.push({ scope: ctx.scope, kind: ctx.kind, branchKeyword: ctx.branchKeyword });
+            },
+            {
+                shape: RawRecordShape,
+                visitCombinators: true,
+                visitDefinitions: true,
+                onInvalidProperty: (k) => invalidKeys.push(k)
+            }
+        );
+        assert.deepEqual(invalidKeys, ["invalidProp"]);
+        assert.deepEqual(rawVisited, [
+            { scope: "#/properties/validProp", kind: "property", branchKeyword: undefined },
+            { scope: "#/properties/validProp/items", kind: "item", branchKeyword: undefined },
+            { scope: "#/properties/validProp/not", kind: "branch", branchKeyword: "not" },
+            {
+                scope: "#/properties/validProp/additionalProperties",
+                kind: "additional",
+                branchKeyword: "additionalProperties"
+            },
+            { scope: "#/properties/validProp/oneOf/0", kind: "branch", branchKeyword: "oneOf" },
+            { scope: "#/definitions/DefA", kind: "branch", branchKeyword: "definitions" },
+            { scope: "#/$defs/DefB", kind: "branch", branchKeyword: "$defs" }
+        ]);
+
+        // 4. JsonPayloadShape with maxArrayItems and post-order assembly
+        const payload = {
+            header: { id: 1 },
+            primField: "ignored",
+            rows: [{ a: 1 }, "primItem", { a: 2 }, { a: 3 }]
+        };
+        const payloadScopes: string[] = [];
+        const payloadKinds: string[] = [];
+        SchemaWalker.walk<unknown>(
+            payload,
+            (ctx) => {
+                payloadScopes.push(ctx.scope);
+                payloadKinds.push(ctx.kind);
+            },
+            {
+                shape: JsonPayloadShape,
+                visitRoot: true,
+                maxArrayItems: 3
+            }
+        );
+        assert.deepEqual(payloadScopes, [
+            "#",
+            "#/properties/header",
+            "#/properties/rows",
+            "#/properties/rows/items/0",
+            "#/properties/rows/items/2"
+        ]);
+        assert.deepEqual(payloadKinds, ["property", "property", "property", "item", "item"]);
+        assert.equal(SchemaShape.defaultMaxDepth, MAX_SCHEMA_DEPTH);
+        assert.equal(LayoutElementShape.defaultMaxDepth, MAX_LAYOUT_DEPTH);
+
+        // 5. LayoutElementShape onInvalidProperty callback and maxDepth > MAX_SCHEMA_DEPTH cap
+        const invalidLayoutIdx: string[] = [];
+        SchemaWalker.walk<ILayoutElement>(
+            [null as unknown as ILayoutElement, { type: "Control", scope: "#/properties/Ok" }],
+            () => {},
+            {
+                shape: LayoutElementShape,
+                onInvalidProperty: (idx) => invalidLayoutIdx.push(idx)
+            }
+        );
+        assert.deepEqual(invalidLayoutIdx, ["0"]);
+
+        let overMaxSchema: ISchema = { type: "object", properties: { leaf: { type: "string" } } };
+        for (let i = 0; i <= MAX_SCHEMA_DEPTH + 1; i++) {
+            overMaxSchema = { type: "object", properties: { [`d${i}`]: overMaxSchema } };
+        }
+        const overMaxTrunc: string[] = [];
+        SchemaWalker.walk(overMaxSchema, () => {}, {
+            maxDepth: MAX_SCHEMA_DEPTH + 50,
+            silentTruncationLog: true,
+            onTruncate: (s, r) => overMaxTrunc.push(`${s}:${r}`)
+        });
+        assert.equal(overMaxTrunc.length, 1);
+        assert.ok(overMaxTrunc[0].endsWith(":depth"));
+
+        // 6. visitDefinitions skips non-record entries and sets bindingPath; resolveScope edge cases
+        const defBindings: string[] = [];
+        SchemaWalker.walk<Record<string, unknown>>(
+            {
+                definitions: {
+                    badDef: null,
+                    goodDef: { type: "string" }
+                }
+            },
+            (ctx) => {
+                defBindings.push(`${ctx.key}:${ctx.bindingPath}`);
+            },
+            {
+                shape: RawRecordShape,
+                visitDefinitions: true
+            }
+        );
+        assert.deepEqual(defBindings, ["goodDef:definitions/goodDef"]);
+
+        assert.deepEqual(SchemaWalker.resolveScope({ type: "object", properties: { "": { type: "string" } } }, ""), {
+            meta: undefined,
+            bindingPath: "",
+            propKey: ""
+        });
+        assert.deepEqual(SchemaWalker.resolveScope({ type: "object" }, "#/items/0"), {
+            meta: undefined,
+            bindingPath: "#/items/0",
+            propKey: "#/items/0"
+        });
+        assert.deepEqual(SchemaWalker.resolveScope({ type: "object" }, "#/items/properties/a"), {
+            meta: undefined,
+            bindingPath: "#/items/properties/a",
+            propKey: "#/items/properties/a"
+        });
+        assert.deepEqual(SchemaWalker.resolveScope({ type: "object" }, "invalid/properties/path"), {
+            meta: undefined,
+            bindingPath: "invalid/properties/path",
+            propKey: "invalid/properties/path"
+        });
+
+        // Verify SchemaShape.resolveRef preserves undefined ui when neither referrer nor target has ui,
+        // and extractDefinitions rejects non-record definitions (e.g. arrays)
+        const noUiDefs: ISchema = {
+            type: "object",
+            definitions: {
+                Plain: { type: "string" }
+            },
+            properties: {
+                plainRef: { $ref: "#/definitions/Plain" }
+            }
+        };
+        let resolvedUi: unknown = "unset";
+        SchemaWalker.walk(noUiDefs, (ctx) => {
+            resolvedUi = ctx.node.ui;
+        });
+        assert.equal(resolvedUi, undefined);
+
+        const arrayDefsSchema = {
+            type: "object",
+            definitions: [{ type: "string", label: "FromArray" }] as unknown as Record<string, ISchema>,
+            properties: {
+                arrRef: { $ref: "#/definitions/0" }
+            }
+        } as ISchema;
+        let resolvedLabel: unknown = "unset";
+        SchemaWalker.walk(arrayDefsSchema, (ctx) => {
+            resolvedLabel = ctx.node.label;
+        });
+        assert.equal(resolvedLabel, undefined);
+    });
+
+    it("TraversalPrimitive §3.2: SchemaWalker.walkPaired steps properties, arrays, additionalProperties, combinators, replaceOther, and detectOtherCycles", () => {
+        const schema: ISchema = {
+            type: "object",
+            properties: {
+                user: {
+                    type: "object",
+                    properties: {
+                        name: { type: "string", default: "Anon" }
+                    }
+                },
+                tags: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            code: { type: "string" }
+                        }
+                    }
+                },
+                dict: {
+                    type: "object",
+                    properties: {
+                        declared: { type: "number" }
+                    },
+                    additionalProperties: {
+                        type: "string"
+                    }
+                },
+                guarded: {
+                    type: "string",
+                    not: { type: "string", enum: ["forbidden"] }
+                }
+            }
+        };
+
+        const data: Record<string, unknown> = {
+            // user is missing — pre-order replaceOther will materialize it
+            tags: [{ code: "T1" }, { code: "T2" }],
+            dict: { declared: 10, extra1: "v1", extra2: "v2" },
+            guarded: "ok"
+        };
+
+        const pairedTrace: Array<{
+            scope: string;
+            bindingPath: string;
+            key: string;
+            kind: string;
+            otherVal: unknown;
+        }> = [];
+
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            schema,
+            data,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined,
+                stepArray: (other) =>
+                    Array.isArray(other)
+                        ? other.map((item, idx) => ({ key: String(idx), value: item }))
+                        : undefined,
+                stepAdditional: (other, _childNode, parentNode) => {
+                    if (typeof other !== "object" || other === null || Array.isArray(other)) {
+                        return undefined;
+                    }
+                    const rec = other as Record<string, unknown>;
+                    const declaredProps = parentNode.properties || {};
+                    return Object.keys(rec)
+                        .filter((k) => !(k in declaredProps))
+                        .map((k) => ({ key: k, value: rec[k] }));
+                },
+                stepBranch: (other) => other
+            },
+            (ctx) => {
+                if (ctx.scope === "#/properties/user" && ctx.other === undefined) {
+                    const materialized: Record<string, unknown> = {};
+                    (ctx.parentOther as Record<string, unknown>)[ctx.key] = materialized;
+                    ctx.replaceOther(materialized);
+                }
+                if (ctx.scope === "#/properties/user/properties/name" && ctx.other === undefined) {
+                    (ctx.parentOther as Record<string, unknown>)[ctx.key] = ctx.node.default;
+                    ctx.replaceOther(ctx.node.default);
+                }
+                pairedTrace.push({
+                    scope: ctx.scope,
+                    bindingPath: ctx.bindingPath,
+                    key: ctx.key,
+                    kind: ctx.kind,
+                    otherVal: ctx.other
+                });
+            },
+            {
+                visitCombinators: true
+            }
+        );
+
+        assert.deepEqual((data.user as Record<string, unknown>).name, "Anon");
+        assert.deepEqual(
+            pairedTrace.map((t) => `${t.kind}:${t.bindingPath}=${JSON.stringify(t.otherVal)}`),
+            [
+                'property:user={"name":"Anon"}',
+                'property:user/name="Anon"',
+                'property:tags=[{"code":"T1"},{"code":"T2"}]',
+                'item:tags/0={"code":"T1"}',
+                'property:tags/0/code="T1"',
+                'item:tags/1={"code":"T2"}',
+                'property:tags/1/code="T2"',
+                'property:dict={"declared":10,"extra1":"v1","extra2":"v2"}',
+                "property:dict/declared=10",
+                'additional:dict/extra1="v1"',
+                'additional:dict/extra2="v2"',
+                'property:guarded="ok"',
+                'branch:guarded/not="ok"'
+            ]
+        );
+
+        // Verify detectOtherCycles catches a cycle on the paired right-hand tree while preserving diamonds
+        const nonCyclicLeft: ISchema = {
+            type: "object",
+            properties: {
+                a: {
+                    type: "object",
+                    properties: {
+                        b: {
+                            type: "object",
+                            properties: {
+                                c: { type: "string" }
+                            }
+                        }
+                    }
+                },
+                sibling: {
+                    type: "object",
+                    properties: {
+                        c: { type: "string" }
+                    }
+                }
+            }
+        };
+        const sharedRightLeaf = { c: "hello" };
+        const cyclicRight: Record<string, unknown> = { sibling: sharedRightLeaf };
+        cyclicRight.a = { b: cyclicRight };
+
+        const otherTruncations: Array<{ scope: string; reason: "depth" | "cycle" }> = [];
+        const visitedPairedScopes: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            nonCyclicLeft,
+            cyclicRight,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined
+            },
+            (ctx) => {
+                visitedPairedScopes.push(ctx.scope);
+            },
+            {
+                detectOtherCycles: true,
+                onTruncate: (scope, reason) => otherTruncations.push({ scope, reason })
+            }
+        );
+        assert.deepEqual(otherTruncations, [{ scope: "#/properties/a/properties/b", reason: "cycle" }]);
+        assert.deepEqual(visitedPairedScopes, [
+            "#/properties/a",
+            "#/properties/sibling",
+            "#/properties/sibling/properties/c"
+        ]);
+
+        // Verify detectOtherCycles defaults to false (does not truncate cyclic right-hand object when left is finite)
+        const defaultOtherTruncations: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            nonCyclicLeft,
+            cyclicRight,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined
+            },
+            () => {},
+            {
+                onTruncate: (scope, reason) => defaultOtherTruncations.push(`${scope}:${reason}`)
+            }
+        );
+        assert.deepEqual(defaultOtherTruncations, []);
+
+        // Verify diamond on other (sharedRightLeaf visited under a/b first, then under sibling) is NOT truncated
+        const diamondRight: Record<string, unknown> = {
+            a: { b: sharedRightLeaf },
+            sibling: sharedRightLeaf
+        };
+        const diamondTruncations: string[] = [];
+        const diamondVisited: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            nonCyclicLeft,
+            diamondRight,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined
+            },
+            (ctx) => {
+                diamondVisited.push(ctx.scope);
+            },
+            {
+                detectOtherCycles: true,
+                onTruncate: (scope, reason) => diamondTruncations.push(`${scope}:${reason}`)
+            }
+        );
+        assert.deepEqual(diamondTruncations, []);
+        assert.deepEqual(diamondVisited, [
+            "#/properties/a",
+            "#/properties/a/properties/b",
+            "#/properties/a/properties/b/properties/c",
+            "#/properties/sibling",
+            "#/properties/sibling/properties/c"
+        ]);
+
+        // Verify activeNodes and activeOthers are cleaned up after walkPaired returns,
+        // and replaceOther participates in detectOtherCycles
+        const sharedActiveNodes = new WeakSet<object>();
+        const sharedActiveOthers = new WeakSet<object>();
+        const otherRootObj = { a: null };
+        const replacedCyclic: Record<string, unknown> = {};
+        replacedCyclic.b = replacedCyclic;
+        const replaceTruncations: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            nonCyclicLeft,
+            otherRootObj,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined
+            },
+            (ctx) => {
+                if (ctx.scope === "#/properties/a") {
+                    ctx.replaceOther(replacedCyclic);
+                }
+            },
+            {
+                detectOtherCycles: true,
+                activeNodes: sharedActiveNodes,
+                activeOthers: sharedActiveOthers,
+                silentTruncationLog: true,
+                onTruncate: (scope, reason) => replaceTruncations.push(`${scope}:${reason}`)
+            }
+        );
+        assert.deepEqual(replaceTruncations, ["#/properties/a/properties/b:cycle"]);
+        assert.equal(sharedActiveNodes.has(nonCyclicLeft), false);
+        assert.equal(sharedActiveOthers.has(otherRootObj), false);
+        assert.equal(sharedActiveOthers.has(replacedCyclic), false);
+
+        // Verify cursor callbacks are not invoked when currentOther is undefined
+        const undefinedOtherVisited: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            schema,
+            {},
+            {
+                stepProperty: (other, key) => (other as Record<string, unknown>)[key],
+                stepArray: (other) => (other as unknown[]).map((v, i) => ({ key: String(i), value: v })),
+                stepAdditional: (other) =>
+                    Object.keys(other as Record<string, unknown>).map((k) => ({
+                        key: k,
+                        value: (other as Record<string, unknown>)[k]
+                    }))
+            },
+            (ctx) => {
+                undefinedOtherVisited.push(`${ctx.bindingPath}:${String(ctx.other)}`);
+            },
+            { visitAdditionalProperties: true }
+        );
+        assert.ok(undefinedOtherVisited.includes("user/name:undefined"));
+
+        // Verify 'stop' propagation in walkPaired across stepArray, stepAdditional, and stepProperty
+        const stopArrVisited: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            schema,
+            data,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined,
+                stepArray: (other) =>
+                    Array.isArray(other) ? other.map((item, idx) => ({ key: String(idx), value: item })) : undefined
+            },
+            (ctx) => {
+                stopArrVisited.push(ctx.bindingPath);
+                if (ctx.bindingPath === "tags/0") {
+                    return "stop";
+                }
+                return;
+            }
+        );
+        assert.deepEqual(stopArrVisited, ["user", "user/name", "tags", "tags/0"]);
+
+        const stopAddVisited: string[] = [];
+        SchemaWalker.walkPaired<IPropertyMetadata, unknown>(
+            schema,
+            data,
+            {
+                stepProperty: (other, key) =>
+                    typeof other === "object" && other !== null ? (other as Record<string, unknown>)[key] : undefined,
+                stepAdditional: (other, _childNode, parentNode) => {
+                    if (typeof other !== "object" || other === null || Array.isArray(other)) {
+                        return undefined;
+                    }
+                    const rec = other as Record<string, unknown>;
+                    const declaredProps = parentNode.properties || {};
+                    return Object.keys(rec)
+                        .filter((k) => !(k in declaredProps))
+                        .map((k) => ({ key: k, value: rec[k] }));
+                }
+            },
+            (ctx) => {
+                stopAddVisited.push(ctx.bindingPath);
+                if (ctx.bindingPath === "dict/extra1") {
+                    return "stop";
+                }
+                return;
+            },
+            { visitAdditionalProperties: true }
+        );
+        assert.deepEqual(stopAddVisited, [
+            "user",
+            "user/name",
+            "tags",
+            "tags/items",
+            "tags/items/code",
+            "dict",
+            "dict/declared",
+            "dict/extra1"
+        ]);
     });
 });

@@ -5,6 +5,7 @@
 
 import { Logger } from "../../../utils/Logger";
 import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
+import { ITreeChild, SchemaShape, SchemaWalker } from "../../../core/SchemaWalker";
 import { StateManager } from "../../../core/StateManager";
 import { ISchema, IPropertyMetadata } from "../../../interfaces/ISchema";
 import { isRecord, deepClone } from "../../../utils/TypeGuards";
@@ -378,7 +379,7 @@ export class DataSyncDelegate {
      *
      * @param schema The MetaUI ISchema or IPropertyMetadata tree.
      * @param rootData The sandbox data payload to populate with defaults.
-     * @param depth Current recursion depth (capped at 8 to guard against cyclic schemas).
+     * @param depth Current recursion depth (capped at MAX_SCHEMA_DEPTH to guard against cyclic schemas).
      * @param definitions Optional normalized `$ref` schema definitions dictionary.
      */
     public injectSchemaDefaults(
@@ -387,66 +388,143 @@ export class DataSyncDelegate {
         depth: number = 0,
         definitions?: Record<string, ISchema>
     ): void {
-        // WALKER_EXEMPT: DataSyncDelegate.injectSchemaDefaults co-inductively mutates (schema, rootData) across runtime array rows (targetArray[i]) and only materializes a missing child object when its subtree yields non-empty defaults.
         if (!schema || !rootData || typeof rootData !== "object") return;
-        if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI]",
-                `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); schema defaults below this ` +
-                    `level were not injected, so those fields start empty rather than at their declared default.`,
-                "DataSyncDelegate"
-            );
-            return;
-        }
 
-        let effectiveSchema = schema;
-        const schemaRef = "$ref" in schema ? schema.$ref : undefined;
-        if (schemaRef && !schema.properties && definitions) {
+        const resolveOneHop = (node: ISchema | IPropertyMetadata): ISchema | IPropertyMetadata => {
+            const schemaRef = "$ref" in node ? node.$ref : undefined;
+            if (schemaRef && !node.properties && definitions) {
             const refKey = OpenApiRefResolver.extractRefName(schemaRef);
-            if (refKey && definitions[refKey]) {
-                effectiveSchema = definitions[refKey];
+                if (refKey && definitions[refKey]) {
+                    return definitions[refKey];
+                }
             }
-        }
+            return node;
+        };
 
-        if (effectiveSchema.type === "object" && effectiveSchema.properties && isRecord(rootData)) {
-            for (const key of Object.keys(effectiveSchema.properties)) {
-                const rawPropSchema = effectiveSchema.properties[key];
-                const refKey =
-                    rawPropSchema.$ref && !rawPropSchema.properties
-                        ? OpenApiRefResolver.extractRefName(rawPropSchema.$ref)
-                        : undefined;
-                const propSchema: ISchema | IPropertyMetadata = (refKey && definitions?.[refKey]) || rawPropSchema;
-                const propDefault = "default" in propSchema ? propSchema.default : undefined;
+        const dynamicEdges = new Map<IPropertyMetadata, ITreeChild<IPropertyMetadata>[]>();
+        const childOthers = new Map<IPropertyMetadata, object>();
+        const tempObjects = new WeakSet<object>();
 
-                if (rootData[key] === undefined) {
-                    if (rawPropSchema.default !== undefined) {
-                        rootData[key] = deepClone(rawPropSchema.default);
-                    } else if (propDefault !== undefined) {
-                        rootData[key] = deepClone(propDefault);
-                    } else if (propSchema.type === "object") {
-                        const tempObj: Record<string, unknown> = {};
-                        this.injectSchemaDefaults(propSchema, tempObj, depth + 1, definitions);
-                        if (Object.keys(tempObj).length > 0) {
-                            rootData[key] = tempObj;
+        SchemaWalker.walkPaired(
+            { ...(schema as IPropertyMetadata) },
+            rootData,
+            {
+                stepProperty: (_other, _key, childNode) => childOthers.get(childNode),
+                stepArray: (other, itemNode) => {
+                    const targetArray = Array.isArray(other)
+                        ? other
+                        : isRecord(other) && Array.isArray(other.items)
+                          ? other.items
+                          : null;
+                    if (!targetArray) {
+                        return [];
+                    }
+                    const rows: Array<{ key: string; value: object }> = [];
+                    for (let i = 0; i < targetArray.length; i++) {
+                        const rowVal: unknown = targetArray[i];
+                        if (typeof rowVal === "object" && rowVal !== null) {
+                            rows.push({ key: String(i), value: rowVal });
                         }
                     }
-                } else if (typeof rootData[key] === "object" && rootData[key] !== null) {
-                    this.injectSchemaDefaults(propSchema, rootData[key], depth + 1, definitions);
+                    void itemNode;
+                    return rows;
                 }
-            }
-        } else if (effectiveSchema.type === "array" && effectiveSchema.items) {
-            const targetArray = Array.isArray(rootData)
-                ? rootData
-                : isRecord(rootData) && Array.isArray(rootData.items)
-                  ? rootData.items
-                  : null;
-            if (targetArray) {
-                for (let i = 0; i < targetArray.length; i++) {
-                    if (typeof targetArray[i] === "object" && targetArray[i] !== null) {
-                        this.injectSchemaDefaults(effectiveSchema.items, targetArray[i], depth + 1, definitions);
+            },
+            (ctx) => {
+                const effectiveSchema = resolveOneHop(ctx.node);
+                const currentData = ctx.other;
+                const edges: ITreeChild<IPropertyMetadata>[] = [];
+
+                if (effectiveSchema.type === "object" && effectiveSchema.properties && isRecord(currentData)) {
+                    for (const key of Object.keys(effectiveSchema.properties)) {
+                        const rawPropSchema = effectiveSchema.properties[key];
+                        const propSchema = resolveOneHop(rawPropSchema);
+                        const propDefault = "default" in propSchema ? propSchema.default : undefined;
+
+                        if (currentData[key] === undefined) {
+                            if (rawPropSchema.default !== undefined) {
+                                currentData[key] = deepClone(rawPropSchema.default);
+                            } else if (propDefault !== undefined) {
+                                currentData[key] = deepClone(propDefault);
+                            } else if (propSchema.type === "object") {
+                                const tempObj: Record<string, unknown> = {};
+                                tempObjects.add(tempObj);
+                                const childNode: IPropertyMetadata = { ...(propSchema as IPropertyMetadata) };
+                                childOthers.set(childNode, tempObj);
+                                edges.push({
+                                    key,
+                                    node: childNode,
+                                    kind: "property",
+                                    scopeSegment: `properties/${key}`,
+                                    bindingSegment: key
+                                });
+                            }
+                        } else if (typeof currentData[key] === "object" && currentData[key] !== null) {
+                            const childNode: IPropertyMetadata = { ...(propSchema as IPropertyMetadata) };
+                            childOthers.set(childNode, currentData[key]);
+                            edges.push({
+                                key,
+                                node: childNode,
+                                kind: "property",
+                                scopeSegment: `properties/${key}`,
+                                bindingSegment: key
+                            });
+                        }
+                    }
+                } else if (effectiveSchema.type === "array" && effectiveSchema.items) {
+                    const targetArray = Array.isArray(currentData)
+                        ? currentData
+                        : isRecord(currentData) && Array.isArray(currentData.items)
+                          ? currentData.items
+                          : null;
+                    if (targetArray) {
+                        edges.push({
+                            key: "items",
+                            node: { ...effectiveSchema.items },
+                            kind: "item",
+                            scopeSegment: "items",
+                            bindingSegment: "items"
+                        });
+                    }
+                }
+
+                dynamicEdges.set(ctx.node, edges);
+                return edges.length > 0 ? undefined : "skip-subtree";
+            },
+            {
+                shape: SchemaShape,
+                visitRoot: true,
+                resolveRefs: false,
+                initialDepth: depth,
+                silentTruncationLog: true,
+                resolveDynamicChildren: (node) => dynamicEdges.get(node) ?? [],
+                onLeave: (ctx) => {
+                    dynamicEdges.delete(ctx.node);
+                    childOthers.delete(ctx.node);
+                    if (
+                        ctx.kind === "property" &&
+                        isRecord(ctx.other) &&
+                        tempObjects.has(ctx.other) &&
+                        isRecord(ctx.parentOther)
+                    ) {
+                        tempObjects.delete(ctx.other);
+                        if (Object.keys(ctx.other).length > 0) {
+                            ctx.parentOther[ctx.key] = ctx.other;
+                        }
+                    }
+                },
+                onTruncate: (_scope, reason) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            "[MetaUI]",
+                            `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                                `schema defaults below this level were not injected, ` +
+                                `so those fields start empty rather than at their declared default.`,
+                            "DataSyncDelegate"
+                        );
                     }
                 }
             }
-        }
+        );
     }
 }

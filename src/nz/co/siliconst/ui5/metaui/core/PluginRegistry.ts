@@ -13,7 +13,7 @@ import { DefaultPluginBootstrapper } from "./DefaultPluginBootstrapper";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import { Registry } from "./Registry";
 import { SchemaNormalizer } from "./SchemaNormalizer";
-import { SchemaWalker, ISchemaWalkOptions, SchemaVisitor } from "./SchemaWalker";
+import { SchemaWalker, LayoutElementShape, ISchemaWalkOptions, SchemaVisitor } from "./SchemaWalker";
 import { Logger } from "../utils/Logger";
 import { isRecord } from "../utils/TypeGuards";
 
@@ -158,31 +158,16 @@ export class PluginRegistry {
         const strategy = DefaultLayoutGenerator.resolveLayoutStrategy(schema);
         pathsToLoad.add(this.getLayoutPath(strategy));
 
-        // WALKER_EXEMPT: PluginRegistry.scanLayoutElements walks an ILayoutElement[] uiLayout tree (Group/WizardStep/Control nodes), not an ISchema property tree.
         const scanLayoutElements = (
             elements: ILayoutElement[] | undefined,
-            propsContext?: Record<string, IPropertyMetadata>,
-            depth: number = 0,
-            activeElements: WeakSet<object> = new WeakSet<object>()
+            propsContext?: Record<string, IPropertyMetadata>
         ): void => {
             if (!Array.isArray(elements)) return;
-            if (depth > MAX_LAYOUT_DEPTH) {
-                Logger.warn(
-                    `[MetaUI PluginRegistry] uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); ` +
-                        `layout elements below this level were not scanned for plugin preloading.`
-                );
-                return;
-            }
-            for (const el of elements) {
-                if (!el || typeof el !== "object") continue;
-                if (activeElements.has(el)) {
-                    Logger.warn(
-                        "[MetaUI PluginRegistry] Circular uiLayout element reference detected; stopping recursion."
-                    );
-                    continue;
-                }
-                activeElements.add(el);
-                try {
+            const warnedDepthParents = new Set<string>();
+            SchemaWalker.walk<ILayoutElement>(
+                elements,
+                (ctx) => {
+                    const el = ctx.node;
                     if (el.widget) {
                         let resolvedType: FieldType = SCHEMA_TYPE.STRING;
                         if (el.scope && propsContext) {
@@ -210,13 +195,28 @@ export class PluginRegistry {
                             );
                         }
                     }
-                    if (el.elements) {
-                        scanLayoutElements(el.elements, propsContext, depth + 1, activeElements);
+                },
+                {
+                    shape: LayoutElementShape,
+                    silentTruncationLog: true,
+                    onTruncate: (scope, reason) => {
+                        if (reason === "cycle") {
+                            Logger.warn(
+                                "[MetaUI PluginRegistry] Circular uiLayout element reference detected; stopping recursion."
+                            );
+                            return;
+                        }
+                        const parentContainer = scope.replace(/\/elements\/\d+$/, "");
+                        if (!warnedDepthParents.has(parentContainer)) {
+                            warnedDepthParents.add(parentContainer);
+                            Logger.warn(
+                                `[MetaUI PluginRegistry] uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); ` +
+                                    `layout elements below this level were not scanned for plugin preloading.`
+                            );
+                        }
                     }
-                } finally {
-                    activeElements.delete(el);
                 }
-            }
+            );
         };
 
         const formatDiagKey = (scope: string, fallbackKey: string): string => {

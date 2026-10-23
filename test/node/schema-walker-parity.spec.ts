@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { fc, withLogCapture, logText } from "./fc-config";
 import { SchemaWalker, ISchemaVisitContext } from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaWalker";
 import { ISchema, IPropertyMetadata, ILayoutElement, FieldType } from "../../src/nz/co/siliconst/ui5/metaui/interfaces/ISchema";
+import { IPlugin, IPluginValidationResult } from "../../src/nz/co/siliconst/ui5/metaui/interfaces/IPlugin";
 import {
     MAX_SCHEMA_DEPTH,
     MAX_LAYOUT_DEPTH,
@@ -30,7 +31,8 @@ import {
 } from "../../src/nz/co/siliconst/ui5/metaui/utils/TypeGuards";
 import { SchemaValidator } from "../../src/nz/co/siliconst/ui5/metaui/core/SchemaValidator";
 import { OpenApiRefResolver } from "../../src/nz/co/siliconst/ui5/metaui/openapi/OpenApiRefResolver";
-import { LayoutScorer, ILayoutDecision } from "../../src/nz/co/siliconst/ui5/metaui/core/LayoutScorer";
+import { LayoutScorer, ILayoutDecision, LayoutDecisionTable } from "../../src/nz/co/siliconst/ui5/metaui/core/LayoutScorer";
+import { LayoutMutator } from "../../src/nz/co/siliconst/ui5/metaui/core/LayoutMutator";
 import { LayoutElementWalker } from "../../src/nz/co/siliconst/ui5/metaui/layouts/LayoutElementWalker";
 import { OpenApiConstraintMapper } from "../../src/nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApiConstraintMapper";
 import { DataSyncDelegate } from "../../src/nz/co/siliconst/ui5/metaui/controls/host/delegates/DataSyncDelegate";
@@ -808,7 +810,151 @@ function injectSchemaDefaultsLegacy(
     }
 }
 
-/** Oracle 6: OpenApiConstraintMapper.resolveAllOf legacy implementation. */
+/** Oracle 6: OpenApiConstraintMapper.deepMergeSchemas and resolveAllOf legacy implementations. */
+function deepMergeSchemasLegacy(
+    target: unknown,
+    source: unknown,
+    depth: number = 0,
+    activeRecords: WeakSet<object> = new WeakSet<object>()
+): unknown {
+    const maxBoundKeys = new Set(["minimum", "minLength", "minItems", "minProperties", "exclusiveMinimum"]);
+    const minBoundKeys = new Set(["maximum", "maxLength", "maxItems", "maxProperties", "exclusiveMaximum"]);
+    const schemaMapKeywords = new Set(["properties", "patternProperties", "definitions", "$defs", "dependentSchemas"]);
+    const compositionKeywords = new Set(["allOf", "anyOf", "oneOf"]);
+    const orBooleanKeywords = new Set(["uniqueItems"]);
+    const exclusiveBoundKeys = new Set(["exclusiveMinimum", "exclusiveMaximum"]);
+
+    const mapperPriv = OpenApiConstraintMapper as unknown as {
+        isSameJsonValue(a: unknown, b: unknown): boolean;
+        intersectMultipleOf(a: number, b: number): number;
+        isMixedExclusiveDialect(a: unknown, b: unknown): boolean;
+        intersectMixedExclusive(k: string, t: JsonRecord, s: JsonRecord): number;
+        intersectEnums(a: unknown[], b: unknown[]): unknown[];
+        composePatterns(a: string, b: string): string;
+    };
+
+    const outTarget: JsonRecord = isRecord(target) ? target : {};
+    const output: JsonRecord = { ...outTarget };
+    if (!isRecord(source)) {
+        return output;
+    }
+    if (depth > MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            `[MetaUI OpenApiConstraintMapper] Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in ` +
+                `deepMergeSchemas; truncating recursive allOf merge.`
+        );
+        return output;
+    }
+    if ((isRecord(target) && activeRecords.has(target)) || activeRecords.has(source)) {
+        Logger.warn(
+            "[MetaUI OpenApiConstraintMapper] Circular schema record detected in deepMergeSchemas; " +
+                "truncating recursive allOf merge."
+        );
+        return output;
+    }
+    if (isRecord(target)) {
+        activeRecords.add(target);
+    }
+    activeRecords.add(source);
+    try {
+        let contradictoryConst = false;
+        for (const key of Object.keys(source)) {
+            const srcVal = source[key];
+            const targetVal = outTarget[key];
+            if (key === "const" && "const" in outTarget && !mapperPriv.isSameJsonValue(targetVal, srcVal)) {
+                contradictoryConst = true;
+                Logger.error(
+                    `[MetaUI OpenApiConstraintMapper] Contradictory 'const' in allOf merge ` +
+                        `(${JSON.stringify(targetVal)} vs ${JSON.stringify(srcVal)}); ` +
+                        `no value satisfies both branches.`
+                );
+            } else if (key === "multipleOf" && typeof targetVal === "number" && typeof srcVal === "number") {
+                output[key] = mapperPriv.intersectMultipleOf(targetVal, srcVal);
+            } else if (exclusiveBoundKeys.has(key) && mapperPriv.isMixedExclusiveDialect(targetVal, srcVal)) {
+                output[key] = mapperPriv.intersectMixedExclusive(key, outTarget, source);
+            } else if (orBooleanKeywords.has(key) && typeof targetVal === "boolean" && typeof srcVal === "boolean") {
+                output[key] = targetVal || srcVal;
+            } else if (key === "additionalProperties" && targetVal !== undefined) {
+                if (targetVal === false || srcVal === false) {
+                    output[key] = false;
+                } else if (isRecord(targetVal) && isRecord(srcVal)) {
+                    output[key] = deepMergeSchemasLegacy(targetVal, srcVal, depth + 1, activeRecords);
+                } else if (isRecord(targetVal)) {
+                    output[key] = targetVal;
+                } else if (isRecord(srcVal)) {
+                    output[key] = deepClone(srcVal);
+                } else {
+                    output[key] = targetVal === true && srcVal === true ? true : (srcVal ?? targetVal);
+                }
+            } else if (schemaMapKeywords.has(key) && isRecord(targetVal) && isRecord(srcVal)) {
+                const mapOut: JsonRecord = { ...targetVal };
+                for (const name of Object.keys(srcVal)) {
+                    const srcEntry = srcVal[name];
+                    const targetEntry = targetVal[name];
+                    if (isRecord(targetEntry) && isRecord(srcEntry)) {
+                        const merged = deepMergeSchemasLegacy(targetEntry, srcEntry, depth + 1, activeRecords);
+                        mapOut[name] = isRecord(merged) ? merged : srcEntry;
+                    } else {
+                        mapOut[name] = srcEntry;
+                    }
+                }
+                output[key] = mapOut;
+            } else if (key === "type" && targetVal !== undefined && srcVal !== undefined && targetVal !== srcVal) {
+                Logger.error(
+                    `[MetaUI OpenApiConstraintMapper] Conflicting 'type' in allOf merge ` +
+                        `('${String(targetVal)}' vs '${String(srcVal)}'); keeping '${String(targetVal)}'.`
+                );
+                output[key] = targetVal;
+            } else if (maxBoundKeys.has(key) && typeof targetVal === "number" && typeof srcVal === "number") {
+                output[key] = Math.max(targetVal, srcVal);
+            } else if (minBoundKeys.has(key) && typeof targetVal === "number" && typeof srcVal === "number") {
+                output[key] = Math.min(targetVal, srcVal);
+            } else if (
+                (key === "exclusiveMinimum" || key === "exclusiveMaximum") &&
+                typeof targetVal === "boolean" &&
+                typeof srcVal === "boolean"
+            ) {
+                output[key] = targetVal || srcVal;
+            } else if (key === "enum" && Array.isArray(targetVal) && Array.isArray(srcVal)) {
+                output[key] = mapperPriv.intersectEnums(targetVal, srcVal);
+            } else if (
+                key === "pattern" &&
+                typeof targetVal === "string" &&
+                typeof srcVal === "string" &&
+                targetVal !== srcVal
+            ) {
+                output[key] = mapperPriv.composePatterns(targetVal, srcVal);
+            } else if (compositionKeywords.has(key) && Array.isArray(targetVal) && Array.isArray(srcVal)) {
+                Logger.warn(
+                    `[MetaUI OpenApiConstraintMapper] Two allOf branches declare '${key}'. ` +
+                        `A single schema cannot express the intersection of two branch lists, so the ` +
+                        `${srcVal.length} branch(es) of the later '${key}' are not enforced.`
+                );
+                output[key] = targetVal;
+            } else if (Array.isArray(srcVal)) {
+                output[key] = Array.isArray(targetVal)
+                    ? Array.from(new Set([...targetVal, ...srcVal]))
+                    : [...srcVal];
+            } else if (isRecord(srcVal)) {
+                output[key] = isRecord(targetVal)
+                    ? deepMergeSchemasLegacy(targetVal, srcVal, depth + 1, activeRecords)
+                    : { ...srcVal };
+            } else {
+                output[key] = srcVal;
+            }
+        }
+        if (contradictoryConst) {
+            output.enum = [];
+        }
+        return output;
+    } finally {
+        if (isRecord(target)) {
+            activeRecords.delete(target);
+        }
+        activeRecords.delete(source);
+    }
+}
+
 function resolveAllOfLegacy(
     currentProp: JsonRecord,
     openApiRoot: unknown,
@@ -846,14 +992,14 @@ function resolveAllOfLegacy(
         if (Array.isArray(resolvedSub.allOf)) {
             resolvedSub = resolveAllOfLegacy(resolvedSub, openApiRoot, depth + 1, nextRefs);
         }
-        const mergedSub = OpenApiConstraintMapper.deepMergeSchemas(accumulatedBase, resolvedSub);
+        const mergedSub = deepMergeSchemasLegacy(accumulatedBase, resolvedSub);
         if (isRecord(mergedSub)) {
             accumulatedBase = mergedSub;
         }
     }
     const ownProps: JsonRecord = { ...currentProp };
     delete ownProps.allOf;
-    const finalMerged = OpenApiConstraintMapper.deepMergeSchemas(accumulatedBase, ownProps);
+    const finalMerged = deepMergeSchemasLegacy(accumulatedBase, ownProps);
     return isRecord(finalMerged) ? finalMerged : ownProps;
 }
 
@@ -1531,6 +1677,249 @@ function validateTreeLegacy(
     }
 }
 
+function validatePayloadArraysLegacy(
+    schema: ISchema,
+    payload: unknown,
+    currentPath: string,
+    getPluginByPath: (path: string) => IPlugin | undefined,
+    resolveDefinition?: (ref: string) => ISchema | null,
+    getDynamicRowRequired?: (path: string) => boolean | undefined,
+    isPathHidden?: (path: string) => boolean,
+    depth: number = 0,
+    activeNodes: WeakSet<object> = new WeakSet<object>(),
+    activeRefs: Set<string> = new Set<string>()
+): IPluginValidationResult[] {
+    const errors: IPluginValidationResult[] = [];
+    if (depth > MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            "[MetaUI PayloadValidator]",
+            `Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                `subtree '${currentPath || "/"}' was not validated.`,
+            "PayloadValidator"
+        );
+        return errors;
+    }
+    if (!schema || payload === null || payload === undefined || typeof payload !== "object") return errors;
+    if (currentPath && (getPluginByPath(currentPath) || isPathHidden?.(currentPath))) return errors;
+    if (schema.ui?.visible === false) return errors;
+
+    const schemaRef = "$ref" in schema ? (schema as IPropertyMetadata).$ref : undefined;
+    if (activeNodes.has(schema) || (schemaRef && activeRefs.has(schemaRef))) {
+        Logger.warn(
+            "[MetaUI PayloadValidator]",
+            "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+            "PayloadValidator"
+        );
+        return errors;
+    }
+    let effectiveSchema: ISchema = schema;
+    let resolved: ISchema | null = null;
+    if (schemaRef && resolveDefinition) {
+        resolved = resolveDefinition(schemaRef);
+        if (resolved) {
+            if (activeNodes.has(resolved)) {
+                Logger.warn(
+                    "[MetaUI PayloadValidator]",
+                    `Circular $ref definition detected (${schemaRef}) in validatePayloadArrays; stopping recursion.`,
+                    "PayloadValidator"
+                );
+                return errors;
+            }
+            effectiveSchema = mergeResolvedDefinitionLegacy(resolved as ISchema, schema);
+        }
+    }
+    activeNodes.add(schema);
+    if (schemaRef) {
+        activeRefs.add(schemaRef);
+    }
+    if (resolved) {
+        activeNodes.add(resolved);
+    }
+    const parentRequiredList = Array.isArray(effectiveSchema.required) ? effectiveSchema.required : undefined;
+
+    try {
+        if (effectiveSchema.type === "object" && effectiveSchema.properties && isRecord(payload)) {
+            for (const key of Object.keys(effectiveSchema.properties)) {
+                const rawPropSchema = effectiveSchema.properties[key];
+                const childPath = currentPath ? `${currentPath}/${key}` : key;
+                if (rawPropSchema.ui?.visible === false || isPathHidden?.(childPath)) {
+                    continue;
+                }
+                let propSchema: IPropertyMetadata = rawPropSchema;
+                if (rawPropSchema.$ref && resolveDefinition) {
+                    if (activeRefs.has(rawPropSchema.$ref)) {
+                        Logger.warn(
+                            "[MetaUI PayloadValidator]",
+                            `Circular $ref detected (${rawPropSchema.$ref}) in validatePayloadArrays; stopping recursion.`,
+                            "PayloadValidator"
+                        );
+                        continue;
+                    }
+                    const resolvedProp = resolveDefinition(rawPropSchema.$ref);
+                    if (resolvedProp) {
+                        if (activeNodes.has(resolvedProp)) {
+                            Logger.warn(
+                                "[MetaUI PayloadValidator]",
+                                `Circular $ref definition detected (${rawPropSchema.$ref}) ` +
+                                    "in validatePayloadArrays; stopping recursion.",
+                                "PayloadValidator"
+                            );
+                            continue;
+                        }
+                        propSchema = mergeResolvedDefinitionLegacy(
+                            resolvedProp as IPropertyMetadata,
+                            rawPropSchema as IPropertyMetadata
+                        );
+                    }
+                }
+                const isPropRequired =
+                    propSchema.required === true || Boolean(parentRequiredList && parentRequiredList.includes(key));
+                if (isPropRequired && propSchema.required !== true && !activeNodes.has(rawPropSchema)) {
+                    propSchema = { ...propSchema, required: true };
+                }
+                const childValue = payload[key];
+                if (propSchema.type === "object" || propSchema.type === "array") {
+                    if (childValue === undefined) {
+                        if (!getPluginByPath(childPath)) {
+                            const valToTest =
+                                propSchema.type === "array" && (propSchema.minItems ?? 0) > 0 && !isPropRequired
+                                    ? []
+                                    : childValue;
+                            const selfRes = PipelineManager.getInstance().assembleAndExecute(
+                                propSchema,
+                                valToTest,
+                                isPropRequired
+                            );
+                            if (!selfRes.isValid) {
+                                errors.push({
+                                    isValid: false,
+                                    errorMessage: selfRes.errorMessage,
+                                    fieldKey: childPath,
+                                    fieldLabel: propSchema.ui?.label || key
+                                });
+                            }
+                        }
+                    } else {
+                        errors.push(
+                            ...validatePayloadArraysLegacy(
+                                propSchema as ISchema,
+                                childValue,
+                                childPath,
+                                getPluginByPath,
+                                resolveDefinition,
+                                getDynamicRowRequired,
+                                isPathHidden,
+                                depth + 1,
+                                activeNodes,
+                                activeRefs
+                            )
+                        );
+                    }
+                }
+            }
+        } else if (
+            effectiveSchema.type === "array" &&
+            (Array.isArray(payload) || (!currentPath && isRecord(payload) && Array.isArray(payload.items)))
+        ) {
+            const targetArray: unknown[] = Array.isArray(payload)
+                ? payload
+                : ((payload as Record<string, unknown>).items as unknown[]);
+            const arrayPathPrefix = Array.isArray(payload) ? currentPath : "items";
+            const constraintTargetPath = currentPath || "items";
+            const arrayRes = PipelineManager.getInstance().assembleAndExecute(
+                effectiveSchema as IPropertyMetadata,
+                targetArray
+            );
+            if (!arrayRes.isValid) {
+                const fieldLabel = effectiveSchema.ui?.label || effectiveSchema.title || constraintTargetPath;
+                errors.push({
+                    isValid: false,
+                    errorMessage: arrayRes.errorMessage,
+                    fieldKey: constraintTargetPath,
+                    fieldLabel
+                });
+            } else {
+                errors.push({ isValid: true, fieldKey: constraintTargetPath });
+            }
+            if (effectiveSchema.items) {
+                const rawItems = effectiveSchema.items;
+                const resolvedItems = rawItems.$ref ? resolveDefinition?.(rawItems.$ref) || rawItems : rawItems;
+                const reqArray = Array.isArray(resolvedItems?.required) ? resolvedItems.required : undefined;
+                targetArray.forEach((item: unknown, index: number) => {
+                    const itemPath = arrayPathPrefix ? `${arrayPathPrefix}/${index}` : `${index}`;
+                    if (resolvedItems && resolvedItems.type === "object" && resolvedItems.properties) {
+                        const rowRecord = isRecord(item) ? item : {};
+                        for (const key of Object.keys(resolvedItems.properties)) {
+                            const rawPropMeta = resolvedItems.properties[key];
+                            const propPath = `${itemPath}/${key}`;
+                            if (rawPropMeta.ui?.visible === false || isPathHidden?.(propPath)) {
+                                errors.push({ isValid: true, fieldKey: propPath });
+                                continue;
+                            }
+                            const dynReq = getDynamicRowRequired?.(propPath);
+                            const isReq =
+                                dynReq !== undefined
+                                    ? dynReq
+                                    : rawPropMeta.required === true || Boolean(reqArray && reqArray.includes(key));
+                            const propMeta: IPropertyMetadata = { ...rawPropMeta, required: isReq };
+                            const res = validateTreeLegacy(
+                                propMeta,
+                                rowRecord[key],
+                                resolveDefinition,
+                                depth + 1,
+                                isReq,
+                                activeNodes,
+                                activeRefs
+                            );
+                            const fieldLabel = propMeta.ui?.label || key;
+                            errors.push(
+                                res.isValid
+                                    ? { isValid: true, fieldKey: propPath }
+                                    : {
+                                          isValid: false,
+                                          errorMessage: res.errorMessage,
+                                          fieldKey: propPath,
+                                          fieldLabel
+                                      }
+                            );
+                        }
+                    } else if (resolvedItems) {
+                        const itemMeta = resolvedItems as IPropertyMetadata;
+                        if (itemMeta.ui?.visible === false || isPathHidden?.(itemPath)) {
+                            errors.push({ isValid: true, fieldKey: itemPath });
+                            return;
+                        }
+                        const res = validateTreeLegacy(
+                            itemMeta,
+                            item,
+                            resolveDefinition,
+                            depth + 1,
+                            undefined,
+                            activeNodes,
+                            activeRefs
+                        );
+                        const fieldLabel = itemMeta.ui?.label || itemPath;
+                        errors.push(
+                            res.isValid
+                                ? { isValid: true, fieldKey: itemPath }
+                                : { isValid: false, errorMessage: res.errorMessage, fieldKey: itemPath, fieldLabel }
+                        );
+                    }
+                });
+            }
+        }
+        return errors;
+    } finally {
+        activeNodes.delete(schema);
+        if (schemaRef) {
+            activeRefs.delete(schemaRef);
+        }
+        if (resolved) {
+            activeNodes.delete(resolved);
+        }
+    }
+}
+
 /** Oracle 11: DataInferenceBuilder.inferPropertiesFromObject legacy implementation. */
 function isValidIsoDateStringLegacy(value: string): boolean {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -1557,6 +1946,244 @@ function inferPrimitiveTypeLegacy(value: unknown): FieldType {
     if (typeof value === "boolean") return SCHEMA_TYPE.BOOLEAN;
     if (typeof value === "string" && isValidIsoDateStringLegacy(value)) return SCHEMA_TYPE.DATE;
     return SCHEMA_TYPE.STRING;
+}
+
+function mergeInferredPropertiesLegacy(
+    base: Record<string, IPropertyMetadata>,
+    next: Record<string, IPropertyMetadata>,
+    depth: number = 0,
+    activeMaps: WeakSet<object> = new WeakSet<object>()
+): Record<string, IPropertyMetadata> {
+    if (depth > MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; truncating recursive merge.`,
+            "DataInferenceBuilder"
+        );
+        return { ...base };
+    }
+    if (activeMaps.has(base) || activeMaps.has(next)) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            "Circular property map detected in mergeInferredProperties; truncating recursive merge.",
+            "DataInferenceBuilder"
+        );
+        return { ...base };
+    }
+    activeMaps.add(base);
+    activeMaps.add(next);
+    try {
+        const merged: Record<string, IPropertyMetadata> = { ...base };
+        for (const key of Object.keys(next)) {
+            const existing = merged[key];
+            const incoming = next[key];
+            if (!existing) {
+                merged[key] = incoming;
+                continue;
+            }
+            const combinedNullable = existing.nullable || incoming.nullable ? true : undefined;
+            const isExistingNullPlaceholder =
+                existing.type === SCHEMA_TYPE.STRING &&
+                !existing.properties &&
+                !existing.items &&
+                existing.nullable === true;
+            if (isExistingNullPlaceholder && !incoming.nullable) {
+                merged[key] = { ...incoming, nullable: true };
+                continue;
+            }
+            if (
+                existing.type === SCHEMA_TYPE.ARRAY &&
+                existing.items?.type !== SCHEMA_TYPE.OBJECT &&
+                incoming.items?.type === SCHEMA_TYPE.OBJECT &&
+                incoming.items.properties &&
+                Object.keys(incoming.items.properties).length > 0
+            ) {
+                merged[key] = { ...incoming, nullable: combinedNullable };
+                continue;
+            }
+            if (
+                existing.type === SCHEMA_TYPE.ARRAY &&
+                existing.items?.type === SCHEMA_TYPE.STRING &&
+                incoming.type === SCHEMA_TYPE.ARRAY &&
+                incoming.items?.type &&
+                incoming.items.type !== SCHEMA_TYPE.STRING &&
+                incoming.items.type !== SCHEMA_TYPE.OBJECT
+            ) {
+                merged[key] = { ...incoming, nullable: combinedNullable };
+                continue;
+            }
+            if (
+                existing.type === SCHEMA_TYPE.DATE &&
+                incoming.type === SCHEMA_TYPE.STRING &&
+                !incoming.nullable
+            ) {
+                merged[key] = { ...existing, type: SCHEMA_TYPE.STRING, nullable: combinedNullable };
+                continue;
+            }
+            if (existing.properties && incoming.properties) {
+                merged[key] = {
+                    ...existing,
+                    nullable: combinedNullable,
+                    properties: mergeInferredPropertiesLegacy(
+                        existing.properties,
+                        incoming.properties,
+                        depth + 1,
+                        activeMaps
+                    )
+                };
+            } else if (existing.items?.properties && incoming.items?.properties) {
+                merged[key] = {
+                    ...existing,
+                    nullable: combinedNullable,
+                    items: {
+                        ...existing.items,
+                        properties: mergeInferredPropertiesLegacy(
+                            existing.items.properties,
+                            incoming.items.properties,
+                            depth + 1,
+                            activeMaps
+                        )
+                    }
+                };
+            } else if (combinedNullable !== existing.nullable) {
+                merged[key] = { ...existing, nullable: combinedNullable };
+            }
+        }
+        return merged;
+    } finally {
+        activeMaps.delete(base);
+        activeMaps.delete(next);
+    }
+}
+
+function deepMergeRecordsLegacy(
+    base: JsonRecord,
+    override: JsonRecord,
+    depth: number = 0,
+    activeRecords: WeakSet<object> = new WeakSet<object>()
+): JsonRecord {
+    if (depth > MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; truncating recursive merge.`,
+            "DataInferenceBuilder"
+        );
+        return { ...base, ...override };
+    }
+    if (activeRecords.has(base) || activeRecords.has(override)) {
+        return { ...base, ...override };
+    }
+    activeRecords.add(base);
+    activeRecords.add(override);
+    try {
+        const merged: JsonRecord = { ...base };
+        for (const key of Object.keys(override)) {
+            const overrideVal = override[key];
+            const baseVal = merged[key];
+            merged[key] =
+                isRecord(baseVal) && isRecord(overrideVal)
+                    ? deepMergeRecordsLegacy(baseVal, overrideVal, depth + 1, activeRecords)
+                    : overrideVal;
+        }
+        return merged;
+    } finally {
+        activeRecords.delete(base);
+        activeRecords.delete(override);
+    }
+}
+
+function mergeHybridPropertiesLegacy(
+    inferredProps: JsonRecord,
+    explicitProps: JsonRecord,
+    depth: number = 0,
+    activeMaps: WeakSet<object> = new WeakSet<object>()
+): JsonRecord {
+    if (depth > MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; truncating recursive merge.`,
+            "DataInferenceBuilder"
+        );
+        return { ...inferredProps, ...explicitProps };
+    }
+    if (activeMaps.has(inferredProps) || activeMaps.has(explicitProps)) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            "Circular property map detected in mergeHybridProperties; truncating recursive merge.",
+            "DataInferenceBuilder"
+        );
+        return { ...inferredProps, ...explicitProps };
+    }
+    activeMaps.add(inferredProps);
+    activeMaps.add(explicitProps);
+    try {
+        const cleanedBase: JsonRecord = {};
+        for (const key of Object.keys(inferredProps)) {
+            const infProp = inferredProps[key];
+            const expProp = explicitProps[key];
+            if (isRecord(infProp) && isRecord(expProp)) {
+                const infClone: JsonRecord = { ...infProp };
+                if (isRecord(infClone.ui)) {
+                    const uiClone: JsonRecord = { ...infClone.ui };
+                    const expUi = readRecord(expProp, "ui");
+                    if (expProp.title !== undefined && !expUi?.label) delete uiClone.label;
+                    if (expProp.readOnly !== undefined && expUi?.readOnly === undefined) delete uiClone.readOnly;
+                    if (expProp.type !== undefined && expProp.type !== infClone.type && !expUi?.widget) {
+                        delete uiClone.widget;
+                    }
+                    infClone.ui = uiClone;
+                }
+                if (isRecord(infClone.properties) && isRecord(expProp.properties)) {
+                    let allowedInferredNested = infClone.properties;
+                    if (expProp.additionalProperties === false) {
+                        allowedInferredNested = {};
+                        for (const nestedKey of Object.keys(expProp.properties)) {
+                            if (nestedKey in infClone.properties) {
+                                allowedInferredNested[nestedKey] = infClone.properties[nestedKey];
+                            }
+                        }
+                    }
+                    infClone.properties = mergeHybridPropertiesLegacy(
+                        allowedInferredNested,
+                        expProp.properties,
+                        depth + 1,
+                        activeMaps
+                    );
+                }
+                cleanedBase[key] = infClone;
+            } else {
+                cleanedBase[key] = infProp;
+            }
+        }
+        return deepMergeRecordsLegacy(cleanedBase, explicitProps, depth);
+    } finally {
+        activeMaps.delete(inferredProps);
+        activeMaps.delete(explicitProps);
+    }
+}
+
+function inferPropertiesFromRowsLegacy(
+    rows: unknown[],
+    depth: number = 0,
+    seen: WeakSet<object> = new WeakSet()
+): Record<string, IPropertyMetadata> {
+    if (depth >= MAX_SCHEMA_DEPTH) {
+        Logger.warn(
+            "[MetaUI DataInferenceBuilder]",
+            `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached while sampling array rows; truncating nested inference.`,
+            "DataInferenceBuilder"
+        );
+        return {};
+    }
+    let merged: Record<string, IPropertyMetadata> = {};
+    const limit = Math.min(rows.length, 50);
+    for (let i = 0; i < limit; i++) {
+        const row = rows[i];
+        if (isRecord(row) && !seen.has(row)) {
+            merged = mergeInferredPropertiesLegacy(merged, inferPropertiesFromObjectLegacy(row, depth, seen));
+        }
+    }
+    return merged;
 }
 
 function inferPropertiesFromObjectLegacy(
@@ -1603,7 +2230,7 @@ function inferPropertiesFromObjectLegacy(
                     for (let i = 0; i < limit; i++) {
                         const row = val[i];
                         if (isRecord(row) && !seen.has(row)) {
-                            merged = DataInferenceBuilder.mergeInferredProperties(
+                            merged = mergeInferredPropertiesLegacy(
                                 merged,
                                 inferPropertiesFromObjectLegacy(row, depth + 1, seen)
                             );
@@ -2462,7 +3089,65 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
         );
     });
 
-    it("Parity 6 (openapi/parsers/OpenApiConstraintMapper.ts): resolveAllOf matches resolveAllOfLegacy", () => {
+    it("Parity 6 (openapi/parsers/OpenApiConstraintMapper.ts): resolveAllOf and deepMergeSchemas match legacy reference behaviour", () => {
+        const cycTarget: JsonRecord = { type: "object", properties: { a: { type: "string" } } };
+        cycTarget.items = cycTarget;
+        const cycSource: JsonRecord = {
+            type: "object",
+            properties: { a: { maxLength: 10 }, b: { type: "number" } },
+            items: { type: "object", minProperties: 1 }
+        };
+
+        const mergePairs: Array<[unknown, unknown]> = [
+            [
+                {
+                    type: "object",
+                    const: "alpha",
+                    multipleOf: 2,
+                    uniqueItems: true,
+                    minimum: 5,
+                    maximum: 20,
+                    enum: ["a", "b", "c"],
+                    pattern: "^[a-z]+$",
+                    additionalProperties: { type: "string", minLength: 2 },
+                    properties: {
+                        type: { type: "string", minLength: 1 },
+                        shared: { type: "number", minimum: 0 }
+                    },
+                    items: { type: "string", minLength: 3 }
+                },
+                {
+                    type: "object",
+                    const: "beta",
+                    multipleOf: 3,
+                    uniqueItems: false,
+                    minimum: 8,
+                    maximum: 15,
+                    enum: ["b", "c", "d"],
+                    pattern: "^.{3,}$",
+                    additionalProperties: { type: "string", maxLength: 10 },
+                    properties: {
+                        type: { type: "string", maxLength: 5 },
+                        shared: { type: "number", maximum: 100 },
+                        extra: { type: "boolean" }
+                    },
+                    items: { type: "string", maxLength: 12 }
+                }
+            ],
+            [cycTarget, cycSource]
+        ];
+
+        for (const [t, s] of mergePairs) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                OpenApiConstraintMapper.deepMergeSchemas(t, s)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                deepMergeSchemasLegacy(t, s)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
         for (const adv of adversarialCases) {
             for (const prop of Object.values(adv.schema.properties || {})) {
                 const rawRecord = deepClone(prop) as unknown as JsonRecord;
@@ -2477,20 +3162,34 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
             }
         }
         fc.assert(
-            fc.property(arbGeneratedSchema, (schema) => {
+            fc.property(arbGeneratedSchema, arbGeneratedSchema, (schemaA, schemaB) => {
+                const { value: mergedA, entries: mergeLogsA } = withLogCapture(() =>
+                    OpenApiConstraintMapper.deepMergeSchemas(schemaA, schemaB)
+                );
+                const { value: mergedB, entries: mergeLogsB } = withLogCapture(() =>
+                    deepMergeSchemasLegacy(schemaA, schemaB)
+                );
+                assert.deepEqual(mergedA, mergedB);
+                assert.deepEqual(mergeLogsA.map(logText), mergeLogsB.map(logText));
+
                 const candidate: JsonRecord = {
                     type: "object",
                     allOf: [
                         { $ref: "#/definitions/SharedDef" },
-                        ...(schema.definitions?.CyclicA ? [{ $ref: "#/definitions/CyclicA" }] : []),
-                        { type: "object", properties: schema.properties || {} }
+                        ...(schemaA.definitions?.CyclicA ? [{ $ref: "#/definitions/CyclicA" }] : []),
+                        {
+                            allOf: [
+                                { type: "object", properties: schemaB.properties || {} }
+                            ]
+                        },
+                        { type: "object", properties: schemaA.properties || {} }
                     ]
                 };
                 const { value: actual, entries: actualLogs } = withLogCapture(() =>
-                    OpenApiConstraintMapper.resolveAllOf(candidate, schema)
+                    OpenApiConstraintMapper.resolveAllOf(candidate, schemaA)
                 );
                 const { value: expected, entries: expectedLogs } = withLogCapture(() =>
-                    resolveAllOfLegacy(candidate, schema)
+                    resolveAllOfLegacy(candidate, schemaA)
                 );
                 assert.deepEqual(actual, expected);
                 assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
@@ -2534,6 +3233,26 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
                 sanitizeODataPayload(value: unknown, depth: number): unknown;
             }
         ).sanitizeODataPayload.bind(ODataDelegate.prototype);
+        const odataSamples: unknown[] = [
+            {
+                "@odata.context": "$metadata#Employees/$entity",
+                "__metadata": { uri: "Employees('E100')" },
+                ID: "E100",
+                HireDate: new Date(Date.UTC(2025, 0, 15)),
+                NavDeferred: { __deferred: { uri: "Employees('E100')/NavDeferred" } },
+                Lines: [
+                    { "@odata.etag": "W/1", Qty: 3, CreatedAt: new Date(Date.UTC(2025, 1, 1)) }
+                ]
+            }
+        ];
+        for (const sample of odataSamples) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() => sanitizeActual(sample, 0));
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                sanitizeODataPayloadLegacy(sample, 0)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
         fc.assert(
             fc.property(arbArbitraryPayload, (payload) => {
                 const { value: actual, entries: actualLogs } = withLogCapture(() =>
@@ -2576,7 +3295,87 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
         );
     });
 
-    it("Parity 10 (core/PayloadValidator.ts): validateTree matches validateTreeLegacy on generated and adversarial cases", () => {
+    it("Parity 10 (core/PayloadValidator.ts): validateTree and validatePayloadArrays match legacy reference behaviour on generated and adversarial cases", () => {
+        const notSchemas: Array<{ meta: IPropertyMetadata; val: unknown }> = [
+            {
+                meta: { type: "string", not: { type: "string", const: "forbidden" } },
+                val: "forbidden"
+            },
+            {
+                meta: { type: "string", not: { type: "string", const: "forbidden" } },
+                val: "allowed"
+            },
+            {
+                meta: { type: "string", not: { type: "string" } },
+                val: "anything"
+            }
+        ];
+        for (const ns of notSchemas) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                PayloadValidator.validateTree(ns.meta, ns.val)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                validateTreeLegacy(ns.meta, ns.val)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
+        const arrayValidationCases: Array<{ schema: ISchema; payload: unknown }> = [
+            {
+                schema: {
+                    type: "object",
+                    required: ["missingArr"],
+                    properties: {
+                        missingArr: { type: "array", minItems: 1, items: { type: "string" } },
+                        rows: {
+                            type: "array",
+                            minItems: 2,
+                            items: {
+                                type: "object",
+                                required: ["code"],
+                                properties: {
+                                    code: { type: "string", minLength: 3 },
+                                    hiddenCol: { type: "string", required: true, ui: { visible: false } }
+                                }
+                            }
+                        },
+                        tags: {
+                            type: "array",
+                            items: { type: "string", minLength: 2 }
+                        }
+                    }
+                },
+                payload: {
+                    rows: [{ code: "ab" }, { code: "abcd" }],
+                    tags: ["ok", "x"]
+                }
+            },
+            {
+                schema: {
+                    type: "array",
+                    minItems: 1,
+                    items: {
+                        type: "object",
+                        properties: {
+                            qty: { type: "number", minimum: 1 }
+                        }
+                    }
+                },
+                payload: { items: [{ qty: 0 }, { qty: 5 }] }
+            }
+        ];
+        for (const c of arrayValidationCases) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                PayloadValidator.validatePayloadArrays(c.schema, c.payload, "", () => undefined)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                validatePayloadArraysLegacy(c.schema, c.payload, "", () => undefined)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
         for (const adv of adversarialCases) {
             const resolveDef = (ref: string): ISchema | null =>
                 adv.schema.definitions?.[OpenApiRefResolver.extractRefName(ref)] || null;
@@ -2588,6 +3387,15 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
             );
             assert.deepEqual(actual, expected, `Adversarial: ${adv.name}`);
             assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+
+            const { value: arrActual, entries: arrActualLogs } = withLogCapture(() =>
+                PayloadValidator.validatePayloadArrays(adv.schema, adv.sampleData, "", () => undefined, resolveDef)
+            );
+            const { value: arrExpected, entries: arrExpectedLogs } = withLogCapture(() =>
+                validatePayloadArraysLegacy(adv.schema, adv.sampleData, "", () => undefined, resolveDef)
+            );
+            assert.deepEqual(arrActual, arrExpected, `Adversarial validatePayloadArrays: ${adv.name}`);
+            assert.deepEqual(arrActualLogs.map(logText), arrExpectedLogs.map(logText));
         }
         fc.assert(
             fc.property(arbGeneratedSchema, arbArbitraryPayload, (schema, payload) => {
@@ -2601,22 +3409,191 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
                 );
                 assert.deepEqual(actual, expected);
                 assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+
+                const { value: arrActual, entries: arrActualLogs } = withLogCapture(() =>
+                    PayloadValidator.validatePayloadArrays(schema, payload, "", () => undefined, resolveDef)
+                );
+                const { value: arrExpected, entries: arrExpectedLogs } = withLogCapture(() =>
+                    validatePayloadArraysLegacy(schema, payload, "", () => undefined, resolveDef)
+                );
+                assert.deepEqual(arrActual, arrExpected);
+                assert.deepEqual(arrActualLogs.map(logText), arrExpectedLogs.map(logText));
             })
         );
     });
 
-    it("Parity 11 (core/DataInferenceBuilder.ts): inferPropertiesFromObject matches inferPropertiesFromObjectLegacy", () => {
+    it("Parity 11 (core/DataInferenceBuilder.ts): inferPropertiesFromObject, mergeInferredProperties, and mergeHybridProperties match legacy reference behaviour", () => {
+        // 1. Hand-written mergeInferredProperties cases (including cycles, array upgrades, null placeholder, date->string, nested items/properties)
+        const cycMapA: Record<string, IPropertyMetadata> = {
+            nested: { type: "object", properties: {} }
+        };
+        cycMapA.nested.properties = cycMapA;
+        const cycMapB: Record<string, IPropertyMetadata> = {
+            nested: { type: "object", properties: { extra: { type: "number" } } }
+        };
+
+        const inferredPairs: Array<[Record<string, IPropertyMetadata>, Record<string, IPropertyMetadata>]> = [
+            [
+                {
+                    nullCol: { type: "string", nullable: true },
+                    emptyArr: { type: "array", items: { type: "string" } },
+                    primArr: { type: "array", items: { type: "string" } },
+                    dateCol: { type: "date" },
+                    objCol: { type: "object", properties: { a: { type: "string" } } },
+                    arrObjCol: {
+                        type: "array",
+                        items: { type: "object", properties: { x: { type: "number" } } }
+                    }
+                },
+                {
+                    nullCol: { type: "number" },
+                    emptyArr: {
+                        type: "array",
+                        items: { type: "object", properties: { id: { type: "string" } } }
+                    },
+                    primArr: { type: "array", items: { type: "number" } },
+                    dateCol: { type: "string" },
+                    objCol: { type: "object", nullable: true, properties: { b: { type: "boolean" } } },
+                    arrObjCol: {
+                        type: "array",
+                        nullable: true,
+                        items: { type: "object", properties: { y: { type: "string" } } }
+                    },
+                    brandNew: { type: "boolean" }
+                }
+            ],
+            [cycMapA, cycMapB]
+        ];
+
+        for (const [base, next] of inferredPairs) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                DataInferenceBuilder.mergeInferredProperties(base, next)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                mergeInferredPropertiesLegacy(base, next)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
+        // 2. Hand-written mergeHybridProperties cases (including cycles, additionalProperties: false, ui cleanup, deep merge)
+        const cycHybridA: JsonRecord = {
+            sub: { type: "object", properties: {} }
+        };
+        (cycHybridA.sub as JsonRecord).properties = cycHybridA;
+        const cycHybridB: JsonRecord = {
+            sub: { type: "object", properties: { k: { type: "string" } } }
+        };
+
+        const hybridPairs: Array<[JsonRecord, JsonRecord]> = [
+            [
+                {
+                    f1: {
+                        type: "string",
+                        ui: { label: "F1", readOnly: false, widget: WIDGET_TYPE.MULTI_INPUT }
+                    },
+                    nestedClosed: {
+                        type: "object",
+                        properties: {
+                            allowed: { type: "string", ui: { label: "Allowed", readOnly: false } },
+                            dropped: { type: "number", ui: { label: "Dropped", readOnly: false } }
+                        }
+                    },
+                    nestedOpen: {
+                        type: "object",
+                        properties: {
+                            inferredOnly: { type: "boolean" },
+                            shared: { type: "string", ui: { label: "Shared", readOnly: false } }
+                        }
+                    }
+                },
+                {
+                    f1: {
+                        type: "number",
+                        title: "Custom Title",
+                        readOnly: true,
+                        ui: { placeholder: "Enter number" }
+                    },
+                    nestedClosed: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            allowed: { title: "Explicit Allowed" }
+                        }
+                    },
+                    nestedOpen: {
+                        type: "object",
+                        properties: {
+                            shared: { readOnly: true }
+                        }
+                    },
+                    explicitOnly: { type: "date" }
+                }
+            ],
+            [cycHybridA, cycHybridB]
+        ];
+
+        for (const [infProps, expProps] of hybridPairs) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                DataInferenceBuilder.mergeHybridProperties(infProps, expProps)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                mergeHybridPropertiesLegacy(infProps, expProps)
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
+        // 3. Property-based random payloads for inferPropertiesFromObject, mergeInferredProperties, and mergeHybridProperties
         fc.assert(
-            fc.property(fc.dictionary(arbPropKey, arbArbitraryPayload, { maxKeys: 5 }), (obj) => {
-                const { value: actual, entries: actualLogs } = withLogCapture(() =>
-                    DataInferenceBuilder.inferPropertiesFromObject(obj)
-                );
-                const { value: expected, entries: expectedLogs } = withLogCapture(() =>
-                    inferPropertiesFromObjectLegacy(obj)
-                );
-                assert.deepEqual(actual, expected);
-                assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
-            })
+            fc.property(
+                fc.dictionary(arbPropKey, arbArbitraryPayload, { maxKeys: 5 }),
+                fc.dictionary(arbPropKey, arbArbitraryPayload, { maxKeys: 5 }),
+                (objA, objB) => {
+                    const { value: actualA, entries: actualLogsA } = withLogCapture(() =>
+                        DataInferenceBuilder.inferPropertiesFromObject(objA)
+                    );
+                    const { value: expectedA, entries: expectedLogsA } = withLogCapture(() =>
+                        inferPropertiesFromObjectLegacy(objA)
+                    );
+                    assert.deepEqual(actualA, expectedA);
+                    assert.deepEqual(actualLogsA.map(logText), expectedLogsA.map(logText));
+
+                    const inferredB = inferPropertiesFromObjectLegacy(objB);
+                    const { value: mergedInfActual, entries: mergedInfLogsA } = withLogCapture(() =>
+                        DataInferenceBuilder.mergeInferredProperties(actualA, inferredB)
+                    );
+                    const { value: mergedInfExpected, entries: mergedInfLogsB } = withLogCapture(() =>
+                        mergeInferredPropertiesLegacy(expectedA, inferredB)
+                    );
+                    assert.deepEqual(mergedInfActual, mergedInfExpected);
+                    assert.deepEqual(mergedInfLogsA.map(logText), mergedInfLogsB.map(logText));
+
+                    const { value: rowsActual, entries: rowsLogsA } = withLogCapture(() =>
+                        DataInferenceBuilder.inferPropertiesFromRows([objA, objB])
+                    );
+                    const { value: rowsExpected, entries: rowsLogsB } = withLogCapture(() =>
+                        inferPropertiesFromRowsLegacy([objA, objB])
+                    );
+                    assert.deepEqual(rowsActual, rowsExpected);
+                    assert.deepEqual(rowsLogsA.map(logText), rowsLogsB.map(logText));
+
+                    const { value: hybridActual, entries: hybridLogsA } = withLogCapture(() =>
+                        DataInferenceBuilder.mergeHybridProperties(
+                            actualA as unknown as JsonRecord,
+                            inferredB as unknown as JsonRecord
+                        )
+                    );
+                    const { value: hybridExpected, entries: hybridLogsB } = withLogCapture(() =>
+                        mergeHybridPropertiesLegacy(
+                            expectedA as unknown as JsonRecord,
+                            inferredB as unknown as JsonRecord
+                        )
+                    );
+                    assert.deepEqual(hybridActual, hybridExpected);
+                    assert.deepEqual(hybridLogsA.map(logText), hybridLogsB.map(logText));
+                }
+            )
         );
     });
 
@@ -2646,6 +3623,39 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
     });
 
     it("Parity 13 (core/SchemaNormalizer.ts): stripWriteOnlyValues and normalize match legacy reference behaviour", () => {
+        const writeOnlySchema: ISchema = {
+            type: "object",
+            properties: {
+                secret: { type: "string", writeOnly: true },
+                keep: { type: "string" },
+                rows: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            rowSecret: { type: "string", writeOnly: true },
+                            rowKeep: { type: "number" }
+                        }
+                    }
+                },
+                dict: {
+                    type: "object",
+                    additionalProperties: { type: "string", writeOnly: true }
+                }
+            }
+        };
+        const writeOnlySample = {
+            secret: "pw",
+            keep: "ok",
+            rows: [{ rowSecret: "hidden", rowKeep: 1 }],
+            dict: { k1: "v1", k2: "v2" }
+        };
+        const woActual = deepClone(writeOnlySample);
+        const woExpected = deepClone(writeOnlySample);
+        SchemaNormalizer.stripWriteOnlyValues(writeOnlySchema, woActual);
+        stripWriteOnlyValuesLegacy(writeOnlySchema, woExpected, writeOnlySchema.definitions);
+        assert.deepEqual(woActual, woExpected);
+
         for (const adv of adversarialCases) {
             const payloadA = deepClone(adv.sampleData);
             const payloadB = deepClone(adv.sampleData);
@@ -2762,6 +3772,22 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
                             }
                         };
                     }
+                    if (candidate.properties) {
+                        candidate.properties.layoutTextProp = { type: "string" };
+                        candidate.uiLayout = [
+                            {
+                                type: "Group",
+                                label: "PreloadGroup",
+                                elements: [
+                                    {
+                                        type: "Control",
+                                        scope: "#/properties/layoutTextProp",
+                                        widget: WIDGET_TYPE.TEXT_AREA
+                                    }
+                                ]
+                            }
+                        ];
+                    }
                     const { value: actual, entries: actualLogs } = withLogCapture(() =>
                         registry.getPathsToLoad(candidate, candidate.definitions)
                     );
@@ -2772,6 +3798,174 @@ describe("SchemaWalker Differential Parity — All 13 Walkers", () => {
                     assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
                 }
             )
+        );
+    });
+
+    it("Parity 15 (core/SchemaDirectiveNormalizer.ts): normalizeLayout matches normalizeLayoutLegacy on generated, cyclic, and deep layouts", () => {
+        // 1. Adversarial cyclic + diamond + deep layout elements
+        const sharedChild: ILayoutElement = { type: "Control", scope: "#/properties/Shared", widget: "input" };
+        const cyclicContainer: ILayoutElement = {
+            type: "Group",
+            label: "CyclicGrp",
+            elements: [sharedChild]
+        };
+        cyclicContainer.elements!.push(cyclicContainer, sharedChild);
+
+        let deepLayout: ILayoutElement[] = [{ type: "Control", scope: "#/properties/Leaf" }];
+        for (let i = 0; i <= MAX_LAYOUT_DEPTH + 2; i++) {
+            deepLayout = [{ type: "VerticalLayout", label: `L${i}`, elements: deepLayout }];
+        }
+
+        const advLayouts: unknown[] = [undefined, null, [], [cyclicContainer], deepLayout];
+        for (const rawLayout of advLayouts) {
+            const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                SchemaDirectiveNormalizer.normalizeLayout(rawLayout)
+            );
+            const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                normalizeLayoutLegacy(rawLayout, 0, new WeakSet<object>())
+            );
+            assert.deepEqual(actual, expected);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
+        // 2. Generated property-based layouts
+        fc.assert(
+            fc.property(arbGeneratedSchema, (schema) => {
+                const scopes = Object.keys(schema.properties || {}).map((k) => `#/properties/${k}`);
+                const rawLayout = [
+                    {
+                        type: "Group",
+                        label: "GeneratedGroup",
+                        elements: [
+                            ...scopes.map((s) => ({ type: "Control", scope: s, widget: "input" })),
+                            {
+                                type: "HorizontalLayout",
+                                label: "Row",
+                                elements: scopes.slice(0, 2).map((s) => ({ type: "Control", scope: s }))
+                            }
+                        ]
+                    }
+                ];
+                const { value: actual, entries: actualLogs } = withLogCapture(() =>
+                    SchemaDirectiveNormalizer.normalizeLayout(rawLayout)
+                );
+                const { value: expected, entries: expectedLogs } = withLogCapture(() =>
+                    normalizeLayoutLegacy(rawLayout, 0, new WeakSet<object>())
+                );
+                assert.deepEqual(actual, expected);
+                assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+            })
+        );
+    });
+
+    it("Parity 16 (core/LayoutMutator.ts): apply/expandElements matches expandElementsLegacy on generated, inline-object, dialog-collapsed, cyclic, and deep layouts", () => {
+        // 1. Hand-written inline-object, wizard top-level, dialog collapse, cyclic element, cyclic inline-object, and deep cases
+        const inlineChildA: IPropertyMetadata = { type: "string", ui: { label: "Street" } };
+        const inlineObj: IPropertyMetadata = {
+            type: "object",
+            ui: { label: "Address", renderMode: RENDER_MODE.INLINE },
+            properties: { street: inlineChildA }
+        };
+        const cyclicMeta: IPropertyMetadata = {
+            type: "object",
+            ui: { label: "SelfObj", renderMode: RENDER_MODE.INLINE },
+            properties: {}
+        };
+        cyclicMeta.properties!.self = cyclicMeta;
+
+        const dialogObj: IPropertyMetadata = {
+            type: "object",
+            ui: { label: "Details", renderMode: RENDER_MODE.DIALOG },
+            properties: { note: { type: "string" }, extra: { type: "string" } }
+        };
+
+        const cyclicLayoutEl: ILayoutElement = {
+            type: "Group",
+            label: "CyclicGroup",
+            elements: []
+        };
+        cyclicLayoutEl.elements!.push(cyclicLayoutEl, { type: "Control", scope: "#/properties/addr" });
+
+        let deepLayout: ILayoutElement[] = [{ type: "Control", scope: "#/properties/addr" }];
+        for (let i = 0; i <= MAX_LAYOUT_DEPTH + 1; i++) {
+            deepLayout = [{ type: "Group", label: `D${i}`, elements: deepLayout }];
+        }
+
+        const testSchemas: ISchema[] = [
+            {
+                type: "object",
+                layoutStrategy: LAYOUT_STRATEGY.WIZARD,
+                properties: { addr: inlineObj, dlg: dialogObj, cyc: cyclicMeta },
+                uiLayout: [
+                    { type: "Control", scope: "#/properties/addr" },
+                    {
+                        type: "Group",
+                        label: "Sub",
+                        elements: [
+                            { type: "Control", scope: "#/properties/dlg/properties/note" },
+                            { type: "Control", scope: "#/properties/dlg/properties/extra" },
+                            { type: "Control", scope: "#/properties/cyc" }
+                        ]
+                    },
+                    cyclicLayoutEl
+                ]
+            },
+            {
+                type: "object",
+                properties: { addr: inlineObj },
+                uiLayout: deepLayout
+            }
+        ];
+
+        for (const baseSchema of testSchemas) {
+            const schemaActual: ISchema = {
+                ...baseSchema,
+                uiLayout: baseSchema.uiLayout
+            };
+            const decisions = LayoutScorer.apply(schemaActual);
+            const { entries: actualLogs } = withLogCapture(() => {
+                LayoutMutator.apply(schemaActual, decisions);
+            });
+            const { value: expectedLayout, entries: expectedLogs } = withLogCapture(() =>
+                expandElementsLegacy(baseSchema.uiLayout!, baseSchema, decisions, true)
+            );
+            assert.deepEqual(schemaActual.uiLayout, expectedLayout);
+            assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+        }
+
+        // 2. Generated property-based schemas with uiLayout
+        fc.assert(
+            fc.property(arbGeneratedSchema, (schema) => {
+                const keys = Object.keys(schema.properties || {});
+                const baseLayout: ILayoutElement[] = [
+                    ...keys.slice(0, 2).map((k): ILayoutElement => ({ type: "Control", scope: `#/properties/${k}` })),
+                    {
+                        type: "Group",
+                        label: "G1",
+                        elements: keys.map((k): ILayoutElement => ({ type: "Control", scope: `#/properties/${k}` }))
+                    }
+                ];
+                const schemaActual: ISchema = { ...deepClone(schema), uiLayout: deepClone(baseLayout) };
+                const schemaExpected: ISchema = { ...deepClone(schema), uiLayout: deepClone(baseLayout) };
+                const decisionsActual = LayoutScorer.apply(schemaActual);
+                const decisionsExpected = LayoutScorer.apply(schemaExpected);
+
+                const { entries: actualLogs } = withLogCapture(() => {
+                    LayoutMutator.apply(schemaActual, decisionsActual);
+                });
+                const { value: expectedLayout, entries: expectedLogs } = withLogCapture(() => {
+                    // Project decisions onto schemaExpected before calling expandElementsLegacy
+                    const mutatorInternal = LayoutMutator as unknown as {
+                        projectDecisions(s: ISchema, d: LayoutDecisionTable): void;
+                    };
+                    if (decisionsExpected.size > 0) {
+                        mutatorInternal.projectDecisions(schemaExpected, decisionsExpected);
+                    }
+                    return expandElementsLegacy(schemaExpected.uiLayout!, schemaExpected, decisionsExpected, true);
+                });
+                assert.deepEqual(schemaActual.uiLayout, expectedLayout);
+                assert.deepEqual(actualLogs.map(logText), expectedLogs.map(logText));
+            })
         );
     });
 });
@@ -3071,4 +4265,204 @@ function getPathsToLoadLegacy(
     }
 
     return pathsToLoad;
+}
+
+/** Oracle 15: SchemaDirectiveNormalizer.normalizeLayout legacy recursive implementation. */
+function normalizeLayoutLegacy(
+    raw: unknown,
+    depth: number,
+    activeElements: WeakSet<object>
+): ILayoutElement[] | undefined {
+    const validTypes = new Set(["Control", "Group", "WizardStep", "HorizontalLayout", "VerticalLayout"]);
+    if (!Array.isArray(raw)) return undefined;
+    if (depth > MAX_LAYOUT_DEPTH) {
+        Logger.warn(
+            "[MetaUI SchemaNormalizer]",
+            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
+        );
+        return [];
+    }
+    const normalized: ILayoutElement[] = [];
+    for (let index = 0; index < raw.length; index++) {
+        const entry = raw[index];
+        if (!isRecord(entry) || typeof entry.type !== "string" || !validTypes.has(entry.type)) {
+            const entryType = isRecord(entry) ? String(entry.type) : typeof entry;
+            const msg =
+                `uiLayout element #${index} has unsupported type '${entryType}'. ` +
+                `Allowed: Control, Group, WizardStep, HorizontalLayout, VerticalLayout.`;
+            Logger.error("[MetaUI SchemaNormalizer]", msg);
+            throw new Error(msg);
+        }
+        if (activeElements.has(entry)) {
+            Logger.warn(
+                "[MetaUI SchemaNormalizer]",
+                `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
+            );
+            continue;
+        }
+        activeElements.add(entry);
+        try {
+            normalized.push({
+                type: entry.type as ILayoutElement["type"],
+                label: readString(entry, "label"),
+                scope: readString(entry, "scope"),
+                widget: readString(entry, "widget"),
+                elements: normalizeLayoutLegacy(entry.elements, depth + 1, activeElements)
+            });
+        } finally {
+            activeElements.delete(entry);
+        }
+    }
+    return normalized;
+}
+
+/** Oracle 16: LayoutMutator.expandElements legacy recursive implementation. */
+function expandElementsLegacy(
+    elements: ILayoutElement[],
+    rootSchema: ISchema,
+    decisions: LayoutDecisionTable | undefined,
+    isTopLevel: boolean = false,
+    emittedDialogScopes: Set<string> = new Set<string>(),
+    depth: number = 0,
+    activeElements: WeakSet<object> = new WeakSet<object>()
+): ILayoutElement[] {
+    if (depth > MAX_LAYOUT_DEPTH) {
+        Logger.warn(
+            "[MetaUI LayoutMutator]",
+            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) during layout expansion; truncating deeper elements.`
+        );
+        return [];
+    }
+    const expanded: ILayoutElement[] = [];
+    const isWizardTopLevel = isTopLevel && rootSchema.layoutStrategy === LAYOUT_STRATEGY.WIZARD;
+
+    const resolveRenderMode = (
+        scope: string | undefined,
+        meta: IPropertyMetadata | undefined
+    ): string | undefined => {
+        const decision: ILayoutDecision | undefined = scope ? decisions?.get(scope) : undefined;
+        return decision?.renderMode || meta?.ui?.renderMode;
+    };
+
+    for (const element of elements) {
+        if (!element || typeof element !== "object") {
+            continue;
+        }
+        if (activeElements.has(element)) {
+            Logger.warn(
+                "[MetaUI LayoutMutator]",
+                "Circular uiLayout element reference detected during layout expansion; stopping recursion."
+            );
+            continue;
+        }
+        activeElements.add(element);
+        try {
+            if (
+                element.type === "Group" ||
+                element.type === "WizardStep" ||
+                element.type === "HorizontalLayout" ||
+                element.type === "VerticalLayout"
+            ) {
+                const clonedContainer: ILayoutElement = { ...element };
+                if (element.elements) {
+                    clonedContainer.elements = expandElementsLegacy(
+                        element.elements,
+                        rootSchema,
+                        decisions,
+                        false,
+                        emittedDialogScopes,
+                        depth + 1,
+                        activeElements
+                    );
+                }
+                expanded.push(clonedContainer);
+            } else if (element.type === "Control") {
+                if (!element.scope) {
+                    expanded.push(element);
+                    continue;
+                }
+                try {
+                    const topSegment = element.scope.startsWith("#/properties/")
+                        ? element.scope.replace("#/properties/", "").split("/properties/")[0]
+                        : undefined;
+                    const topPropMeta = topSegment ? rootSchema.properties?.[topSegment] : undefined;
+                    const topScope = topSegment ? `#/properties/${topSegment}` : undefined;
+                    if (
+                        topPropMeta &&
+                        topScope &&
+                        element.scope !== topScope &&
+                        resolveRenderMode(topScope, topPropMeta) === RENDER_MODE.DIALOG
+                    ) {
+                        if (!emittedDialogScopes.has(topScope)) {
+                            emittedDialogScopes.add(topScope);
+                            expanded.push({ type: "Control", scope: topScope });
+                        }
+                        continue;
+                    }
+
+                    const { meta, bindingPath } = SchemaNormalizer.resolveScope(rootSchema, element.scope);
+                    const hasExplicitWidget = Boolean(meta?.ui?.widget || element.widget);
+                    const isInlineObject =
+                        meta?.type === SCHEMA_TYPE.OBJECT &&
+                        resolveRenderMode(element.scope, meta) === RENDER_MODE.INLINE &&
+                        !hasExplicitWidget;
+
+                    if (isInlineObject && meta.properties) {
+                        if (activeElements.has(meta)) {
+                            Logger.warn(
+                                "[MetaUI LayoutMutator]",
+                                `Circular inline object detected at '${element.scope}'; stopping recursive expansion.`
+                            );
+                            expanded.push(element);
+                            continue;
+                        }
+                        activeElements.add(meta);
+                        try {
+                            const childElements: ILayoutElement[] = [];
+                            for (const childKey of Object.keys(meta.properties)) {
+                                childElements.push({
+                                    type: "Control",
+                                    scope: `${element.scope}/properties/${childKey}`
+                                });
+                            }
+
+                            const newGroup: ILayoutElement = {
+                                ...element,
+                                type: isWizardTopLevel ? "VerticalLayout" : "Group",
+                                label: element.label || meta.ui?.label || bindingPath.split("/").pop(),
+                                elements: expandElementsLegacy(
+                                    childElements,
+                                    rootSchema,
+                                    decisions,
+                                    false,
+                                    emittedDialogScopes,
+                                    depth + 1,
+                                    activeElements
+                                )
+                            };
+                            delete newGroup.scope;
+
+                            expanded.push(newGroup);
+                        } finally {
+                            activeElements.delete(meta);
+                        }
+                    } else {
+                        expanded.push(element);
+                    }
+                } catch (err) {
+                    Logger.debug(
+                        "[MetaUI LayoutMutator]",
+                        `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`
+                    );
+                    expanded.push(element);
+                }
+            } else {
+                expanded.push(element);
+            }
+        } finally {
+            activeElements.delete(element);
+        }
+    }
+
+    return expanded;
 }

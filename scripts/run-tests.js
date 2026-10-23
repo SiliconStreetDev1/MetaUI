@@ -1536,7 +1536,7 @@ function runRenderDegradationGate(violations, tsFiles) {
 // ---------------------------------------------------------------------------
 
 const SCHEMA_WALKER_OWNER_FILE = "core/SchemaWalker.ts";
-const SCHEMA_WALKER_OWNER_MEMBERS = ["walk", "toBindingPath", "resolveScope"];
+const SCHEMA_WALKER_OWNER_MEMBERS = ["walk", "walkPaired", "toBindingPath", "resolveScope"];
 const WALKER_EXEMPT_MARKER = "WALKER_EXEMPT:";
 const MIN_WALKER_EXEMPT_REASON_CHARS = 60;
 const SCHEMA_TREE_PROPS = new Set([
@@ -1792,7 +1792,7 @@ function runSingleWalkerGate(violations, tsFiles) {
 
             const hasDepthParam = c.parameters.some((p) => /depth/i.test(p.name.getText(sf)));
             const ownText = extractOwnCallableText(c, callables, sf);
-            const usesSchemaWalker = /\bSchemaWalker\.walk\s*\(/.test(ownText);
+            const usesSchemaWalker = /\bSchemaWalker\.(walk|walkPaired)\s*\(/.test(ownText);
             const exemptMatch = new RegExp(
                 `//\\s*${WALKER_EXEMPT_MARKER}([\\s\\S]*?)(?:\\r?\\n\\s*[^/\\s]|$)`
             ).exec(ownText);

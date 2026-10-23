@@ -7,7 +7,7 @@
 
 import { ISchema, ILayoutElement, IPropertyMetadata, IUIDirective } from "../interfaces/ISchema";
 import { SchemaNormalizer } from "./SchemaNormalizer";
-import { SchemaWalker } from "./SchemaWalker";
+import { LayoutElementShape, SchemaWalker } from "./SchemaWalker";
 import { ILayoutDecision, LayoutDecisionTable, LayoutScorer } from "./LayoutScorer";
 import {
     LAYOUT_STRATEGY,
@@ -239,60 +239,46 @@ export class LayoutMutator {
         rootSchema: ISchema,
         decisions: LayoutDecisionTable | undefined,
         isTopLevel: boolean = false,
-        emittedDialogScopes: Set<string> = new Set<string>(),
-        depth: number = 0,
-        activeElements: WeakSet<object> = new WeakSet<object>()
+        emittedDialogScopes: Set<string> = new Set<string>()
     ): ILayoutElement[] {
-        // WALKER_EXEMPT: LayoutMutator.expandElements rewrites an ILayoutElement[] uiLayout tree (Group/WizardStep/Control nodes), not an ISchema property tree.
-        if (depth > MAX_LAYOUT_DEPTH) {
-            Logger.warn(
-                "[MetaUI LayoutMutator]",
-                `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) during layout expansion; truncating deeper elements.`
-            );
-            return [];
-        }
-        const expanded: ILayoutElement[] = [];
         const isWizardTopLevel = isTopLevel && rootSchema.layoutStrategy === LAYOUT_STRATEGY.WIZARD;
+        const childrenStack: ILayoutElement[][] = [[]];
+        const activeInlineMetas = new WeakSet<object>();
+        const containerFrames = new Set<ILayoutElement>();
+        const inlineFrames = new Map<
+            ILayoutElement,
+            { meta: IPropertyMetadata; newGroup: ILayoutElement; childElements: ILayoutElement[] }
+        >();
 
-        for (const element of elements) {
-            if (!element || typeof element !== "object") {
-                continue;
-            }
-            if (activeElements.has(element)) {
-                Logger.warn(
-                    "[MetaUI LayoutMutator]",
-                    "Circular uiLayout element reference detected during layout expansion; stopping recursion."
-                );
-                continue;
-            }
-            activeElements.add(element);
-            try {
+        SchemaWalker.walk<ILayoutElement>(
+            elements,
+            (ctx) => {
+                const element = ctx.node;
                 if (
                     element.type === "Group" ||
                     element.type === "WizardStep" ||
                     element.type === "HorizontalLayout" ||
                     element.type === "VerticalLayout"
                 ) {
-                    const clonedContainer: ILayoutElement = { ...element };
+                    containerFrames.add(element);
                     if (element.elements) {
-                        // The emitted-scope set is threaded through the whole pass: a dialog-rendered property
-                        // referenced from two containers must still produce exactly one Control, or two plugin
-                        // instances register under one path and only the first is ever painted.
-                        clonedContainer.elements = this.expandElements(
-                            element.elements,
-                            rootSchema,
-                            decisions,
-                            false,
-                            emittedDialogScopes,
-                            depth + 1,
-                            activeElements
-                        );
+                        childrenStack.push([]);
+                        if (ctx.depth >= MAX_LAYOUT_DEPTH) {
+                            Logger.warn(
+                                "[MetaUI LayoutMutator]",
+                                `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) ` +
+                                    `during layout expansion; truncating deeper elements.`
+                            );
+                            return "skip-subtree";
+                        }
+                        return undefined;
                     }
-                    expanded.push(clonedContainer);
-                } else if (element.type === "Control") {
+                    return "skip-subtree";
+                }
+                if (element.type === "Control") {
                     if (!element.scope) {
-                        expanded.push(element);
-                        continue;
+                        childrenStack[childrenStack.length - 1].push(element);
+                        return "skip-subtree";
                     }
                     try {
                         const topSegment = element.scope.startsWith("#/properties/")
@@ -308,13 +294,12 @@ export class LayoutMutator {
                         ) {
                             if (!emittedDialogScopes.has(topScope)) {
                                 emittedDialogScopes.add(topScope);
-                                expanded.push({ type: "Control", scope: topScope });
+                                childrenStack[childrenStack.length - 1].push({ type: "Control", scope: topScope });
                             }
-                            continue;
+                            return "skip-subtree";
                         }
 
                         const { meta, bindingPath } = SchemaNormalizer.resolveScope(rootSchema, element.scope);
-
                         const hasExplicitWidget = Boolean(meta?.ui?.widget || element.widget);
                         const isInlineObject =
                             meta?.type === SCHEMA_TYPE.OBJECT &&
@@ -322,62 +307,100 @@ export class LayoutMutator {
                             !hasExplicitWidget;
 
                         if (isInlineObject && meta.properties) {
-                            if (activeElements.has(meta)) {
+                            if (activeInlineMetas.has(meta)) {
                                 Logger.warn(
                                     "[MetaUI LayoutMutator]",
                                     `Circular inline object detected at '${element.scope}'; stopping recursive expansion.`
                                 );
-                                expanded.push(element);
-                                continue;
+                                childrenStack[childrenStack.length - 1].push(element);
+                                return "skip-subtree";
                             }
-                            activeElements.add(meta);
-                            try {
-                                const childElements: ILayoutElement[] = [];
-                                for (const childKey of Object.keys(meta.properties)) {
-                                    childElements.push({
-                                        type: "Control",
-                                        scope: `${element.scope}/properties/${childKey}`
-                                    });
-                                }
-
-                                const newGroup: ILayoutElement = {
-                                    ...element,
-                                    type: isWizardTopLevel ? "VerticalLayout" : "Group",
-                                    label: element.label || meta.ui?.label || bindingPath.split("/").pop(),
-                                    elements: this.expandElements(
-                                        childElements,
-                                        rootSchema,
-                                        decisions,
-                                        false,
-                                        emittedDialogScopes,
-                                        depth + 1,
-                                        activeElements
-                                    )
-                                };
-                                delete newGroup.scope;
-
-                                expanded.push(newGroup);
-                            } finally {
-                                activeElements.delete(meta);
+                            activeInlineMetas.add(meta);
+                            const childElements: ILayoutElement[] = [];
+                            for (const childKey of Object.keys(meta.properties)) {
+                                childElements.push({
+                                    type: "Control",
+                                    scope: `${element.scope}/properties/${childKey}`
+                                });
                             }
-                        } else {
-                            expanded.push(element);
+                            const newGroup: ILayoutElement = {
+                                ...element,
+                                type: isWizardTopLevel && ctx.depth === 0 ? "VerticalLayout" : "Group",
+                                label: element.label || meta.ui?.label || bindingPath.split("/").pop()
+                            };
+                            delete newGroup.scope;
+                            inlineFrames.set(element, { meta, newGroup, childElements });
+                            childrenStack.push([]);
+                            if (ctx.depth >= MAX_LAYOUT_DEPTH) {
+                                Logger.warn(
+                                    "[MetaUI LayoutMutator]",
+                                    `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) ` +
+                                        `during layout expansion; truncating deeper elements.`
+                                );
+                                return "skip-subtree";
+                            }
+                            return undefined;
                         }
+                        childrenStack[childrenStack.length - 1].push(element);
+                        return "skip-subtree";
                     } catch (err) {
                         Logger.debug(
                             "[MetaUI LayoutMutator]",
                             `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`
                         );
-                        expanded.push(element);
+                        childrenStack[childrenStack.length - 1].push(element);
+                        return "skip-subtree";
                     }
-                } else {
-                    expanded.push(element);
                 }
-            } finally {
-                activeElements.delete(element);
+                childrenStack[childrenStack.length - 1].push(element);
+                return "skip-subtree";
+            },
+            {
+                shape: LayoutElementShape,
+                silentTruncationLog: true,
+                resolveDynamicChildren: (node) => {
+                    const frame = inlineFrames.get(node);
+                    if (!frame) {
+                        return undefined;
+                    }
+                    return frame.childElements.map((child, idx) => ({
+                        key: String(idx),
+                        node: child,
+                        kind: "element" as const,
+                        scopeSegment: `elements/${idx}`,
+                        bindingSegment: String(idx)
+                    }));
+                },
+                onLeave: (ctx) => {
+                    const element = ctx.node;
+                    if (containerFrames.has(element)) {
+                        containerFrames.delete(element);
+                        const clonedContainer: ILayoutElement = { ...element };
+                        if (element.elements) {
+                            clonedContainer.elements = childrenStack.pop() || [];
+                        }
+                        childrenStack[childrenStack.length - 1].push(clonedContainer);
+                        return;
+                    }
+                    const inlineFrame = inlineFrames.get(element);
+                    if (inlineFrame) {
+                        inlineFrames.delete(element);
+                        activeInlineMetas.delete(inlineFrame.meta);
+                        inlineFrame.newGroup.elements = childrenStack.pop() || [];
+                        childrenStack[childrenStack.length - 1].push(inlineFrame.newGroup);
+                    }
+                },
+                onTruncate: (_scope, reason) => {
+                    if (reason === "cycle") {
+                        Logger.warn(
+                            "[MetaUI LayoutMutator]",
+                            "Circular uiLayout element reference detected during layout expansion; stopping recursion."
+                        );
+                    }
+                }
             }
-        }
+        );
 
-        return expanded;
+        return childrenStack[0];
     }
 }

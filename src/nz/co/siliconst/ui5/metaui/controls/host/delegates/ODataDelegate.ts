@@ -6,6 +6,7 @@
 
 import type DynamicHost from "../../DynamicHost";
 import { Logger } from "../../../utils/Logger";
+import { JsonPayloadShape, SchemaWalker } from "../../../core/SchemaWalker";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import Context from "sap/ui/model/Context";
 import Event from "sap/ui/base/Event";
@@ -200,7 +201,6 @@ export class ODataDelegate {
      * Recursively clones an OData object/array and removes keys starting with `@` or `__`.
      */
     private sanitizeODataPayload(value: unknown, depth: number): unknown {
-        // WALKER_EXEMPT: ODataDelegate.sanitizeODataPayload walks raw untyped OData V2/V4 entity payloads without an ISchema to strip @/__ metadata keys, deferred navigation stubs, and Date instances.
         if (depth > MAX_SCHEMA_DEPTH) {
             Logger.warn(
                 `OData payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); '@'/'__' annotation keys ` +
@@ -216,27 +216,106 @@ export class ODataDelegate {
         if (value instanceof Date) {
             return value.toISOString();
         }
-        if (Array.isArray(value)) {
-            return value.map((item) => this.sanitizeODataPayload(item, depth + 1));
+        if (!Array.isArray(value) && !isRecord(value)) {
+            return value;
         }
-        if (isRecord(value)) {
-            const cleanObj: Record<string, unknown> = {};
-            for (const key of Object.keys(value)) {
-                if (key.startsWith("@") || key.startsWith("__")) {
-                    continue;
+
+        const isDeferredStub = (val: unknown): boolean => {
+            if (!isRecord(val)) return false;
+            const keys = Object.keys(val);
+            return keys.length > 0 && keys.every((k) => k.startsWith("__") || k.startsWith("@"));
+        };
+
+        const sanitizedMap = new Map<object, unknown>();
+
+        SchemaWalker.walk(
+            value,
+            (ctx) => {
+                if (ctx.depth >= MAX_SCHEMA_DEPTH) {
+                    const warnMsg =
+                        `OData payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); '@'/'__' annotation keys ` +
+                        `below this level were left in the payload instead of being stripped.`;
+                    if (Array.isArray(ctx.node)) {
+                        for (let i = 0; i < ctx.node.length; i++) {
+                            Logger.warn(warnMsg, undefined, "ODataDelegate");
+                        }
+                        sanitizedMap.set(ctx.node, [...ctx.node]);
+                    } else if (isRecord(ctx.node)) {
+                        const cleanObj: Record<string, unknown> = {};
+                        for (const key of Object.keys(ctx.node)) {
+                            if (key.startsWith("@") || key.startsWith("__")) {
+                                continue;
+                            }
+                            const propVal = ctx.node[key];
+                            if (isDeferredStub(propVal)) {
+                                continue;
+                            }
+                            Logger.warn(warnMsg, undefined, "ODataDelegate");
+                            cleanObj[key] = propVal;
+                        }
+                        sanitizedMap.set(ctx.node, cleanObj);
+                    }
+                    return "skip-subtree";
                 }
-                const propVal = value[key];
-                if (isRecord(propVal)) {
-                    const propKeys = Object.keys(propVal);
-                    if (propKeys.length > 0 && propKeys.every((k) => k.startsWith("__") || k.startsWith("@"))) {
-                        continue;
+                return undefined;
+            },
+            {
+                shape: JsonPayloadShape,
+                visitRoot: true,
+                initialDepth: depth,
+                silentTruncationLog: true,
+                shouldVisitChild: (child, key, _parent, isArrayItem) => {
+                    if (!isArrayItem) {
+                        if (key.startsWith("@") || key.startsWith("__")) {
+                            return false;
+                        }
+                        if (isDeferredStub(child)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+                onLeave: (ctx) => {
+                    if (Array.isArray(ctx.node)) {
+                        if (sanitizedMap.has(ctx.node)) {
+                            return;
+                        }
+                        const cleanArr = ctx.node.map((item: unknown) => {
+                            if (item instanceof Date) return item.toISOString();
+                            if (isRecord(item) || Array.isArray(item)) {
+                                return sanitizedMap.get(item) ?? item;
+                            }
+                            return item;
+                        });
+                        sanitizedMap.set(ctx.node, cleanArr);
+                    } else if (isRecord(ctx.node)) {
+                        if (sanitizedMap.has(ctx.node)) {
+                            return;
+                        }
+                        const cleanObj: Record<string, unknown> = {};
+                        for (const key of Object.keys(ctx.node)) {
+                            if (key.startsWith("@") || key.startsWith("__")) {
+                                continue;
+                            }
+                            const propVal = ctx.node[key];
+                            if (isDeferredStub(propVal)) {
+                                continue;
+                            }
+                            if (propVal instanceof Date) {
+                                cleanObj[key] = propVal.toISOString();
+                            } else if (isRecord(propVal) || Array.isArray(propVal)) {
+                                cleanObj[key] = sanitizedMap.get(propVal) ?? propVal;
+                            } else {
+                                cleanObj[key] = propVal;
+                            }
+                        }
+                        sanitizedMap.set(ctx.node, cleanObj);
                     }
                 }
-                cleanObj[key] = this.sanitizeODataPayload(propVal, depth + 1);
             }
-            return cleanObj;
-        }
-        return value;
+        );
+
+        return sanitizedMap.get(value) ?? value;
     }
 
     /**

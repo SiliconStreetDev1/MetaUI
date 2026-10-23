@@ -389,7 +389,19 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
      * ensuring the root schema is never blank when selected directly as `schemaTarget`.
      */
     private mergePolymorphicRootProperties(schema: ISchema, targetObject: JsonRecord, root: JsonRecord): void {
-        const mappedRoot = OpenApiPropertyMapper.mapPropertyMetadata(targetObject, schema.title || "Root", false, root);
+        if (!Array.isArray(targetObject.oneOf) && !Array.isArray(targetObject.anyOf)) {
+            return;
+        }
+        const mappedRoot = OpenApiPropertyMapper.mapPropertyMetadata(
+            {
+                oneOf: targetObject.oneOf,
+                anyOf: targetObject.anyOf,
+                discriminator: targetObject.discriminator
+            },
+            schema.title || "Root",
+            false,
+            root
+        );
         PolymorphicUtil.mergePolymorphicRootBranches(schema, mappedRoot);
     }
 
@@ -418,7 +430,7 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
                 required: defSchema.required,
                 layoutStrategy: defSchema.layoutStrategy
             });
-            this.mergePolymorphicRootProperties(defSchema, rawDef, root);
+            PolymorphicUtil.mergePolymorphicRootBranches(defSchema, mappedProp);
             definitions[key] = defSchema;
         }
         return definitions;
