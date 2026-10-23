@@ -17,7 +17,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Structural interface for SAPUI5 text-like controls (`sap.m.Input`, `sap.m.TextArea`, `sap.ui.codeeditor.CodeEditor`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export interface ITextLikeControl extends Control {
     getValue?(): string;
@@ -33,7 +33,7 @@ export interface ITextLikeControl extends Control {
  * and `applyState` across all text-based inputs.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class TextLikeInputPlugin extends BasePlugin {
     protected readonly syncPlaceholderAndMaxLength: boolean = false;

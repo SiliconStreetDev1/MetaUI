@@ -12,7 +12,7 @@ import { PolicyConditionUtil } from "../../../utils/PolicyConditionUtil";
  * Evaluates whether a date value is strictly earlier than a defined date threshold or target date pointer.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.policies.conditions
- * @public
+ * @internal
  */
 export class DateLessThanConditionPlugin implements IPolicyConditionPlugin {
     /**

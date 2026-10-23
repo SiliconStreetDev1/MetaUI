@@ -15,7 +15,7 @@ import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
  * populated from `metadata.items.enum`, `metadata.enum`, `metadata.valueHelp`, or `metadata.ui.valueHelp`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class MultiSelectPlugin extends OptionListPlugin {
     /**

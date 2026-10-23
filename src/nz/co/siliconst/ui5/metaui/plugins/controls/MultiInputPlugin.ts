@@ -16,7 +16,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Plugin responsible for rendering tokenized primitive arrays (`sap.m.MultiInput`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class MultiInputPlugin extends BasePlugin {
     /**

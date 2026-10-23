@@ -73,7 +73,7 @@ export interface IDictionaryRowBuildOptions {
  * Stateless helper methods for `DictionaryMapPlugin`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export class DictionaryMapUtil {
     /**

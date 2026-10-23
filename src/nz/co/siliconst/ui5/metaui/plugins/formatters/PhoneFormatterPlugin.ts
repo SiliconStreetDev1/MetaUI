@@ -15,7 +15,7 @@ import { safeToString } from "../../core/SafeConvert";
  * {@link PhoneFormatterPlugin.parse} strips the grouping space so the E.164 round-trip is exact.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.formatters
- * @public
+ * @internal
  */
 export class PhoneFormatterPlugin implements IFormatter, IParser {
     /**

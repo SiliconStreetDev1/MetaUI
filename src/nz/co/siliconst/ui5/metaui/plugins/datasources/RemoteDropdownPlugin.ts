@@ -22,7 +22,7 @@ import { WIDGET_TYPE } from "../../constants/MetaUIConstants";
  * populated asynchronously from a REST endpoint defined in `metadata.ui.dataSource` or `metadata.valueHelp`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
- * @public
+ * @internal
  */
 export class RemoteDropdownPlugin extends OptionListPlugin {
     private optionsModel?: JSONModel;

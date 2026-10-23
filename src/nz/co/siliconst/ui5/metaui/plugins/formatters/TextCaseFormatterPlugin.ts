@@ -12,7 +12,7 @@ import { safeToString } from "../../core/SafeConvert";
  * Defaults to uppercase.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.formatters
- * @public
+ * @internal
  */
 export class TextCaseFormatterPlugin implements IFormatter {
     /**

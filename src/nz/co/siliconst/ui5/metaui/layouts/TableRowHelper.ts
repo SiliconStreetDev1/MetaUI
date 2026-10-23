@@ -19,7 +19,7 @@ import JSONModel from "sap/ui/model/json/JSONModel";
  * Stateless helper methods for `TableLayout`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class TableRowHelper {
     /**

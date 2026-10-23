@@ -13,7 +13,7 @@ import NumberFormat from "sap/ui/core/format/NumberFormat";
  * and parse formatted currency strings back into JavaScript numbers.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.formatters
- * @public
+ * @internal
  */
 export class CurrencyFormatterPlugin implements IFormatter, IParser {
     private currencyFormat: NumberFormat;

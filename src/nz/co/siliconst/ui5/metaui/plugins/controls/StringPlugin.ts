@@ -14,7 +14,7 @@ import Event from "sap/ui/base/Event";
  * Supports `maxLength`, `placeholder`, and live validation hooks.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class StringPlugin extends TextLikeInputPlugin {
     protected override readonly syncPlaceholderAndMaxLength: boolean = true;

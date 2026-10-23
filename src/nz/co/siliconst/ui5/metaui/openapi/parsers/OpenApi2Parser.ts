@@ -11,7 +11,7 @@ import { JsonRecord, readRecord } from "../../utils/TypeGuards";
  * Resolves definitions from the root `definitions` block and applies OpenAPI 2.0 constraint semantics.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
- * @public
+ * @internal
  */
 export class OpenApi2Parser extends BaseOpenApiParser {
     /**

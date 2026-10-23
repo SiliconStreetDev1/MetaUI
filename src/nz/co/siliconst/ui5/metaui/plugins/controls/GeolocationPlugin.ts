@@ -15,7 +15,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Plugin responsible for rendering the hardware `GeolocationControl` widget.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class GeolocationPlugin extends HardwareControlPlugin<GeolocationControl> {
     protected readonly HardwareControlClass = GeolocationControl;

@@ -16,7 +16,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Coerces valid numbers into the underlying `JSONModel` and flags unparseable input as invalid.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class NumberPlugin extends BasePlugin {
     private hasUnparseableInput: boolean = false;

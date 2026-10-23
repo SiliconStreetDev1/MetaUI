@@ -120,7 +120,7 @@ export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap = {
  * Schema builder plugin that infers a strict {@link ISchema} from raw data payloads.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class DataInferenceBuilder implements ISchemaBuilderPlugin {
     /** Shared producer contract descriptor for data-driven property metadata inference. */

@@ -30,7 +30,7 @@ export interface IValidationLedgerEntry {
  * resolving a single authoritative visual state on each field plugin or table cell and owning all UI5 Messaging entries.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class ValidationLedger {
     private readonly entries: Map<string, IValidationLedgerEntry> = new Map();

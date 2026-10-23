@@ -16,7 +16,7 @@ import Control from "sap/ui/core/Control";
  * Plugin responsible for rendering numeric range sliders (`sap.m.Slider`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class SliderPlugin extends SingleBoundWidgetPlugin {
     protected readonly widgetConfig: ISingleBoundWidgetConfig = {

@@ -64,7 +64,7 @@ export interface ILayoutWalkerSink {
  * Factory for cloning field metadata without aliasing `meta.ui` and synthesizing paired `Label` + `Control` widgets.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class LayoutFieldFactory {
     /**
@@ -255,7 +255,7 @@ export class LayoutFieldFactory {
  * Factory for detecting and constructing inline array table sub-schemas.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class ArraySubSchemaFactory {
     /**
@@ -308,7 +308,7 @@ export class ArraySubSchemaFactory {
  * Shared recursive walker for `uiLayout` element trees.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class LayoutElementWalker {
     /**

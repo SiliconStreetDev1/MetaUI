@@ -32,7 +32,7 @@ function resolveMessageType(valueState?: string): MessageType {
  * Plugin responsible for rendering non-editable inline banners (`sap.m.MessageStrip`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class MessageStripPlugin extends BasePlugin {
     /**

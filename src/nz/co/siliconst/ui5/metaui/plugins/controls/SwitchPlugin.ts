@@ -11,7 +11,7 @@ import Control from "sap/ui/core/Control";
  * Plugin responsible for rendering boolean toggle switches (`sap.m.Switch`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class SwitchPlugin extends SingleBoundWidgetPlugin {
     protected readonly widgetConfig: ISingleBoundWidgetConfig = {

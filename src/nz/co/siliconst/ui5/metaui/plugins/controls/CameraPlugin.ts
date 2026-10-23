@@ -13,7 +13,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Plugin responsible for rendering the hardware `CameraControl` widget.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class CameraPlugin extends HardwareControlPlugin<CameraControl> {
     protected readonly HardwareControlClass = CameraControl;

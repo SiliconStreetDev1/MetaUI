@@ -11,7 +11,7 @@ import DateFormat from "sap/ui/core/format/DateFormat";
  * Reversible presentational formatter and parser for ISO dates (`"YYYY-MM-DD"` <-> localized medium format, e.g. `"Oct 15, 2026"`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.formatters
- * @public
+ * @internal
  */
 export class DateFormatterPlugin implements IFormatter, IParser {
     private dateFormat: DateFormat;

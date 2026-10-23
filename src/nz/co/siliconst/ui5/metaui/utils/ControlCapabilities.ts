@@ -19,7 +19,7 @@ import type DynamicHost from "../controls/DynamicHost";
  * Structural contract for bound UI5 controls inspected during tree traversal.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IBoundInspectable {
     /** Reads or writes custom data on the UI5 element. */
@@ -68,7 +68,7 @@ const URI_PROPERTY_TYPE = "sap.ui.core.URI";
  * Outcome of vetting a single `ui.controlProps` entry against the control's UI5 metadata.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IControlPropVerdict {
     /** True when the property may be written to the control. */
@@ -146,7 +146,7 @@ export function writeControlProperty(target: Control, propName: string, value: u
  * Structural contract for UI5 controls that support `ValueState` visual feedback.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IValueStateSupport {
     /**
@@ -170,7 +170,7 @@ export interface IValueStateSupport {
  * Structural contract for UI5 controls that expose a `setEditable` setter.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IEditableSupport {
     /**
@@ -186,7 +186,7 @@ export interface IEditableSupport {
  * Structural contract for UI5 controls that expose a `setEnabled` setter.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IEnabledSupport {
     /**
@@ -202,7 +202,7 @@ export interface IEnabledSupport {
  * Structural contract for UI5 controls that expose a `setRequired` setter.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IRequiredSupport {
     /**

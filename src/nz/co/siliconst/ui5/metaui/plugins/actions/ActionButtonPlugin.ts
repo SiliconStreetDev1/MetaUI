@@ -17,7 +17,7 @@ import { I18n, MetaUITextKey } from "../../utils/I18n";
  * Static configuration descriptor for a concrete `ActionButtonPlugin` subclass.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
- * @public
+ * @internal
  */
 export interface IActionButtonConfig {
     /** Bundle key for the label shown when the bound value supplies none. */
@@ -40,7 +40,7 @@ export interface IActionButtonConfig {
  * {@link ActionButtonPlugin.isEnabledStateExternallyOwned} and stays reachable.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
- * @public
+ * @internal
  */
 export abstract class ActionButtonPlugin extends BasePlugin {
     protected abstract readonly actionConfig: IActionButtonConfig;

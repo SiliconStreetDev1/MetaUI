@@ -560,7 +560,7 @@ function resolveShape(shape: unknown): unknown {
  * Canonical schema, layout, and paired tree walker.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class SchemaWalker {
     /**

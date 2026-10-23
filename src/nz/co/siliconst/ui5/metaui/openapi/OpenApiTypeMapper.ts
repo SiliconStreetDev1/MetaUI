@@ -8,7 +8,7 @@ import { FieldType } from "../interfaces/ISchema";
  * Acts as the translation boundary between raw OpenAPI types and the internal MetaUI FieldType enumerations.
  * This ensures that the core layout engine never has to parse or understand Swagger-specific semantics.
  *
- * @public
+ * @internal
  */
 export class OpenApiTypeMapper {
     /**

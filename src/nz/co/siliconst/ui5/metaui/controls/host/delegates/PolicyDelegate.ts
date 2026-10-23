@@ -16,7 +16,7 @@ import { Logger } from "../../../utils/Logger";
  * Delegate managing Policy-Based Rules Engine (PBRE) execution for `GeneratorHost`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls.host.delegates
- * @public
+ * @internal
  */
 export class PolicyDelegate {
     private policyEngine: PolicyEngine | null = null;

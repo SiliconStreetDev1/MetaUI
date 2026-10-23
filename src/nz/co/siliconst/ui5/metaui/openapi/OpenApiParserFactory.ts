@@ -14,7 +14,7 @@ import { isRecord } from "../utils/TypeGuards";
  * instantiate the correct, version-specific parser plugin. This isolates structural version
  * differences from the primary Engine orchestration layer.
  *
- * @public
+ * @internal
  */
 export class OpenApiParserFactory {
     /**

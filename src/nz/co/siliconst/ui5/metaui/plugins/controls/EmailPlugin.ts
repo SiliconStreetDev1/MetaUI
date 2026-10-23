@@ -14,7 +14,7 @@ import { InputType } from "sap/m/library";
  * Handles rendering logic for Email strings (`ui.widget = "email"` or `format = "email"`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class EmailPlugin extends TextLikeInputPlugin {
     /**

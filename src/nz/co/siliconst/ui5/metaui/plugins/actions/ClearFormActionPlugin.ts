@@ -15,7 +15,7 @@ import { TEXT_KEY } from "../../utils/I18n";
  * Resets all properties in the bound `JSONModel` to empty defaults and notifies the Engine.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
- * @public
+ * @internal
  */
 export class ClearFormActionPlugin extends ActionButtonPlugin {
     protected readonly actionConfig: IActionButtonConfig = {

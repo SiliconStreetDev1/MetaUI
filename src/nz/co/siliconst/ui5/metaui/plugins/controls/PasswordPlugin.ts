@@ -17,7 +17,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Masks characters in both edit mode (`InputType.Password`) and display mode (`********`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class PasswordPlugin extends TextLikeInputPlugin {
     /**

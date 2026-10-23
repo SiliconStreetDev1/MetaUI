@@ -13,7 +13,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Enforces the JSON Schema `enum` constraint across primitive, object, array, and `{ key, text }` enum entries.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class EnumValidatorPlugin implements IValidator {
     /**

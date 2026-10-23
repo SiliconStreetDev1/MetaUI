@@ -22,7 +22,7 @@ import { ArraySubSchemaFactory, LayoutElementWalker, LayoutFieldFactory } from "
  * Ideal for rendering objects dynamically inside table cells or side-panels.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class CompactLayout implements ILayoutManager {
     /**

@@ -13,7 +13,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Plugin responsible for rendering the hardware `SignatureControl` canvas pad.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class SignaturePlugin extends HardwareControlPlugin<SignatureControl> {
     protected readonly HardwareControlClass = SignatureControl;

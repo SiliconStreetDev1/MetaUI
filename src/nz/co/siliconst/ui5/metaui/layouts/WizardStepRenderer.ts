@@ -14,7 +14,7 @@ import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
  * Stateless helper for building and validating individual wizard steps in `WizardLayout`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class WizardStepRenderer {
     /**

@@ -11,7 +11,7 @@ import { ProtobufVariantHeuristic } from "./plugins/ProtobufVariantHeuristic";
  * This pipeline mutates the raw OpenAPI document in-place to normalize non-standard constructs
  * (like Protobuf unions) before the primary parsing phase occurs.
  *
- * @public
+ * @internal
  */
 export class OpenApiHeuristicEngine {
     private plugins: IHeuristicPlugin[] = [];

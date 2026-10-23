@@ -12,7 +12,7 @@ import { safeToString } from "../../core/SafeConvert";
  * Enforces the JSON Schema `const` constraint.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class ConstValidatorPlugin implements IValidator {
     /**

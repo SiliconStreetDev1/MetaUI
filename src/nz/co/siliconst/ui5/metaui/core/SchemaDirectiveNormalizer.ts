@@ -87,7 +87,7 @@ function isRenderMode(value: unknown): value is RenderModeType {
  * Pure normalization methods for UI directives, layouts, policies, and value-help blocks.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class SchemaDirectiveNormalizer {
     /**

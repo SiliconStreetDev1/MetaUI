@@ -15,7 +15,7 @@ import Event from "sap/ui/base/Event";
  * Automatically coerces selected keys back to numbers when `metadata.type` is `"number"` or `"integer"`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class DropdownPlugin extends OptionListPlugin {
     /**

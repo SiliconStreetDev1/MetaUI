@@ -25,7 +25,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * populated asynchronously from a REST endpoint (`ui.widget = "valueHelp"`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
- * @public
+ * @internal
  */
 export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
     private selectDialog?: SelectDialog;

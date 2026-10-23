@@ -20,7 +20,7 @@
  *
  * @param value The value to convert.
  * @returns {string} The string form of the value.
- * @public
+ * @internal
  */
 export function safeToString(value: unknown): string {
     try {
@@ -53,7 +53,7 @@ export function safeToString(value: unknown): string {
  *
  * @param value The value to convert.
  * @returns {number} The numeric form of the value, or `NaN` when it has none.
- * @public
+ * @internal
  */
 export function safeToNumber(value: unknown): number {
     try {

@@ -19,7 +19,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Converts selected files to Base64 Data URLs and binds them to the JSON model.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class FileUploaderPlugin extends BasePlugin {
     /**

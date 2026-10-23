@@ -11,7 +11,7 @@ import { TEXT_KEY } from "../../utils/I18n";
  * Handles rendering and logic for time inputs (`HH:mm:ss`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class TimePlugin extends PickerPlugin {
     protected readonly pickerConfig: IPickerPluginConfig = {

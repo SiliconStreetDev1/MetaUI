@@ -17,7 +17,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Plugin responsible for rendering a `sap.m.ComboBox` bound to a live OData entity set (`ui.widget = "odataSelect"`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
- * @public
+ * @internal
  */
 export class ODataListBindingPlugin extends BasePlugin {
     /**

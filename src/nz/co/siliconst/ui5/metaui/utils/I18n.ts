@@ -116,7 +116,7 @@ const reportedMissingKeys = new Set<string>();
  * Reads end-user texts from the MetaUI library resource bundle.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export class I18n {
     /**

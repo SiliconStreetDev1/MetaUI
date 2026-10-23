@@ -20,7 +20,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Includes debounce throttling and monotonic request sequencing to discard out-of-order network responses.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
- * @public
+ * @internal
  */
 export class LiveSearchPlugin extends TextLikeInputPlugin {
     private debounceTimer?: ReturnType<typeof setTimeout>;

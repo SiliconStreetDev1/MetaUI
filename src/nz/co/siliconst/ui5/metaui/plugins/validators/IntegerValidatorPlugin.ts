@@ -11,7 +11,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Enforces that fields declared with `type: "integer"` contain finite whole integers.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class IntegerValidatorPlugin implements IValidator {
     /**

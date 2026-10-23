@@ -32,7 +32,7 @@ import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
  * Includes built-in support for adding and deleting rows via dynamic data binding manipulation.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class TableLayout implements ILayoutManager {
     /**

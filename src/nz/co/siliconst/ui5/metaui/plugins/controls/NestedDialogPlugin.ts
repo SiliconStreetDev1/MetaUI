@@ -18,7 +18,7 @@ import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
  * Resolved sub-schema and modal dialog configuration for a nested dialog launch.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export interface INestedDialogDescriptor {
     title: string;
@@ -32,7 +32,7 @@ export interface INestedDialogDescriptor {
  * validation, model value lookup, visual `ButtonType.Reject` error state, and `applyState`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class NestedDialogPlugin extends BasePlugin {
     /**

@@ -205,7 +205,7 @@ export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap = {};
  * Acts as the final fallback {@link ISchemaBuilderPlugin} in the `SchemaBuilderRegistry`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class SchemaNormalizer implements ISchemaBuilderPlugin {
     /** Shared producer contract descriptor for JSON Schema property metadata normalization. */

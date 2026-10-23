@@ -12,7 +12,7 @@ import Control from "sap/ui/core/Control";
  * Plugin responsible for rendering multi-line text areas (`sap.m.TextArea`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class TextAreaPlugin extends TextLikeInputPlugin {
     protected override readonly syncPlaceholderAndMaxLength: boolean = true;

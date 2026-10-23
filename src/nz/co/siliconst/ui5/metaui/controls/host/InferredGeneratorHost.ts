@@ -14,7 +14,7 @@ import { HOST_CONTROL_METADATA, HOST_CONTROL_RENDERER } from "./HostControlMetad
  * subclass in `library.ts` for backwards compatibility and runtime host inspection.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls.host
- * @public
+ * @internal
  */
 export default class InferredGeneratorHost extends GeneratorHost {
     static readonly metadata = HOST_CONTROL_METADATA;

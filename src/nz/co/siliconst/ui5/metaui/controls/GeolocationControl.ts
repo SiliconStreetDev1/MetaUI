@@ -17,7 +17,7 @@ import { isRecord } from "../utils/TypeGuards";
  * Custom UI5 control that captures `{ lat, lng }` coordinates using `navigator.geolocation.getCurrentPosition`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class GeolocationControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;

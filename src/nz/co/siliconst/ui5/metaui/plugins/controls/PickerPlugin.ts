@@ -29,7 +29,7 @@ export type PickerSettings = $DatePickerSettings & $TimePickerSettings & $DateTi
  * Static configuration descriptor for a concrete `PickerPlugin` subclass.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export interface IPickerPluginConfig {
     ControlClass: new (mSettings?: PickerSettings) => PickerControlInstance;
@@ -46,7 +46,7 @@ export interface IPickerPluginConfig {
  * `getParseError`, `getValue`, and `applyState`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class PickerPlugin extends BasePlugin {
     protected abstract readonly pickerConfig: IPickerPluginConfig;

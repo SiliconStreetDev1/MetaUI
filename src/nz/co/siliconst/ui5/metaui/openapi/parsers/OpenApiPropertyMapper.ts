@@ -231,7 +231,7 @@ export const DECLINED_SCHEMA_FIELDS: DeclinedSchemaFieldsMap = {
  * Translates OpenAPI 2.0 and 3.0 property definitions into normalized MetaUI `IPropertyMetadata` descriptors.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
- * @public
+ * @internal
  */
 export class OpenApiPropertyMapper {
     /** Shared producer contract descriptor for OpenAPI 2.0/3.0 property metadata extraction. */

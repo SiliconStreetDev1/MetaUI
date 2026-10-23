@@ -15,7 +15,7 @@ import { Logger } from "../utils/Logger";
  * (like FormLayout or TableLayout) with structural inference responsibilities.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class DefaultLayoutGenerator {
     /**

@@ -13,7 +13,7 @@ import FormattedTextControl from "sap/m/FormattedText";
  * Plugin responsible for rendering the `RichTextControl` WYSIWYG HTML editor.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class RichTextPlugin extends HardwareControlPlugin<RichTextControl> {
     protected readonly HardwareControlClass = RichTextControl;

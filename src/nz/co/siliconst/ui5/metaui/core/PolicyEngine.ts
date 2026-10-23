@@ -68,7 +68,7 @@ const ALL_PROPERTY_NAMES: readonly PropertyName[] = ["visibility", "validity", "
  * then applies to the individual active plugins or table row cells.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class PolicyEngine {
     private policies: IPolicy[];

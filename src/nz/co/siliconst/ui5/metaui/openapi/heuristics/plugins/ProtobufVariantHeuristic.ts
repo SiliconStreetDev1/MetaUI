@@ -13,7 +13,7 @@ import { JsonRecord, isRecord, readString, readRecord, readStringArray } from ".
  * and transforms the AST into a standard `oneOf` polymorphic array before it reaches the OpenAPI parsers.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.heuristics.plugins
- * @public
+ * @internal
  */
 export class ProtobufVariantHeuristic implements IHeuristicPlugin {
     /**

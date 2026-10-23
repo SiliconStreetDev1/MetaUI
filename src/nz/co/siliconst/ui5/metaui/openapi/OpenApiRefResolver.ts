@@ -12,7 +12,7 @@ import { isRecord, readRecord, readString } from "../utils/TypeGuards";
  * against an OpenAPI root document with circular-reference protection and RFC 6901 unescaping.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi
- * @public
+ * @internal
  */
 export class OpenApiRefResolver {
 

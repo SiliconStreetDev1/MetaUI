@@ -51,7 +51,7 @@ const FAILURE_TEXT: Readonly<Record<HardwareFailureReason, string>> = {
  * a hidden `_content` aggregation, and a `capture` event for hardware/media controls.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class BaseHardwareControl extends Control {
     /**

@@ -42,7 +42,7 @@ const OA2_PARAMETER_SCHEMA_KEYWORDS: readonly string[] = [
  * Abstract base parser implementing the shared OpenAPI 2.0 / 3.0 AST translation pipeline.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
- * @public
+ * @internal
  */
 export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
     /**

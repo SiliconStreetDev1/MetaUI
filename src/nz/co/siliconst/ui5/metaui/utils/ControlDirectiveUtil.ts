@@ -38,7 +38,7 @@ const RESOLVED_REFERENCE_KEYS: readonly string[] = ["formatter", "events", "fact
  * Stateless utility methods for applying UI directives, building bindings, and launching nested dialogs.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export class ControlDirectiveUtil {
     /**

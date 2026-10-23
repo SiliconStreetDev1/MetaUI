@@ -23,7 +23,7 @@ const EFFECT_TABLE: Readonly<Record<string, readonly [PropertyName, boolean]>> =
  * with automatic symmetrical reversal when the governing condition is false.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.policies.effects
- * @public
+ * @internal
  */
 export class BinaryEffectPlugin implements IPolicyEffectPlugin {
     /**

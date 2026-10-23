@@ -13,7 +13,7 @@ import { TEXT_KEY } from "../../utils/I18n";
  * Invokes `this.engineContext.onSubmit()` when pressed.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
- * @public
+ * @internal
  */
 export class SubmitFormActionPlugin extends ActionButtonPlugin {
     protected readonly actionConfig: IActionButtonConfig = {

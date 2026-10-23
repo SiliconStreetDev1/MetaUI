@@ -19,7 +19,7 @@ import { JsonRecord, isRecord, deepClone } from "../utils/TypeGuards";
  *   and are deterministically purged when {@link StateManager.destroy} runs.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class StateManager {
     private readonly model: SandboxJSONModel;

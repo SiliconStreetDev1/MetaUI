@@ -13,7 +13,7 @@ import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
  * Plugin responsible for rendering the hardware `VoiceInputControl` speech-to-text widget.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class VoiceInputPlugin extends HardwareControlPlugin<VoiceInputControl> {
     protected readonly HardwareControlClass = VoiceInputControl;

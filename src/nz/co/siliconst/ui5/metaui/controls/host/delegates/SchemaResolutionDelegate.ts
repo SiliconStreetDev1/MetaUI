@@ -19,7 +19,7 @@ import type DynamicHost from "../../DynamicHost";
  * Delegate managing remote schema resolution and inner `GeneratorHost` initialization for `DynamicHost`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls.host.delegates
- * @public
+ * @internal
  */
 export class SchemaResolutionDelegate {
     private fetchRequestId: number = 0;

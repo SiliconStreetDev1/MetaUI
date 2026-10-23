@@ -18,7 +18,7 @@ import { UrlValidator } from "../../utils/UrlValidator";
  * `getValue`, `applyState`, and safe image display-mode rendering.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class HardwareControlPlugin<T extends BaseHardwareControl = BaseHardwareControl> extends BasePlugin {
     protected abstract readonly HardwareControlClass: new (settings?: $BaseHardwareControlSettings) => T;

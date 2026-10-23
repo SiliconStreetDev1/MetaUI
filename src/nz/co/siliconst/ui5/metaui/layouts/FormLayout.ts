@@ -18,7 +18,7 @@ import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
  * completely separating visual orchestration from data modeling.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class FormLayout implements ILayoutManager {
     /**

@@ -16,7 +16,7 @@ import Control from "sap/ui/core/Control";
  * Plugin responsible for rendering star rating indicators (`sap.m.RatingIndicator`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class RatingIndicatorPlugin extends SingleBoundWidgetPlugin {
     protected readonly widgetConfig: ISingleBoundWidgetConfig = {

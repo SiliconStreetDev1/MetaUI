@@ -18,7 +18,7 @@ import { TEXT_KEY } from "../../utils/I18n";
  * Validates the target URL protocol via `UrlValidator.isSafeNavigationUrl` before redirecting.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
- * @public
+ * @internal
  */
 export class UrlNavigationActionPlugin extends ActionButtonPlugin {
     protected readonly actionConfig: IActionButtonConfig = {

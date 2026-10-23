@@ -16,7 +16,7 @@ import Control from "sap/ui/core/Control";
  * Plugin responsible for rendering numeric step inputs (`sap.m.StepInput`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class StepInputPlugin extends SingleBoundWidgetPlugin {
     protected readonly widgetConfig: ISingleBoundWidgetConfig = {

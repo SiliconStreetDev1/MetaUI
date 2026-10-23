@@ -11,7 +11,7 @@ import { JsonRecord, readRecord } from "../../utils/TypeGuards";
  * Resolves schemas from `components.schemas` and applies OpenAPI 3.0 constraint semantics.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
- * @public
+ * @internal
  */
 export class OpenApi3Parser extends BaseOpenApiParser {
     /**

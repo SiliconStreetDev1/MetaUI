@@ -14,7 +14,7 @@ import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
  * Resolves the target schema definition from the owning `Engine` context and opens a modal `DynamicHost` dialog.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class ReferencePlugin extends NestedDialogPlugin {
     protected readonly defaultErrorTooltipKey: MetaUITextKey = TEXT_KEY.nestedReferenceInvalid;

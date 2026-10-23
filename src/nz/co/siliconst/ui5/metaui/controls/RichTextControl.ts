@@ -20,7 +20,7 @@ import { Logger } from "../utils/Logger";
  * when the `sap.ui.richtexteditor` library is not available) and emits `capture` on content changes.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class RichTextControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;

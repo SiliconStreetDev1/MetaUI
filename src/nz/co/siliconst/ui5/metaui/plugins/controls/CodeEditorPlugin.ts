@@ -22,7 +22,7 @@ const DEFAULT_EDITOR_HEIGHT = "250px";
  * Plugin responsible for rendering syntax-highlighted code editors (`sap.ui.codeeditor.CodeEditor`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class CodeEditorPlugin extends TextLikeInputPlugin {
     protected override readonly supportsExpandDialog: boolean = true;

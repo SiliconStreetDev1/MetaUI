@@ -14,7 +14,7 @@ import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
  * opening a modal `DynamicHost` dialog when pressed.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class ObjectPlugin extends NestedDialogPlugin {
     protected readonly defaultErrorTooltipKey: MetaUITextKey = TEXT_KEY.nestedObjectInvalid;

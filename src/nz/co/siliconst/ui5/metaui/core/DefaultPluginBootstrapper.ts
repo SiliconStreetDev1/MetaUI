@@ -19,7 +19,7 @@ const POLICY_EFFECT_BASE = "nz/co/siliconst/ui5/metaui/plugins/policies/effects/
  * onto a `PluginRegistry` instance.
  *
  * @namespace nz.co.siliconst.ui5.metaui.core
- * @public
+ * @internal
  */
 export class DefaultPluginBootstrapper {
     /**

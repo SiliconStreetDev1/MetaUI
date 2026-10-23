@@ -14,7 +14,7 @@ import { UrlValidator } from "../../utils/UrlValidator";
  * Validates the target URL protocol via `UrlValidator.isSafeNavigationUrl` to block unsafe schemes (`javascript:`, `data:`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class LinkPlugin extends BasePlugin {
     protected override readonly isNavigationAffordance: boolean = true;

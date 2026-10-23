@@ -70,7 +70,7 @@ const FORMAT_PATTERNS: Readonly<Record<string, string>> = {
  * onto a normalized `IPropertyMetadata` target.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
- * @public
+ * @internal
  */
 export class OpenApiConstraintMapper {
 

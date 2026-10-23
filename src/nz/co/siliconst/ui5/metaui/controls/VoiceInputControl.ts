@@ -48,7 +48,7 @@ interface IWindowWithSpeechRecognition {
  * Custom UI5 control combining a text `Input` with a microphone `Button` powered by the Web Speech API.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class VoiceInputControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;

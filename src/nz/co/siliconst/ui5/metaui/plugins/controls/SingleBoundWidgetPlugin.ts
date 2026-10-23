@@ -34,7 +34,7 @@ export type SingleBoundWidgetSettings = $CheckBoxSettings &
  * Static configuration descriptor for a concrete `SingleBoundWidgetPlugin` subclass.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export interface ISingleBoundWidgetConfig {
     /** The SAPUI5 control constructor used in edit mode. */
@@ -70,7 +70,7 @@ export interface ISingleBoundWidgetConfig {
  * {@link SingleBoundWidgetPlugin.applyExtraState}.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class SingleBoundWidgetPlugin extends BasePlugin {
     protected abstract readonly widgetConfig: ISingleBoundWidgetConfig;

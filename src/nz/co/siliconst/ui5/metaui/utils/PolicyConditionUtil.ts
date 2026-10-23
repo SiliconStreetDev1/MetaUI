@@ -7,7 +7,7 @@
  * Shared utility methods for policy condition plugins (`NumericGreaterThan`, `NumericLessThan`, `DateLessThan`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export class PolicyConditionUtil {
     /**

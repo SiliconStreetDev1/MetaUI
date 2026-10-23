@@ -12,7 +12,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Enforces `minProperties` and `maxProperties` bounds on object payloads.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class ObjectPropertiesValidatorPlugin implements IValidator {
     /**

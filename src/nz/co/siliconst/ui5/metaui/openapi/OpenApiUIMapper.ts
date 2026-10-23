@@ -14,7 +14,7 @@ import { isRecord, readString, readBoolean } from "../utils/TypeGuards";
  * Isolates all visual widget and format mappings from the OpenAPI structural parsers.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi
- * @public
+ * @internal
  */
 export class OpenApiUIMapper {
     /**

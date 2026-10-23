@@ -36,7 +36,7 @@ export interface IOptionListControl extends Control {
  * keeps the user's selection alive across a metadata update.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export abstract class OptionListPlugin extends BasePlugin {
     /**

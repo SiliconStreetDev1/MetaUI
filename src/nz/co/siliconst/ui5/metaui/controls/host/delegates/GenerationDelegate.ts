@@ -45,7 +45,7 @@ export interface IPreparedGenerationInput {
  * Orchestrates the schema and layout preparation pipeline for `GeneratorHost`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls.host.delegates
- * @public
+ * @internal
  */
 export class GenerationDelegate {
     constructor(private readonly host: GeneratorHost) {}

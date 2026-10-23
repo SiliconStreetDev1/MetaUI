@@ -16,7 +16,7 @@ import { OpenApiHeuristicEngine } from "./heuristics/OpenApiHeuristicEngine";
  * Facade orchestration for translating Swagger/OpenAPI JSON into native MetaUI ISchema.
  * Strict Single Responsibility architecture delegates mapping logic to dedicated utilities and factories.
  *
- * @public
+ * @internal
  */
 export class OpenApiBuilder implements ISchemaBuilderPlugin {
 

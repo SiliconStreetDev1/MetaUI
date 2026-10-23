@@ -29,7 +29,7 @@ import { ButtonType, FlexAlignItems, FlexJustifyContent } from "sap/m/library";
  * or `additionalProperties: { type: ... }`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class DictionaryMapPlugin extends BasePlugin {
     private localModel?: JSONModel;

@@ -26,7 +26,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Displays a variant `sap.m.Select` switcher and dynamically renders the child controls of the active branch.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class PolymorphicPlugin extends BasePlugin {
     private variantSelect?: Select;

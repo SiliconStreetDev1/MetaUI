@@ -52,7 +52,7 @@ interface IWizardCapableHost {
  * and fires `beforeLayoutSectionChange` with a full async API before each step transition.
  *
  * @namespace nz.co.siliconst.ui5.metaui.layouts
- * @public
+ * @internal
  */
 export class WizardLayout implements ILayoutManager {
     /**

@@ -18,7 +18,7 @@ import { UrlValidator } from "../utils/UrlValidator";
  * Custom UI5 control that streams video from the user's camera and captures Base64 PNG snapshots.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class CameraControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;

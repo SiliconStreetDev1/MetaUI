@@ -17,7 +17,7 @@ import { UrlValidator } from "../utils/UrlValidator";
  * Custom UI5 control that renders an interactive HTML5 `<canvas>` for capturing handwritten signatures as Base64 PNGs.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
- * @public
+ * @internal
  */
 export default class SignatureControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;

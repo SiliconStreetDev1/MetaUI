@@ -12,7 +12,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Ensures string length meets a minimum threshold.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class MinLengthValidatorPlugin implements IValidator {
     /**

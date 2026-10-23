@@ -36,7 +36,7 @@ const HTTP_METHODS: ReadonlySet<string> = new Set([
  *
  * @extends sap.ui.base.Object
  * @alias nz.co.siliconst.ui5.metaui.swagger.OpenApiExtractor
- * @public
+ * @internal
  */
 export default class OpenApiExtractor extends UI5Object {
     /**

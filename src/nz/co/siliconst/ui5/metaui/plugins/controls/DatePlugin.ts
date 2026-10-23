@@ -11,7 +11,7 @@ import { TEXT_KEY } from "../../utils/I18n";
  * Handles rendering logic for ISO Date strings (`yyyy-MM-dd`).
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
- * @public
+ * @internal
  */
 export class DatePlugin extends PickerPlugin {
     protected readonly pickerConfig: IPickerPluginConfig = {

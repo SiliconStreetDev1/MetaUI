@@ -14,7 +14,7 @@ import { I18n, TEXT_KEY } from "../../utils/I18n";
  * Extracts the email regex validation logic into a standalone, modular plugin.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.validators
- * @public
+ * @internal
  */
 export class EmailValidatorPlugin implements IValidator {
     /**

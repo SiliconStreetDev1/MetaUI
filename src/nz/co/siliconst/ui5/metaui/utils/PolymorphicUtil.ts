@@ -15,7 +15,7 @@ import JSONModel from "sap/ui/model/json/JSONModel";
  * Resolved descriptor for a single `oneOf` or `anyOf` polymorphic branch.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export interface IPolymorphicVariant {
     /** Unique variant key (discriminator value, `$ref` schema name, or branch key). */
@@ -30,7 +30,7 @@ export interface IPolymorphicVariant {
  * Stateless helper methods for `PolymorphicPlugin`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.utils
- * @public
+ * @internal
  */
 export class PolymorphicUtil {
     /**
