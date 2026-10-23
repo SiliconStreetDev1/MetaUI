@@ -1,0 +1,105 @@
+<mvc:View
+    controllerName="metaui.consumer.controller.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
+    displayBlock="true"
+    height="100%">
+    <App id="app" height="100%">
+    <Page id="page" title="MetaUI Consumer — installed from the packed npm tarball" class="sapUiContentPadding">
+
+        <MessageStrip
+            id="proofStrip"
+            text="Loading library from node_modules/@siliconst/metaui ..."
+            type="Information"
+            showIcon="true"
+            class="sapUiSmallMarginBottom" />
+
+        <!-- 1. The production path: no schema at all. Structure is inferred from data. -->
+        <Panel headerText="1. INFERENCE — raw data, no schema (the primary production path)" expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+            <meta:DynamicHost
+                id="inferredHost"
+                data="{app>/inferredData}"
+                editable="true"
+                liveUpdate="true" />
+        </Panel>
+
+        <!-- 2. Inference plus a minimal schema that only declares what is mandatory. -->
+        <Panel headerText="2. INFERENCE + required — the mandatory-field path" expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+            <meta:DynamicHost
+                id="requiredHost"
+                schemaDefinition="{app>/requiredSchema}"
+                data="{app>/requiredData}"
+                editable="true"
+                liveUpdate="true" />
+            <Toolbar>
+                <Button id="submitRequired" text="Submit (should be blocked while empty)" type="Emphasized" press=".onSubmitRequired" />
+                <ToolbarSpacer />
+                <Text id="requiredOut" text="—" />
+            </Toolbar>
+        </Panel>
+
+        <!-- 3. Explicit JSON Schema, every common widget. -->
+        <Panel headerText="3. Declarative form from an explicit JSON Schema" expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+            <meta:DynamicHost
+                id="declarativeHost"
+                schemaDefinition="{app>/schema}"
+                data="{app>/data}"
+                editable="true"
+                liveUpdate="true"
+                submit=".onSubmitted" />
+            <Toolbar>
+                <Button text="Trigger Submit" type="Emphasized" press=".onTriggerSubmit" />
+                <ToolbarSpacer />
+                <Text id="payloadOut" text="payload will appear here" />
+            </Toolbar>
+        </Panel>
+
+        <!-- 4. A generated table. This is where the 100-row binding cap was found. -->
+        <Panel headerText="4. Generated table from an array schema (row-capacity check)" expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+            <meta:DynamicHost
+                id="tableHost"
+                schemaDefinition="{app>/tableSchema}"
+                data="{app>/tableData}"
+                editable="true"
+                liveUpdate="true" />
+        </Panel>
+
+        <!-- 5. Host embedded in a table column — the containment case. -->
+        <Panel headerText="5. Host embedded in a table column (containment)" expandable="true" expanded="true" class="sapUiSmallMarginBottom">
+            <Table id="rowsTable" items="{app>/rows}" fixedLayout="true">
+                <columns>
+                    <Column width="90px"><Text text="ID" /></Column>
+                    <Column width="110px"><Text text="Code" /></Column>
+                    <Column width="340px"><Text text="MetaUI (schema-driven)" /></Column>
+                    <Column width="110px"><Text text="Status" /></Column>
+                </columns>
+                <items>
+                    <ColumnListItem>
+                        <cells>
+                            <Text text="{app>id}" />
+                            <Text text="{app>code}" />
+                            <meta:DynamicHost
+                                schemaDefinition="{app>/rowSchema}"
+                                data="{app>detail}"
+                                editable="true"
+                                liveUpdate="true" />
+                            <Text text="{app>status}" />
+                        </cells>
+                    </ColumnListItem>
+                </items>
+            </Table>
+        </Panel>
+
+        <!-- 6. Dialog rendering. -->
+        <Panel headerText="6. Programmatic dialog (openInDialog)" expandable="true" expanded="true">
+            <Toolbar>
+                <Button id="openDialogBtn" text="Open Schema Dialog" type="Emphasized" icon="sap-icon://form" press=".onOpenDialog" />
+                <ToolbarSpacer />
+                <Text id="dialogOut" text="—" />
+            </Toolbar>
+        </Panel>
+
+    </Page>
+    </App>
+</mvc:View>

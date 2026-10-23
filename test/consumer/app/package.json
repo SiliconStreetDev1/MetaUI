@@ -1,0 +1,16 @@
+{
+  "name": "metaui-consumer-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A real UI5 Tooling app that installs the packed @siliconst/metaui tarball the way a consumer would, so the published package can be driven in a browser rather than asserted.",
+  "scripts": {
+    "start": "ui5 serve --port 8123 -o index.html",
+    "install-lib": "rimraf node_modules/@siliconst package-lock.json && npm install ../../../dist/siliconst-metaui-2.0.0.tgz"
+  },
+  "dependencies": {
+    "@siliconst/metaui": "file:../../../dist/siliconst-metaui-2.0.0.tgz"
+  },
+  "devDependencies": {
+    "@ui5/cli": "^3.0.0"
+  }
+}

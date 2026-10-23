@@ -1,0 +1,13 @@
+# The consumer app installs the packed tarball as a real npm dependency. Neither the
+# installed tree nor the tarball itself belongs in the repository.
+app/node_modules/
+app/package-lock.json
+*.tgz
+
+# Screenshot written by releasecheck.js.
+checks/release-verify.png
+
+# ui5 serve output.
+app/serve.log
+app/serve.out
+app/serve.err
