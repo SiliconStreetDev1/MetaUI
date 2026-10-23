@@ -120,7 +120,7 @@ export class PluginRegistry {
     private getFieldPath(type: FieldType, widgetName?: string): string {
         let path: string | undefined;
         if (widgetName) {
-            path = this.fieldIndex.get(`${type}:${widgetName}`);
+            path = this.fieldIndex.get(`${type}:${widgetName}`) ?? this.getActionPath(widgetName);
             if (!path) {
                 this.warnOnce(
                     `unregistered-widget:${type}:${widgetName}`,
@@ -557,6 +557,12 @@ export class PluginRegistry {
 
     /** Instantiates the requested plugin for the given field type. */
     public getPlugin(type: FieldType, widgetName?: string): IPlugin {
+        if (widgetName && !this.fieldIndex.has(`${type}:${widgetName}`)) {
+            const actionPlugin = this.getActionPlugin(widgetName);
+            if (actionPlugin) {
+                return actionPlugin;
+            }
+        }
         const path = this.getFieldPath(type, widgetName);
         return this.requireAndConstruct<IPlugin>(path, "Plugin")!;
     }

@@ -1979,6 +1979,37 @@ sap.ui.define([
             "custom/test/ProbeAction",
             "registerActionPath() is wired up: the formerly write-only actionIndex is readable via getActionPath()"
         );
+
+        var actionReg = new PluginRegistry();
+        actionReg.registerActionPath(
+            "customSubmitAction",
+            "nz/co/siliconst/ui5/metaui/plugins/actions/SubmitFormActionPlugin"
+        );
+        var actionSchema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Trigger: { type: "object", ui: { widget: "customSubmitAction", label: "Run Action" } }
+            }
+        });
+        var pathsToLoad = actionReg.getPathsToLoad(actionSchema);
+        assert.ok(
+            pathsToLoad.has("nz/co/siliconst/ui5/metaui/plugins/actions/SubmitFormActionPlugin"),
+            "getPathsToLoad() resolves a widget registered via registerActionPath() across any field type"
+        );
+        var actionEngine = new Engine(true, false, actionReg);
+        var actionCtrl = actionEngine.generateField(
+            actionSchema.properties.Trigger,
+            "/Trigger",
+            "meta",
+            false
+        );
+        assert.strictEqual(
+            actionCtrl.getIcon(),
+            "sap-icon://accept",
+            "Engine.generateField() instantiates the action plugin registered via registerActionPath() through getActionPlugin()"
+        );
+        actionEngine.destroy();
+        actionCtrl.destroy();
     });
 
     QUnit.test("13.10.7: LayoutMutator emits one dialog Control per scope across sibling containers", function (assert) {

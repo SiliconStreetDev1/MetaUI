@@ -220,7 +220,7 @@ The signatures for registering custom plugins, layouts, validators, formatters a
 | `PluginRegistry.getInstance()` | `PluginRegistry` | The process-wide singleton. A `DynamicHost` can be given its own isolated instance through the `pluginRegistry` property instead. |
 | `registerPluginPath(type: FieldType, widgetName: string \| undefined, path: string)` | `void` | Maps a `(type, widget)` pair to a control plugin's UI5 AMD module path. Passing `undefined` for `widgetName` replaces the default plugin for that schema type. |
 | `registerLayoutPath(strategy: string, path: string)` | `void` | Maps a `layoutStrategy` value to a layout module path. The built-in names are `form`, `table`, `wizard` and `compact`. |
-| `registerActionPath(actionName: string, path: string)` | `void` | Records an action module path, readable with `getActionPath()` / `getActionPlugin()`. **No engine code path resolves a plugin through this index while rendering**; register action buttons with `registerPluginPath` and a widget name. |
+| `registerActionPath(actionName: string, path: string)` | `void` | Maps a type-agnostic action widget name (`ui.widget` or `uiLayout[].widget`) to an action plugin module path, resolved via `getActionPath()` / `getActionPlugin()` when no type-specific `(type, widget)` mapping is registered. |
 | `registerPolicyConditionPath(conditionKey: string, path: string)` | `void` | Maps a `uiPolicies` condition operator to a module path. |
 | `registerPolicyEffectPath(effectName: string, path: string)` | `void` | Maps a `uiPolicies` effect to a module path. |
 | `GlobalPipeline.validators` | `Registry<IValidator>` | `register(name, validator)` adds a synchronous validator. `IValidator.validate` returns `IValidationResult`; it is not awaited. |
