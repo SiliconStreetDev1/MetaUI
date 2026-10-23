@@ -1,0 +1,55 @@
+# CodeQL static analysis for the JavaScript/TypeScript in this repository.
+#
+# This is the "advanced setup". It conflicts with GitHub's default code-scanning
+# setup: if default setup is enabled under Settings > Code security, this workflow
+# fails with "CodeQL analyses from advanced configurations cannot be processed
+# when the default setup is enabled". Disable default setup for CodeQL first.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly published query finds existing code without waiting
+    # for someone to open a pull request. Off-peak, off the hour.
+    - cron: '27 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: javascript-typescript
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # JavaScript and TypeScript need no build: CodeQL extracts from source.
+      # Deliberately no `npm ci` here, so analysis never executes dependency
+      # install hooks.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:javascript-typescript

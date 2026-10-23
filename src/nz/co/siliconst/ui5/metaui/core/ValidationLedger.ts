@@ -11,6 +11,7 @@ import { PayloadValidator } from "./PayloadValidator";
 import { SchemaNormalizer } from "./SchemaNormalizer";
 import { ControlDirectiveUtil, forEachBoundControl } from "../utils/ControlDirectiveUtil";
 import { Logger } from "../utils/Logger";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 import { isRecord } from "../utils/TypeGuards";
 import Control from "sap/ui/core/Control";
 import Messaging from "sap/ui/core/Messaging";
@@ -36,6 +37,17 @@ export class ValidationLedger {
     private readonly activeMessages: Map<string, Message> = new Map();
     private readonly dynamicRequiredPaths: Map<string, boolean> = new Map();
     private readonly dynamicVisiblePaths: Map<string, boolean> = new Map();
+
+    /**
+     * Paths the Engine could not turn into a control at all, keyed by normalized path, with the message to report.
+     *
+     * These are deliberately **not** `entries`. A three-tier entry is data state: it is cleared whenever the data is
+     * hot-swapped, the form is cleared or the policy engine resets, and `resolveVisualState` paints it onto a control.
+     * A generation failure is structural: there is no control to paint, and the field stays unvalidatable until the
+     * layout is rebuilt, so the record must survive every one of those resets. Only {@link clearFieldGenerationFailures},
+     * which the Engine calls when it disposes the previous build, discards them.
+     */
+    private readonly generationFailures: Map<string, string> = new Map();
 
     constructor(
         private useMessageManager: boolean,
@@ -140,7 +152,17 @@ export class ValidationLedger {
                     Logger.error("[MetaUI Validation] Plugin failed validation:", item.path || item.plugin.constructor.name);
                 }
             } catch (error) {
-                Logger.error(`[MetaUI Engine] Error validating plugin at ${item.path}`, (error as Error).message);
+                // Fail closed, exactly as `PipelineManager.executeValidation` does one layer down. A plugin that
+                // crashes has not proved the field is valid, and swallowing the crash let `hasActiveErrors()` stay
+                // false so `triggerSubmit()` fired `submit` on a form nobody had actually validated.
+                const msg = (error as Error).message;
+                Logger.error(`[MetaUI Engine] Error validating plugin at ${item.path}`, msg);
+                const fieldKey = item.path.replace(/^\//, "");
+                const errorMessage = I18n.getText(TEXT_KEY.systemError, [msg]);
+                this.reportCrashedPluginError(fieldKey, errorMessage, applyVisualState);
+                if (!errors.some((e) => e.fieldKey === fieldKey)) {
+                    errors.push({ isValid: false, fieldKey, fieldLabel: fieldKey, errorMessage });
+                }
             }
         }
 
@@ -187,7 +209,36 @@ export class ValidationLedger {
                 }
             }
         }
+
+        errors.push(...this.collectGenerationFailureResults(errors));
         return errors;
+    }
+
+    /**
+     * Records the schema error raised by a plugin whose `validate()` threw.
+     *
+     * The entry is always stored, so `hasActiveErrors()` and therefore the host's `isValid` report the crash even
+     * on a non-painting pass. Resolving the visual state is guarded because the control that just crashed may
+     * crash again inside `setVisualValidationState`, which would abort the remaining plugins in `validateAll`.
+     *
+     * @param fieldKey The slash-stripped path of the crashed plugin.
+     * @param errorMessage The system error message to record.
+     * @param applyVisualState True when this pass is allowed to repaint the field.
+     */
+    private reportCrashedPluginError(fieldKey: string, errorMessage: string, applyVisualState: boolean): void {
+        this.ensureEntry(fieldKey).schemaError = errorMessage;
+        if (!applyVisualState) {
+            return;
+        }
+        try {
+            this.resolveVisualState(fieldKey);
+        } catch (visualError) {
+            Logger.error(
+                "[MetaUI ValidationLedger]",
+                `Could not paint the validation crash on '${fieldKey}': ` + (visualError as Error).message,
+                "ValidationLedger"
+            );
+        }
     }
 
     /** Validates a specific inline array path and its nested rows, painting individual invalid cells. */
@@ -237,6 +288,11 @@ export class ValidationLedger {
 
     /** Returns true if any tracked field currently holds an active custom, policy, or schema error. */
     public hasActiveErrors(): boolean {
+        // A field that never became a control cannot be hidden, cleared or re-validated into health, so it is
+        // checked before the data-driven entries and is not subject to the `isPathHidden` exemption below.
+        if (this.generationFailures.size > 0) {
+            return true;
+        }
         for (const [cleanPath, entry] of this.entries.entries()) {
             const isHidden = this.isPathHidden(cleanPath);
             if (entry.customError || (!isHidden && (entry.policyError || entry.schemaError))) {
@@ -254,9 +310,17 @@ export class ValidationLedger {
      */
     public hasActiveErrorsForPaths(fieldPaths: string[]): boolean {
         const cleanSet = fieldPaths.map((p) => p.replace(/^\//, ""));
+        const matchesScope = (cleanPath: string): boolean =>
+            cleanSet.some((prefix) => cleanPath === prefix || cleanPath.startsWith(`${prefix}/`));
+        // A wizard step holding a field that failed to generate must not be navigable past, for the same
+        // reason the whole form must not be submittable: nothing validated that field.
+        for (const cleanPath of this.generationFailures.keys()) {
+            if (matchesScope(cleanPath)) {
+                return true;
+            }
+        }
         for (const [cleanPath, entry] of this.entries.entries()) {
-            const matches = cleanSet.some((prefix) => cleanPath === prefix || cleanPath.startsWith(`${prefix}/`));
-            if (!matches) {
+            if (!matchesScope(cleanPath)) {
                 continue;
             }
             const isHidden = this.isPathHidden(cleanPath);
@@ -283,26 +347,31 @@ export class ValidationLedger {
             return [];
         }
         const cleanPrefix = arrayPath.replace(/^\//, "");
+        // A root array (`"/"`) strips to `""`, and ledger keys are stored without their leading slash,
+        // so its row entries are keyed `"0/Name"` rather than `"/0/Name"`. Matching on `"/"` found nothing
+        // and every surviving row error was dropped on each add/delete.
+        const rowPrefix = cleanPrefix ? `${cleanPrefix}/` : "";
         const shifted: Array<{ key: string; entry: IValidationLedgerEntry }> = [];
         for (const [key, entry] of this.entries.entries()) {
-            if (!key.startsWith(`${cleanPrefix}/`)) {
+            if (!key.startsWith(rowPrefix)) {
                 continue;
             }
             if (!entry.schemaError && !entry.policyError && !entry.customError) {
                 continue;
             }
-            const subPath = key.substring(cleanPrefix.length + 1);
+            const subPath = key.substring(rowPrefix.length);
             const slashIdx = subPath.indexOf("/");
             const rowToken = slashIdx === -1 ? subPath : subPath.substring(0, slashIdx);
             const rest = slashIdx === -1 ? "" : subPath.substring(slashIdx);
-            const rowIdx = Number(rowToken);
-            if (!Number.isInteger(rowIdx) || rowIdx < 0) {
+            // An empty row token can only occur for a root array, where `Number("")` is 0; require real digits.
+            if (!/^\d+$/.test(rowToken)) {
                 continue;
             }
+            const rowIdx = Number(rowToken);
             if (deletedRowIndex < 0 || rowIdx < deletedRowIndex) {
                 shifted.push({ key, entry: { ...entry } });
             } else if (rowIdx > deletedRowIndex) {
-                shifted.push({ key: `${cleanPrefix}/${rowIdx - 1}${rest}`, entry: { ...entry } });
+                shifted.push({ key: `${rowPrefix}${rowIdx - 1}${rest}`, entry: { ...entry } });
             }
         }
         return shifted;
@@ -329,11 +398,24 @@ export class ValidationLedger {
         }
     }
 
-    /** Clears all ledger entries, visual control errors, and active messages under a given path prefix. */
+    /**
+     * Clears all ledger entries, visual control errors, and active messages under a given path prefix.
+     *
+     * `""` means "every entry" (used by the Clear Form action). `"/"` is the binding path of a **root**
+     * array and must only clear that array's row entries — not unrelated consumer custom errors — exactly
+     * as `"/Items"` only clears `Items` and its descendants.
+     *
+     * @param arrayPath The path prefix to clear, `"/"` for a root array, or `""` to clear the whole ledger.
+     */
     public clearArrayEntries(arrayPath: string): void {
         const cleanPrefix = arrayPath.replace(/^\//, "");
-        const matchesPrefix = (key: string): boolean =>
-            !cleanPrefix || key === cleanPrefix || key.startsWith(`${cleanPrefix}/`);
+        const isRootArray = !cleanPrefix && arrayPath !== "";
+        const matchesPrefix = (key: string): boolean => {
+            if (isRootArray) {
+                return /^\d+($|\/)/.test(key);
+            }
+            return !cleanPrefix || key === cleanPrefix || key.startsWith(`${cleanPrefix}/`);
+        };
         for (const key of Array.from(this.entries.keys())) {
             if (matchesPrefix(key)) {
                 this.setNativeControlError(key, undefined, true);
@@ -382,6 +464,57 @@ export class ValidationLedger {
         this.resolveVisualState(cleanPath);
     }
 
+    /**
+     * Records a field (or sub-layout) the Engine could not generate, so the form reports invalid and refuses to submit.
+     *
+     * Without this the failure was visible and permissive at the same time: the field painted the
+     * `[Error generating field X]` placeholder and raised the form-level warning strip, while `hasActiveErrors()`
+     * stayed false, `isValid` stayed `true` and `triggerSubmit()` fired `submit`. A `required` field that never
+     * rendered therefore submitted empty with no error and no block - the exact silent-degradation failure the
+     * per-field placeholder exists to prevent. Nothing validates a control that does not exist, so the only correct
+     * answer is to fail closed.
+     *
+     * @param fieldPath The binding path the Engine was generating when it failed. `""` is the root layout.
+     * @param errorMessage The message to surface in `validateAll()` and in UI5 Messaging.
+     */
+    public reportFieldGenerationFailure(fieldPath: string, errorMessage: string): void {
+        this.generationFailures.set(fieldPath.replace(/^\//, ""), errorMessage);
+    }
+
+    /**
+     * Discards every recorded generation failure. Called by the Engine when it disposes the previous build, because
+     * a rebuild re-runs generation and will re-record anything that fails again.
+     */
+    public clearFieldGenerationFailures(): void {
+        this.generationFailures.clear();
+    }
+
+    /**
+     * Returns the recorded generation failures, keyed by normalized path.
+     *
+     * @returns {ReadonlyMap<string, string>} Path to error message for every field that could not be generated.
+     */
+    public getFieldGenerationFailures(): ReadonlyMap<string, string> {
+        return this.generationFailures;
+    }
+
+    /**
+     * Builds one validation result per recorded generation failure, skipping paths already reported by another tier.
+     *
+     * @param existing The results collected so far in this pass, used to avoid reporting a path twice.
+     * @returns {IPluginValidationResult[]} One result per generation failure not already present in `existing`.
+     */
+    private collectGenerationFailureResults(existing: IPluginValidationResult[]): IPluginValidationResult[] {
+        const results: IPluginValidationResult[] = [];
+        for (const [cleanPath, errorMessage] of this.generationFailures.entries()) {
+            if (existing.some((e) => e.fieldKey === cleanPath) || results.some((e) => e.fieldKey === cleanPath)) {
+                continue;
+            }
+            results.push({ isValid: false, fieldKey: cleanPath, fieldLabel: cleanPath, errorMessage });
+        }
+        return results;
+    }
+
     /** Applies a policy state (`visibility`, `required`, `editable`) to cloned table row cell controls. */
     public applyRowControlState(
         targetPath: string,
@@ -392,13 +525,13 @@ export class ValidationLedger {
         if (property === "required") {
             this.dynamicRequiredPaths.set(cleanPath, value);
             if (!value && this.entries.get(cleanPath)?.schemaError) {
-                this.reportSchemaError(cleanPath, null);
+                this.clearSchemaErrorIfNowValid(cleanPath);
             }
         } else if (property === "visibility") {
+            // The stored schemaError is deliberately kept: `isPathHidden()` already suppresses it from
+            // `hasActiveErrors()`, `validateAll()` and the painted state while the field is hidden, and
+            // deleting it would destroy a real format or range failure that must reappear on unhide.
             this.dynamicVisiblePaths.set(cleanPath, value);
-            if (!value && this.entries.has(cleanPath)) {
-                this.reportSchemaError(cleanPath, null);
-            }
         }
         const host = this.getHost();
         if (!host || !host.generatedContent) {
@@ -408,6 +541,70 @@ export class ValidationLedger {
         if (property === "visibility" && this.entries.has(cleanPath)) {
             this.resolveVisualState(cleanPath);
         }
+    }
+
+    /**
+     * Re-validates a field whose dynamic `required` flag was just relaxed and clears its schema error
+     * only when the field now passes, mirroring the plugin-backed route in `PolicyDelegate.evaluateNow`.
+     * The stored error may be a format, range or pattern failure that a `required: false` policy must not erase.
+     *
+     * @param cleanPath The slash-stripped field path whose `required` constraint was lifted.
+     */
+    private clearSchemaErrorIfNowValid(cleanPath: string): void {
+        const plugin = this.getPluginByPath(cleanPath);
+        if (plugin) {
+            if (plugin.validate().isValid) {
+                this.reportSchemaError(cleanPath, null);
+            }
+            return;
+        }
+        const host = this.getHost();
+        const stateManager = host && typeof host.getStateManager === "function" ? host.getStateManager() : null;
+        const meta = this.resolveMetaForDataPath(cleanPath);
+        if (!meta || !stateManager) {
+            Logger.debug(
+                "[MetaUI ValidationLedger]",
+                `Cannot re-validate '${cleanPath}' after relaxing 'required'; its stored schema error is kept ` +
+                    `and will be recomputed by the next validateAll().`
+            );
+            return;
+        }
+        const resolveDef = (ref: string): ISchema | null => host?.getSchemaDefinition?.(ref) || null;
+        const result = PayloadValidator.validateTree(meta, stateManager.getProperty(`/${cleanPath}`), resolveDef, 0, false);
+        if (result.isValid) {
+            this.reportSchemaError(cleanPath, null);
+        }
+    }
+
+    /**
+     * Resolves the schema metadata behind a live data path, stepping into `items` for numeric row indices
+     * (e.g. `"Items/0/Price"` resolves through `properties.Items.items.properties.Price`).
+     *
+     * @param cleanPath The slash-stripped data path.
+     * @returns {IPropertyMetadata | undefined} The resolved metadata, or undefined when the path is unknown.
+     */
+    private resolveMetaForDataPath(cleanPath: string): IPropertyMetadata | undefined {
+        const host = this.getHost();
+        const stateManager = host && typeof host.getStateManager === "function" ? host.getStateManager() : null;
+        const schema = stateManager ? stateManager.getSchema() : host?.getParsedSchema?.() || null;
+        if (!schema || !cleanPath) {
+            return undefined;
+        }
+        let node: IPropertyMetadata | undefined = {
+            type: schema.type || "object",
+            properties: schema.properties,
+            items: schema.items
+        };
+        for (const segment of cleanPath.split("/")) {
+            if (!node) {
+                return undefined;
+            }
+            const definition: ISchema | undefined = node.$ref ? host?.getSchemaDefinition?.(node.$ref) : undefined;
+            const items: IPropertyMetadata | undefined = node.items || definition?.items;
+            const properties: Record<string, IPropertyMetadata> | undefined = node.properties || definition?.properties;
+            node = /^\d+$/.test(segment) ? items : properties?.[segment];
+        }
+        return node;
     }
 
     /** Purges all tracked messages and clears the ledger on engine teardown or hot-swap. */

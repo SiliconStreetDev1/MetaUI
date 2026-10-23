@@ -26,17 +26,26 @@ import "nz/co/siliconst/ui5/metaui/layouts/TableLayout";
 import "nz/co/siliconst/ui5/metaui/layouts/WizardLayout";
 import "nz/co/siliconst/ui5/metaui/layouts/CompactLayout";
 
-// Delegate to standard library registration
+// Delegate to standard library registration.
+//
+// `dependencies` is the EAGER list: UI5 resolves every entry while this factory runs. It must
+// therefore contain exactly the libraries the eagerly bundled plugins and layouts above import,
+// and nothing else. `sap.ui.unified` (FileUploaderPlugin) and `sap.ui.codeeditor`
+// (CodeEditorPlugin) are reachable only through plugin modules that
+// PluginRegistry.preloadDependencies() requires on demand, so both are declared
+// `<lazy>true</lazy>` in `.library` and are deliberately absent here.
+//
+// Listing a library here that is not eagerly imported is not merely redundant. This list once
+// carried `sap.ndc`, which ships with SAPUI5 but not with OpenUI5, so resolving
+// `sap/ndc/library.js` 404'd on every OpenUI5 distribution and took the whole library factory -
+// and therefore the whole form - down with it. Both survivors ship with OpenUI5 too.
 Core.initLibrary({
     name: "nz.co.siliconst.ui5.metaui",
     version: "2.0.0",
     dependencies: [
         "sap.ui.core",
         "sap.m",
-        "sap.ui.layout",
-        "sap.ui.unified",
-        "sap.ui.codeeditor",
-        "sap.ndc"
+        "sap.ui.layout"
     ],
     controls: [
         "nz.co.siliconst.ui5.metaui.controls.DynamicHost",

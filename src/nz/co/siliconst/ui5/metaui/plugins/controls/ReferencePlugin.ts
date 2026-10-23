@@ -5,7 +5,9 @@
 
 import { INestedDialogDescriptor, NestedDialogPlugin } from "./NestedDialogPlugin";
 import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
+import { OpenApiRefResolver } from "../../openapi/OpenApiRefResolver";
 import { Logger } from "../../utils/Logger";
+import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering `$ref` schema reference triggers (`sap.m.Button`).
@@ -15,7 +17,7 @@ import { Logger } from "../../utils/Logger";
  * @public
  */
 export class ReferencePlugin extends NestedDialogPlugin {
-    protected readonly defaultErrorTooltip: string = "Invalid referenced entity";
+    protected readonly defaultErrorTooltipKey: MetaUITextKey = TEXT_KEY.nestedReferenceInvalid;
     protected readonly emptyFallbackValue: unknown = null;
 
     /**
@@ -25,7 +27,8 @@ export class ReferencePlugin extends NestedDialogPlugin {
      * @returns {string} The button label stem.
      */
     protected getDefaultLabel(metadata: IPropertyMetadata): string {
-        return metadata.ui?.label || metadata.$ref?.split("/").pop() || "Referenced Entity";
+        const refName = metadata.$ref ? OpenApiRefResolver.extractRefName(metadata.$ref) : "";
+        return metadata.ui?.label || refName || I18n.getText(TEXT_KEY.nestedReferenceLabel);
     }
 
     /**
@@ -61,10 +64,13 @@ export class ReferencePlugin extends NestedDialogPlugin {
         }
 
         const title =
-            metadata.ui?.label || resolvedSchema.title || metadata.$ref.split("/").pop() || "Referenced Entity";
+            metadata.ui?.label ||
+            resolvedSchema.title ||
+            OpenApiRefResolver.extractRefName(metadata.$ref) ||
+            I18n.getText(TEXT_KEY.nestedReferenceLabel);
         return {
             title,
-            subSchema: resolvedSchema,
+            subSchema: { ...resolvedSchema, ui: this.buildSubSchemaUi(metadata, resolvedSchema.ui) },
             isArrayRoot: resolvedSchema.type === "array"
         };
     }

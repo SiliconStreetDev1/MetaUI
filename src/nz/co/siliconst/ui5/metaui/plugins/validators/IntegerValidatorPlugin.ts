@@ -5,6 +5,7 @@
 
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Enforces that fields declared with `type: "integer"` contain finite whole integers.
@@ -34,7 +35,7 @@ export class IntegerValidatorPlugin implements IValidator {
             return { isValid: true };
         }
         if (!Number.isFinite(parsedValue) || !Number.isInteger(parsedValue)) {
-            return { isValid: false, errorMessage: "Value must be a whole integer." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.integer) };
         }
         return { isValid: true };
     }

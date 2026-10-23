@@ -22,7 +22,9 @@ Every rule is tagged with its enforcement:
 
 ## 1. Invariant-first — fix the contract, not the symptom `[judgment]`
 
-Before fixing any rendering, binding, validation or policy bug, identify the base class or coordinator that owns the behaviour — `BasePlugin`, `PluginStateBase`, `ValidationLedger`, `DataSyncDelegate`, `DialogDelegate`, `GeneratorHost`, `LayoutElementWalker` — and fix it there, once, for the whole pipeline.
+Before fixing any rendering, binding, validation or policy bug, identify the base class or coordinator that owns the behaviour — `BasePlugin`, `PluginStateBase`, `ValidationLedger`, `DataSyncDelegate`, `DialogDelegate`, `GeneratorHost`, `LayoutElementWalker`, `SchemaWalker` — and fix it there, once, for the whole pipeline.
+
+This applies with particular force to anything that walks the schema tree. Six separate audits of this codebase each found the same defect shape — a rule implemented correctly in one place and missing in its twin — and the cause is documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §10a. **Read it before adding a traversal.** `SchemaWalker` owns depth, cycles and `$ref`; the `[SINGLE_WALKER]` gate will stop you writing a fourteenth walker, but it cannot tell you why you should not want to.
 
 Never patch an individual control, layout or scenario in isolation. Never add redundant defensive code to force a fix to work; if you are tempted to reassign a property "just to be safe", you have not found the cause yet.
 
@@ -81,7 +83,7 @@ If you believe the request is wrong, say so and explain why — then do what was
 Before claiming a task is complete:
 
 ```
-npm run lint             # 0 violations, 0 exemptions
+npm run lint             # 0 violations (exemptions are counted and reported, not asserted to be zero)
 npx tsc --noEmit -p .    # 0 errors
 npm run build            # clean
 npm test                 # all suites pass
@@ -115,6 +117,7 @@ When adding a widget, schema property or `ui` directive, update `docs/wiki/AI_Sc
 | No `any`; no raw `console.*`; no empty `catch`; no `.js` in `src/`; plugin directory purity; max line length | the AST lint gate in `scripts/run-tests.js` (`npm run lint`) |
 | Strict compiler flags | `tsconfig.json` |
 | Registry ↔ Oracle parity; widget ↔ constants parity | `scripts/run-tests.js` |
+| Producer completeness against `ISchema`; one shared depth cap; one `$ref` resolver; one layout-strategy default; schema constants over string literals; one `data`/`dataJson` writer; a caught failure must signal; a depth guard must say what it truncated; a degraded render must raise the banner | the structural gates in `scripts/run-tests.js` (`npm run lint`), each proven to fire by `scripts/prove-structural-gates.js` |
 | Every plugin renders / mounts / validates; DOM geometry; display mode; row clones; `dataJson` round-trip; standalone consumer; input immutability; memory lifecycle | the test suite |
 | Hardcoded counts in documentation | `npm run metrics`, reconciled against the live run on every `npm test` |
 | Core features, tri-binding, live vs transactional, Messaging behaviour, deployment facts | `docs/ARCHITECTURE.md` |

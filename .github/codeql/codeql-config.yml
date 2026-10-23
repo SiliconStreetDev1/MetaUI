@@ -1,0 +1,17 @@
+name: MetaUI CodeQL configuration
+
+# Keep the default security query suite. `security-extended` and
+# `security-and-quality` are available, but on a solo-maintained repository the
+# extra maintainability alerts drown the security ones. Add:
+#   queries:
+#     - uses: security-extended
+# when there is someone to triage the volume.
+
+paths-ignore:
+  # Build output; the sources are already analysed.
+  - dist
+  # Vendored dependencies of the sandbox app.
+  - test/node_modules
+  # ~17MB of third-party OpenAPI documents fetched for the stress routine.
+  - test/swagger_schemas
+  - node_modules

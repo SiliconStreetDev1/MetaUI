@@ -27,6 +27,8 @@ import { IntegerValidatorPlugin } from "../plugins/validators/IntegerValidatorPl
 import { ObjectPropertiesValidatorPlugin } from "../plugins/validators/ObjectPropertiesValidatorPlugin";
 import { Logger } from "../utils/Logger";
 import { isRecord } from "../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../utils/I18n";
+import { safeToString } from "./SafeConvert";
 
 /**
  * The core engine responsible for marshalling data through the validation, formatting, and parsing phases.
@@ -102,6 +104,13 @@ export class PipelineManager {
     /**
      * Executes a chain of registered formatters sequentially on a raw model value.
      *
+     * Fails **soft**, which is the mirror image of {@link executeValidation}'s fail-closed contract and
+     * for the same reason: a formatter runs inside a UI5 property binding, where a thrown error does not
+     * invalidate one field but takes the whole render with it. A formatter that crashes is reported and
+     * its step is replaced by the safe string form of its input, so the chain still yields a display
+     * value. The invariant a caller may rely on is that a formatter step either formats or degrades —
+     * it never propagates.
+     *
      * @param rawValue The raw value from the model.
      * @param formatterNames A single formatter name or array of formatter names.
      * @param args Optional formatter arguments.
@@ -113,7 +122,13 @@ export class PipelineManager {
         for (const name of list) {
             const formatter = this.formatters.get(name);
             if (formatter) {
-                current = formatter.format(current, args);
+                try {
+                    current = formatter.format(current, args);
+                } catch (error) {
+                    const detail = error instanceof Error ? error.message : safeToString(error);
+                    Logger.error(`[MetaUI] PipelineManager: Formatter '${name}' crashed during execution.`, detail);
+                    current = safeToString(current);
+                }
             }
         }
         return current;
@@ -164,6 +179,10 @@ export class PipelineManager {
     /**
      * Executes the validation pipeline sequentially. Fails fast on the first encountered error.
      *
+     * Fails **closed** on every rule it cannot honour: an unregistered rule name and a validator that throws both
+     * return `{ isValid: false }` with a schema-configuration message, so a misconfigured field is reported rather
+     * than silently waved through.
+     *
      * @param parsedValue The raw extracted value from the UI control.
      * @param requestedValidators Array of validation rule keys (e.g. `['required', 'email']`).
      * @param argsMap Optional map of parameters required by specific rules (e.g. `{ maxLength: 50 }`).
@@ -191,8 +210,12 @@ export class PipelineManager {
         for (const rule of requestedValidators) {
             const validator = this.validators.get(rule);
             if (!validator) {
-                Logger.warn(`[MetaUI] PipelineManager: Requested validator '${rule}' not found in registry.`);
-                continue;
+                // Fail closed, exactly as the `catch` below does for a validator that crashes. Skipping an
+                // unregistered rule meant a single typo in `ui.validators` silently disabled validation for the
+                // field, and the two opposite contracts lived three lines apart in the same loop.
+                const detail = `Requested validator '${rule}' is not registered.`;
+                Logger.error(`[MetaUI] PipelineManager: ${detail}`);
+                return { isValid: false, errorMessage: `Schema configuration error: ${detail}` };
             }
             const args = argsMap ? argsMap[rule] : undefined;
             try {
@@ -201,9 +224,9 @@ export class PipelineManager {
                     return result;
                 }
             } catch (error) {
-                const msg = (error as Error).message;
+                const msg = error instanceof Error ? error.message : safeToString(error);
                 Logger.error(`[MetaUI] PipelineManager: Validator '${rule}' crashed during execution.`, msg);
-                return { isValid: false, errorMessage: `System validation error: ${msg}` };
+                return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.systemError, [msg]) };
             }
         }
         return { isValid: true };

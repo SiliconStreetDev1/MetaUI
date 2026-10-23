@@ -10,6 +10,7 @@ import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import { InputType } from "sap/m/library";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering logic for Password strings (`ui.widget = "password"` or `format = "password"`).
@@ -59,7 +60,7 @@ export class PasswordPlugin extends TextLikeInputPlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             type: InputType.Password,
             value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
-            placeholder: metadata.ui?.placeholder || "Enter password",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.passwordPlaceholder),
             maxLength: metadata.maxLength || 0,
             required: this.isRequired(),
             change: (oEvent: Event) => {

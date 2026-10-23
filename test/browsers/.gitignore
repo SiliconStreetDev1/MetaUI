@@ -1,0 +1,6 @@
+# Evidence from local matrix runs. Regenerate with `node run-browser-matrix.js`.
+reports/
+
+# Frozen copy of dist/resources taken at run start so a concurrent `ui5 build --clean-dest`
+# cannot make one engine look broken. Rebuilt automatically.
+.dist-cache/

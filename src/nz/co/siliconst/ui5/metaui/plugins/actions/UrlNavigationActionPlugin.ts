@@ -3,15 +3,15 @@
  * @description Action plugin that renders a button to navigate to a validated URL.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
+import { ActionButtonPlugin, IActionButtonConfig } from "./ActionButtonPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
-import Button from "sap/m/Button";
 import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import { ButtonType, URLHelper } from "sap/m/library";
 import { UrlValidator } from "../../utils/UrlValidator";
 import { Logger } from "../../utils/Logger";
+import { TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering a URL navigation action button (`ui.widget = "urlButton"`).
@@ -20,60 +20,73 @@ import { Logger } from "../../utils/Logger";
  * @namespace nz.co.siliconst.ui5.metaui.plugins.actions
  * @public
  */
-export class UrlNavigationActionPlugin extends BasePlugin {
+export class UrlNavigationActionPlugin extends ActionButtonPlugin {
+    protected readonly actionConfig: IActionButtonConfig = {
+        fallbackLabelKey: TEXT_KEY.actionOpenLink,
+        buttonType: ButtonType.Default,
+        icon: "sap-icon://action"
+    };
+
     /**
-     * Renders a `sap.m.Button` that opens the bound or configured URL in a new tab when pressed.
-     *
-     * @param metadata The specific JSON schema properties for this action field.
-     * @param bindingPath The JSON path bound to this control.
-     * @param modelName The UI5 JSONModel name.
-     * @param engineScopeId The deterministic scope ID.
-     * @param onChange The callback fired on value change.
-     * @returns {Control} The configured URL Navigation Button control.
+     * This button opens a URL in a new tab and mutates nothing, so it is a navigation affordance exactly like
+     * `LinkPlugin`: a read-only host must not make the target unreachable. The mutating action buttons
+     * (`SubmitFormActionPlugin`, `ClearFormActionPlugin`) deliberately keep the default and stay disabled.
      */
-    public render(
-        metadata: IPropertyMetadata,
-        bindingPath: string,
-        modelName: string = "meta",
-        engineScopeId?: string,
-        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
-    ): Control {
-        this.initialize(metadata, bindingPath, modelName, onChange);
+    protected override readonly isNavigationAffordance: boolean = true;
 
-        const fallbackLabel = metadata.ui?.label || "Open Link";
-        const textBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
-            formatter: (val: unknown) => {
-                if (typeof val !== "string") {
-                    return fallbackLabel;
-                }
-                const labelText: string = val.trim();
-                return labelText && !UrlValidator.isSafeNavigationUrl(val) ? labelText : fallbackLabel;
-            }
-        });
+    /**
+     * Opens the resolved target URL in a new tab, refusing anything the URL policy rejects.
+     *
+     * @param event The `sap.m.Button` press event.
+     */
+    protected onPress(event: Event): void {
+        const src = (event.getSource() as Control | undefined) ?? this.control;
+        const rawUrl = this.metadata ? this.resolveTargetUrl(this.metadata, src) : undefined;
+        if (UrlValidator.isSafeNavigationUrl(rawUrl)) {
+            URLHelper.redirect(rawUrl.trim(), true);
+            return;
+        }
+        Logger.warn(
+            "[MetaUI UrlNavigationActionPlugin]",
+            `Blocked navigation to unsafe or empty URL: '${String(rawUrl)}'`,
+            "UrlNavigationActionPlugin"
+        );
+    }
 
-        this.control = new Button({
-            id: this.generateStableId(engineScopeId, bindingPath),
-            text: textBinding as unknown as string,
-            type: ButtonType.Default,
-            icon: "sap-icon://action",
-            enabled: this.isControlEditable(),
-            press: (oEvent: Event) => {
-                const src = (oEvent.getSource() as Control | undefined) ?? this.control;
-                const rawUrl = this.resolveTargetUrl(metadata, src);
-                if (UrlValidator.isSafeNavigationUrl(rawUrl)) {
-                    URLHelper.redirect(rawUrl.trim(), true);
-                } else {
-                    Logger.warn(
-                        "[MetaUI UrlNavigationActionPlugin]",
-                        `Blocked navigation to unsafe or empty URL: '${String(rawUrl)}'`,
-                        "UrlNavigationActionPlugin"
-                    );
-                }
-            }
-        });
+    /**
+     * The bound value here is the navigation target, not a caption, so a bound value that reads as a
+     * safe URL must not be painted on the button.
+     *
+     * @param val The current bound value.
+     * @param fallbackLabel The configured fallback caption.
+     * @returns {string} The caption to paint on the button.
+     */
+    protected override resolveLabelText(val: unknown, fallbackLabel: string): string {
+        if (typeof val !== "string") {
+            return fallbackLabel;
+        }
+        const labelText: string = val.trim();
+        return labelText && !UrlValidator.isSafeNavigationUrl(val) ? labelText : fallbackLabel;
+    }
 
-        this.applyCommonDirectives(this.control, metadata, modelName);
-        return this.control;
+    /**
+     * Navigation stays available under `readOnly` and in display mode; only an explicit
+     * `ui.enabled: false` switches it off.
+     *
+     * @returns {boolean} True when the affordance should remain clickable.
+     */
+    protected override resolveEnabled(): boolean {
+        return this.isAffordanceEnabled();
+    }
+
+    /**
+     * An explicit `ui.enabledOn` expression is bound onto the button by `applyCommonDirectives` and
+     * always wins, so `applyState` must not overwrite it.
+     *
+     * @returns {boolean} True when an `ui.enabledOn` expression owns the enabled state.
+     */
+    protected override isEnabledStateExternallyOwned(): boolean {
+        return Boolean(this.metadata?.ui?.enabledOn);
     }
 
     /**
@@ -106,28 +119,12 @@ export class UrlNavigationActionPlugin extends BasePlugin {
     }
 
     /**
-     * Action buttons do not hold user data and never fail schema validation.
-     * @returns {{ isValid: boolean; errorMessage?: string }} Always `{ isValid: true }`.
-     */
-    public override validate(): { isValid: boolean; errorMessage?: string } {
-        return { isValid: true };
-    }
-
-    /**
      * Retrieves the resolved target URL string.
+     *
      * @param sourceControl Optional runtime source control (e.g., cloned table cell).
      * @returns {unknown} The target URL string or `null`.
      */
-    protected getValue(sourceControl?: Control): unknown {
+    protected override getValue(sourceControl?: Control): unknown {
         return this.metadata ? this.resolveTargetUrl(this.metadata, sourceControl) : null;
-    }
-
-    /**
-     * Updates the button's `enabled` state when `isEditable` or `readOnly` changes.
-     */
-    protected applyState(): void {
-        if (this.control && this.metadata) {
-            (this.control as Button).setEnabled(this.isControlEditable());
-        }
     }
 }

@@ -42,14 +42,29 @@
     "deploy": "npm run build && npm run flatten && fiori deploy --config ui5-deploy.yaml",
     "publish-prep": "node scripts/publish-prep.js",
     "stress:fetch": "node scripts/fetch-stress-specs.js",
-    "stress": "node -r ./test/swagger_schemas/node-ui5-stub.js -r ts-node/register test/swagger_schemas/test_runner.ts",
-    "gen:accessors": "node scripts/generate-control-accessors.js"
+    "stress": "node -e \"process.env.TS_NODE_PROJECT='test/swagger_schemas/tsconfig.json';require('./test/swagger_schemas/node-ui5-stub.js');require('ts-node/register');require('./test/swagger_schemas/test_runner.ts')\"",
+    "test:prop": "mocha --config test/node/.mocharc.json",
+    "mutate": "node test/node/run-mutation.js",
+    "api:snapshot": "node .github/scripts/api-surface.js dist --out .github/api-surface.txt",
+    "api:check": "node .github/scripts/api-surface.js dist --check .github/api-surface.txt",
+    "verify:package": "node .github/scripts/verify-package.js dist",
+    "gen:accessors": "node scripts/generate-control-accessors.js",
+    "api:tiers": "node .github/scripts/api-surface.js dist --tier-report"
+  },
+  "engines": {
+    "node": ">=22.14.0"
   },
   "types": "dist/resources/nz/co/siliconst/ui5/metaui/library.d.ts",
   "devDependencies": {
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/mocha-runner": "10.0.0",
+    "@types/mocha": "10.0.10",
     "@types/node": "^26.6.5",
     "@types/openui5": "^1.120.0",
     "@ui5/cli": "^3.0.0",
+    "axe-core": "4.14.0",
+    "fast-check": "4.10.2",
+    "mocha": "11.7.5",
     "puppeteer": "^25.15.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.0"

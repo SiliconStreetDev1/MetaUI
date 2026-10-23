@@ -5,6 +5,7 @@
 
 import TimePicker from "sap/m/TimePicker";
 import { IPickerPluginConfig, PickerPlugin } from "./PickerPlugin";
+import { TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering and logic for time inputs (`HH:mm:ss`).
@@ -18,6 +19,6 @@ export class TimePlugin extends PickerPlugin {
         bindingType: "sap.ui.model.type.Time",
         sourcePattern: "HH:mm:ss",
         displayFormat: "HH:mm:ss",
-        parseErrorMessage: "Please enter a valid time."
+        parseErrorMessageKey: TEXT_KEY.timeParseError
     };
 }

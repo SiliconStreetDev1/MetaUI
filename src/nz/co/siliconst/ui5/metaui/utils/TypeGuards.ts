@@ -7,6 +7,9 @@
  * compiler can prove property access is safe.
  */
 
+import { MAX_CLONE_DEPTH } from "../constants/MetaUIConstants";
+import { Logger } from "./Logger";
+
 /** A plain JSON object (not null, not an array). */
 export type JsonRecord = Record<string, unknown>;
 
@@ -93,7 +96,6 @@ export function deepClone<T>(value: T, seen: WeakMap<object, unknown> = new Weak
     return cloneInternal(value, seen, 0) as T;
 }
 
-const MAX_CLONE_DEPTH = 200;
 
 function cloneInternal(value: unknown, seen: WeakMap<object, unknown>, depth: number): unknown {
     if (value === undefined || value === null || typeof value !== "object") {
@@ -105,7 +107,16 @@ function cloneInternal(value: unknown, seen: WeakMap<object, unknown>, depth: nu
     if (seen.has(value)) {
         return seen.get(value);
     }
+    // WALKER_EXEMPT: deepClone recursively copies arbitrary consumer JavaScript values (Dates, arrays, plain objects)
+    // with WeakMap reference-cycle preservation capped at MAX_CLONE_DEPTH rather than traversing an ISchema tree.
     if (depth >= MAX_CLONE_DEPTH) {
+        // Returning {} or [] here replaces the consumer's own data with nothing. That is the
+        // most expensive silent truncation in the library, so it must never be silent.
+        Logger.warn(
+            "[MetaUI TypeGuards]",
+            `deepClone exceeded MAX_CLONE_DEPTH (${MAX_CLONE_DEPTH}); the payload below this level was ` +
+                `replaced with an empty ${Array.isArray(value) ? "array" : "object"} and its data is lost.`
+        );
         return Array.isArray(value) ? [] : {};
     }
     if (Array.isArray(value)) {

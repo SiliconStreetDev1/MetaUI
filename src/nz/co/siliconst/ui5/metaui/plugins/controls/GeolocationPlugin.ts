@@ -9,6 +9,7 @@ import Control from "sap/ui/core/Control";
 import GeolocationControl from "../../controls/GeolocationControl";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering the hardware `GeolocationControl` widget.
@@ -37,7 +38,7 @@ export class GeolocationPlugin extends HardwareControlPlugin<GeolocationControl>
         const geoBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
             formatter: (val: unknown) => {
                 if (isRecord(val) && val.lat !== undefined && val.lng !== undefined) {
-                    return `Lat: ${val.lat}, Lng: ${val.lng}`;
+                    return I18n.getText(TEXT_KEY.geolocationCoordinates, [String(val.lat), String(val.lng)]);
                 }
                 if (typeof val === "string") {
                     return val;

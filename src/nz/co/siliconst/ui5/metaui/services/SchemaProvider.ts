@@ -4,6 +4,7 @@
  */
 
 import { Logger } from "../utils/Logger";
+import { UrlValidator } from "../utils/UrlValidator";
 
 /**
  * Service class responsible for resolving schemas from remote network locations.
@@ -22,6 +23,11 @@ export class SchemaProvider {
         url: string,
         timeoutMs: number = this.DEFAULT_TIMEOUT_MS
     ): Promise<Record<string, unknown>> {
+        if (!UrlValidator.isSafeDataSourceUrl(url)) {
+            const refusal = new Error(`Refused schema URL '${url}': blocked by the data source URL policy.`);
+            Logger.warn("[MetaUI SchemaProvider]", refusal.message, "SchemaProvider");
+            throw refusal;
+        }
         const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
         const timerId = controller
             ? setTimeout(() => {

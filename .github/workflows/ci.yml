@@ -1,3 +1,7 @@
+# Every gate lives in verify.yml so that CI and the release run exactly the same
+# checks. Do not add a step here: add it to verify.yml, or the release will not
+# run it.
+
 name: CI
 
 on:
@@ -6,32 +10,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build:
-    name: Lint, Typecheck, Build & Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build library
-        run: npm run build
-
-      - name: Run automated test suite
-        run: npm test
+  verify:
+    name: Verify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify.yml

@@ -3,12 +3,10 @@
  * @description Renders a sap.m.Select control for enum and valueHelp properties, preserving numeric enum types.
  */
 
-import { BasePlugin } from "./BasePlugin";
-import { IPropertyMetadata, IValueHelpOption } from "../../interfaces/ISchema";
+import { OptionListPlugin } from "./OptionListPlugin";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Select from "sap/m/Select";
-import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 
 /**
@@ -19,7 +17,7 @@ import Event from "sap/ui/base/Event";
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
-export class DropdownPlugin extends BasePlugin {
+export class DropdownPlugin extends OptionListPlugin {
     /**
      * Renders a `sap.m.Select` component.
      *
@@ -40,24 +38,7 @@ export class DropdownPlugin extends BasePlugin {
         this.initialize(metadata, bindingPath, modelName, onChange);
 
         if (!this.isEditable) {
-            const vhList: IValueHelpOption[] | undefined = Array.isArray(metadata.ui?.valueHelp)
-                ? metadata.ui.valueHelp
-                : Array.isArray(metadata.valueHelp)
-                  ? metadata.valueHelp
-                  : undefined;
-            if (vhList && vhList.length > 0) {
-                const displayBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
-                    formatter: (val: unknown) => {
-                        if (val === undefined || val === null) {
-                            return "";
-                        }
-                        const matched = vhList.find((opt) => String(opt.key) === String(val));
-                        return matched ? String(matched.text) : String(val);
-                    }
-                });
-                return this.createDisplayText(engineScopeId, bindingPath, displayBinding);
-            }
-            return this.createDisplayText(engineScopeId, bindingPath);
+            return this.createOptionDisplayText(engineScopeId, bindingPath, modelName, metadata);
         }
 
         const isNumericType = metadata.type === "number" || metadata.type === "integer";
@@ -72,13 +53,9 @@ export class DropdownPlugin extends BasePlugin {
                 const src = oEvent.getSource() as Select;
                 if (isNumericType) {
                     const rawKey = src.getSelectedKey();
-                    const model = src.getModel(modelName) as JSONModel | undefined;
-                    if (model) {
-                        const targetPath = this.resolveAbsolutePath(src);
-                        const numVal = Number(rawKey);
-                        if (rawKey !== "" && !Number.isNaN(numVal)) {
-                            model.setProperty(targetPath, numVal);
-                        }
+                    const numVal = Number(rawKey);
+                    if (rawKey !== "" && !Number.isNaN(numVal)) {
+                        this.commitValue(src, numVal);
                     }
                 }
                 this.notifyChange(src.getId());
@@ -100,41 +77,19 @@ export class DropdownPlugin extends BasePlugin {
      * @param metadata The property metadata containing options.
      */
     private populateItems(select: Select, metadata: IPropertyMetadata): void {
-        const vhList: IValueHelpOption[] | undefined = Array.isArray(metadata.ui?.valueHelp)
-            ? metadata.ui.valueHelp
-            : Array.isArray(metadata.valueHelp)
-              ? metadata.valueHelp
-              : undefined;
-
-        const desiredItems: Array<{ key: string; text: string }> = [];
-        if (vhList) {
-            for (const opt of vhList) {
-                desiredItems.push({ key: String(opt.key), text: String(opt.text) });
+        this.syncOptionItems(
+            select,
+            this.buildOptionItems(metadata, metadata.enum),
+            () => {
+                const prevKey = typeof select.getSelectedKey === "function" ? select.getSelectedKey() : "";
+                return prevKey ? [prevKey] : [];
+            },
+            (keys) => {
+                if (typeof select.setSelectedKey === "function") {
+                    select.setSelectedKey(keys[0]);
+                }
             }
-        } else if (metadata.enum && Array.isArray(metadata.enum)) {
-            for (const val of metadata.enum) {
-                desiredItems.push({ key: String(val), text: String(val) });
-            }
-        }
-
-        const existingItems = typeof select.getItems === "function" ? select.getItems() : [];
-        if (
-            existingItems.length === desiredItems.length &&
-            existingItems.every(
-                (item, idx) => item.getKey() === desiredItems[idx].key && item.getText() === desiredItems[idx].text
-            )
-        ) {
-            return;
-        }
-
-        const prevKey = typeof select.getSelectedKey === "function" ? select.getSelectedKey() : "";
-        select.destroyItems();
-        for (const opt of desiredItems) {
-            select.addItem(new Item({ key: opt.key, text: opt.text }));
-        }
-        if (prevKey && typeof select.setSelectedKey === "function") {
-            select.setSelectedKey(prevKey);
-        }
+        );
     }
 
     /**

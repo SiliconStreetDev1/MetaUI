@@ -16,6 +16,29 @@ import { Logger } from "../../utils/Logger";
 import { JsonRecord, isRecord, readString, readBoolean, readRecord, readStringArray } from "../../utils/TypeGuards";
 
 /**
+ * Validation keywords an OpenAPI 2.0 non-body parameter declares inline, alongside `type`.
+ * This is the complete JSON Schema subset the 2.0 Parameter Object permits; the 3.0 branch obtains
+ * the same set for free by spreading `param.schema`.
+ */
+const OA2_PARAMETER_SCHEMA_KEYWORDS: readonly string[] = [
+    "format",
+    "items",
+    "default",
+    "enum",
+    "multipleOf",
+    "maximum",
+    "exclusiveMaximum",
+    "minimum",
+    "exclusiveMinimum",
+    "maxLength",
+    "minLength",
+    "pattern",
+    "maxItems",
+    "minItems",
+    "uniqueItems"
+];
+
+/**
  * Abstract base parser implementing the shared OpenAPI 2.0 / 3.0 AST translation pipeline.
  *
  * @namespace nz.co.siliconst.ui5.metaui.openapi.parsers
@@ -64,7 +87,10 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
         targetObject = OpenApiConstraintMapper.resolveAllOf(targetObject, root);
 
         const info = readRecord(root, "info");
-        const isArray = readString(targetObject, "type") === "array";
+        // A JSON Schema `type` may be a union array (`["array", "null"]`). Resolve it the same way the
+        // fallback below and SchemaNormalizer do, so both halves of this method agree on the root type.
+        const rootType = this.resolveDeclaredType(targetObject);
+        const isArray = rootType === "array";
         const schema: ISchema = {
             title: readString(targetObject, "title") || (info ? readString(info, "title") : undefined) || resolvedTargetKey || "",
             type: isArray ? "array" : "object",
@@ -80,6 +106,10 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
 
         if (targetObject.additionalProperties === true) {
             schema.additionalProperties = true;
+        } else if (targetObject.additionalProperties === false) {
+            // A closed object. Carried through verbatim: DataInferenceBuilder.mergeHybridProperties
+            // keys off `=== false` to stop inferred keys leaking into it.
+            schema.additionalProperties = false;
         } else if (isRecord(targetObject.additionalProperties)) {
             schema.additionalProperties = OpenApiPropertyMapper.mapPropertyMetadata(
                 targetObject.additionalProperties,
@@ -101,10 +131,7 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
         this.mergePolymorphicRootProperties(schema, targetObject, root);
 
         if (!isArray && (!schema.properties || Object.keys(schema.properties).length === 0) && !schema.additionalProperties) {
-            const rawTargetType = Array.isArray(targetObject.type)
-                ? targetObject.type.find((t): t is string => typeof t === "string" && t !== "null")
-                : readString(targetObject, "type");
-            if ((rawTargetType && rawTargetType !== "object") || Array.isArray(targetObject.enum)) {
+            if ((rootType && rootType !== "object") || Array.isArray(targetObject.enum)) {
                 const cleanKey = OpenApiRefResolver.extractRefName(resolvedTargetKey || "") || "value";
                 schema.properties = {
                     [cleanKey]: OpenApiPropertyMapper.mapPropertyMetadata(targetObject, cleanKey, false, root)
@@ -117,6 +144,16 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
         }
 
         return schema;
+    }
+
+    /**
+     * Resolves a schema's declared `type`, accepting both the scalar form (`"array"`) and the JSON Schema
+     * union form (`["array", "null"]`), from which the `"null"` member is dropped.
+     */
+    private resolveDeclaredType(targetObject: JsonRecord): string | undefined {
+        return Array.isArray(targetObject.type)
+            ? targetObject.type.find((t): t is string => typeof t === "string" && t !== "null")
+            : readString(targetObject, "type");
     }
 
     /**
@@ -316,12 +353,7 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
                 ? { ...param.schema }
                 : contentSchema
                   ? { ...contentSchema }
-                  : {
-                        type: readString(param, "type") || "string", format: readString(param, "format"),
-                        enum: param.enum, items: param.items, default: param.default,
-                        minimum: param.minimum, maximum: param.maximum,
-                        minLength: param.minLength, maxLength: param.maxLength, pattern: param.pattern
-                    };
+                  : this.inlineParameterSchema(param);
             if (readString(param, "description") && !paramSchema.description) {
                 paramSchema.description = readString(param, "description");
             }
@@ -330,6 +362,26 @@ export abstract class BaseOpenApiParser implements IOpenApiParserPlugin {
         }
         if (Object.keys(paramProps).length === 0) return null;
         return { type: "object", properties: paramProps, required: paramRequired.length > 0 ? paramRequired : undefined };
+    }
+
+    /**
+     * Builds the schema for an OpenAPI 2.0 non-body parameter, which declares its validation keywords
+     * directly on the Parameter Object instead of under `schema`. Every keyword the 3.0 branch would pick
+     * up by spreading `param.schema` is copied, so the same logical API yields the same metadata in both
+     * dialects. Absent keywords are left off entirely rather than written as `undefined`, which would
+     * overwrite a real constraint during a later `$ref` or `allOf` merge.
+     *
+     * @param param The raw OpenAPI 2.0 Parameter Object.
+     * @returns {JsonRecord} The equivalent inline schema record.
+     */
+    private inlineParameterSchema(param: JsonRecord): JsonRecord {
+        const inlineSchema: JsonRecord = { type: readString(param, "type") || "string" };
+        for (const keyword of OA2_PARAMETER_SCHEMA_KEYWORDS) {
+            if (param[keyword] !== undefined) {
+                inlineSchema[keyword] = param[keyword];
+            }
+        }
+        return inlineSchema;
     }
 
     /**

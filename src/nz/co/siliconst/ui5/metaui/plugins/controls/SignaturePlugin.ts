@@ -7,6 +7,7 @@ import { HardwareControlPlugin } from "./HardwareControlPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import SignatureControl from "../../controls/SignatureControl";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering the hardware `SignatureControl` canvas pad.
@@ -32,6 +33,6 @@ export class SignaturePlugin extends HardwareControlPlugin<SignatureControl> {
         modelName: string,
         engineScopeId?: string
     ): Control {
-        return this.renderSafeImageDisplay(metadata, bindingPath, modelName, engineScopeId, "Signature");
+        return this.renderSafeImageDisplay(metadata, bindingPath, modelName, engineScopeId, I18n.getText(TEXT_KEY.hardwareSignatureAlt));
     }
 }

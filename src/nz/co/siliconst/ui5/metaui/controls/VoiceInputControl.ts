@@ -11,7 +11,6 @@ import Input from "sap/m/Input";
 import Button from "sap/m/Button";
 import FlexItemData from "sap/m/FlexItemData";
 import { ButtonType, FlexAlignItems } from "sap/m/library";
-import { Logger } from "../utils/Logger";
 
 /**
  * Minimal structural typing for the browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`).
@@ -53,6 +52,10 @@ interface IWindowWithSpeechRecognition {
  */
 export default class VoiceInputControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;
+
+    /** Device name used in the user-visible message when speech recognition is unavailable. */
+    private static readonly CAPABILITY_NAME = "Speech recognition";
+
     private textInput!: Input;
     private recordBtn!: Button;
     private recognition: ISpeechRecognitionInstance | null = null;
@@ -163,11 +166,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
             speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
         if (!SpeechRecognitionCtor) {
-            Logger.warn(
-                "[MetaUI VoiceInputControl]",
-                "Web Speech API is not supported in this browser.",
-                "VoiceInputControl"
-            );
+            // Firefox ships no SpeechRecognition constructor at all. Returning after a log left the
+            // microphone button looking live and changed nothing a user or a test could observe.
+            this.reportCapabilityFailure(VoiceInputControl.CAPABILITY_NAME, "unsupported");
             return;
         }
 
@@ -182,6 +183,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
             }
             if (event.results && event.results.length > 0 && event.results[0][0]) {
                 const transcript = event.results[0][0].transcript;
+                this.clearCapabilityFailure();
                 this.setValue(transcript);
                 this.fireEvent("capture", { value: transcript });
             }
@@ -191,11 +193,9 @@ export default class VoiceInputControl extends BaseHardwareControl {
             if (this.isDestroyed()) {
                 return;
             }
-            Logger.warn(
-                "[MetaUI VoiceInputControl]",
-                `Speech recognition error: ${event.error || "unknown"}`,
-                "VoiceInputControl"
-            );
+            const code = event.error || "unknown";
+            const denied = code === "not-allowed" || code === "service-not-allowed";
+            this.reportCapabilityFailure(VoiceInputControl.CAPABILITY_NAME, denied ? "denied" : "failed", code);
         };
 
         this.recognition.onend = () => {

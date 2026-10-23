@@ -35,6 +35,22 @@ import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
  */
 export class TableLayout implements ILayoutManager {
     /**
+     * Rows drawn per page by the generated table's `growing` feature.
+     *
+     * The sandbox model no longer caps a list binding at UI5's default of 100 contexts, so every row a
+     * consumer passes is now reachable. Drawing all of them at once is what that costs: measured with
+     * `benchmark/run-benchmarks.js --only=table` on an uncapped model, a 1000-row table takes 754 ms at
+     * 3 columns and **3782 ms at 15 columns** — a multi-second main-thread freeze on load, which is a
+     * worse defect than the truncation it replaced because the user can see it happen.
+     *
+     * Paging at 100 brings first paint back to the cost of a 100-row table (55 ms / 182 ms / 332 ms at
+     * 3 / 8 / 15 columns, measured) while the remaining rows stay reachable behind the growing trigger.
+     * 100 specifically, because it is the window the consumer's users already see today: it was UI5's
+     * silent cap, so the first screenful is unchanged and only the previously-discarded remainder moves.
+     */
+    public static readonly GROWING_PAGE_SIZE = 100;
+
+    /**
      * Renders the JSON Schema array properties into a UI5 Table.
      *
      * @param schema The active JSON schema array definition.
@@ -94,11 +110,21 @@ export class TableLayout implements ILayoutManager {
         });
         addRowBtn.data("metauiTableAddBtn", true);
 
+        const titleControl = new Title({ text: tableTitle });
         const table = new Table({
             headerToolbar: new Toolbar({
-                content: [new Title({ text: tableTitle }), new ToolbarSpacer(), addRowBtn]
+                content: [titleControl, new ToolbarSpacer(), addRowBtn]
             }),
             fixedLayout: false,
+            growing: true,
+            growingThreshold: TableLayout.GROWING_PAGE_SIZE,
+            // Deliberately false. With `true` the remaining rows load on scroll, which inside a
+            // non-scrolling container means they never load and nothing says so - the shape of the
+            // original defect. With `false` UI5 renders an explicit trigger whose counter reads
+            // "[ 100 / 1000 ]", and that counter is the disclosure: it is what tells the user rows
+            // exist beyond the ones drawn, and how many. `growingTriggerText` is left unset so the
+            // button keeps sap.m's own translated "More" rather than an English literal.
+            growingScrollToLoad: false,
             mode: !canEditTable ? ListMode.None : ListMode.Delete,
             delete: (oEvent: Event) => {
                 const params = oEvent.getParameters() as { listItem?: ColumnListItem };
@@ -106,6 +132,9 @@ export class TableLayout implements ILayoutManager {
             }
         });
         table.data("metauiBindingPath", effectiveBindingPath);
+        // The toolbar title names the table visually; the grid itself has no accessible name until the
+        // application supplies one, which for a generated table is MetaUI's job and nobody else's.
+        ControlDirectiveUtil.associateAriaLabel(table, titleControl);
         if (schema.ui?.visible === false || schema.ui?.visibleOn) {
             ControlDirectiveUtil.applyCommonDirectives(
                 table,
@@ -171,10 +200,12 @@ export class TableLayout implements ILayoutManager {
         if (isPrimitive) {
             table.addColumn(
                 new Column({
-                    header: new Label({ text: "Value", required: resolvedItemsSchema.required === true })
+                    header: new Label({ text: "Value", required: resolvedItemsSchema.required === true && canEditTable })
                 })
             );
-            templateCells.push(engine.generateField(withTableReadOnly(resolvedItemsSchema), "", effectiveModel, true));
+            const primitiveCell = engine.generateField(withTableReadOnly(resolvedItemsSchema), "", effectiveModel, true);
+            ControlDirectiveUtil.nameCellByColumnHeader(primitiveCell, "Value");
+            templateCells.push(primitiveCell);
             return templateCells;
         }
 
@@ -193,11 +224,12 @@ export class TableLayout implements ILayoutManager {
                     onScalarField: (element: ILayoutElement, colBindingPath: string, fieldMeta: IPropertyMetadata) => {
                         const isAnchor = Boolean(fieldMeta.ui?.isKey) || (!hasExplicitKey && renderedColIndex === 0);
                         renderedColIndex++;
+                        const headerText = element.label || fieldMeta.ui?.label || colBindingPath;
                         table.addColumn(
                             new Column({
                                 header: new Label({
-                                    text: element.label || fieldMeta.ui?.label || colBindingPath,
-                                    required: fieldMeta.required === true
+                                    text: headerText,
+                                    required: fieldMeta.required === true && canEditTable
                                 }),
                                 demandPopin: !isAnchor,
                                 minScreenWidth: isAnchor ? "" : "Tablet",
@@ -205,7 +237,9 @@ export class TableLayout implements ILayoutManager {
                             })
                         );
                         const effectiveMeta = withTableReadOnly(fieldMeta, element.widget);
-                        templateCells.push(engine.generateField(effectiveMeta, colBindingPath, effectiveModel, true));
+                        const cell = engine.generateField(effectiveMeta, colBindingPath, effectiveModel, true);
+                        ControlDirectiveUtil.nameCellByColumnHeader(cell, headerText);
+                        templateCells.push(cell);
                     }
                 },
                 "TableLayout"
@@ -225,19 +259,25 @@ export class TableLayout implements ILayoutManager {
                 try {
                     const fieldMeta = withTableReadOnly(props[key]);
                     const isAnchor = Boolean(fieldMeta.ui?.isKey) || (!hasExplicitKey && colIdx === 0);
+                    const headerText = fieldMeta.ui?.label || key;
                     table.addColumn(
                         new Column({
                             header: new Label({
-                                text: fieldMeta.ui?.label || key,
-                                required: fieldMeta.required === true
+                                text: headerText,
+                                required: fieldMeta.required === true && canEditTable
                             }),
                             demandPopin: !isAnchor,
                             minScreenWidth: isAnchor ? "" : "Tablet",
                             popinDisplay: PopinDisplay.Inline
                         })
                     );
-                    templateCells.push(engine.generateField(fieldMeta, key, effectiveModel, true));
+                    const cell = engine.generateField(fieldMeta, key, effectiveModel, true);
+                    // A row cell has no label of its own. UI5 associates the column header with a plain
+                    // cell control; a composite cell is the case it cannot reach.
+                    ControlDirectiveUtil.nameCellByColumnHeader(cell, headerText);
+                    templateCells.push(cell);
                 } catch (error) {
+                    engine.hasPartialRenderingErrors = true;
                     const msg = (error as Error).message;
                     Logger.error(`[MetaUI] Failed to render fallback column ${key}`, msg, "TableLayout");
                     Logger.showErrorPopup(`Failed to render fallback table column '${key}'.\n\nDetails: ${msg}`);

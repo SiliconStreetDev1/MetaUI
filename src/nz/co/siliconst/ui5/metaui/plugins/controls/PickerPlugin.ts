@@ -11,6 +11,7 @@ import DateTimePicker, { $DateTimePickerSettings } from "sap/m/DateTimePicker";
 import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
+import { I18n, MetaUITextKey } from "../../utils/I18n";
 
 /**
  * Union of SAPUI5 date/time picker control instances.
@@ -35,7 +36,8 @@ export interface IPickerPluginConfig {
     bindingType: string;
     sourcePattern: string;
     displayFormat?: string;
-    parseErrorMessage: string;
+    /** Bundle key of the sentence shown when the control cannot parse what the user typed. */
+    parseErrorMessageKey: MetaUITextKey;
 }
 
 /**
@@ -85,6 +87,7 @@ export abstract class PickerPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             value: pickerBinding as unknown as string,
             ...(cfg.displayFormat ? { displayFormat: cfg.displayFormat } : {}),
+            ...(fieldMetadata.ui?.placeholder ? { placeholder: fieldMetadata.ui.placeholder } : {}),
             editable: this.isControlEditable(),
             required: this.isRequired(),
             change: (oEvent: Event) => {
@@ -92,7 +95,7 @@ export abstract class PickerPlugin extends BasePlugin {
                 const params = oEvent.getParameters() as { valid?: boolean };
                 const cleanPath = this.resolveAbsolutePath(src).replace(/^\//, "") || this.fieldKey || "";
                 if (params.valid === false) {
-                    this.invalidParsePaths.set(cleanPath, cfg.parseErrorMessage);
+                    this.invalidParsePaths.set(cleanPath, I18n.getText(cfg.parseErrorMessageKey));
                     src.data("metauiParseInvalid", true);
                 } else {
                     this.invalidParsePaths.delete(cleanPath);
@@ -115,7 +118,7 @@ export abstract class PickerPlugin extends BasePlugin {
     protected override getParseError(sourceControl?: Control): string | undefined {
         const target = (sourceControl ?? this.control) as PickerControlInstance | undefined;
         if (this.isEditable && target && typeof target.isValidValue === "function" && !target.isValidValue()) {
-            return this.pickerConfig.parseErrorMessage;
+            return I18n.getText(this.pickerConfig.parseErrorMessageKey);
         }
         return undefined;
     }
@@ -142,13 +145,14 @@ export abstract class PickerPlugin extends BasePlugin {
     }
 
     /**
-     * Applies dynamic `readOnly` and `required` state updates to the picker control.
+     * Applies dynamic `readOnly`, `required`, and `placeholder` state updates to the picker control.
      */
     protected applyState(): void {
         if (this.control && this.metadata && this.isEditable) {
             const picker = this.control as PickerControlInstance;
             picker.setEditable(this.isControlEditable());
             picker.setRequired(this.isRequired());
+            picker.setPlaceholder(this.metadata.ui?.placeholder || "");
         }
     }
 }

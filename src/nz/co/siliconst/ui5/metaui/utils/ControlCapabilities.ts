@@ -7,8 +7,10 @@
 import { IDataSourceConfig, IPropertyMetadata, ISchema } from "../interfaces/ISchema";
 import { IEngineHost } from "../interfaces/IEngineHost";
 import { deepClone, isRecord } from "./TypeGuards";
+import { UrlValidator } from "./UrlValidator";
 import Control from "sap/ui/core/Control";
 import ManagedObject from "sap/ui/base/ManagedObject";
+import DataType from "sap/ui/base/DataType";
 import Event from "sap/ui/base/Event";
 import { ValueState } from "sap/ui/core/library";
 import type DynamicHost from "../controls/DynamicHost";
@@ -39,6 +41,106 @@ export const BLOCKED_CONTROL_PROPS: ReadonlySet<string> = new Set([
     "value", "selectedKey", "selectedKeys", "selected", "dateValue",
     "tokens", "editable", "enabled", "visible", "valueState", "valueStateText"
 ]);
+
+/**
+ * UI5 primitive property types a schema-supplied `ui.controlProps` entry may target.
+ *
+ * `ManagedObject` declares exactly seven built-in primitives — `string`, `boolean`, `int`, `float`,
+ * `object`, `function` and `any`. Only the four scalar ones are accepted, which closes `object`,
+ * `function` and `any` (and their array forms) without naming a single property. Registered UI5 types
+ * (`sap.ui.core.CSSSize`, `sap.ui.core.URI`, every enum) resolve to one of these four.
+ */
+export const ALLOWED_CONTROL_PROP_PRIMITIVES: ReadonlySet<string> = new Set(["string", "boolean", "int", "float"]);
+
+/**
+ * UI5 property names whose value is injected into the DOM as markup rather than as text.
+ *
+ * UI5 metadata carries no "renders raw HTML" flag, so unlike every other rule in this gate these can
+ * only be refused by name. Markup still reaches `sap.m.FormattedText` the supported way — through the
+ * bound field value, where the control's own sanitizing setter runs — just not through `ui.controlProps`.
+ */
+export const HTML_SINK_CONTROL_PROPS: ReadonlySet<string> = new Set(["htmlText", "html", "innerHTML", "content"]);
+
+/** The UI5 property type whose values are URIs and therefore require protocol validation. */
+const URI_PROPERTY_TYPE = "sap.ui.core.URI";
+
+/**
+ * Outcome of vetting a single `ui.controlProps` entry against the control's UI5 metadata.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.utils
+ * @public
+ */
+export interface IControlPropVerdict {
+    /** True when the property may be written to the control. */
+    readonly allowed: boolean;
+    /** True when the property is declared as `sap.ui.core.URI` and its value must pass `UrlValidator`. */
+    readonly isUri: boolean;
+    /** Human-readable refusal reason, present only when `allowed` is false. */
+    readonly reason?: string;
+}
+
+/**
+ * Vets a schema-supplied `ui.controlProps` entry against the target control's UI5 property metadata.
+ *
+ * The gate is an allowlist over the closed set of UI5 property types rather than a list of dangerous
+ * property names: a property is accepted only when the control actually declares it, it is not one of
+ * the core state properties MetaUI owns, it is not a raw-markup sink, and its declared type resolves to
+ * a scalar primitive.
+ *
+ * @param target The control that declares the property, or `undefined` when no control declares it.
+ * @param propName The `ui.controlProps` key.
+ * @returns {IControlPropVerdict} The verdict, including whether the value needs URI validation.
+ */
+export function vetControlProperty(target: Control | undefined, propName: string): IControlPropVerdict {
+    if (BLOCKED_CONTROL_PROPS.has(propName)) {
+        return { allowed: false, isUri: false, reason: "it is a core state property owned by MetaUI" };
+    }
+    if (HTML_SINK_CONTROL_PROPS.has(propName)) {
+        return { allowed: false, isUri: false, reason: "it is rendered as raw markup" };
+    }
+    if (!target) {
+        return { allowed: false, isUri: false, reason: "no generated control declares it" };
+    }
+    const declaredType = target.getMetadata().getProperty(propName)?.type ?? "";
+    if (!declaredType) {
+        return { allowed: false, isUri: false, reason: "the control declares no type for it" };
+    }
+    const resolved = DataType.getType(declaredType);
+    const primitive = resolved ? resolved.getPrimitiveType().getName() : declaredType;
+    if (!ALLOWED_CONTROL_PROP_PRIMITIVES.has(primitive)) {
+        return { allowed: false, isUri: false, reason: `its UI5 type '${declaredType}' is not a scalar primitive` };
+    }
+    return { allowed: true, isUri: declaredType === URI_PROPERTY_TYPE };
+}
+
+/**
+ * Sanitizes a value destined for a `sap.ui.core.URI` property, collapsing unsafe schemes to the empty string.
+ *
+ * @param rawValue The candidate URI value resolved from the schema or from a model binding.
+ * @returns {string} The trimmed URI when safe, otherwise an empty string.
+ */
+export function sanitizeUriPropertyValue(rawValue: unknown): string {
+    return UrlValidator.isSafeUiResourceUri(rawValue) ? rawValue.trim() : "";
+}
+
+/**
+ * Writes a vetted `ui.controlProps` value through the control's own generated setter when one exists,
+ * so that any sanitization or coercion UI5 implements in that setter still runs. `ManagedObject.setProperty`
+ * bypasses those setters and is used only for properties that do not generate one.
+ *
+ * @param target The control receiving the property.
+ * @param propName The UI5 property name.
+ * @param value The vetted value.
+ */
+export function writeControlProperty(target: Control, propName: string, value: unknown): void {
+    const setterName = `set${propName.charAt(0).toUpperCase()}${propName.slice(1)}`;
+    const candidate: unknown = Reflect.get(target, setterName);
+    if (typeof candidate === "function") {
+        (candidate as (propValue: unknown) => unknown).call(target, value);
+        return;
+    }
+    target.setProperty(propName, value);
+}
 
 /**
  * Structural contract for UI5 controls that support `ValueState` visual feedback.
@@ -129,6 +231,11 @@ export interface INestedEditorLaunchOptions {
     readonly definitions?: Record<string, ISchema>;
     /** Whether the nested form should be editable. */
     readonly editable: boolean;
+    /**
+     * Layout budget for the nested host. Passed explicitly so the parent's budget never has to travel
+     * as an annotation written onto the consumer's schema. 0 disables inline sub-layouts in the dialog.
+     */
+    readonly layoutBudget?: number;
     /** True when the root sub-schema represents an array table. */
     readonly isArrayRoot?: boolean;
     /** Callback invoked with the validated extracted data when the user submits the dialog. */
@@ -293,6 +400,7 @@ export function openNestedHostDialog(options: INestedEditorLaunchOptions): void 
                 schemaDefinitions: options.definitions || null,
                 data: wrappedData,
                 editable: options.editable,
+                layoutBudget: options.layoutBudget ?? 0,
                 liveUpdate: false
             });
             options.onHostCreated?.(host);

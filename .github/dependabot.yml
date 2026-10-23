@@ -1,0 +1,81 @@
+# Dependabot keeps three dependency surfaces current:
+#   /        the library's own build and test toolchain
+#   /test    the Fiori sandbox application used by the E2E suite
+#   actions  the workflow actions, which are pinned to commit SHAs
+#
+# For github-actions, Dependabot understands a SHA pin with a `# vX.Y.Z` comment:
+# it bumps both the SHA and the comment, so pinning does not freeze the actions.
+# https://docs.github.com/en/code-security/dependabot
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      # One pull request per risk class rather than per package, so the weekly
+      # review is two pull requests instead of fifteen. Majors stay separate.
+      runtime-minor-and-patch:
+        patterns:
+          - "*"
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      toolchain-minor-and-patch:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: "/test"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - sandbox
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      sandbox-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(actions)"
+    groups:
+      actions:
+        patterns:
+          - "*"

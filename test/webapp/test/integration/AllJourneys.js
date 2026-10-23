@@ -4,8 +4,9 @@ sap.ui.define([
     "nz/co/siliconst/ui5/metaui/swagger/OpenApiExtractor",
     "metaui/sandbox/util/ScenarioManager",
     "sap/ui/model/json/JSONModel",
-    "sap/ui/core/Core"
-], function (DynamicHost, ODataDelegateMod, OpenApiExtractorMod, ScenarioManager, JSONModel, Core) {
+    "sap/ui/core/Core",
+    "sap/base/Log"
+], function (DynamicHost, ODataDelegateMod, OpenApiExtractorMod, ScenarioManager, JSONModel, Core, Log) {
     "use strict";
 
     var ODataDelegate = ODataDelegateMod.ODataDelegate || ODataDelegateMod;
@@ -20,6 +21,38 @@ sap.ui.define([
         div.id = id;
         document.getElementById("qunit-fixture").appendChild(div);
         return div;
+    }
+
+    // "Host hardening" helpers. Several of the hardening tests deliberately drive code paths whose whole point
+    // is to log loudly (a rejected OData write, a throwing policy). The headless runner treats unexpected
+    // console.error output as a suite failure, so those expected errors are muted per UI5 log component for the
+    // duration of the assertion window only, and restored immediately afterwards.
+    function hhMuteLogComponent(component) {
+        var previous = typeof Log.getLevel === "function" ? Log.getLevel(component) : Log.Level.ERROR;
+        Log.setLevel(Log.Level.NONE, component);
+        return previous;
+    }
+
+    function hhRestoreLogComponent(component, previousLevel) {
+        Log.setLevel(previousLevel, component);
+    }
+
+    function hhWait(ms) {
+        return new Promise(function (resolve) {
+            setTimeout(resolve, ms);
+        });
+    }
+
+    function hhReadEntityPath(root, path) {
+        var parts = String(path).split("/");
+        var current = root;
+        for (var i = 0; i < parts.length; i++) {
+            if (current === null || current === undefined) {
+                return undefined;
+            }
+            current = current[parts[i]];
+        }
+        return current;
     }
 
     QUnit.module("E2E Matrix: DynamicHost Scenarios, Bindings, Render Targets & Mutations");
@@ -1679,16 +1712,21 @@ sap.ui.define([
                 });
                 outerTable.placeAt(tableParent);
                 Core.applyChanges();
-                // Deliberately NOT forcing the parent to display:grid with a 1fr track.
-                // That constrains the child by itself and made this assertion pass with the
-                // host's own min-width:0 removed -- it proved nothing. The host sits in a
-                // plain flex HBox, where a flex item defaults to min-width:auto and refuses
-                // to shrink below its content, so containment here is the host's doing.
+                // Measured, not assumed: inside a sap.m.Table cell the containment below comes
+                // from the table's own fixed layout algorithm, NOT from the host. Stripping the
+                // host's min-width:0 / max-width:100% leaves every width in this arrangement
+                // unchanged (234px host in a 258px <td> either way), which is why the two
+                // geometry assertions alone could not see the regression they were written for.
+                // T1/T2 cover the behaviour (a 1fr grid track blows out to 2358px without the
+                // fix); the third assertion here pins the contract on the element that is
+                // actually rendered in the cell, so deleting either style fails this test too.
 
                 return cellHost.generate().then(function () {
                     Core.applyChanges();
                     var tableRect = outerTable.getDomRef().getBoundingClientRect();
-                    var cellHostRect = cellHost.getDomRef().getBoundingClientRect();
+                    var cellHostDom = cellHost.getDomRef();
+                    var cellHostRect = cellHostDom.getBoundingClientRect();
+                    var cellHostStyle = window.getComputedStyle(cellHostDom);
                     assert.strictEqual(
                         tableRect.width <= 600.5 && cellHostRect.width <= 250.5,
                         true,
@@ -1698,6 +1736,11 @@ sap.ui.define([
                         tableParent.scrollWidth <= tableParent.clientWidth + 1,
                         true,
                         "[T3] sap.m.Table parent container has no horizontal scroll (scrollWidth=" + tableParent.scrollWidth + "px <= clientWidth=" + tableParent.clientWidth + "px)"
+                    );
+                    assert.strictEqual(
+                        cellHostStyle.minWidth === "0px" && cellHostStyle.maxWidth !== "none",
+                        true,
+                        "[T3] Embedded host keeps its shrink-to-fit contract (computed min-width='" + cellHostStyle.minWidth + "' must be 0px, max-width='" + cellHostStyle.maxWidth + "' must not be none)"
                     );
                     outerTable.destroy();
                     if (tableParent.parentNode) {
@@ -2116,6 +2159,461 @@ sap.ui.define([
                     b.parentNode.removeChild(b);
                 }
             });
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 1: writing 'data' on the facade retires a stale literal 'dataJson'", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-datajson");
+
+        function hhCodeSchema() {
+            return { type: "object", properties: { Code: { type: "string", ui: { label: "Code" } } } };
+        }
+
+        // Both hosts receive their payloads before the first render, i.e. while the inner GeneratorHost does
+        // not exist yet. This is exactly the window ODataDelegate.syncToEngine() writes 'data' in.
+        var hostJsonFirst = new DynamicHost({ schemaDefinition: hhCodeSchema(), editable: true });
+        hostJsonFirst.setDataJson(JSON.stringify({ Code: "FROM_DATAJSON" }));
+        hostJsonFirst.setData({ Code: "FROM_DATA" });
+        hostJsonFirst.placeAt("hh-datajson");
+
+        var hostDataFirst = new DynamicHost({ schemaDefinition: hhCodeSchema(), editable: true });
+        hostDataFirst.setData({ Code: "FROM_DATA" });
+        hostDataFirst.setDataJson(JSON.stringify({ Code: "FROM_DATAJSON" }));
+        hostDataFirst.placeAt("hh-datajson");
+
+        Core.applyChanges();
+
+        hostJsonFirst.generate().then(function () {
+            return hostDataFirst.generate();
+        }).then(function () {
+            Core.applyChanges();
+
+            var staleJson = hostJsonFirst.getBaseProperty("dataJson");
+            assert.strictEqual(
+                typeof staleJson === "string" && staleJson.length > 0,
+                false,
+                "Host hardening 1: setData() retired the facade's stale literal dataJson (now " + JSON.stringify(staleJson) + ")"
+            );
+            assert.strictEqual(
+                hostJsonFirst.getStateManager().getProperty("Code"),
+                "FROM_DATA",
+                "Host hardening 1: setDataJson() then setData() renders the newer 'data' payload, not the stale dataJson"
+            );
+            assert.strictEqual(
+                hostDataFirst.getStateManager().getProperty("Code"),
+                "FROM_DATAJSON",
+                "Host hardening 1: the reverse order (setData() then setDataJson()) still honours the newer dataJson payload"
+            );
+
+            hostJsonFirst.destroy();
+            hostDataFirst.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 2: a second openInDialog() during generation supersedes the first instead of orphaning a modal", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-dialog-race");
+
+        var raceHost = new DynamicHost({
+            schemaDefinition: {
+                type: "object",
+                required: ["Code"],
+                properties: { Code: { type: "string", minLength: 2, ui: { label: "Code" } } }
+            },
+            data: { Code: "RACE-1" },
+            editable: true
+        });
+        raceHost.placeAt("hh-dialog-race");
+        Core.applyChanges();
+
+        var firstSettled = false;
+        var firstPromise = raceHost.openInDialog("HH Race Dialog A", "Save A");
+        firstPromise.then(function () {
+            firstSettled = true;
+        });
+        var secondPromise = raceHost.openInDialog("HH Race Dialog B", "Save B");
+
+        hhWait(300).then(function () {
+            Core.applyChanges();
+            var raceDialogs = Array.prototype.filter.call(document.querySelectorAll(".sapMDialog"), function (el) {
+                return el.textContent.indexOf("HH Race Dialog") > -1;
+            });
+            assert.strictEqual(
+                raceDialogs.length,
+                1,
+                "Host hardening 2: two overlapping openInDialog() calls left exactly 1 modal in the DOM (found " + raceDialogs.length + ")"
+            );
+            assert.strictEqual(
+                firstSettled,
+                true,
+                "Host hardening 2: the superseded openInDialog() promise settled instead of hanging forever"
+            );
+            assert.strictEqual(
+                raceHost._innerHost.dialogDelegate.activeDialog.getTitle(),
+                "HH Race Dialog B",
+                "Host hardening 2: the surviving dialog is the most recent request"
+            );
+
+            raceHost._innerHost.dialogDelegate.activeDialog.getEndButton().firePress();
+            return secondPromise;
+        }).then(function () {
+            Core.applyChanges();
+            assert.strictEqual(
+                raceHost._innerHost.getParent() === raceHost,
+                true,
+                "Host hardening 2: closing the surviving dialog restored the inner host to the facade, not to an orphan"
+            );
+            assert.strictEqual(
+                raceHost.getDomRef().querySelectorAll("input").length > 0,
+                true,
+                "Host hardening 2: the DynamicHost on the page renders its form again after the dialog closes"
+            );
+            raceHost.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 3: destroying the dialog's dependents owner releases the inner host instead of destroying it", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-owner-destroy");
+
+        var ownerView = new sap.m.VBox();
+        ownerView.placeAt("hh-owner-destroy");
+
+        var ownedHost = new DynamicHost({
+            schemaDefinition: {
+                type: "object",
+                required: ["Code"],
+                properties: { Code: { type: "string", minLength: 2, ui: { label: "Code" } } }
+            },
+            data: { Code: "OWNED-1" },
+            editable: true
+        });
+        ownedHost.placeAt("hh-owner-destroy");
+        Core.applyChanges();
+
+        var dialogSettled = false;
+        var capturedInner = null;
+        var ownerDialogPromise = ownedHost.openInDialog("HH Owner Dialog", "Save", "Cancel", "auto", ownerView);
+        ownerDialogPromise.then(function () {
+            dialogSettled = true;
+        });
+
+        hhWait(300).then(function () {
+            Core.applyChanges();
+            capturedInner = ownedHost._innerHost;
+            // Simulates navigating away: the owning view is destroyed while its dependent dialog is open.
+            ownerView.destroy();
+            return hhWait(100);
+        }).then(function () {
+            Core.applyChanges();
+            assert.strictEqual(
+                capturedInner.isDestroyed(),
+                false,
+                "Host hardening 3: destroying the dialog's dependents owner left the inner GeneratorHost alive"
+            );
+            assert.strictEqual(
+                ownedHost._innerHost === capturedInner,
+                true,
+                "Host hardening 3: the facade still owns the very same inner host after its owner view was destroyed"
+            );
+            assert.strictEqual(
+                dialogSettled,
+                true,
+                "Host hardening 3: the pending openInDialog() promise settled when its owner was destroyed"
+            );
+
+            ownedHost.setData({ Code: "AFTER-NAV" });
+            return ownedHost.generate();
+        }).then(function () {
+            Core.applyChanges();
+            var survivingState = ownedHost.getStateManager();
+            assert.strictEqual(
+                survivingState ? survivingState.getProperty("Code") : null,
+                "AFTER-NAV",
+                "Host hardening 3: the facade still accepts and renders new data after the owner view was destroyed"
+            );
+            assert.strictEqual(
+                ownedHost.triggerSubmit(),
+                true,
+                "Host hardening 3: triggerSubmit() still succeeds after the owner view was destroyed"
+            );
+            assert.strictEqual(
+                ownedHost.getDomRef().querySelectorAll("input").length > 0,
+                true,
+                "Host hardening 3: the DynamicHost is not left permanently blank"
+            );
+            ownedHost.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 4-6: OData V2 write-back reports rejections, flushes collection edits, and leaves untouched Dates alone", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-odata-v2");
+
+        var previousLogLevel = hhMuteLogComponent("ODataDelegate");
+        var v2Writes = [];
+        var rejectedPaths = { Code: true };
+        var entity = {
+            Code: "C-1",
+            When: new Date(Date.UTC(2026, 0, 15, 9, 30, 0)),
+            Items: [{ Qty: 1 }]
+        };
+        var v2Model = {
+            getMetadata: function () {
+                return {
+                    getName: function () {
+                        return "sap.ui.model.odata.v2.ODataModel";
+                    }
+                };
+            },
+            setProperty: function (path, value) {
+                if (rejectedPaths[path]) {
+                    return false;
+                }
+                v2Writes.push({ path: path, value: value });
+                return true;
+            }
+        };
+        var v2Context = {
+            getModel: function () {
+                return v2Model;
+            },
+            getPath: function () {
+                return "/Orders('C-1')";
+            },
+            getObject: function () {
+                return entity;
+            },
+            getProperty: function (path) {
+                return hhReadEntityPath(entity, path);
+            }
+        };
+
+        var v2Errors = [];
+        var v2Host = new DynamicHost({
+            schemaDefinition: {
+                type: "object",
+                properties: {
+                    Code: { type: "string", ui: { label: "Code" } },
+                    When: { type: "string", ui: { label: "When" } },
+                    Items: {
+                        type: "array",
+                        items: { type: "object", properties: { Qty: { type: "integer", ui: { label: "Qty" } } } }
+                    }
+                }
+            },
+            editable: true,
+            liveUpdate: false,
+            error: function (oEvent) {
+                v2Errors.push(String(oEvent.getParameter("message")));
+            }
+        });
+        v2Host.placeAt("hh-odata-v2");
+        v2Host.setBindingContext(v2Context, "odata");
+        Core.applyChanges();
+
+        v2Host.generate().then(function () {
+            Core.applyChanges();
+            var sm = v2Host.getStateManager();
+            assert.strictEqual(
+                sm.getProperty("When"),
+                entity.When.toISOString(),
+                "Host hardening 6: the V2 Date property reaches the Engine flattened to an ISO string"
+            );
+
+            // One transactional submit carrying a rejected scalar, an untouched Date and a touched collection entry.
+            sm.setProperty("Code", "C-2");
+            sm.setProperty("Items/0/Qty", 7);
+            var committed = v2Host.triggerSubmit();
+            assert.strictEqual(committed, true, "Host hardening 4-6: transactional triggerSubmit() committed the payload");
+
+            var untouchedDateWrites = v2Writes.filter(function (w) {
+                return w.path === "When";
+            });
+            assert.strictEqual(
+                untouchedDateWrites.length,
+                0,
+                "Host hardening 6: an untouched V2 Date property is no longer rewritten as an ISO string on every submit"
+            );
+
+            var qtyWrites = v2Writes.filter(function (w) {
+                return w.path === "Items/0/Qty";
+            });
+            assert.strictEqual(
+                qtyWrites.length === 1 && qtyWrites[0].value === 7,
+                true,
+                "Host hardening 5: a collection edit (Items/0/Qty) is flushed on transactional submit, matching liveUpdate behaviour"
+            );
+
+            var reportedRejection = v2Errors.filter(function (m) {
+                return m.indexOf("rejected") > -1 && m.indexOf("Code") > -1;
+            });
+            assert.strictEqual(
+                reportedRejection.length > 0,
+                true,
+                "Host hardening 4: a rejected OData V2 write fires the host 'error' event instead of being discarded"
+            );
+
+            // A genuinely changed date must reach a Date-typed V2 property as a Date, not as the Engine's string.
+            sm.setProperty("When", "2027-03-04T05:06:07.000Z");
+            v2Host.triggerSubmit();
+            var changedDateWrites = v2Writes.filter(function (w) {
+                return w.path === "When";
+            });
+            var coercedDate = changedDateWrites.length === 1 ? changedDateWrites[0].value : null;
+            assert.strictEqual(
+                coercedDate instanceof Date && coercedDate.toISOString() === "2027-03-04T05:06:07.000Z",
+                true,
+                "Host hardening 6: a genuinely changed V2 Date property is written back as a Date instance"
+            );
+
+            v2Host.destroy();
+            hhRestoreLogComponent("ODataDelegate", previousLogLevel);
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 7: one throwing policy no longer aborts the rest of the evaluation cycle", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-policy");
+
+        var previousLogLevel = hhMuteLogComponent("PolicyDelegate");
+        var policyHost = new DynamicHost({
+            schemaDefinition: {
+                type: "object",
+                properties: {
+                    Mode: { type: "string", ui: { label: "Mode" } },
+                    Alpha: { type: "string", ui: { label: "Alpha" } },
+                    Beta: { type: "string", ui: { label: "Beta" } }
+                },
+                uiPolicies: [
+                    {
+                        effect: "Hide",
+                        targets: ["/Alpha", "/Beta"],
+                        condition: { StringEquals: { "/Mode": "HIDE" } }
+                    }
+                ]
+            },
+            data: { Mode: "SHOW", Alpha: "a", Beta: "b" },
+            editable: true
+        });
+        policyHost.placeAt("hh-policy");
+        Core.applyChanges();
+
+        policyHost.generate().then(function () {
+            Core.applyChanges();
+            var engine = policyHost._innerHost.engine;
+            var alphaPlugin = engine.getPluginByPath("/Alpha");
+            var betaPlugin = engine.getPluginByPath("/Beta");
+            assert.strictEqual(
+                betaPlugin.control.getVisible(),
+                true,
+                "Host hardening 7: baseline - Beta is visible while the Hide policy condition is unmet"
+            );
+
+            // Alpha's delta is emitted before Beta's, so a throw there used to swallow every later delta.
+            alphaPlugin.applyVisibility = function () {
+                throw new Error("HH injected policy delta failure");
+            };
+            policyHost.getStateManager().setProperty("Mode", "HIDE");
+            var deltaCycleSurvived = false;
+            try {
+                policyHost._innerHost.resetAndEvaluatePoliciesNow();
+                deltaCycleSurvived = true;
+            } catch (e) {
+                deltaCycleSurvived = false;
+            }
+            Core.applyChanges();
+            assert.strictEqual(
+                deltaCycleSurvived && betaPlugin.control.getVisible() === false,
+                true,
+                "Host hardening 7: a throwing policy delta is isolated and the remaining deltas still apply"
+            );
+
+            // A throwing evaluation pass must not escape into triggerSubmit().
+            var policyDelegate = policyHost._innerHost.policyDelegate;
+            var originalEvaluate = policyDelegate.policyEngine.evaluate;
+            policyDelegate.policyEngine.evaluate = function () {
+                throw new Error("HH injected policy evaluation failure");
+            };
+            var submitSurvived = false;
+            var submitResult = false;
+            try {
+                submitResult = policyHost.triggerSubmit();
+                submitSurvived = true;
+            } catch (e) {
+                submitSurvived = false;
+            }
+            policyDelegate.policyEngine.evaluate = originalEvaluate;
+            assert.strictEqual(
+                submitSurvived && submitResult === true,
+                true,
+                "Host hardening 7: a throwing policy evaluation pass is contained and no longer aborts triggerSubmit()"
+            );
+
+            policyHost.destroy();
+            hhRestoreLogComponent("PolicyDelegate", previousLogLevel);
+            done();
+        });
+    });
+
+    QUnit.test("Host hardening 8: a remote schema URL is fetched exactly once", function (assert) {
+        var done = assert.async();
+        createIntegrationSandbox("hh-remote");
+
+        // Same-origin absolute URL: still takes the remote-resolution branch, but never trips an
+        // application-installed cross-origin data source policy. The fetch itself is stubbed below.
+        var remoteUrl = window.location.origin + "/hh-remote-schema.json";
+        var fetchCount = 0;
+        var originalFetch = window.fetch;
+        window.fetch = function (url) {
+            if (String(url).indexOf("hh-remote-schema.json") > -1) {
+                fetchCount++;
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: function () {
+                        return Promise.resolve({
+                            type: "object",
+                            properties: { Code: { type: "string", ui: { label: "Code" } } }
+                        });
+                    }
+                });
+            }
+            return originalFetch.apply(window, arguments);
+        };
+
+        var remoteHost = new DynamicHost({ editable: true, data: { Code: "REMOTE-1" } });
+        remoteHost.placeAt("hh-remote");
+        // Assigning the URL starts a fetch; the first render and generate() must reuse it, not re-issue it.
+        remoteHost.setProperty("schemaDefinition", remoteUrl);
+        Core.applyChanges();
+
+        remoteHost.generate().then(function () {
+            Core.applyChanges();
+            window.fetch = originalFetch;
+            var resolvedSchema = remoteHost.getBaseProperty("schemaDefinition");
+            assert.strictEqual(
+                fetchCount,
+                1,
+                "Host hardening 8: the remote schema URL was requested exactly once (was " + fetchCount + ")"
+            );
+            assert.strictEqual(
+                Boolean(resolvedSchema && resolvedSchema.properties && resolvedSchema.properties.Code),
+                true,
+                "Host hardening 8: the resolved remote schema was applied to the host"
+            );
+            assert.strictEqual(
+                remoteHost.getStateManager().getProperty("Code"),
+                "REMOTE-1",
+                "Host hardening 8: the host rendered from the remotely resolved schema with its bound payload"
+            );
+            remoteHost.destroy();
             done();
         });
     });

@@ -1,0 +1,142 @@
+# The single definition of "this change is good enough to merge and to release".
+#
+# Both ci.yml (every push and pull request) and publish.yml (every release) call
+# this workflow, so the release can never run a weaker set of gates than CI.
+# Before this existed, publish.yml ran no tests at all and executed publish-prep
+# for the first time during a real, unrecoverable npm publish.
+#
+# Actions are pinned to full commit SHAs, not tags: a tag can be moved by whoever
+# controls the action's repository, a SHA cannot.
+# https://docs.github.com/en/actions/reference/security/secure-use
+
+name: Verify
+
+on:
+  workflow_call:
+    inputs:
+      node-versions:
+        description: >-
+          JSON array of Node versions to run the full gate on. Defaults to the
+          engines floor and the version used to publish.
+        required: false
+        type: string
+        default: '["22.14.0", "24.x"]'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Gate (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ${{ fromJSON(inputs.node-versions) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Property tests run straight from src/ through ts-node, so they need no
+      # build and sit ahead of it: a generated counterexample is the cheapest
+      # failure in this workflow. They assert invariants over generated input
+      # rather than fixed cases, which is the only gate here that can fail on an
+      # input nobody thought to write down.
+      - name: Property tests
+        run: npm run test:prop
+
+      - name: Build library
+        run: npm run build
+
+      - name: Run automated test suite
+        run: npm test
+
+      # Everything below here used to run for the first time during a real release.
+      # publish-prep renames dist/resources to dist/src, repoints the index.d.ts
+      # roll-up, rewrites files/types and absolutizes the declaration specifiers,
+      # and it exits non-zero on a dangling reference. Running it here means a
+      # regression in it fails a pull request instead of shipping a broken tarball.
+      - name: Prepare the publishable package (publish-prep)
+        run: npm run publish-prep
+
+      - name: Verify the publishable package
+        run: node .github/scripts/verify-package.js dist
+
+      # The exported API is a committed snapshot. A change to it has to appear in
+      # the diff of the pull request that causes it.
+      - name: Exported API surface is unchanged
+        run: node .github/scripts/api-surface.js dist --check .github/api-surface.txt
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x
+          cache: npm
+
+      # --ignore-scripts: auditing needs the resolved tree, not a working install,
+      # and it avoids executing every dependency's install hooks in a job whose
+      # whole purpose is to assess those dependencies.
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      # Blocking. The published tarball carries no runtime dependencies at all -
+      # publish-prep strips ui5-tooling-transpile and devDependencies - so this is
+      # the closure a consumer could ever inherit plus the library's own runtime
+      # dependency. Threshold is "high": see SECURITY.md for the rationale and
+      # lower it to moderate here if you want a stricter line.
+      - name: Audit runtime dependencies (blocking, high and above)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Not blocking. The build toolchain (@ui5/cli and friends) vendors transitive
+      # packages with open advisories that have no upstream fix - notably tar inside
+      # @ui5/cli, whose only "fix" is a major downgrade of @ui5/cli itself. Gating on
+      # those would make the required check permanently red, which teaches people to
+      # ignore it. They are reported into the run summary instead, where Dependabot
+      # pull requests are the mechanism that actually drives them down.
+      - name: Report build-toolchain advisories (advisory only)
+        if: always()
+        run: |
+          {
+            echo '### Build-toolchain advisories (not blocking)'
+            echo ''
+            echo 'These are dev dependencies. They are not in the published tarball,'
+            echo 'but they do execute during a release, so they are worth watching.'
+            echo ''
+            echo '```'
+            npm audit 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,9 @@ import FilterOperator from "sap/ui/model/FilterOperator";
 import ListBinding from "sap/ui/model/ListBinding";
 import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { UrlValidator } from "../../utils/UrlValidator";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering an `Input` with a Value Help dialog (`sap.m.SelectDialog`)
@@ -48,7 +50,7 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
         return new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
-            placeholder: metadata.ui?.placeholder || "Select a value...",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.dataSourceValueHelpPlaceholder),
             required: this.isRequired(),
             showValueHelp: true,
             valueHelpRequest: (oEvent: Event) => {
@@ -78,6 +80,14 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
             );
             return;
         }
+        if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
+            Logger.warn(
+                "[MetaUI RemoteValueHelpPlugin]",
+                `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`,
+                "RemoteValueHelpPlugin"
+            );
+            return;
+        }
 
         this.activeTargetInput = input;
 
@@ -103,7 +113,7 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
                 }
             };
             this.selectDialog = new SelectDialog({
-                title: metadata.ui?.label || "Select Value",
+                title: metadata.ui?.label || I18n.getText(TEXT_KEY.dataSourceValueHelpTitle),
                 liveChange: applyDialogFilter,
                 search: applyDialogFilter,
                 confirm: (oEvent: Event) => {
@@ -113,10 +123,7 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
                     if (selectedItem && targetInput) {
                         const selectedKey = selectedItem.getDescription() || selectedItem.getTitle();
                         targetInput.setValue(selectedKey);
-                        const model = targetInput.getModel(this.modelName) as JSONModel | undefined;
-                        if (model) {
-                            model.setProperty(this.resolveAbsolutePath(targetInput), selectedKey);
-                        }
+                        this.commitValue(targetInput, selectedKey);
                         this.notifyChange(targetInput.getId());
                     }
                 }

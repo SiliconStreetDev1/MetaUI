@@ -14,16 +14,19 @@
 		<dependency>
 			<libraryName>sap.ui.layout</libraryName>
 		</dependency>
+		<!--
+			Lazy dependencies. Each of the two below is imported by exactly one plugin module that
+			PluginRegistry.preloadDependencies() requires on demand, never by anything in library.ts's
+			eager import list. They must therefore stay <lazy>true</lazy> here AND stay out of
+			Core.initLibrary's `dependencies` array in library.ts - the two lists are one contract.
+			Both ship with OpenUI5 as well as SAPUI5, so this library has no SAPUI5-only dependency.
+		-->
 		<dependency>
 			<libraryName>sap.ui.unified</libraryName>
 			<lazy>true</lazy>
 		</dependency>
 		<dependency>
 			<libraryName>sap.ui.codeeditor</libraryName>
-			<lazy>true</lazy>
-		</dependency>
-		<dependency>
-			<libraryName>sap.ndc</libraryName>
 			<lazy>true</lazy>
 		</dependency>
 	</dependencies>

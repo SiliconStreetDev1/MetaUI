@@ -8,6 +8,7 @@
 import { IPropertyMetadata, ISchema } from "../interfaces/ISchema";
 import { Engine } from "../core/Engine";
 import { PayloadValidator } from "../core/PayloadValidator";
+import { SchemaWalker } from "../core/SchemaWalker";
 import { Logger } from "../utils/Logger";
 import { deepClone } from "../utils/TypeGuards";
 import Table from "sap/m/Table";
@@ -84,13 +85,51 @@ export class TableRowHelper {
      * @returns {unknown} The synthesized default row object or primitive value.
      */
     public static createSkeleton(meta: ISchema | IPropertyMetadata): unknown {
-        if (meta.type === "object" && meta.properties) {
-            const obj: Record<string, unknown> = {};
-            for (const key of Object.keys(meta.properties)) {
-                obj[key] = this.createSkeleton(meta.properties[key]);
-            }
-            return obj;
+        if (meta.type !== "object" || !meta.properties) {
+            return this.createLeafSkeleton(meta);
         }
+        const rootObj: Record<string, unknown> = {};
+        const objectsByScope = new Map<string, Record<string, unknown>>([["#", rootObj]]);
+
+        SchemaWalker.walk(
+            meta,
+            (ctx) => {
+                const splitIdx = ctx.scope.lastIndexOf("/properties/");
+                if (splitIdx === -1) {
+                    return "skip-subtree";
+                }
+                const parentScope = ctx.scope.slice(0, splitIdx);
+                const parentObj = objectsByScope.get(parentScope);
+                if (!parentObj) {
+                    return "skip-subtree";
+                }
+                if (ctx.node.type === "object" && ctx.node.properties) {
+                    const childObj: Record<string, unknown> = {};
+                    parentObj[ctx.key] = childObj;
+                    objectsByScope.set(ctx.scope, childObj);
+                    return undefined;
+                }
+                parentObj[ctx.key] = this.createLeafSkeleton(ctx.node);
+                return "skip-subtree";
+            },
+            {
+                resolveRefs: false,
+                onTruncate: (scope) => {
+                    const splitIdx = scope.lastIndexOf("/properties/");
+                    if (splitIdx === -1) return;
+                    const parentScope = scope.slice(0, splitIdx);
+                    const key = scope.slice(splitIdx + "/properties/".length);
+                    const parentObj = objectsByScope.get(parentScope);
+                    if (parentObj && !(key in parentObj)) {
+                        parentObj[key] = {};
+                    }
+                }
+            }
+        );
+        return rootObj;
+    }
+
+    private static createLeafSkeleton(meta: ISchema | IPropertyMetadata): unknown {
         if (meta.type === "array") {
             return [];
         }
@@ -136,12 +175,53 @@ export class TableRowHelper {
         const data = Array.isArray(rawData) ? rawData : [];
         const newData = [...data, this.createSkeleton(itemsSchema)];
         model.setProperty(info.path, newData);
+        this.revealAppendedRow(tbl, newData.length);
 
         engine.onArrayMutated(info.path, -1);
         const validationRes = this.validateArrayCountConstraints(newData, tableSchema, engine, actualPath);
         if (engine.onChange) {
             engine.onChange(validationRes.isValid, actualPath.replace(/^\//, ""), validationRes.errorMessage);
         }
+    }
+
+    /**
+     * Extends a growing table's rendered window so the row that was just appended is actually drawn.
+     *
+     * `TableLayout` pages the generated table at `TableLayout.GROWING_PAGE_SIZE` rows, and
+     * `sap.m.GrowingEnablement` only ever renders the prefix `[0, _iLimit)`. That limit is recomputed
+     * from `growingThreshold` on a Sort, Filter or Context change and on nothing else — a plain data
+     * change leaves it alone (verified in `sap/m/GrowingEnablement-dbg.js`, `updateItems`). So a row
+     * appended to a collection that already fills the window lands outside it: accepted into the
+     * payload, counted by the growing trigger, and never drawn. That is the truncation defect again at
+     * a new boundary, and it is why this call exists.
+     *
+     * `ListBase#requestItems` is the public, typed means of widening the window (`@since 1.92`, below
+     * this library's floor). It raises the limit by exactly the shortfall in one pass, so only the rows
+     * between the old window and the new one are rendered. The usual case costs nothing: a collection
+     * smaller than one page is already fully inside the window and the shortfall is zero.
+     *
+     * Appending rather than inserting at index 0 is deliberate. An insert shifts every following row's
+     * index, and `ValidationLedger.extractShiftedRowEntries` can only shift entries *down* by one —
+     * it models a deletion — so every existing row's painted error would move to its neighbour. That
+     * is a worse defect than the one being fixed, and an invisible one.
+     *
+     * @param tbl The table whose window may need widening.
+     * @param rowCount The collection's length after the append.
+     */
+    private static revealAppendedRow(tbl: Table, rowCount: number): void {
+        if (!tbl.getGrowing()) {
+            return;
+        }
+        // Null when the table has no growing delegate yet, which is also when `requestItems` throws.
+        const growingInfo = tbl.getGrowingInfo();
+        if (!growingInfo) {
+            return;
+        }
+        const shortfall = rowCount - growingInfo.actual;
+        if (shortfall <= 0) {
+            return;
+        }
+        tbl.requestItems(shortfall);
     }
 
     /**

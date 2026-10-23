@@ -11,6 +11,7 @@ import VBox from "sap/m/VBox";
 import { FlexRendertype } from "sap/m/library";
 import { MessageType } from "sap/ui/core/library";
 import { ISchema } from "../../../interfaces/ISchema";
+import { SchemaWalker } from "../../../core/SchemaWalker";
 import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
 import { SchemaBuilderRegistry } from "../../../core/SchemaBuilderRegistry";
 import { SchemaValidator } from "../../../core/SchemaValidator";
@@ -19,7 +20,8 @@ import { LayoutMutator } from "../../../core/LayoutMutator";
 import { DefaultLayoutGenerator } from "../../../core/DefaultLayoutGenerator";
 import { PluginRegistry } from "../../../core/PluginRegistry";
 import { Logger } from "../../../utils/Logger";
-import { isRecord, readRecord, deepClone } from "../../../utils/TypeGuards";
+import { isRecord, deepClone } from "../../../utils/TypeGuards";
+import { MAX_SCHEMA_DEPTH } from "../../../constants/MetaUIConstants";
 import type GeneratorHost from "../GeneratorHost";
 
 /**
@@ -129,7 +131,11 @@ export class GenerationDelegate {
             }
         }
 
-        const normalizedDefinitions = this.extractAndNormalizeDefinitions(rawSchema, builtDefinitions);
+        const normalizedDefinitions = this.extractAndNormalizeDefinitions(
+            normalizedSchema,
+            rawSchema,
+            builtDefinitions
+        );
 
         if (DefaultLayoutGenerator.ensureLayout(normalizedSchema)) {
             Logger.warn(
@@ -159,8 +165,8 @@ export class GenerationDelegate {
         registry?: PluginRegistry
     ): void {
         const budget = (this.host.getProperty("layoutBudget") as number) || 0;
-        LayoutScorer.apply(normalizedSchema, budget, normalizedDefinitions, registry);
-        LayoutMutator.apply(normalizedSchema);
+        const decisions = LayoutScorer.apply(normalizedSchema, budget, normalizedDefinitions, registry);
+        LayoutMutator.apply(normalizedSchema, decisions);
     }
 
     /**
@@ -289,52 +295,69 @@ export class GenerationDelegate {
         return { parsedData: inputData, dataParseError };
     }
 
-    private containsAdditionalProperties(node: unknown, depth: number = 0): boolean {
-        if (depth > 8 || !isRecord(node)) return false;
-        if (node.additionalProperties === true) return true;
-        if (isRecord(node.properties)) {
-            for (const key of Object.keys(node.properties)) {
-                if (this.containsAdditionalProperties(node.properties[key], depth + 1)) {
-                    return true;
+    private containsAdditionalProperties(node: unknown): boolean {
+        if (!isRecord(node)) return false;
+        let found = false;
+        SchemaWalker.walk(
+            node,
+            (ctx) => {
+                if (ctx.node.additionalProperties === true) {
+                    found = true;
+                    return "stop";
+                }
+                return;
+            },
+            {
+                visitRoot: true,
+                resolveRefs: false,
+                silentTruncationLog: true,
+                shouldVisitChild: (_child, _key, parent, isArrayItem) => !isArrayItem || !Array.isArray(parent.items),
+                onTruncate: (_scope, reason) => {
+                    if (reason === "depth") {
+                        Logger.warn(
+                            "[MetaUI GenerationDelegate]",
+                            `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while scanning for ` +
+                                `'additionalProperties'; hybrid inference was not considered below this level.`
+                        );
+                    }
                 }
             }
-        }
-        if (isRecord(node.items) && this.containsAdditionalProperties(node.items, depth + 1)) {
-            return true;
-        }
-        return false;
+        );
+        return found;
     }
 
     private extractAndNormalizeDefinitions(
+        normalizedSchema: ISchema,
         rawSchema: unknown,
         builtDefinitions?: Record<string, ISchema>
     ): Record<string, ISchema> | undefined {
-        const rawDefinitionsProp = this.host.getProperty("schemaDefinitions");
-        const rawDefinitions: Record<string, unknown> = isRecord(rawDefinitionsProp) ? { ...rawDefinitionsProp } : {};
-        if (builtDefinitions) {
-            Object.assign(rawDefinitions, builtDefinitions);
-        }
-
-        if (isRecord(rawSchema)) {
-            const embeddedDefs = readRecord(rawSchema, "definitions") || readRecord(rawSchema, "$defs");
-            if (embeddedDefs) {
-                Object.assign(rawDefinitions, embeddedDefs);
-            }
-        }
-
-        if (Object.keys(rawDefinitions).length === 0) {
-            return undefined;
-        }
-
         const normalized: Record<string, ISchema> = {};
+        const rawDefinitionsProp = this.host.getProperty("schemaDefinitions");
+        const externalDefs = isRecord(rawDefinitionsProp) ? rawDefinitionsProp : undefined;
         const rootRecord = isRecord(rawSchema) ? rawSchema : undefined;
-        for (const key of Object.keys(rawDefinitions)) {
-            try {
-                normalized[key] = SchemaNormalizer.normalizeDefinition(rawDefinitions[key], key, rootRecord);
-            } catch (_e) {
-                Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+        if (externalDefs) {
+            for (const key of Object.keys(externalDefs)) {
+                try {
+                    normalized[key] = SchemaNormalizer.normalizeDefinition(externalDefs[key], key, rootRecord);
+                } catch (_e) {
+                    Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+                }
             }
         }
-        return normalized;
+        if (builtDefinitions) {
+            for (const key of Object.keys(builtDefinitions)) {
+                if (!normalizedSchema.definitions?.[key]) {
+                    try {
+                        normalized[key] = SchemaNormalizer.normalizeDefinition(builtDefinitions[key], key, rootRecord);
+                    } catch (_e) {
+                        Logger.warn(`[MetaUI] Failed to normalize schema definition '${key}'`, "", "GeneratorHost");
+                    }
+                }
+            }
+        }
+        if (normalizedSchema.definitions) {
+            Object.assign(normalized, normalizedSchema.definitions);
+        }
+        return Object.keys(normalized).length > 0 ? normalized : undefined;
     }
 }

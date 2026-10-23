@@ -8,8 +8,15 @@ import {
     FieldType, IUIDirective, IValidationRule, IValueHelp, IRemoteValueHelpConfig,
     IDataSourceConfig, ILayoutElement, IPolicy, IPolicyCondition, PolicyEffectType, IPropertyMetadata
 } from "../interfaces/ISchema";
-import { SCHEMA_TYPE, WIDGET_TYPE, RENDER_MODE, RenderModeType } from "../constants/MetaUIConstants";
+import {
+    SCHEMA_TYPE,
+    WIDGET_TYPE,
+    RENDER_MODE,
+    RenderModeType,
+    MAX_LAYOUT_DEPTH
+} from "../constants/MetaUIConstants";
 import { DataInferenceBuilder } from "./DataInferenceBuilder";
+import { OpenApiRefResolver } from "../openapi/OpenApiRefResolver";
 import { Logger } from "../utils/Logger";
 import {
     JsonRecord, isRecord, readString, readNumber, readBoolean, readRecord, readStringArray, deepClone
@@ -166,7 +173,7 @@ export class SchemaDirectiveNormalizer {
                 readString(ui, "label") ||
                 readString(prop, "title") ||
                 (keyName ? DataInferenceBuilder.generateLabel(keyName) : undefined),
-            placeholder: readString(ui, "placeholder"),
+            placeholder: readString(ui, "placeholder") ?? this.exampleAsPlaceholder(prop.example),
             isKey: readBoolean(ui, "isKey") ?? false,
             readOnly: readBoolean(ui, "readOnly") ?? readBoolean(prop, "readOnly") ?? false,
             widget: inferredWidget,
@@ -192,6 +199,26 @@ export class SchemaDirectiveNormalizer {
             renderMode: isRenderMode(renderMode) ? renderMode : undefined,
             labelSpan: readNumber(ui, "labelSpan")
         };
+    }
+
+    /**
+     * Renders a JSON Schema / OpenAPI `example` as the field's placeholder text.
+     *
+     * An `example` is the schema author's own illustration of a well-formed value, which is exactly what a
+     * placeholder is for, so it fills in when no explicit `ui.placeholder` is given. Only scalars qualify:
+     * an object or array example stringifies into noise, and `null` illustrates nothing.
+     *
+     * @param example The raw `example` value.
+     * @returns {string | undefined} The placeholder text, or undefined when the example is not a scalar.
+     */
+    public static exampleAsPlaceholder(example: unknown): string | undefined {
+        if (typeof example === "string") {
+            return example || undefined;
+        }
+        if (typeof example === "number" || typeof example === "boolean") {
+            return String(example);
+        }
+        return undefined;
     }
 
     /**
@@ -313,6 +340,33 @@ export class SchemaDirectiveNormalizer {
     }
 
     /**
+     * Resolves and merges a `$ref` on a polymorphic (`oneOf`/`anyOf`/`allOf`) branch entry against `rootSchema`.
+     *
+     * @param entry The raw branch entry containing a `$ref`.
+     * @param refPath The `$ref` pointer string.
+     * @param rootSchema The root schema or OpenAPI document.
+     * @returns {{ inlined: JsonRecord; refName: string } | null} The merged branch record and extracted ref name, or `null` if unresolvable.
+     */
+    public static inlinePolymorphicBranchRef(
+        entry: JsonRecord,
+        refPath: string,
+        rootSchema: unknown
+    ): { inlined: JsonRecord; refName: string } | null {
+        const refName = OpenApiRefResolver.extractRefName(refPath);
+        const resolved = OpenApiRefResolver.resolve(refPath, rootSchema);
+        if (!isRecord(resolved)) {
+            return null;
+        }
+        const inlined: JsonRecord = {
+            ...resolved,
+            ...entry,
+            title: readString(entry, "title") || readString(resolved, "title") || refName
+        };
+        delete inlined.$ref;
+        return { inlined, refName };
+    }
+
+    /**
      * Validates and clones a `uiLayout` tree. Unknown element types fail loudly because a silently
      * dropped layout node would make fields vanish from the screen.
      *
@@ -321,8 +375,26 @@ export class SchemaDirectiveNormalizer {
      * @throws {Error} If an element declares an unsupported type.
      */
     public static normalizeLayout(raw: unknown): ILayoutElement[] | undefined {
+        return this.normalizeLayoutInternal(raw, 0, new WeakSet<object>());
+    }
+
+    private static normalizeLayoutInternal(
+        raw: unknown,
+        depth: number,
+        activeElements: WeakSet<object>
+    ): ILayoutElement[] | undefined {
+        // WALKER_EXEMPT: SchemaDirectiveNormalizer.normalizeLayoutInternal validates and clones a raw ILayoutElement[] uiLayout tree (Group/WizardStep/Control nodes), not an ISchema property tree.
         if (!Array.isArray(raw)) return undefined;
-        return raw.map((entry, index): ILayoutElement => {
+        if (depth > MAX_LAYOUT_DEPTH) {
+            Logger.warn(
+                "[MetaUI SchemaNormalizer]",
+                `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
+            );
+            return [];
+        }
+        const normalized: ILayoutElement[] = [];
+        for (let index = 0; index < raw.length; index++) {
+            const entry = raw[index];
             if (!isRecord(entry) || !isLayoutElementType(entry.type)) {
                 const entryType = isRecord(entry) ? String(entry.type) : typeof entry;
                 const msg =
@@ -331,14 +403,27 @@ export class SchemaDirectiveNormalizer {
                 Logger.error("[MetaUI SchemaNormalizer]", msg);
                 throw new Error(msg);
             }
-            return {
-                type: entry.type,
-                label: readString(entry, "label"),
-                scope: readString(entry, "scope"),
-                widget: readString(entry, "widget"),
-                elements: this.normalizeLayout(entry.elements)
-            };
-        });
+            if (activeElements.has(entry)) {
+                Logger.warn(
+                    "[MetaUI SchemaNormalizer]",
+                    `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
+                );
+                continue;
+            }
+            activeElements.add(entry);
+            try {
+                normalized.push({
+                    type: entry.type,
+                    label: readString(entry, "label"),
+                    scope: readString(entry, "scope"),
+                    widget: readString(entry, "widget"),
+                    elements: this.normalizeLayoutInternal(entry.elements, depth + 1, activeElements)
+                });
+            } finally {
+                activeElements.delete(entry);
+            }
+        }
+        return normalized;
     }
 
     /**

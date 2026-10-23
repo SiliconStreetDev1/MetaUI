@@ -4,6 +4,15 @@
     <meta charset="utf-8">
     <title>MetaUI - Integration &amp; E2E Matrix Tests</title>
     <link rel="stylesheet" type="text/css" href="https://ui5.sap.com/resources/sap/ui/thirdparty/qunit-2.css">
+    <!--
+        Deliberately NOT declared in data-sap-ui-libs, unlike test/unit/unitTests.qunit.html.
+
+        library-preload.js carries every module in one bundle, so a page that loads it never requests
+        the individually built files and never notices one that is broken or missing. The unit suite
+        runs the preload path because that is the integration the README documents; this suite stays
+        on the resource-root-only path so those ~139 individual module files keep being fetched and
+        executed on every run. Converting both would leave neither covered.
+    -->
     <script id="sap-ui-bootstrap"
             src="https://ui5.sap.com/resources/sap-ui-core.js"
             data-sap-ui-theme="sap_horizon"

@@ -5,7 +5,9 @@
 
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { WIDGET_TYPE } from "../../constants/MetaUIConstants";
 import { isEmptyValue } from "./RequiredValidatorPlugin";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Standard business logic validator for email addresses.
@@ -24,7 +26,7 @@ export class EmailValidatorPlugin implements IValidator {
     public extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction {
         const fmt = propMeta.ui?.format || propMeta.format;
         const widget = propMeta.ui?.widget;
-        return { active: fmt === "email" || widget === "email" };
+        return { active: fmt === "email" || widget === WIDGET_TYPE.EMAIL };
     }
 
     /**
@@ -37,7 +39,7 @@ export class EmailValidatorPlugin implements IValidator {
         if (isEmptyValue(parsedValue)) return { isValid: true }; // Let RequiredValidator handle empty
         const emailRegex = /^[^\s@.]+(?:\.[^\s@.]+)*@[^\s@.]+(?:\.[^\s@.]+)+$/;
         if (typeof parsedValue !== "string" || !emailRegex.test(parsedValue)) {
-            return { isValid: false, errorMessage: "Please enter a valid email address." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.email) };
         }
         return { isValid: true };
     }

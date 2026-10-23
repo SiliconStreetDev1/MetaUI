@@ -5,6 +5,7 @@
 
 import { IFormatter } from "../../interfaces/IPipeline";
 import { isRecord, readString } from "../../utils/TypeGuards";
+import { safeToString } from "../../core/SafeConvert";
 
 /**
  * Transforms text to UPPERCASE, lowercase, or Title Case.
@@ -22,7 +23,7 @@ export class TextCaseFormatterPlugin implements IFormatter {
      */
     public format(rawValue: unknown, args?: unknown): string {
         if (rawValue === undefined || rawValue === null) return "";
-        const str = typeof rawValue === "string" ? rawValue : String(rawValue);
+        const str = typeof rawValue === "string" ? rawValue : safeToString(rawValue);
         const rawMode =
             typeof args === "string"
                 ? args

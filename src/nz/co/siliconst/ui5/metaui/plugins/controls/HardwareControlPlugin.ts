@@ -9,6 +9,7 @@ import BaseHardwareControl, { $BaseHardwareControlSettings } from "../../control
 import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import ImageControl from "sap/m/Image";
+import { ControlDirectiveUtil } from "../../utils/ControlDirectiveUtil";
 import { UrlValidator } from "../../utils/UrlValidator";
 
 /**
@@ -108,6 +109,24 @@ export abstract class HardwareControlPlugin<T extends BaseHardwareControl = Base
         });
 
         return this.control;
+    }
+
+    /**
+     * Names the text-entry control nested inside the hardware composite rather than the composite itself.
+     *
+     * `BaseHardwareControl` declares no `ariaLabelledBy` association, so a name written to the outer control
+     * is dropped on the floor while the element the user actually focuses — the transcription input of the
+     * voice widget, the coordinate input of the geolocation widget, the fallback editor of the rich-text
+     * widget — stays anonymous. Only `sap.m.InputBase` descendants are considered: the composites also hold
+     * capture and clear buttons whose own labels must not be overwritten by the field's name.
+     *
+     * @param control The outer hardware control produced by `render`.
+     * @returns {Control[]} The nested text-entry controls, or the composite itself when it has none.
+     */
+    protected override resolveAccessibleNameTargets(control: Control): Control[] {
+        const root = this.mainControl ?? control;
+        const nested = ControlDirectiveUtil.collectInputDescendants(root);
+        return nested.length > 0 ? nested : [root];
     }
 
     /**

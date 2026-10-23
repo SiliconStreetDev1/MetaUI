@@ -10,7 +10,8 @@ import Control from "sap/ui/core/Control";
 import ManagedObject from "sap/ui/base/ManagedObject";
 import BusyDialog from "sap/m/BusyDialog";
 import { Logger } from "../../../utils/Logger";
-import { ISchema, IPropertyMetadata } from "../../../interfaces/ISchema";
+import { ISchema } from "../../../interfaces/ISchema";
+import { SchemaWalker } from "../../../core/SchemaWalker";
 import { WIDGET_TYPE, SCHEMA_TYPE } from "../../../constants/MetaUIConstants";
 
 /**
@@ -41,6 +42,7 @@ export class DialogDelegate {
     private pendingOrigin: IOriginLocation | null = null;
     private requestedWidth: string = "auto";
     private calculatedOptimalWidth: string = "auto";
+    private openRequestId: number = 0;
 
     /**
      * Initializes a new DialogDelegate to handle dialog-based rendering.
@@ -121,10 +123,38 @@ export class DialogDelegate {
     }
 
     /**
+     * Detaches `this.host` from `dialog`, restores it to the location captured before the dialog opened and
+     * settles any pending `openInDialog` promise. The dialog must never own the host's lifecycle, so this runs
+     * on every teardown path: normal close, delegate destruction, and destruction of the dialog by its
+     * `dependents` owner (for example when the owning view is destroyed during navigation).
+     *
+     * Safe to call repeatedly; it does nothing once the host has already left the dialog.
+     *
+     * @param dialog The dialog currently hosting the generated content.
+     */
+    private releaseHostFromDialog(dialog: Dialog): void {
+        const content = typeof dialog.getContent === "function" ? dialog.getContent() : [];
+        if (Array.isArray(content) && content.indexOf(this.host) > -1) {
+            dialog.removeContent(this.host);
+            this.restoreToOrigin(this.pendingOrigin);
+        }
+        if (this.activeDialog === dialog) {
+            this.activeDialog = null;
+        }
+        this.pendingOrigin = null;
+        const res = this.pendingResolve;
+        this.pendingResolve = null;
+        res?.();
+    }
+
+    /**
      * Dialog Modality: Opens the generated layout inside a `sap.m.Dialog`.
      * Automatically wires up customizable submit (default: `'OK'`) and `'Cancel'` buttons.
      *
-     * @returns {Promise<void>} Resolves once the dialog has closed.
+     * Re-entrant: a call issued while an earlier one is still generating supersedes it, so a double-click on
+     * an "Edit" button can never leave an orphaned modal behind.
+     *
+     * @returns {Promise<void>} Resolves once the dialog has closed, or immediately if superseded.
      */
     public async openInDialog(
         title: string = "Form",
@@ -134,9 +164,8 @@ export class DialogDelegate {
         dialogWidth: string = "auto",
         parentView?: Control
     ): Promise<void> {
-        if (this.activeDialog) {
-            this.destroy();
-        }
+        const requestId = ++this.openRequestId;
+        this.destroy();
         this.requestedWidth = dialogWidth;
         this.calculatedOptimalWidth = dialogWidth;
 
@@ -157,6 +186,15 @@ export class DialogDelegate {
 
         busyDialog.close();
         busyDialog.destroy();
+
+        if (requestId !== this.openRequestId) {
+            Logger.warn(
+                "[MetaUI]",
+                `openInDialog('${title}') was superseded by a later call while generating; no dialog was opened.`,
+                "DialogDelegate"
+            );
+            return;
+        }
 
         const finalWidth = this.requestedWidth === "auto" && this.calculatedOptimalWidth !== "auto"
             ? this.calculatedOptimalWidth
@@ -221,15 +259,9 @@ export class DialogDelegate {
                     } else if (!wasSubmitted) {
                         this.host.revertUncommittedChanges?.();
                     }
-                    this.activeDialog = null;
-                    this.pendingOrigin = null;
-                    const res = this.pendingResolve;
-                    this.pendingResolve = null;
                     // Detach host from the dialog before destroying the dialog so the host is never destroyed with it.
-                    dialog.removeContent(this.host);
-                    this.restoreToOrigin(origin);
+                    this.releaseHostFromDialog(dialog);
                     dialog.destroy();
-                    res?.();
                 }
             });
 
@@ -240,6 +272,14 @@ export class DialogDelegate {
                 if (dialog.isOpen()) {
                     origDialogInvalidate(oOrigin);
                 }
+            };
+
+            // The dialog lives in the owner's `dependents`; destroying that owner (e.g. on navigation) destroys
+            // the dialog. Release the host first so it is never destroyed as part of the dialog's content.
+            const origDialogDestroy = dialog.destroy.bind(dialog);
+            dialog.destroy = (bSuppressInvalidate?: boolean): void => {
+                this.releaseHostFromDialog(dialog);
+                origDialogDestroy(bSuppressInvalidate);
             };
 
             const dependentOwner = parentView || (origin?.parent as Control | undefined);
@@ -269,45 +309,27 @@ export class DialogDelegate {
      */
     private calculateOptimalDialogWidth(schema: ISchema | null): string {
         if (!schema) return "auto";
+        if (schema.type === SCHEMA_TYPE.ARRAY) return "80vw";
         let requiresWideDialog = false;
-        const visited = new WeakSet<object>();
 
-        const scanProperties = (props: Record<string, IPropertyMetadata>) => {
-            if (requiresWideDialog) return;
-            if (visited.has(props)) return;
-            visited.add(props);
-
-            for (const key of Object.keys(props)) {
-                const prop = props[key];
-                if (!prop || typeof prop !== "object") continue;
-
-                if (prop.type === SCHEMA_TYPE.ARRAY) {
-                    requiresWideDialog = true;
-                    return;
-                }
-                if (prop.ui?.fullWidth === true) {
-                    requiresWideDialog = true;
-                    return;
-                }
+        SchemaWalker.walk(
+            schema,
+            (ctx) => {
+                const prop = ctx.node;
                 if (
+                    prop.type === SCHEMA_TYPE.ARRAY ||
+                    prop.ui?.fullWidth === true ||
                     prop.ui?.widget === WIDGET_TYPE.CODE_EDITOR ||
                     prop.ui?.widget === WIDGET_TYPE.TEXT_AREA ||
                     prop.ui?.widget === WIDGET_TYPE.RICH_TEXT
                 ) {
                     requiresWideDialog = true;
-                    return;
+                    return "stop";
                 }
-                if (prop.properties) scanProperties(prop.properties);
-                if (prop.items && prop.items.properties) scanProperties(prop.items.properties);
-            }
-
-            visited.delete(props);
-        };
-
-        if (schema.type === SCHEMA_TYPE.ARRAY) return "80vw";
-        if (schema.properties) {
-            scanProperties(schema.properties);
-        }
+                return undefined;
+            },
+            { resolveRefs: false }
+        );
 
         return requiresWideDialog ? "80vw" : "auto";
     }
@@ -319,15 +341,8 @@ export class DialogDelegate {
     public destroy(): void {
         if (this.activeDialog) {
             const dlg = this.activeDialog;
-            this.activeDialog = null;
-            const origin = this.pendingOrigin;
-            this.pendingOrigin = null;
-            const res = this.pendingResolve;
-            this.pendingResolve = null;
-            dlg.removeContent(this.host);
-            this.restoreToOrigin(origin);
+            this.releaseHostFromDialog(dlg);
             dlg.destroy();
-            res?.();
         }
     }
 }

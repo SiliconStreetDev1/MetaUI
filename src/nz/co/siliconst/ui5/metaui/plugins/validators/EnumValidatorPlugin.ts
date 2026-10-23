@@ -7,6 +7,7 @@ import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../i
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { canonicalSerialize } from "./ArrayItemsValidatorPlugin";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Enforces the JSON Schema `enum` constraint across primitive, object, array, and `{ key, text }` enum entries.
@@ -73,7 +74,7 @@ export class EnumValidatorPlugin implements IValidator {
                       ? JSON.stringify(item)
                       : String(item)
             );
-            return { isValid: false, errorMessage: `Value must be one of: ${labels.join(", ")}.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.enumMembership, [labels.join(", ")]) };
         }
         return { isValid: true };
     }

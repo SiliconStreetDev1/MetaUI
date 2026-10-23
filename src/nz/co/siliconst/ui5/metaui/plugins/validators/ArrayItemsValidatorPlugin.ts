@@ -6,6 +6,7 @@
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { isRecord, readNumber, readBoolean } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /** Arguments accepted by the array items validator. */
 export interface IArrayItemsArgs {
@@ -60,28 +61,38 @@ export class ArrayItemsValidatorPlugin implements IValidator {
     }
 
     /**
+     * An `args` payload that is not an {@link IArrayItemsArgs} record is a schema configuration error and fails
+     * closed, matching `PatternValidatorPlugin`: a constraint the engine cannot apply must never report the field
+     * as valid. A non-array value is a different case and still passes — these keywords do not apply to it.
+     *
      * @param parsedValue The array to test.
      * @param args The {@link IArrayItemsArgs} constraints.
-     * @returns {IValidationResult} Invalid if any constraint is violated.
+     * @returns {IValidationResult} Invalid if any constraint is violated or the constraints are misconfigured.
      */
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
-        if (!Array.isArray(parsedValue) || !isRecord(args)) return { isValid: true };
+        if (!isRecord(args)) {
+            return {
+                isValid: false,
+                errorMessage: "Schema configuration error: 'arrayItems' requires a minItems/maxItems/uniqueItems object."
+            };
+        }
+        if (!Array.isArray(parsedValue)) return { isValid: true };
 
         const minItems = readNumber(args, "minItems");
         const maxItems = readNumber(args, "maxItems");
 
         if (minItems !== undefined && parsedValue.length < minItems) {
-            return { isValid: false, errorMessage: `At least ${minItems} item(s) required.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.arrayMinItems, [minItems]) };
         }
         if (maxItems !== undefined && parsedValue.length > maxItems) {
-            return { isValid: false, errorMessage: `At most ${maxItems} item(s) allowed.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.arrayMaxItems, [maxItems]) };
         }
         if (readBoolean(args, "uniqueItems") === true) {
             const seen = new Set<string>();
             for (const item of parsedValue) {
                 const signature = canonicalSerialize(item);
                 if (seen.has(signature)) {
-                    return { isValid: false, errorMessage: "All items must be unique." };
+                    return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.arrayUniqueItems) };
                 }
                 seen.add(signature);
             }

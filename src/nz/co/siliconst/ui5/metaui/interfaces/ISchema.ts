@@ -142,8 +142,6 @@ export interface IPropertyMetadata {
     pattern?: string;
 
     // Numeric specifics
-    precision?: number;
-    scale?: number;
     multipleOf?: number;
 
     // Value constraints
@@ -153,10 +151,11 @@ export interface IPropertyMetadata {
     // OpenAPI Advanced features
     default?: unknown;
     nullable?: boolean;
+    /** Accepted on a write, never returned on a read: the value is stripped from the inbound payload. */
     writeOnly?: boolean;
     readOnly?: boolean;
+    /** A sample value. A scalar example becomes the field's placeholder when `ui.placeholder` is absent. */
     example?: unknown;
-    deprecated?: boolean;
     exclusiveMinimum?: boolean | number;
     exclusiveMaximum?: boolean | number;
 

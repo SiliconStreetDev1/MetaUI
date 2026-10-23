@@ -5,6 +5,7 @@
 
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Full IBAN validation: structural check plus the ISO 7064 MOD 97-10 checksum.
@@ -29,16 +30,16 @@ export class IbanValidatorPlugin implements IValidator {
     public validate(parsedValue: unknown): IValidationResult {
         if (parsedValue === null || parsedValue === undefined || parsedValue === "") return { isValid: true };
         if (typeof parsedValue !== "string") {
-            return { isValid: false, errorMessage: "Please enter a valid IBAN." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.iban) };
         }
 
         const iban = parsedValue.replace(/\s+/g, "").toUpperCase();
         if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) {
-            return { isValid: false, errorMessage: "Please enter a valid IBAN." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.iban) };
         }
 
         if (IbanValidatorPlugin.mod97(iban) !== 1) {
-            return { isValid: false, errorMessage: "IBAN checksum is invalid." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.ibanChecksum) };
         }
         return { isValid: true };
     }

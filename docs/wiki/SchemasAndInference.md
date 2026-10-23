@@ -56,9 +56,7 @@ Every field within `properties` or `items` supports the following absolute schem
 | `minLength` | `number` | String min length constraint. |
 | `minimum` | `number` | Numeric minimum boundary. |
 | `maximum` | `number` | Numeric maximum boundary. |
-| `pattern` | `string` | Regular expression validation. |
-| `precision` | `number` | Total length of a numeric field (e.g. `precision: 10, scale: 2`). |
-| `scale` | `number` | Number of allowed decimal places. |
+| `pattern` | `string` | Regular expression validation. Capped at 512 characters, and shapes whose repetition is provably ambiguous are refused as a denial-of-service risk rather than executed — see [Supported Features](SupportedFeatures.md). |
 | `multipleOf` | `number` | Numeric step/divisor constraint. |
 | `valueHelp` | `IValueHelp[] \| IRemoteValueHelpConfig` | Array of static Key/Text pairs OR remote endpoint configuration object. |
 | `enum` | `string[] \| number[]` | Array of allowed primitive values. |
@@ -67,7 +65,6 @@ Every field within `properties` or `items` supports the following absolute schem
 | `writeOnly` | `boolean` | Preserved on normalized `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime). |
 | `readOnly` | `boolean` | Indicates the property is read-only. |
 | `example` | `unknown` | A sample value for documentation/mocking. |
-| `deprecated` | `boolean` | Preserved on normalized `IPropertyMetadata` for consumer inspection. |
 | `exclusiveMinimum` | `boolean \| number` | Strict boundary constraint (greater than but not equal). |
 | `exclusiveMaximum` | `boolean \| number` | Strict boundary constraint (less than but not equal). |
 | `maxItems` | `number` | Maximum items for an array. |
@@ -100,17 +97,17 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 | `visible` | `boolean` | Initial static visibility of the control. |
 | `enabled` | `boolean` | Initial static enabled state of the control. |
 | `widget` | `string` | Forces a specific Plugin implementation (e.g., `"slider"` instead of the default numeric input). |
-| `visibleOn` | `string` | Expression string evaluated via `ExpressionBuilder` (e.g. `"{/Active} === true"` or `$root.Active === true`). Controls `setVisible()`. |
-| `enabledOn` | `string` | Expression string for enabling/disabling a control interactively. |
+| `visibleOn` | `string` | Condition expression compiled by `ExpressionBuilder.buildChecked()` and bound to the control's `visible` property (e.g. `"{/Active}"` or `"$root.Active === true"`). Model paths, `{= … }` expression bindings, `$root.` / `$row.` references and OData key predicates are supported; UI5 complex-binding object syntax (`{path:'…', formatter:'…'}`) is refused and the directive skipped. See [Data Binding & State Management](DataBindingAndState.md). |
+| `enabledOn` | `string` | Same grammar as `visibleOn`, bound to the control's `enabled` property. Bound only when the target control declares `enabled`; inert on widgets that fall back to `sap.m.Text` in display mode. |
 | `format` | `string` | Specialized data formats natively mapped to validation rules (`"email"`, `"url"`, `"iban"`). |
 | `valueState` | `string` | Initial `sap.ui.core.ValueState` (`"None"`, `"Error"`, `"Warning"`, `"Success"`, `"Information"`). |
-| `rows` | `number` | Row count specific to the `textArea` widget. |
-| `expandable` | `boolean` | Allows disabling the full-screen expand button for `textArea` and `codeEditor`. Defaults to true. |
+| `rows` | `number` | Row count for the multi-line widgets: literal rows on `textArea`, translated to an editor height on `codeEditor`. |
+| `expandable` | `boolean` | Set `true` to add a full-screen expand button beside a `textArea` or `codeEditor`, opening the same editor in a resizable 80% x 80% dialog. Opt-in; defaults to false. |
 | `fullWidth` | `boolean` | Forces a control to break to a new line and span 12 grid columns horizontally. |
-| `controlProps` | `Record<string, unknown>` | **Advanced:** Directly applies static UI5 properties or dynamic expression bindings (using `{...}`) to the underlying UI5 widget via reflection. Core data/state properties (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`) are blocked by the Sandbox. |
+| `controlProps` | `Record<string, unknown>` | **Advanced:** Applies static UI5 properties or binding expressions (`{...}`) to the generated widget. Each entry is vetted against the control's UI5 metadata by `vetControlProperty()`: the control must declare the property, its declared type must resolve to a scalar primitive (`string`, `boolean`, `int`, `float`), it must not be a MetaUI-owned state property (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`), and it must not be a raw-markup property (`htmlText`, `html`, `innerHTML`, `content`). `sap.ui.core.URI` properties are routed through `UrlValidator`, statically and when bound. Refused entries are logged and skipped. See [Data Binding & State Management](DataBindingAndState.md). |
 | `options` | `Record<string, unknown>` | Extended widget configuration options (`values`, `min`, `max`, `step`, `maxValue`, `text`, `type`, `icon`). |
 | `valueHelp` | `IValueHelp[]` | Inline array of `{ key, text }` options inside the `ui` block. |
-| `dataSource` | `IDataSourceConfig` | Asynchronous REST or OData data source configuration (`url`, `keyField`, `textField`, `dataPath`, `modelName`). |
+| `dataSource` | `IDataSourceConfig` | Asynchronous REST or OData data source configuration (`url`, `keyField`, `textField`, `dataPath`, `modelName`). `url` must resolve to `http:` or `https:`; cross-origin endpoints are permitted by default with a one-time warning and can be locked down with `UrlValidator.setDataSourceOriginPolicy()`. |
 | `validators` | `(string \| IValidationRule)[]` | Array of custom validation pipelines (e.g. `["customRule", { name: "complexRule", args: { limit: 10 } }]`). |
 | `formatter` | `string` | The name of a single formatter pipeline mapped in `PipelineManager` (`"date"`, `"phone"`, `"currency"` are presentational and parsed back to raw model values via `PipelineManager.parsers`; `"textCase"` is transforming and writes its normalized string to the model). Note: `ui.format: "phone"` performs no validation; validate phone numbers with `pattern`. |
 | `formatters` | `string[]` | Ordered array of chained formatter names mapped in `PipelineManager` (parsed in reverse order via `runParsers()` when presentational). |
@@ -159,7 +156,7 @@ Action plugins often require parameters. You can pass these via the `ui.args` pr
 ```
 
 #### Registering a Custom Action Plugin
-You are not limited to the built-in actions. If you create a custom `ActionPlugin` (e.g., a button that triggers a barcode scanner or a backend OData call), you register it globally using the `PluginRegistry`:
+You are not limited to the built-in actions. If you create a custom `ActionPlugin` (e.g., a button that triggers a device capability or a backend OData call), you register it globally using the `PluginRegistry`:
 
 ```typescript
 import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
@@ -213,7 +210,6 @@ The MetaUI Engine translates schemas into SAPUI5 instances using 52 `(type, widg
 | `string` | `"camera"` | `nz.co.siliconst.ui5.metaui.controls.CameraControl` | CameraPlugin |
 | `string` | `"signature"` | `nz.co.siliconst.ui5.metaui.controls.SignatureControl` | SignaturePlugin |
 | `object` | `"location"` | `nz.co.siliconst.ui5.metaui.controls.GeolocationControl` | GeolocationPlugin |
-| `string` | `"scanner"` | `sap.m.HBox` (`sap.ndc.BarcodeScannerButton`) | BarcodeScannerPlugin |
 | `string` | `"voiceInput"` | `nz.co.siliconst.ui5.metaui.controls.VoiceInputControl` | VoiceInputPlugin |
 | `string` | `"richText"` | `nz.co.siliconst.ui5.metaui.controls.RichTextControl` | RichTextPlugin |
 | **Actions & Datasources** | | | |
@@ -390,7 +386,7 @@ This example forces the Engine to render fields side-by-side using groups and ho
 ```
 
 ### Example 3: Tabular Array with Financials (`type: "array"`)
-This example renders a Fiori Table. Notice how we use `scale` to strictly format the price to 2 decimal places, and `widget: "step"` for the quantity.
+This example renders a Fiori Table. Notice how we use `multipleOf` to constrain the price to 2 decimal places, and `widget: "step"` for the quantity.
 
 ```json
 {

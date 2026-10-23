@@ -1,0 +1,7 @@
+{
+  "require": ["test/node/bootstrap.js"],
+  "spec": ["test/node/**/*.spec.ts"],
+  "extension": ["ts"],
+  "timeout": 120000,
+  "slow": 10000
+}

@@ -4,6 +4,7 @@
  */
 
 import { IFormatter, IParser } from "../../interfaces/IPipeline";
+import { safeToNumber, safeToString } from "../../core/SafeConvert";
 import NumberFormat from "sap/ui/core/format/NumberFormat";
 
 /**
@@ -34,14 +35,14 @@ export class CurrencyFormatterPlugin implements IFormatter, IParser {
             return "";
         }
         if (typeof rawValue === "boolean") {
-            return String(rawValue);
+            return safeToString(rawValue);
         }
         if (typeof rawValue === "string" && rawValue.trim() === "") {
             return "";
         }
-        const num = typeof rawValue === "number" ? rawValue : Number(rawValue);
+        const num = typeof rawValue === "number" ? rawValue : safeToNumber(rawValue);
         if (!Number.isFinite(num)) {
-            return String(rawValue);
+            return safeToString(rawValue);
         }
         const symbol = typeof args === "string" && args.trim().length > 0 ? args.trim() : "$";
         if (num < 0) {

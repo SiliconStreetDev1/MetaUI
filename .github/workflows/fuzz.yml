@@ -1,0 +1,131 @@
+# Scheduled property fuzzing.
+#
+# This is deliberately NOT part of verify.yml, and the rule in ci.yml ("add the
+# step to verify.yml or the release will not run it") does not apply to it. The
+# two workflows want opposite things from the same test suite:
+#
+#   verify.yml  runs the properties at the FIXED seed in test/node/fc-config.ts.
+#               A pull request has to be reproducible and a release gate has to
+#               be deterministic, and the Stryker job needs the same cases for
+#               every mutant or the mutation score becomes noise.
+#
+#   fuzz.yml    runs them at a RANDOM seed and a much larger budget. A fixed
+#               seed explores the same 1000 cases forever: once it is green it
+#               can never find a counterexample again, which quietly turns the
+#               property suite into a large fixed test suite. This job is what
+#               keeps it actually exploring.
+#
+# The multiplier is 10x, not more, and that ceiling is set by two timeouts
+# rather than by cost: fc-config.ts uses interruptAfterTimeLimit: 120_000 with
+# markInterruptAsFailure: true, and .mocharc.json sets a 120s per-test timeout.
+# Scale the run count far enough and the slowest property trips one of those and
+# reports a counterexample that is really a stopwatch. That would be the worst
+# failure this job could have, because its entire value is that a red run here
+# means a genuine defect. Raise `runs` past 10000 only together with those two
+# limits. Breadth over nights, at a fresh seed each time, is the cheaper lever.
+# Measured at 10000: the whole suite runs in 165s and no single property comes
+# near either limit. The first run at a fresh seed found two real failures.
+#
+# A failure here is a real counterexample, not flake. The seed is echoed into
+# the job summary and the failure message precisely so it can be replayed:
+#
+#     FC_SEED=<seed> FC_NUM_RUNS=<runs> npm run test:prop
+#
+# Pin that seed into fc-config.ts (or the individual property) when you fix it,
+# so the case stays covered by the deterministic gate from then on.
+
+name: Property fuzz
+
+on:
+  schedule:
+    # 03:17 UTC daily. Off the hour on purpose: GitHub queues scheduled jobs
+    # hardest on the hour, and a delayed start skews nothing here.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "fast-check seed. Blank picks a random one. Set it to replay a reported failure."
+        required: false
+        type: string
+      runs:
+        description: "Generated cases per property."
+        required: false
+        default: "10000"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: Property fuzz (random seed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Chosen and exported before the run so the same value reaches the suite,
+      # the summary and the failure message. Deriving it twice would report a
+      # seed that did not run.
+      - name: Choose the seed
+        id: seed
+        run: |
+          SEED="${{ inputs.seed }}"
+          if [ -z "$SEED" ]; then
+            SEED=$(( RANDOM * 32768 + RANDOM ))
+          fi
+          RUNS="${{ inputs.runs }}"
+          if [ -z "$RUNS" ]; then
+            RUNS=25000
+          fi
+          echo "seed=$SEED" >> "$GITHUB_OUTPUT"
+          echo "runs=$RUNS" >> "$GITHUB_OUTPUT"
+          echo "Seed $SEED, $RUNS runs per property."
+
+      - name: Run the property suite
+        env:
+          FC_SEED: ${{ steps.seed.outputs.seed }}
+          FC_NUM_RUNS: ${{ steps.seed.outputs.runs }}
+        run: npm run test:prop
+
+      - name: Record the seed
+        if: always()
+        run: |
+          {
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "### Property fuzz passed"
+              echo ''
+              echo "Seed \`${{ steps.seed.outputs.seed }}\`, \
+          ${{ steps.seed.outputs.runs }} runs per property. No counterexample found."
+            else
+              echo "### Property fuzz FAILED — this is a real counterexample"
+              echo ''
+              echo 'A property held at the committed seed and failed at this one.'
+              echo 'The shrunk counterexample is in the step log above. Replay it with:'
+              echo ''
+              echo '```'
+              echo "FC_SEED=${{ steps.seed.outputs.seed }} \
+          FC_NUM_RUNS=${{ steps.seed.outputs.runs }} npm run test:prop"
+              echo '```'
+              echo ''
+              echo 'When you fix it, pin the case into the deterministic suite so'
+              echo 'verify.yml covers it from then on.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

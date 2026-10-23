@@ -18,6 +18,7 @@ import Item from "sap/ui/core/Item";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import PropertyBinding from "sap/ui/model/PropertyBinding";
 import Event from "sap/ui/base/Event";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering polymorphic schemas (`ui.widget = "polymorphic"`, `oneOf`, `anyOf`, `discriminator`).
@@ -198,7 +199,7 @@ export class PolymorphicPlugin extends BasePlugin {
         const registry = this.engineContext?.pluginRegistry || PluginRegistry.getInstance();
         const rawBase = this.bindingPath || "";
         const basePath = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
-        this.engineContext?.clearValidationPrefix?.(`${basePath}/`);
+        this.clearVariantValidation(basePath);
 
         for (const [propKey, propMeta] of Object.entries(variant.properties)) {
             if (propKey === discProp) continue;
@@ -212,9 +213,10 @@ export class PolymorphicPlugin extends BasePlugin {
             }
 
             const labelText = propMeta.ui?.label || propMeta.title || propKey;
-            const label = new Label({ text: labelText, required: propMeta.required === true }).addStyleClass(
-                "sapUiTinyMarginTop"
-            );
+            const label = new Label({
+                text: labelText,
+                required: propMeta.required === true && this.isEditable
+            }).addStyleClass("sapUiTinyMarginTop");
             if (propMeta.ui?.visible === false || propMeta.ui?.visibleOn) {
                 ControlDirectiveUtil.applyCommonDirectives(
                     label,
@@ -254,6 +256,9 @@ export class PolymorphicPlugin extends BasePlugin {
             } else {
                 label.setLabelFor(childControl);
             }
+            // The variant's label is added to fieldsContainer below, so it reaches the DOM: `labelFor` is
+            // the single naming mechanism for this child and the synthetic InvisibleText stands down.
+            ControlDirectiveUtil.reconcileLabelAssociation(label, labelText, true);
 
             this.activeChildPlugins.push(childPlugin);
             this.activeChildPaths.push(childPath);
@@ -301,7 +306,10 @@ export class PolymorphicPlugin extends BasePlugin {
                 child.setVisualValidationState(res.isValid, res.errorMessage);
             }
             if (childPath && this.engineContext?.reportSchemaError) {
-                this.engineContext.reportSchemaError(childPath, res.isValid ? null : res.errorMessage || "Invalid value");
+                this.engineContext.reportSchemaError(
+                    childPath,
+                    res.isValid ? null : res.errorMessage || I18n.getText(TEXT_KEY.invalidValue)
+                );
             }
             if (!res.isValid && !firstFailure) {
                 firstFailure = res;
@@ -345,7 +353,7 @@ export class PolymorphicPlugin extends BasePlugin {
         if (!visible) {
             if (this.bindingPath) {
                 const rawBase = this.bindingPath.endsWith("/") ? this.bindingPath.slice(0, -1) : this.bindingPath;
-                this.engineContext?.clearValidationPrefix?.(`${rawBase}/`);
+                this.clearVariantValidation(rawBase);
             }
             for (const child of this.activeChildPlugins) {
                 child.clearError?.();
@@ -384,12 +392,30 @@ export class PolymorphicPlugin extends BasePlugin {
     }
 
     /**
+     * Discards every ledger entry beneath this polymorphic node, so the abandoned variant's field errors do not
+     * outlive the fields themselves.
+     *
+     * `ValidationLedger.clearArrayEntries` builds its match as `cleanPrefix` or `cleanPrefix + "/"`, so the prefix
+     * must be passed WITHOUT a trailing slash: `'/Payment/'` became `'Payment//'` and matched nothing, which made
+     * all three call sites silent no-ops. An empty base path is skipped rather than passed through, because an
+     * empty prefix matches every key in the ledger and would wipe unrelated fields.
+     *
+     * @param basePath The polymorphic node's binding path, already stripped of any trailing slash.
+     */
+    private clearVariantValidation(basePath: string): void {
+        if (!basePath) {
+            return;
+        }
+        this.engineContext?.clearValidationPrefix?.(basePath);
+    }
+
+    /**
      * Destroys all active child plugins.
      */
     private destroyChildPlugins(): void {
         if (this.bindingPath) {
             const rawBase = this.bindingPath.endsWith("/") ? this.bindingPath.slice(0, -1) : this.bindingPath;
-            this.engineContext?.clearValidationPrefix?.(`${rawBase}/`);
+            this.clearVariantValidation(rawBase);
         }
         for (const child of this.activeChildPlugins) {
             if (typeof child.destroy === "function") {

@@ -361,8 +361,12 @@ sap.ui.define([], function () {
         "string:codeEditor": {
             modulePath: "nz/co/siliconst/ui5/metaui/plugins/controls/CodeEditorPlugin",
             controlClass: "sap.ui.codeeditor.CodeEditor",
-            displayControlClass: "sap.m.Text",
-            displayValueCheck: "getText",
+            // Display mode renders a non-editable CodeEditor, not a collapsed sap.m.Text.
+            // The base-class refactor silently dropped renderDisplayControl, so multi-line
+            // code rendered as one unformatted line; SupportedFeatures.md always documented
+            // a read-only editor here and the pre-refactor plugin provided one.
+            displayControlClass: "sap.ui.codeeditor.CodeEditor",
+            displayValueCheck: "getValue",
             serializesTo: "string",
             supportsRowClone: false,
             errorStateMechanism: "none",
@@ -565,19 +569,6 @@ sap.ui.define([], function () {
             sampleValue: { lat: -36.8485, lng: 174.7633 },
             mutatedValue: { lat: -41.2865, lng: 174.7762 },
             invalidValue: null
-        },
-        "string:scanner": {
-            modulePath: "nz/co/siliconst/ui5/metaui/plugins/controls/BarcodeScannerPlugin",
-            controlClass: "sap.m.HBox",
-            displayControlClass: "sap.m.Text",
-            displayValueCheck: "getText",
-            serializesTo: "string",
-            supportsRowClone: true,
-            errorStateMechanism: "valueState",
-            sampleMeta: { type: "string", ui: { label: "Barcode Scanner", widget: "scanner" } },
-            sampleValue: "9300000000012",
-            mutatedValue: "9300000000099",
-            invalidValue: ""
         },
         "string:voiceInput": {
             modulePath: "nz/co/siliconst/ui5/metaui/plugins/controls/VoiceInputPlugin",

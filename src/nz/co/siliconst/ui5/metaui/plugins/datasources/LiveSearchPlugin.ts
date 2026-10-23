@@ -9,10 +9,11 @@ import { ControlDirectiveUtil, extractDataSourceList } from "../../utils/Control
 import Input from "sap/m/Input";
 import SuggestionItem from "sap/m/SuggestionItem";
 import Control from "sap/ui/core/Control";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { UrlValidator } from "../../utils/UrlValidator";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering an `Input` control with remote live type-ahead suggestions (`ui.widget = "liveSearch"`).
@@ -44,7 +45,7 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
         return new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
             value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
-            placeholder: metadata.ui?.placeholder || "Type to search...",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.dataSourceSearchPlaceholder),
             required: this.isRequired(),
             showSuggestion: true,
             startSuggestion: 2,
@@ -62,10 +63,7 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
                 if (selectedItem) {
                     const selectedVal = selectedItem.getKey() || selectedItem.getText();
                     src.setValue(selectedVal);
-                    const model = src.getModel(modelName) as JSONModel | undefined;
-                    if (model) {
-                        model.setProperty(this.resolveAbsolutePath(src), selectedVal);
-                    }
+                    this.commitValue(src, selectedVal);
                 }
                 this.notifyChange(src.getId());
             },
@@ -88,6 +86,14 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
             clearTimeout(this.debounceTimer);
         }
         if (!ds || !ds.url || term.trim().length < 2) {
+            return;
+        }
+        if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
+            Logger.warn(
+                "[MetaUI LiveSearchPlugin]",
+                `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy, no search term was sent.`,
+                "LiveSearchPlugin"
+            );
             return;
         }
         const currentSeq = ++this.requestSequence;
@@ -120,6 +126,10 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
             const targetUrl = urlTemplate.includes("{query}")
                 ? urlTemplate.replace("{query}", encodeURIComponent(term))
                 : `${urlTemplate}${urlTemplate.includes("?") ? "&" : "?"}q=${encodeURIComponent(term)}`;
+
+            if (!UrlValidator.isSafeDataSourceUrl(targetUrl)) {
+                throw new Error("target URL blocked by the data source URL policy");
+            }
 
             const response = await fetch(targetUrl);
             if (!response.ok) {

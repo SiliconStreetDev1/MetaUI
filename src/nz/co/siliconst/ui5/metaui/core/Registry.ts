@@ -22,12 +22,19 @@ export class Registry<T> {
 
     /**
      * Registers a new item (plugin/layout/validator) into the registry.
+     *
+     * Replacing an occupied key is permitted - it is how a consumer substitutes a built-in plugin, layout or
+     * validator - but it is reported at **error** level, not warning. `Logger.warn` routes to `Log.warning`, which
+     * UI5 discards at its default log level of `ERROR` before it even reaches the log buffer, so swapping out a
+     * built-in for an entire application produced literally no observable output in a default-configured app.
+     * There is no way to test a key for availability first either, so the log entry is the only signal there is.
+     *
      * @param key The unique string identifier.
      * @param item The implementation class or instance.
      */
     public register(key: string, item: T): void {
         if (this.items.has(key)) {
-            Logger.warn(`[MetaUI] ${this.registryName}: Overwriting existing key '${key}'.`);
+            Logger.error(`[MetaUI] ${this.registryName}: Overwriting existing key '${key}'.`);
         }
         this.items.set(key, item);
     }

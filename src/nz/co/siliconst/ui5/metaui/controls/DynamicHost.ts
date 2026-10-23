@@ -18,6 +18,7 @@ import {
 import { Logger } from "../utils/Logger";
 import { ODataDelegate } from "./host/delegates/ODataDelegate";
 import { SchemaResolutionDelegate } from "./host/delegates/SchemaResolutionDelegate";
+import { DataSyncDelegate } from "./host/delegates/DataSyncDelegate";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import { isRecord } from "../utils/TypeGuards";
 import { ISchema } from "../interfaces/ISchema";
@@ -188,8 +189,25 @@ export default class DynamicHost extends Control {
         super.invalidate(oOrigin);
     }
 
+    /**
+     * Drops the reference to an inner `GeneratorHost` that was destroyed out of band, so the facade spawns a
+     * fresh one instead of silently proxying every call into a dead control and rendering nothing.
+     */
+    private discardDestroyedInnerHost(): void {
+        if (this._innerHost && this._innerHost.isDestroyed()) {
+            Logger.warn(
+                "[MetaUI DynamicHost]",
+                "Inner GeneratorHost was destroyed externally; respawning it on the next render.",
+                "DynamicHost"
+            );
+            this._innerHost = null;
+            this._initializedInner = false;
+        }
+    }
+
     /** Standard UI5 Lifecycle Hook. Evaluates the initial properties and spawns the GeneratorHost. */
     public onBeforeRendering(): void {
+        this.discardDestroyedInnerHost();
         this.initODataDelegate();
         if (!this._initializedInner) {
             const spawned = this.schemaResolutionDelegate.resolveAndSpawnInnerHost();
@@ -221,6 +239,7 @@ export default class DynamicHost extends Control {
     /** Overrides standard UI5 setProperty to act as a transparent proxy. */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
         super.setProperty(propertyName, value, suppressInvalidate);
+        DataSyncDelegate.invalidateStaleDataJson(this, propertyName);
         if (
             propertyName === "schemaDefinition" &&
             typeof value === "string" &&
@@ -244,6 +263,7 @@ export default class DynamicHost extends Control {
 
     /** Proxies asynchronous layout generation down to the inner host. */
     public async generate(): Promise<void> {
+        this.discardDestroyedInnerHost();
         if (!this._innerHost) {
             this.onBeforeRendering();
         }
@@ -267,6 +287,7 @@ export default class DynamicHost extends Control {
         dialogWidth?: string,
         parentView?: Control
     ): Promise<void> {
+        this.discardDestroyedInnerHost();
         if (!this._innerHost) {
             this.onBeforeRendering();
         }

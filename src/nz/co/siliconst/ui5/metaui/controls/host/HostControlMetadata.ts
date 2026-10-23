@@ -59,6 +59,9 @@ export function isJsonLiteralString(val: unknown): val is string {
         }
         return true;
     } catch (_e) {
+        // CATCH_EXEMPT: a JSON.parse failure is the answer this predicate exists to give --
+        // the constructor string is not a JSON literal, so it is a UI5 binding string. The
+        // caller acts on the returned false; there is nothing degraded to report.
         return false;
     }
 }

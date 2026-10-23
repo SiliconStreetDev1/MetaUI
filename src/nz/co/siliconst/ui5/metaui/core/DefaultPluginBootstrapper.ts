@@ -74,7 +74,6 @@ export class DefaultPluginBootstrapper {
         registry.registerPluginPath(SCHEMA_TYPE.STRING, WIDGET_TYPE.CAMERA, `${CONTROL_PLUGIN_BASE}CameraPlugin`);
         registry.registerPluginPath(SCHEMA_TYPE.STRING, WIDGET_TYPE.SIGNATURE, `${CONTROL_PLUGIN_BASE}SignaturePlugin`);
         registry.registerPluginPath(SCHEMA_TYPE.OBJECT, WIDGET_TYPE.LOCATION, `${CONTROL_PLUGIN_BASE}GeolocationPlugin`);
-        registry.registerPluginPath(SCHEMA_TYPE.STRING, WIDGET_TYPE.SCANNER, `${CONTROL_PLUGIN_BASE}BarcodeScannerPlugin`);
         registry.registerPluginPath(SCHEMA_TYPE.STRING, WIDGET_TYPE.VOICE_INPUT, `${CONTROL_PLUGIN_BASE}VoiceInputPlugin`);
         registry.registerPluginPath(SCHEMA_TYPE.STRING, WIDGET_TYPE.RICH_TEXT, `${CONTROL_PLUGIN_BASE}RichTextPlugin`);
 

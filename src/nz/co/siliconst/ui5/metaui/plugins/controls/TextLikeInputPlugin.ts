@@ -1,12 +1,17 @@
 /**
  * @file TextLikeInputPlugin.ts
- * @description Shared abstract base class for text-input control plugins (String, Email, Password, TextArea, CodeEditor, LiveSearch, RemoteValueHelp, BarcodeScanner).
+ * @description Shared abstract base class for text-input control plugins (String, Email, Password, TextArea, CodeEditor, LiveSearch, RemoteValueHelp).
  */
 
 import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import HBox from "sap/m/HBox";
+import Button from "sap/m/Button";
+import Dialog from "sap/m/Dialog";
+import FlexItemData from "sap/m/FlexItemData";
+import { ButtonType, FlexAlignItems } from "sap/m/library";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Structural interface for SAPUI5 text-like controls (`sap.m.Input`, `sap.m.TextArea`, `sap.ui.codeeditor.CodeEditor`).
@@ -34,6 +39,13 @@ export abstract class TextLikeInputPlugin extends BasePlugin {
     protected readonly syncPlaceholderAndMaxLength: boolean = false;
 
     /**
+     * Opts the concrete plugin into the `ui.expandable` full-screen editor. Only the two multi-line widgets
+     * (`TextAreaPlugin`, `CodeEditorPlugin`) declare it; a single-line `sap.m.Input` gains nothing from an
+     * 80% x 80% dialog, so the directive stays inert everywhere else.
+     */
+    protected readonly supportsExpandDialog: boolean = false;
+
+    /**
      * Renders the editable text control in edit mode or a display control in read-only host mode.
      *
      * @param metadata The specific JSON schema properties for this field.
@@ -57,8 +69,81 @@ export abstract class TextLikeInputPlugin extends BasePlugin {
         }
 
         this.control = this.createEditableControl(metadata, bindingPath, modelName, engineScopeId);
+        if (this.supportsExpandDialog && metadata.ui?.expandable === true) {
+            this.control = this.wrapWithExpandButton(this.control, metadata, bindingPath, modelName);
+        }
         this.applyCommonDirectives(this.control, metadata, modelName);
         return this.control;
+    }
+
+    /**
+     * Wraps the editable control in an `sap.m.HBox` next to a full-screen trigger `sap.m.Button`, keeping the
+     * inner widget as `mainControl` so editability, validation state and value reads still target it.
+     *
+     * @param inner The editable control produced by `createEditableControl`.
+     * @param metadata The property metadata.
+     * @param bindingPath The property binding path.
+     * @param modelName The UI5 JSONModel alias.
+     * @returns {Control} The `HBox` wrapper holding the editor and its expand button.
+     */
+    private wrapWithExpandButton(
+        inner: Control,
+        metadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string
+    ): Control {
+        this.mainControl = this.mainControl ?? inner;
+        inner.setLayoutData(new FlexItemData({ growFactor: 1 }));
+        const expandBtn = new Button({
+            icon: "sap-icon://full-screen",
+            type: ButtonType.Transparent,
+            tooltip: I18n.getText(TEXT_KEY.editorExpand),
+            press: () => {
+                this.openExpandDialog(metadata, bindingPath, modelName);
+            }
+        });
+        return new HBox({
+            width: "100%",
+            alignItems: FlexAlignItems.Start,
+            items: [inner, expandBtn]
+        });
+    }
+
+    /**
+     * Opens a resizable 80% x 80% modal holding a second instance of the same editor bound to the same path,
+     * so edits made full-screen flow back through the shared two-way binding.
+     *
+     * @param metadata The property metadata.
+     * @param bindingPath The property binding path.
+     * @param modelName The UI5 JSONModel alias.
+     */
+    private openExpandDialog(metadata: IPropertyMetadata, bindingPath: string, modelName: string): void {
+        const expanded = this.createEditableControl(metadata, bindingPath, modelName);
+        if (expanded.getMetadata().hasProperty("height")) {
+            expanded.setProperty("height", "100%");
+        }
+        if (expanded.getMetadata().hasProperty("growing")) {
+            expanded.setProperty("growing", false);
+        }
+        const dialog = new Dialog({
+            title: metadata.ui?.label || metadata.title || I18n.getText(TEXT_KEY.editorDialogTitle),
+            contentWidth: "80%",
+            contentHeight: "80%",
+            verticalScrolling: false,
+            resizable: true,
+            content: [expanded],
+            beginButton: new Button({
+                text: I18n.getText(TEXT_KEY.editorClose),
+                press: () => {
+                    dialog.close();
+                }
+            }),
+            afterClose: () => {
+                dialog.destroy();
+            }
+        });
+        this.control?.addDependent(dialog);
+        dialog.open();
     }
 
     /**

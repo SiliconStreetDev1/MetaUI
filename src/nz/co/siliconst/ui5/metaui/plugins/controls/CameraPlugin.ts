@@ -7,6 +7,7 @@ import { HardwareControlPlugin } from "./HardwareControlPlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Control from "sap/ui/core/Control";
 import CameraControl from "../../controls/CameraControl";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering the hardware `CameraControl` widget.
@@ -32,6 +33,6 @@ export class CameraPlugin extends HardwareControlPlugin<CameraControl> {
         modelName: string,
         engineScopeId?: string
     ): Control {
-        return this.renderSafeImageDisplay(metadata, bindingPath, modelName, engineScopeId, "Image");
+        return this.renderSafeImageDisplay(metadata, bindingPath, modelName, engineScopeId, I18n.getText(TEXT_KEY.hardwareImageAlt));
     }
 }

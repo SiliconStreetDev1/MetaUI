@@ -1,52 +1,184 @@
-name: Publish to NPM
+# Publishes @siliconst/metaui to npm using OIDC trusted publishing.
+#
+# There is deliberately no NPM token here. The job mints a short-lived OIDC token
+# through `id-token: write`, npm exchanges it for a publish credential scoped to
+# this repository and this workflow file, and npm attaches a provenance
+# attestation automatically because the repository and the package are public.
+# The previous long-lived `secrets.NPM2` token was the single point of failure in
+# the last release and should now be revoked.
+#
+# Requirements (npm CLI >= 11.5.1, Node >= 22.14.0, `id-token: write`, and a
+# trusted publisher registered against THIS filename on npmjs.com):
+# https://docs.npmjs.com/trusted-publishers
+#
+# npm matches the trusted publisher on the workflow FILENAME. Renaming this file
+# breaks publishing until the configuration on npmjs.com is recreated to match.
+
+name: Publish to npm
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  check-version:
+    name: Is this a new version?
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+      version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          persist-credentials: false
 
-      - name: Check if version exists on NPM
-        id: check_version
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x
+
+      - name: Compare the manifest version with the registry
+        id: check
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view @siliconst/metaui@$VERSION version >/dev/null 2>&1; then
-            echo "Version $VERSION already exists on NPM. Skipping publish."
-            echo "publish=false" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          NAME="$(node -p "require('./package.json').name")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VERSION} is already on npm. Nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Version $VERSION does not exist. Proceeding with publish..."
-            echo "publish=true" >> $GITHUB_OUTPUT
+            echo "${NAME}@${VERSION} is not on npm. Proceeding."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install Library Dependencies
-        if: steps.check_version.outputs.publish == 'true'
-        run: npm ci
+  # The same gate CI runs, on one Node version: CI has already run the full
+  # matrix on this commit, and this is the release's own independent proof.
+  verify:
+    name: Verify
+    needs: check-version
+    if: needs.check-version.outputs.publish == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify.yml
+    with:
+      node-versions: '["24.x"]'
 
-      - name: Build UI5 Library
-        if: steps.check_version.outputs.publish == 'true'
+  publish:
+    name: Publish ${{ needs.check-version.outputs.version }}
+    needs: [check-version, verify]
+    if: needs.check-version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # The whole point: this mints the OIDC token. Without it npm falls back to
+      # looking for a credential and the publish fails with a 404 or a 403.
+      id-token: write
+
+    # Optional hardening, not enabled by default because it has to be configured
+    # on both sides or npm rejects the publish with a 403. To turn it on: create a
+    # GitHub environment named npm-publish (Settings > Environments) with whatever
+    # reviewers and branch rules you want, uncomment the two lines below, and set
+    # "Environment name: npm-publish" in the trusted publisher on npmjs.com.
+    # environment:
+    #   name: npm-publish
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Node 24 bundles npm 11.x. Node 22 bundles npm 10.x, which cannot do
+          # trusted publishing, so do not lower this without adding an npm upgrade.
+          node-version: 24.x
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Require npm 11.5.1 or later (trusted publishing minimum)
+        run: |
+          set -euo pipefail
+          NPM_VERSION="$(npm --version)"
+          echo "npm ${NPM_VERSION}"
+          NPM_VERSION="${NPM_VERSION}" node -e '
+            const got = String(process.env.NPM_VERSION).split(".").map(Number);
+            const need = [11, 5, 1];
+            for (let i = 0; i < need.length; i += 1) {
+              const part = Number.isFinite(got[i]) ? got[i] : 0;
+              if (part > need[i]) process.exit(0);
+              if (part < need[i]) {
+                console.error(`npm ${process.env.NPM_VERSION} is older than 11.5.1, which npm trusted publishing requires.`);
+                console.error("Raise node-version in this workflow, or add `npm install -g npm@latest` before this step.");
+                process.exit(1);
+              }
+            }
+          '
+
+      # --ignore-scripts: this job holds an OIDC credential that can publish this
+      # package. Dependency install hooks are third-party code and have no business
+      # running next to it - puppeteer's Chrome download is the only one here, and
+      # the release runs no tests. Verified locally: a scripts-free install still
+      # produces a byte-identical build, package and API surface.
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Build library
         run: npm run build
 
-      - name: Prepare for Publish
-        if: steps.check_version.outputs.publish == 'true'
+      - name: Prepare the publishable package
         run: npm run publish-prep
 
-      - name: Publish to NPM
-        if: steps.check_version.outputs.publish == 'true'
+      - name: Verify the publishable package
+        run: node .github/scripts/verify-package.js dist
+
+      # Refuses a patch bump whose exported API moved, and a minor bump that
+      # removes or changes an exported declaration. Compares against the tarball
+      # that is actually on npm, not against anything in this repository.
+      - name: Exported API change matches the version bump
+        run: node .github/scripts/api-semver-gate.js --dist dist
+
+      - name: Publish to npm
         working-directory: ./dist
         run: npm publish --access public
+
+      - name: Confirm the provenance attestation
+        continue-on-error: true
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM2 }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          set -uo pipefail
+          SPEC="@siliconst/metaui@${VERSION}"
+          ATTESTED="$(npm view "${SPEC}" dist.attestations --json 2>/dev/null || true)"
+          {
+            echo "### Published ${SPEC}"
+            echo ''
+            if [ -n "${ATTESTED}" ] && [ "${ATTESTED}" != "null" ]; then
+              echo 'Provenance attestation present.'
+            else
+              echo 'No provenance attestation reported yet. The registry can lag by a'
+              echo 'few minutes; check https://www.npmjs.com/package/@siliconst/metaui'
+              echo 'before assuming it failed.'
+            fi
+            echo ''
+            echo '```'
+            echo "${ATTESTED}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

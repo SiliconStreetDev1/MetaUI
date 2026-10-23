@@ -1,0 +1,9 @@
+# The benchmark-owned build of the library, produced by
+#   npx ui5 build --dest benchmark/.dist
+# It is a build artefact, not a source: the root .gitignore only covers `dist/`.
+# The harness prefers this copy over the shared `dist/` so that a concurrent
+# `npm run build --clean-dest` cannot delete the artefact out from under a run.
+.dist/
+
+# results/baseline.json and BASELINE.md are deliberately NOT ignored: the committed
+# baseline is the thing a later run is diffed against.

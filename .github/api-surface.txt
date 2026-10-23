@@ -1,0 +1,1681 @@
+# MetaUI published API surface - GENERATED, DO NOT EDIT BY HAND.
+#
+# Regenerate after any change to an exported declaration:
+#   npm run build
+#   node .github/scripts/api-surface.js dist --out .github/api-surface.txt
+#
+# Every exported declaration in the nz/co/siliconst namespace appears below, split
+# into three tiers. CI fails when this file is stale, so EVERY change - internal
+# included - shows up in the diff of the pull request that causes it. What differs
+# between the tiers is what the release gate does about it:
+#
+#   public     Documented in docs/wiki/APIReference.md for applications.
+#              GATED: a patch bump must leave it byte-identical, a minor bump may
+#              only add to it, a removal or change needs a major bump.
+#   extension  Documented in docs/wiki/CreatingPlugins.md and the policy / OpenAPI
+#              extension points, for code that plugs INTO MetaUI. GATED, same rules.
+#   internal   Exported so the AMD loader and PluginRegistry can reach it. NOT a
+#              promise to anyone. REPORTED at release time, never gated: it may
+#              change in a patch release.
+#
+# Tier membership comes from the API_TIERS allowlist in api-surface.js, not from the
+# @public JSDoc tag. A new export defaults to `internal`, which is the safe side.
+# `@internal` in the JSDoc demotes; nothing in src/ can promote.
+#
+# `private` members are excluded; `protected` members are kept, because plugin
+# authors subclass BasePlugin and friends.
+
+=== tier: public ===
+module nz/co/siliconst/ui5/metaui/constants/MetaUIConstants
+  export const RENDER_MODE: { readonly INLINE: "inline"; readonly DIALOG: "dialog"; };
+  export const SCHEMA_TYPE: { readonly OBJECT: "object"; readonly ARRAY: "array"; readonly STRING: "string"; readonly NUMBER: "number"; readonly INTEGER: "integer"; readonly BOOLEAN: "boolean"; readonly DATE: "date"; };
+  export type RenderModeType = typeof RENDER_MODE[keyof typeof RENDER_MODE];
+  export type SchemaTypeType = typeof SCHEMA_TYPE[keyof typeof SCHEMA_TYPE];
+module nz/co/siliconst/ui5/metaui/controls/DynamicHost
+  class DynamicHost extends Control
+    addCustomError(fieldPath: string, message: string): void;
+    attachSubmit(fnFunction: (oEvent: Event) => void, oListener?: object): this;
+    bindElement(vPath: string | { path: string; model?: string; }, mParameters?: object): this;
+    bindObject(vPath: string | { path: string; model?: string; }, mParameters?: object): this;
+    clearCustomError(fieldPath: string): void;
+    constructor(idOrSettings?: string | $DynamicHostSettings, settings?: $DynamicHostSettings);
+    exit(): void;
+    forwardResolvedSchemaToInnerHost(resolvedSchema: unknown): void;
+    generate(): Promise<void>;
+    getBaseProperty(propertyName: string): unknown;
+    getDebugDomMetadata(): unknown;
+    getProperty(propertyName: string): unknown;
+    getSchemaDefinition(refPath: string): ISchema | undefined;
+    getSchemaDefinitions(): Record<string, ISchema> | undefined;
+    getStateManager(): StateManager | null;
+    init(): void;
+    invalidate(oOrigin?: ManagedObject): void;
+    onBeforeRendering(): void;
+    openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): Promise<void>;
+    sParentAggregationName?: string;
+    setBaseProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this;
+    setBindingContext(oContext: Context | null | undefined, sModelName?: string): this;
+    setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this;
+    setSchemaDefinitions(definitions: Record<string, ISchema>): this;
+    static readonly metadata: any;
+    static renderer: any;
+    triggerSubmit(): boolean;
+  export type DynamicHost$CancelEventParameters = object;
+  interface DynamicHost
+    attachBeforeLayoutSectionChange(fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachBeforeLayoutSectionChange<T>(data: T, fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    attachBeforeSubmit(fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachBeforeSubmit<T>(data: T, fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    attachCancel(fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachCancel<T>(data: T, fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    attachError(fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachError<T>(data: T, fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    attachFieldChange(fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachFieldChange<T>(data: T, fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    attachValidationStateChanged(fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>) => void, listener?: object): this;
+    attachValidationStateChanged<T>(data: T, fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>, data: T) => void, listener?: object): this;
+    detachBeforeLayoutSectionChange(fn: (event: Event<DynamicHost$BeforeLayoutSectionChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachBeforeSubmit(fn: (event: Event<DynamicHost$BeforeSubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachCancel(fn: (event: Event<DynamicHost$CancelEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachError(fn: (event: Event<DynamicHost$ErrorEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachFieldChange(fn: (event: Event<DynamicHost$FieldChangeEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachSubmit(fn: (event: Event<DynamicHost$SubmitEventParameters, DynamicHost>) => void, listener?: object): this;
+    detachValidationStateChanged(fn: (event: Event<DynamicHost$ValidationStateChangedEventParameters, DynamicHost>) => void, listener?: object): this;
+    fireBeforeLayoutSectionChange(parameters?: DynamicHost$BeforeLayoutSectionChangeEventParameters): this;
+    fireBeforeSubmit(parameters?: DynamicHost$BeforeSubmitEventParameters): this;
+    fireCancel(parameters?: DynamicHost$CancelEventParameters): this;
+    fireError(parameters?: DynamicHost$ErrorEventParameters): this;
+    fireFieldChange(parameters?: DynamicHost$FieldChangeEventParameters): this;
+    fireSubmit(parameters?: DynamicHost$SubmitEventParameters): this;
+    fireValidationStateChanged(parameters?: DynamicHost$ValidationStateChangedEventParameters): this;
+    getData(): unknown;
+    getDataJson(): string;
+    getDebugMode(): boolean;
+    getEditable(): boolean;
+    getEngineScopeId(): string;
+    getHeight(): CSSSize;
+    getIsValid(): boolean;
+    getLayoutBudget(): number;
+    getLiveUpdate(): boolean;
+    getModelName(): string;
+    getPluginRegistry(): object;
+    getSchemaBuilderRegistry(): object;
+    getSchemaTarget(): string;
+    getUseMessageManager(): boolean;
+    getWidth(): CSSSize;
+    setData(data: unknown): this;
+    setDataJson(dataJson: string): this;
+    setDebugMode(debugMode: boolean): this;
+    setEditable(editable: boolean): this;
+    setEngineScopeId(engineScopeId: string): this;
+    setHeight(height: CSSSize): this;
+    setIsValid(isValid: boolean): this;
+    setLayoutBudget(layoutBudget: number): this;
+    setLiveUpdate(liveUpdate: boolean): this;
+    setModelName(modelName: string): this;
+    setPluginRegistry(pluginRegistry: object): this;
+    setSchemaBuilderRegistry(schemaBuilderRegistry: object): this;
+    setSchemaDefinition(schemaDefinition: unknown): this;
+    setSchemaTarget(schemaTarget: string): this;
+    setUseMessageManager(useMessageManager: boolean): this;
+    setWidth(width: CSSSize): this;
+  interface DynamicHost$BeforeLayoutSectionChangeEventParameters
+    addError?: (...args: unknown[]) => unknown;
+    currentSectionIndex?: number;
+    newSectionIndex?: number;
+    payload?: object;
+    preventDefault?: (...args: unknown[]) => unknown;
+    resumeNavigation?: (...args: unknown[]) => unknown;
+    stepIndex?: number;
+  interface DynamicHost$BeforeSubmitEventParameters
+    addError?: (...args: unknown[]) => unknown;
+    payload?: object;
+    preventDefault?: (...args: unknown[]) => unknown;
+  interface DynamicHost$ErrorEventParameters
+    exception?: object;
+    message?: string;
+  interface DynamicHost$FieldChangeEventParameters
+    fieldPath?: string;
+    isValid?: boolean;
+    payload?: object;
+    value?: unknown;
+  interface DynamicHost$SubmitEventParameters
+    payload?: object;
+    payloadJson?: string;
+  interface DynamicHost$ValidationStateChangedEventParameters
+    isValid?: boolean;
+module nz/co/siliconst/ui5/metaui/interfaces/ISchema
+  export type FieldType = SchemaTypeType | "date";
+  export type IValueHelpOption = IValueHelp;
+  export type PolicyEffectType = "Require" | "Hide" | "Disable" | "Invalidate" | "Show" | "Enable" | "Validate" | "Optional";
+  interface IDataSourceConfig
+    dataPath?: string;
+    keyField: string;
+    modelName?: string;
+    textField: string;
+    url: string;
+  interface ILayoutElement
+    elements?: ILayoutElement[];
+    label?: string;
+    scope?: string;
+    type: "Group" | "Control" | "HorizontalLayout" | "VerticalLayout" | "WizardStep";
+    widget?: string;
+  interface IPolicy
+    condition: IPolicyCondition;
+    effect: PolicyEffectType;
+    message?: string;
+    targets: string[];
+  interface IPolicyCondition
+    DateLessThan?: Record<string, string>;
+    IsNotNull?: string[];
+    IsNull?: string[];
+    NumericGreaterThan?: Record<string, number>;
+    NumericLessThan?: Record<string, number>;
+    StringEquals?: Record<string, string>;
+    [operator: string]: unknown;
+  interface IPropertyMetadata
+    $ref?: string;
+    additionalProperties?: boolean | IPropertyMetadata;
+    allOf?: IPropertyMetadata[];
+    anyOf?: IPropertyMetadata[];
+    const?: unknown;
+    default?: unknown;
+    description?: string;
+    discriminator?: { propertyName: string; mapping?: Record<string, string>; };
+    enum?: (string | number | boolean | null)[];
+    example?: unknown;
+    exclusiveMaximum?: boolean | number;
+    exclusiveMinimum?: boolean | number;
+    format?: string;
+    items?: IPropertyMetadata;
+    maxItems?: number;
+    maxLength?: number;
+    maxProperties?: number;
+    maximum?: number;
+    minItems?: number;
+    minLength?: number;
+    minProperties?: number;
+    minimum?: number;
+    multipleOf?: number;
+    not?: IPropertyMetadata;
+    nullable?: boolean;
+    oneOf?: IPropertyMetadata[];
+    pattern?: string;
+    properties?: Record<string, IPropertyMetadata>;
+    readOnly?: boolean;
+    required?: boolean | string[];
+    title?: string;
+    type: FieldType;
+    ui?: IUIDirective;
+    uiLayout?: ILayoutElement[];
+    uniqueItems?: boolean;
+    valueHelp?: IValueHelp[] | IRemoteValueHelpConfig;
+    writeOnly?: boolean;
+  interface IRemoteValueHelpConfig
+    keyPath: string;
+    textPath: string;
+    url: string;
+  interface ISchema
+    additionalProperties?: boolean | IPropertyMetadata;
+    allOf?: IPropertyMetadata[];
+    anyOf?: IPropertyMetadata[];
+    definitions?: Record<string, ISchema>;
+    items?: IPropertyMetadata;
+    layoutStrategy?: string;
+    maxItems?: number;
+    maxProperties?: number;
+    minItems?: number;
+    minProperties?: number;
+    oneOf?: IPropertyMetadata[];
+    properties?: Record<string, IPropertyMetadata>;
+    readOnly?: boolean;
+    required?: string[];
+    title?: string;
+    type?: "object" | "array";
+    ui?: IUIDirective;
+    uiLayout?: ILayoutElement[];
+    uiPolicies?: IPolicy[];
+    uniqueItems?: boolean;
+  interface IUIDirective
+    args?: unknown;
+    controlProps?: Record<string, unknown>;
+    dataSource?: IDataSourceConfig;
+    dialogButtonText?: string;
+    enabled?: boolean;
+    enabledOn?: string;
+    expandable?: boolean;
+    format?: string;
+    formatter?: string;
+    formatters?: string[];
+    fullWidth?: boolean;
+    isKey?: boolean;
+    label?: string;
+    labelSpan?: number;
+    layoutBudget?: number;
+    options?: Record<string, unknown>;
+    placeholder?: string;
+    readOnly?: boolean;
+    renderMode?: RenderModeType;
+    rows?: number;
+    validators?: (string | IValidationRule)[];
+    valueHelp?: IValueHelp[];
+    valueState?: string;
+    visible?: boolean;
+    visibleOn?: string;
+    widget?: string;
+  interface IValidationRule
+    args?: unknown;
+    name: string;
+  interface IValueHelp
+    key: string;
+    text: string;
+module nz/co/siliconst/ui5/metaui/library
+  export default _default;
+module nz/co/siliconst/ui5/metaui/utils/Logger
+  class Logger
+    static debug(message: string, details?: string, component?: string): void;
+    static error(message: string, details?: string, component?: string): void;
+    static info(message: string, details?: string, component?: string): void;
+    static isDebugMode(): boolean;
+    static setDebugMode(enabled: boolean): void;
+    static showErrorPopup(message: string, title?: string): void;
+    static warn(message: string, details?: string, component?: string): void;
+module nz/co/siliconst/ui5/metaui/utils/UrlValidator
+  class UrlValidator
+    static getDataSourceOriginPolicy(): { mode: DataSourceOriginMode; origins: string[]; };
+    static isSafeDataSourceUrl(rawUrl: unknown): rawUrl is string;
+    static isSafeImageSource(rawSrc: unknown): rawSrc is string;
+    static isSafeNavigationUrl(rawUrl: unknown): rawUrl is string;
+    static isSafeUiResourceUri(rawUri: unknown): rawUri is string;
+    static setDataSourceOriginPolicy(mode: DataSourceOriginMode, allowedOrigins?: readonly string[]): void;
+  export type DataSourceOriginMode = "any" | "same-origin" | "allowlist";
+
+=== tier: extension ===
+module nz/co/siliconst/ui5/metaui/core/Engine
+  class Engine
+    applyRowPolicyState(targetPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
+    build(schema: ISchema, model: Model | undefined, modelName?: string, onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    clearValidationErrors(): void;
+    clearValidationPrefix(prefix: string): void;
+    constructor(editable?: boolean, useMessageManager?: boolean, pluginRegistry?: PluginRegistry);
+    destroy(): void;
+    engineScopeId?: string;
+    generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate?: boolean): Control;
+    generateLayout(schema: ISchema, modelName: string, bindingPath?: string): Control;
+    getActivePlugins(): ReadonlyArray<{ plugin: IPlugin; path: string; }>;
+    getFieldGenerationFailures(): ReadonlyMap<string, string>;
+    getModel(): Model | undefined;
+    getPluginByPath(path: string): IPlugin | undefined;
+    hasActiveErrors(): boolean;
+    hasActiveErrorsForPaths(fieldPaths: string[]): boolean;
+    hasPartialRenderingErrors: boolean;
+    host?: IEngineHost;
+    isInsideAbsentOptionalObject(fieldPath: string): boolean;
+    onArrayMutated(arrayPath: string, deletedRowIndex?: number): void;
+    onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
+    readonly isEditable: boolean;
+    readonly pluginRegistry: PluginRegistry;
+    refreshFieldValidationState(fieldPath: string): void;
+    reportCustomError(fieldPath: string, errorMessage: string | null): void;
+    reportPolicyError(fieldPath: string, errorMessage: string | null): void;
+    reportSchemaError(fieldPath: string, errorMessage: string | null): void;
+    setUseMessageManager(use: boolean): void;
+    useMessageManager: boolean;
+    validateAll(applyVisualState?: boolean): IPluginValidationResult[];
+    validateArrayPath(arrayPath: string, meta: IPropertyMetadata): boolean;
+module nz/co/siliconst/ui5/metaui/core/PipelineManager
+  class PipelineManager
+    assembleAndExecute(propMeta: IPropertyMetadata, value: unknown, isDynamicallyRequired?: boolean): IValidationResult;
+    constructor();
+    executeValidation(parsedValue: unknown, requestedValidators: string[], argsMap?: Record<string, unknown>): IValidationResult;
+    hasPresentationalParser(formatterNames: string | string[]): boolean;
+    readonly formatters: Registry<IFormatter>;
+    readonly parsers: Registry<IParser>;
+    readonly validators: Registry<IValidator>;
+    runFormatters(rawValue: unknown, formatterNames: string | string[], args?: unknown): unknown;
+    runParsers(uiValue: unknown, parserNames: string | string[], args?: unknown): unknown;
+    runValidators(value: unknown, propMeta: IPropertyMetadata, isDynamicallyRequired?: boolean): IValidationResult;
+    static getInstance(): PipelineManager;
+  export const GlobalPipeline: PipelineManager;
+module nz/co/siliconst/ui5/metaui/core/PluginRegistry
+  class PluginRegistry
+    getActionPath(actionName: string): string | undefined;
+    getActionPlugin(actionName: string): IPlugin | undefined;
+    getLayout(strategy: string): ILayoutManager;
+    getPathsToLoad(schema: ISchema, normalizedDefinitions?: Record<string, ISchema>): Set<string>;
+    getPlugin(type: FieldType, widgetName?: string): IPlugin;
+    getPluginScore(type: FieldType, widgetName?: string): number;
+    getPolicyConditionPlugin(conditionKey: string): IPolicyConditionPlugin | undefined;
+    getPolicyEffectPlugin(effectName: string): IPolicyEffectPlugin | undefined;
+    isPluginNativelyWide(type: FieldType, widgetName?: string): boolean;
+    preloadDependencies(schema: ISchema, normalizedDefinitions?: Record<string, ISchema>): Promise<void>;
+    registerActionPath(actionName: string, path: string): void;
+    registerLayoutPath(strategy: string, path: string): void;
+    registerPluginPath(type: FieldType, widgetName: string | undefined, path: string): void;
+    registerPolicyConditionPath(conditionKey: string, path: string): void;
+    registerPolicyEffectPath(effectName: string, path: string): void;
+    static getInstance(): PluginRegistry;
+module nz/co/siliconst/ui5/metaui/core/PluginStateBase
+  abstract class PluginStateBase implements IPluginStateReceiver
+    applyEditable(editable: boolean): void;
+    applyError(errorMessage: string): void;
+    applyRequired(required: boolean): void;
+    applyVisibility(visible: boolean): void;
+    clearError(): void;
+    destroy(): void;
+    getControlId(): string | undefined;
+    getFieldLabel(): string | undefined;
+    isVisible(): boolean;
+    protected abstract applyState(): void;
+    protected associatedLabel?: Label;
+    protected control?: Control;
+    protected fieldKey?: string;
+    protected isControlEditable(): boolean;
+    protected isEditable: boolean;
+    protected mainControl?: Control;
+    protected metadata?: IPropertyMetadata;
+    setAssociatedLabel(label: Label): void;
+    setEditable(editable: boolean): void;
+    setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void;
+    setVisualValidationState(isValid: boolean, errorMessage?: string): void;
+module nz/co/siliconst/ui5/metaui/core/PolicyEngine
+  export type PropertyName = "visibility" | "validity" | "required" | "editable";
+module nz/co/siliconst/ui5/metaui/core/Registry
+  class Registry<T>
+    clear(): void;
+    constructor(registryName?: string);
+    get(key: string): T | undefined;
+    getKeys(): string[];
+    getStrict(key: string): T;
+    has(key: string): boolean;
+    readonly items: Map<string, T>;
+    readonly registryName: string;
+    register(key: string, item: T): void;
+module nz/co/siliconst/ui5/metaui/interfaces/IEngineHost
+  interface IEngineHost
+    activeModelName: string;
+    evaluatePoliciesNow?(): void;
+    fireEvent?(eventName: string, parameters?: Record<string, unknown>): unknown;
+    generatedContent: Control | null;
+    getLayoutBudget?(): number;
+    getParsedSchema?(): ISchema | null;
+    getSchemaDefinition?(refPath: string): ISchema | undefined;
+    getSchemaDefinitions?(): Record<string, ISchema> | undefined;
+    getStateManager(): StateManager | null;
+    resetAndEvaluatePoliciesNow?(): void;
+module nz/co/siliconst/ui5/metaui/interfaces/ILayoutManager
+  interface ILayoutManager
+    render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void, bindingPath?: string): Control;
+module nz/co/siliconst/ui5/metaui/interfaces/IPipeline
+  interface IFormatter
+    format(rawValue: unknown, args?: unknown): string;
+  interface IParser
+    parse(uiValue: unknown, args?: unknown): unknown;
+  interface IValidationResult
+    errorMessage?: string;
+    isValid: boolean;
+  interface IValidator
+    extractRule?(propMeta: IPropertyMetadata, isDynamicallyRequired?: boolean): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+  interface IValidatorRuleExtraction
+    readonly active: boolean;
+    readonly args?: unknown;
+module nz/co/siliconst/ui5/metaui/interfaces/IPlugin
+  interface IPlugin extends IPluginStateReceiver
+    destroy(): void;
+    getChildPluginByPath?(path: string): IPlugin | undefined;
+    onStateChange(newMetadata: IPropertyMetadata): void;
+    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
+    setEditable(editable: boolean): void;
+    setEngineContext(context: IPluginEngineContext): void;
+    setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void;
+    setUseMessageManager?(useMessageManager: boolean): void;
+    setVisualValidationState(isValid: boolean, errorMessage?: string): void;
+    validate(): IPluginValidationResult;
+  interface IPluginEngineContext
+    clearValidationErrors?: () => void;
+    clearValidationPrefix?: (prefix: string) => void;
+    getLayoutBudget?: () => number;
+    getModel: () => Model | undefined;
+    getSchemaDefinition: (refPath: string) => ISchema | undefined;
+    getSchemaDefinitions: () => Record<string, ISchema> | undefined;
+    onSubmit?: () => void;
+    pluginRegistry: PluginRegistry;
+    reportSchemaError?: (fieldPath: string, errorMessage: string | null) => void;
+    resolveSchemaRef?: (refPath: string) => ISchema | undefined;
+  interface IPluginStateReceiver
+    applyEditable(isEditable: boolean): void;
+    applyError(errorMessage: string): void;
+    applyRequired(isRequired: boolean): void;
+    applyVisibility(isVisible: boolean): void;
+    clearError(): void;
+    getControlId(): string | undefined;
+    getFieldLabel(): string | undefined;
+    isVisible(): boolean;
+    setAssociatedLabel(label: Label): void;
+  interface IPluginValidationResult
+    errorMessage?: string;
+    fieldKey?: string;
+    fieldLabel?: string;
+    isValid: boolean;
+module nz/co/siliconst/ui5/metaui/interfaces/IPolicyPlugin
+  interface IPolicyConditionPlugin
+    canHandle?(conditionKey: string): boolean;
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+  interface IPolicyEffectPlugin
+    canHandle?(effect: PolicyEffectType | string): boolean;
+    resolveState(isConditionMet: boolean, originalEffect: PolicyEffectType | string): { property: PropertyName; value: boolean; };
+module nz/co/siliconst/ui5/metaui/interfaces/ISchemaBuilderPlugin
+  interface ISchemaBuilderPlugin
+    build(rawSchema: unknown, targetDefinition?: string): ISchema;
+    canHandle(rawSchema: unknown): boolean;
+module nz/co/siliconst/ui5/metaui/openapi/heuristics/interfaces/IHeuristicPlugin
+  interface IHeuristicPlugin
+    apply(openApiRoot: unknown): void;
+module nz/co/siliconst/ui5/metaui/openapi/interfaces/IOpenApiParserPlugin
+  interface IOpenApiParserPlugin
+    parse(rawSchema: unknown, targetDefinition?: string): ISchema;
+module nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin
+  abstract class BasePlugin extends PluginStateBase implements IPlugin
+    abstract render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
+    clearError(): void;
+    destroy(): void;
+    onStateChange(newMetadata: IPropertyMetadata): void;
+    protected abstract getValue(sourceControl?: Control): unknown;
+    protected applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName?: string): void;
+    protected bindingPath?: string;
+    protected commitValue(sourceControl: Control, value: unknown): boolean;
+    protected createDisplayText(engineScopeId: string | undefined, bindingPath: string, bindingInfo?: PropertyBindingInfo | string): Control;
+    protected engineContext?: IPluginEngineContext;
+    protected generateBindingInfo(bindingPath: string, modelName?: string, type?: string, additionalOptions?: Record<string, unknown>): PropertyBindingInfo | string;
+    protected generateStableId(engineScopeId: string | undefined, bindingPath: string): string | undefined;
+    protected getActiveFormatters(): string[] | undefined;
+    protected getDynamicRequiredOverride(sourceControl?: Control): boolean | undefined;
+    protected getModelValue(sourceControl?: Control): unknown;
+    protected getParseError(sourceControl?: Control): string | undefined;
+    protected hasPresentationalFormatter(): boolean;
+    protected initialize(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): void;
+    protected isAffordanceEnabled(): boolean;
+    protected isRequired(): boolean;
+    protected isTargetVisible(sourceControl?: Control): boolean;
+    protected modelName: string;
+    protected notifyChange(controlId?: string): void;
+    protected onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
+    protected openNestedEditorDialog(options: INestedEditorLaunchOptions): void;
+    protected readonly invalidParsePaths: Map<string, string>;
+    protected readonly isNavigationAffordance: boolean;
+    protected resolveAbsolutePath(control?: Control): string;
+    protected resolveAccessibleNameTargets(control: Control): Control[];
+    protected resolveModelWriteValue(liveVal: unknown): unknown;
+    protected trackNestedHost(nestedHost: Control): void;
+    setEngineContext(context: IPluginEngineContext): void;
+    updateMetadata(newMeta: IPropertyMetadata): void;
+    validate(sourceControl?: Control): { isValid: boolean; errorMessage?: string; };
+module nz/co/siliconst/ui5/metaui/utils/ControlCapabilities
+  interface INestedEditorLaunchOptions
+    readonly currentData: unknown;
+    readonly definitions?: Record<string, ISchema>;
+    readonly editable: boolean;
+    readonly isArrayRoot?: boolean;
+    readonly layoutBudget?: number;
+    readonly onHostCreated?: (host: DynamicHost) => void;
+    readonly onSave: (extractedData: unknown) => void;
+    readonly subSchema: ISchema;
+    readonly title: string;
+
+=== tier: internal ===
+module nz/co/siliconst/ui5/metaui/constants/MetaUIConstants
+  export const LAYOUT_STRATEGY: { readonly FORM: "form"; readonly TABLE: "table"; readonly WIZARD: "wizard"; readonly COMPACT: "compact"; };
+  export const MAX_CLONE_DEPTH = 200;
+  export const MAX_LAYOUT_DEPTH = 30;
+  export const MAX_SCHEMA_DEPTH = 30;
+  export const OPENAPI_PREFIX: { readonly DEFINITIONS: "#/definitions/"; readonly COMPONENTS_SCHEMAS: "#/components/schemas/"; readonly DEFS: "#/$defs/"; };
+  export const UI5_AGGREGATION: { readonly TOKENS: "tokens"; readonly ITEMS: "items"; };
+  export const UI5_EVENT: { readonly SUBMIT: "submit"; readonly CHANGE: "change"; readonly PRESS: "press"; readonly LIVE_CHANGE: "liveChange"; };
+  export const WIDGET_TYPE: { readonly REFERENCE: "reference"; readonly DICTIONARY_MAP: "dictionaryMap"; readonly POLYMORPHIC: "polymorphic"; readonly DATE: "date"; readonly DATE_PICKER: "datePicker"; readonly TIME: "time"; readonly DATETIME: "datetime"; readonly SWITCH: "switch"; readonly STEP: "step"; readonly SELECT: "select"; readonly TEXT_AREA: "textArea"; readonly CODE_EDITOR: "codeEditor"; readonly LINK: "link"; readonly PASSWORD: "password"; readonly EMAIL: "email"; readonly FILE_UPLOADER: "fileUploader"; readonly MULTI_SELECT: "multiSelect"; readonly MULTI_INPUT: "multiInput"; readonly SLIDER: "slider"; readonly RATING: "rating"; readonly MESSAGE_STRIP: "messageStrip"; readonly CAMERA: "camera"; readonly SIGNATURE: "signature"; readonly LOCATION: "location"; readonly VOICE_INPUT: "voiceInput"; readonly RICH_TEXT: "richText"; readonly URL_BUTTON: "urlButton"; readonly SUBMIT_BUTTON: "submitButton"; readonly CLEAR_BUTTON: "clearButton"; readonly ODATA_SELECT: "odataSelect"; readonly REMOTE_DROPDOWN: "remoteDropdown"; readonly REMOTE_SELECT: "remoteSelect"; readonly COMBOBOX: "combobox"; readonly LIVE_SEARCH: "liveSearch"; readonly REMOTE_VALUE_HELP: "remoteValueHelp"; readonly VALUE_HELP: "valueHelp"; };
+module nz/co/siliconst/ui5/metaui/controls/BaseHardwareControl
+  class BaseHardwareControl extends Control
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    getReadOnly(): boolean;
+    getValueState(): ValueState;
+    getValueStateText(): string;
+    protected clearCapabilityFailure(): void;
+    protected reportCapabilityFailure(capability: string, reason: HardwareFailureReason, detail?: string): void;
+    protected syncHardwareState(): void;
+    setReadOnly(readOnly: boolean): this;
+    setValueState(state: ValueState): this;
+    setValueStateText(text: string): this;
+    static readonly metadata: { library: string; properties: { value: { type: string; defaultValue: any; }; schemaMetadata: { type: string; defaultValue: {}; }; readOnly: { type: string; defaultValue: boolean; }; valueState: { type: string; defaultValue: ValueState; }; valueStateText: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; }; events: { capture: { parameters: { value: { type: string; }; }; }; }; };
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+  export type HardwareFailureReason = "unsupported" | "denied" | "timeout" | "failed";
+  interface BaseHardwareControl
+    attachCapture(fn: (event: Event<BaseHardwareControl$CaptureEventParameters, BaseHardwareControl>) => void, listener?: object): this;
+    attachCapture<T>(data: T, fn: (event: Event<BaseHardwareControl$CaptureEventParameters, BaseHardwareControl>, data: T) => void, listener?: object): this;
+    detachCapture(fn: (event: Event<BaseHardwareControl$CaptureEventParameters, BaseHardwareControl>) => void, listener?: object): this;
+    fireCapture(parameters?: BaseHardwareControl$CaptureEventParameters): this;
+    getSchemaMetadata(): object;
+    getValue(): unknown;
+    setSchemaMetadata(schemaMetadata: object): this;
+    setValue(value: unknown): this;
+  interface BaseHardwareControl$CaptureEventParameters
+    value?: unknown;
+module nz/co/siliconst/ui5/metaui/controls/BaseHardwareControlRenderer
+  export default _default;
+module nz/co/siliconst/ui5/metaui/controls/CameraControl
+  class CameraControl extends BaseHardwareControl
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    exit(): void;
+    init(): void;
+    onBeforeRendering(): void;
+    protected syncHardwareState(): void;
+    setValue(sValue: string | null): this;
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+module nz/co/siliconst/ui5/metaui/controls/GeolocationControl
+  class GeolocationControl extends BaseHardwareControl
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    exit(): void;
+    init(): void;
+    onBeforeRendering(): void;
+    protected syncHardwareState(): void;
+    setValue(vValue: unknown): this;
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+module nz/co/siliconst/ui5/metaui/controls/RichTextControl
+  class RichTextControl extends BaseHardwareControl
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    exit(): void;
+    init(): void;
+    onBeforeRendering(): void;
+    protected syncHardwareState(): void;
+    setValue(sValue: string | null): this;
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+module nz/co/siliconst/ui5/metaui/controls/SignatureControl
+  class SignatureControl extends BaseHardwareControl
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    exit(): void;
+    init(): void;
+    onBeforeRendering(): void;
+    protected syncHardwareState(): void;
+    setValue(sValue: string | null): this;
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+module nz/co/siliconst/ui5/metaui/controls/VoiceInputControl
+  class VoiceInputControl extends BaseHardwareControl
+    constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings);
+    exit(): void;
+    init(): void;
+    onBeforeRendering(): void;
+    protected syncHardwareState(): void;
+    setValue(sValue: string | null): this;
+    static renderer: { apiVersion: number; render: (rm: import("sap/ui/core/RenderManager").default, control: BaseHardwareControl) => void; };
+module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
+  class GeneratorHost extends Control implements IEngineHost, IHostDialog
+    activeModelName: string;
+    addCustomError(fieldPath: string, message: string): void;
+    clearCustomError(fieldPath: string): void;
+    constructor(idOrSettings?: string | object, settings?: object);
+    evaluatePoliciesNow(): void;
+    exit(): void;
+    generate(): Promise<void>;
+    generatedContent: Control | null;
+    getBaseProperty(propertyName: string): unknown;
+    getDebugDomMetadata(): Record<string, unknown>[];
+    getInferredSchemaBaseline(): ISchema | null;
+    getParsedSchema(): ISchema | null;
+    getProperty(propertyName: string): unknown;
+    getSchemaDefinition(refPath: string): ISchema | undefined;
+    getSchemaDefinitions(): Record<string, ISchema> | undefined;
+    getStateManager(): StateManager | null;
+    init(): void;
+    invalidate(oOrigin?: ManagedObject): void;
+    notifyAsyncDataArrived(): void;
+    onBeforeRendering(): void;
+    onDataHotSwapped(): void;
+    openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): Promise<void>;
+    protected dataSyncDelegate: DataSyncDelegate;
+    protected dialogDelegate: DialogDelegate;
+    protected engine: Engine | null;
+    protected generationDelegate: GenerationDelegate;
+    protected onInternalFieldChange(isValid: boolean, fieldKey?: string, errorMessage?: string): void;
+    protected parsedSchema: ISchema | null;
+    protected policyDelegate: PolicyDelegate;
+    protected stateManager: StateManager | null;
+    protected validationDelegate: ValidationDelegate;
+    resetAndEvaluatePoliciesNow(): void;
+    revertUncommittedChanges(): void;
+    sParentAggregationName?: string;
+    setBaseProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this;
+    setBusy(isBusy: boolean): this;
+    setDebugMode(enabled: boolean): this;
+    setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this;
+    setSchemaDefinitions(definitions: Record<string, ISchema>): this;
+    static readonly metadata: any;
+    static renderer: any;
+    syncOverallValidity(): void;
+    tearDownGeneratedLayout(): void;
+    triggerSubmit(): boolean;
+  export type GeneratorHost$CancelEventParameters = object;
+  interface GeneratorHost
+    attachBeforeLayoutSectionChange(fn: (event: Event<GeneratorHost$BeforeLayoutSectionChangeEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachBeforeLayoutSectionChange<T>(data: T, fn: (event: Event<GeneratorHost$BeforeLayoutSectionChangeEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachBeforeSubmit(fn: (event: Event<GeneratorHost$BeforeSubmitEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachBeforeSubmit<T>(data: T, fn: (event: Event<GeneratorHost$BeforeSubmitEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachCancel(fn: (event: Event<GeneratorHost$CancelEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachCancel<T>(data: T, fn: (event: Event<GeneratorHost$CancelEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachError(fn: (event: Event<GeneratorHost$ErrorEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachError<T>(data: T, fn: (event: Event<GeneratorHost$ErrorEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachFieldChange(fn: (event: Event<GeneratorHost$FieldChangeEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachFieldChange<T>(data: T, fn: (event: Event<GeneratorHost$FieldChangeEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachSubmit(fn: (event: Event<GeneratorHost$SubmitEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachSubmit<T>(data: T, fn: (event: Event<GeneratorHost$SubmitEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    attachValidationStateChanged(fn: (event: Event<GeneratorHost$ValidationStateChangedEventParameters, GeneratorHost>) => void, listener?: object): this;
+    attachValidationStateChanged<T>(data: T, fn: (event: Event<GeneratorHost$ValidationStateChangedEventParameters, GeneratorHost>, data: T) => void, listener?: object): this;
+    detachBeforeLayoutSectionChange(fn: (event: Event<GeneratorHost$BeforeLayoutSectionChangeEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachBeforeSubmit(fn: (event: Event<GeneratorHost$BeforeSubmitEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachCancel(fn: (event: Event<GeneratorHost$CancelEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachError(fn: (event: Event<GeneratorHost$ErrorEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachFieldChange(fn: (event: Event<GeneratorHost$FieldChangeEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachSubmit(fn: (event: Event<GeneratorHost$SubmitEventParameters, GeneratorHost>) => void, listener?: object): this;
+    detachValidationStateChanged(fn: (event: Event<GeneratorHost$ValidationStateChangedEventParameters, GeneratorHost>) => void, listener?: object): this;
+    fireBeforeLayoutSectionChange(parameters?: GeneratorHost$BeforeLayoutSectionChangeEventParameters): this;
+    fireBeforeSubmit(parameters?: GeneratorHost$BeforeSubmitEventParameters): this;
+    fireCancel(parameters?: GeneratorHost$CancelEventParameters): this;
+    fireError(parameters?: GeneratorHost$ErrorEventParameters): this;
+    fireFieldChange(parameters?: GeneratorHost$FieldChangeEventParameters): this;
+    fireSubmit(parameters?: GeneratorHost$SubmitEventParameters): this;
+    fireValidationStateChanged(parameters?: GeneratorHost$ValidationStateChangedEventParameters): this;
+    getData(): unknown;
+    getDataJson(): string;
+    getDebugMode(): boolean;
+    getEditable(): boolean;
+    getEngineScopeId(): string;
+    getHeight(): CSSSize;
+    getIsValid(): boolean;
+    getLayoutBudget(): number;
+    getLiveUpdate(): boolean;
+    getModelName(): string;
+    getPluginRegistry(): object;
+    getSchemaBuilderRegistry(): object;
+    getSchemaTarget(): string;
+    getUseMessageManager(): boolean;
+    getWidth(): CSSSize;
+    setData(data: unknown): this;
+    setDataJson(dataJson: string): this;
+    setEditable(editable: boolean): this;
+    setEngineScopeId(engineScopeId: string): this;
+    setHeight(height: CSSSize): this;
+    setIsValid(isValid: boolean): this;
+    setLayoutBudget(layoutBudget: number): this;
+    setLiveUpdate(liveUpdate: boolean): this;
+    setModelName(modelName: string): this;
+    setPluginRegistry(pluginRegistry: object): this;
+    setSchemaBuilderRegistry(schemaBuilderRegistry: object): this;
+    setSchemaDefinition(schemaDefinition: unknown): this;
+    setSchemaTarget(schemaTarget: string): this;
+    setUseMessageManager(useMessageManager: boolean): this;
+    setWidth(width: CSSSize): this;
+  interface GeneratorHost$BeforeLayoutSectionChangeEventParameters
+    addError?: (...args: unknown[]) => unknown;
+    currentSectionIndex?: number;
+    newSectionIndex?: number;
+    payload?: object;
+    preventDefault?: (...args: unknown[]) => unknown;
+    resumeNavigation?: (...args: unknown[]) => unknown;
+    stepIndex?: number;
+  interface GeneratorHost$BeforeSubmitEventParameters
+    addError?: (...args: unknown[]) => unknown;
+    payload?: object;
+    preventDefault?: (...args: unknown[]) => unknown;
+  interface GeneratorHost$ErrorEventParameters
+    exception?: object;
+    message?: string;
+  interface GeneratorHost$FieldChangeEventParameters
+    fieldPath?: string;
+    isValid?: boolean;
+    payload?: object;
+    value?: unknown;
+  interface GeneratorHost$SubmitEventParameters
+    payload?: object;
+    payloadJson?: string;
+  interface GeneratorHost$ValidationStateChangedEventParameters
+    isValid?: boolean;
+module nz/co/siliconst/ui5/metaui/controls/host/HostControlMetadata
+  export const HOST_CONTROL_METADATA: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
+  export const HOST_CONTROL_RENDERER: { apiVersion: number; render(rm: RenderManager, control: Control): void; };
+  export function extractConstructorJsonLiterals<T extends object>(idOrSettings?: string | T, settings?: T): IExtractedHostSettings<T>;
+  export function isJsonLiteralString(val: unknown): val is string;
+  interface IExtractedHostSettings<T extends object>
+    idOrSettings?: string | T;
+    literalDataJson?: string;
+    literalSchemaDefinition?: string;
+    settings?: T;
+module nz/co/siliconst/ui5/metaui/controls/host/InferredGeneratorHost
+  class InferredGeneratorHost extends GeneratorHost
+    static readonly metadata: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
+    static renderer: { apiVersion: number; render(rm: import("sap/ui/core/RenderManager").default, control: import("sap/ui/core/Control").default): void; };
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/DataSyncDelegate
+  class DataSyncDelegate
+    constructor(host: IHostDataSync);
+    handleInputDataHotSwap(propertyName: string, value: unknown, suppressInvalidate?: boolean): void;
+    injectSchemaDefaults(schema: ISchema | IPropertyMetadata | null | undefined, rootData: unknown, depth?: number, definitions?: Record<string, ISchema>): void;
+    pushToBindings(payload: unknown, serializedJson?: string): string | undefined;
+    resolveOutputData(committedData: unknown): unknown;
+    revertToCommittedData(): void;
+    runWithSyncLock(fn: () => void): void;
+    static commitDataPair(host: IDataPairCommitTarget, payload: unknown, serializedJson?: string): void;
+    static invalidateStaleDataJson(host: IDataJsonInvalidationTarget, propertyName: string): void;
+  interface IDataJsonInvalidationTarget
+    getBinding(name: string): unknown;
+    setBaseProperty(name: string, value: unknown, suppressInvalidate?: boolean): unknown;
+  interface IDataPairCommitTarget extends IDataJsonInvalidationTarget
+    getBaseProperty(name: string): unknown;
+  interface IHostDataSync
+    getBaseProperty?(name: string): unknown;
+    getBinding(name: string): unknown;
+    getInferredSchemaBaseline?(): ISchema | null;
+    getParsedSchema?(): ISchema | null;
+    getProperty(name: string): unknown;
+    getSchemaDefinitions?(): Record<string, ISchema> | undefined;
+    getStateManager(): StateManager | null;
+    invalidate(): void;
+    notifyAsyncDataArrived?(): void;
+    onDataHotSwapped?(): void;
+    setBaseProperty(name: string, value: unknown, suppressInvalidate?: boolean): this;
+    setProperty(name: string, value: unknown, suppressInvalidate?: boolean): this;
+    tearDownGeneratedLayout(): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/DialogDelegate
+  class DialogDelegate
+    calculateAndApplyOptimalWidth(schema: ISchema | null): void;
+    constructor(host: IHostDialog & Control);
+    destroy(): void;
+    openInDialog(title?: string, submitButtonText?: string, _isGenerated?: boolean, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): Promise<void>;
+  interface IHostDialog
+    fireEvent(eventName: string, parameters?: Record<string, unknown>): unknown;
+    generate(): Promise<void> | void;
+    revertUncommittedChanges?(): void;
+    sParentAggregationName?: string;
+    triggerSubmit(): boolean;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/GenerationDelegate
+  class GenerationDelegate
+    applyLayoutScoring(normalizedSchema: ISchema, normalizedDefinitions?: Record<string, ISchema>, registry?: PluginRegistry): void;
+    constructor(host: GeneratorHost);
+    preloadIfNeeded(schema: ISchema, registry: PluginRegistry, normalizedDefinitions?: Record<string, ISchema>): Promise<void>;
+    prepareSchemaAndData(previousPayload: unknown): IPreparedGenerationInput | null;
+    wrapWithStatusBanners(generatedContent: Control, normalizedSchema: ISchema, dataParseError: string, hasPartialErrors: boolean): Control;
+  interface IPreparedGenerationInput
+    readonly dataParseError: string;
+    readonly finalData: unknown;
+    readonly inferredBaseline: ISchema | null;
+    readonly normalizedDefinitions?: Record<string, ISchema>;
+    readonly normalizedSchema: ISchema;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/ODataDelegate
+  class ODataDelegate
+    constructor(host: DynamicHost, context: ODataV4Context | Context);
+    destroy(): void;
+    getContext(): ODataV4Context | Context;
+    handleFieldChange(fieldPath: string, value: unknown): void;
+    syncToEngine(): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/PolicyDelegate
+  class PolicyDelegate
+    cancelPendingEvaluation(): void;
+    configure(policies?: IPolicy[], pluginRegistry?: PluginRegistry): void;
+    constructor(onEvaluationComplete?: (anyValuePruned?: boolean) => void);
+    destroy(): void;
+    evaluateNow(stateManager: StateManager | null, engine: Engine | null): void;
+    hasPolicies(): boolean;
+    reset(): void;
+    scheduleEvaluation(stateManager: StateManager | null, engine: Engine | null, delayMs?: number): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/SchemaResolutionDelegate
+  class SchemaResolutionDelegate
+    constructor(facade: DynamicHost);
+    getFetchPromise(): Promise<void> | null;
+    isDataNonEmpty(data: unknown, dataJson: unknown): boolean;
+    resolveAndSpawnInnerHost(): GeneratorHost | null;
+    startRemoteFetch(url: string): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/ValidationDelegate
+  class ValidationDelegate
+    addCustomError(fieldPath: string, message: string): void;
+    clearBeforeSubmitErrors(): void;
+    clearCustomError(fieldPath: string): void;
+    collectDebugDomMetadata(engine: Engine | null): Record<string, unknown>[];
+    confirmBeforeSubmit(payload: unknown): boolean;
+    constructor(host: IHostValidation);
+    mountCrashBoundary(error: Error): void;
+    notifyFieldValidation(isValid: boolean, fieldKey?: string, errorMessage?: string, overallIsValid?: boolean): void;
+    pushMessage(path: string, text: string, label?: string): void;
+    removeAllMessages(): void;
+    reportValidationErrors(errors: IPluginValidationResult[]): void;
+    resolveDefinition(refPath: string, cachedDefs?: Record<string, ISchema>): { definition: ISchema | undefined; normalizedDefs: Record<string, ISchema> | undefined; };
+  interface IHostValidation
+    addCustomError(fieldPath: string, message: string): void;
+    clearCustomError(fieldPath: string): void;
+    fireEvent(eventId: string, parameters?: object): unknown;
+    getProperty(name: string): unknown;
+    getStateManager(): StateManager | null;
+    setAggregation(aggregationName: string, object: Control, suppressInvalidate?: boolean): this;
+    setProperty(name: string, value: unknown, suppressInvalidate?: boolean): unknown;
+module nz/co/siliconst/ui5/metaui/core/DataInferenceBuilder
+  class DataInferenceBuilder implements ISchemaBuilderPlugin
+    build(rawData: unknown): ISchema;
+    canHandle(rawInput: unknown): boolean;
+    static generateLabel(name: string): string;
+    static inferPropertiesFromObject(obj: JsonRecord, depth?: number, seen?: WeakSet<object>): Record<string, IPropertyMetadata>;
+    static inferPropertiesFromRows(rows: unknown[], depth?: number, seen?: WeakSet<object>): Record<string, IPropertyMetadata>;
+    static inferSchemaFromData(data: unknown): ISchema;
+    static mergeHybridProperties(inferredProps: JsonRecord, explicitProps: JsonRecord): JsonRecord;
+    static mergeInferredProperties(base: Record<string, IPropertyMetadata>, next: Record<string, IPropertyMetadata>): Record<string, IPropertyMetadata>;
+  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+module nz/co/siliconst/ui5/metaui/core/DefaultLayoutGenerator
+  class DefaultLayoutGenerator
+    static ensureLayout(schema: ISchema): boolean;
+    static resolveLayoutStrategy(schema: ISchema): string;
+module nz/co/siliconst/ui5/metaui/core/DefaultPluginBootstrapper
+  class DefaultPluginBootstrapper
+    static registerDefaults(registry: PluginRegistry): void;
+module nz/co/siliconst/ui5/metaui/core/LayoutMutator
+  class LayoutMutator
+    static apply(schema: ISchema, decisions?: LayoutDecisionTable | undefined): void;
+module nz/co/siliconst/ui5/metaui/core/LayoutScorer
+  class LayoutScorer
+    static apply(schema: ISchema | null, budget: number, schemaDefinitions?: Record<string, ISchema>, registry?: PluginRegistry): LayoutDecisionTable;
+    static getDecision(schema: ISchema | null | undefined, scope: string | undefined): ILayoutDecision | undefined;
+    static getDecisions(schema: ISchema | null | undefined): LayoutDecisionTable | undefined;
+    static toBindingPath(scope: string): string;
+  export type LayoutDecisionTable = ReadonlyMap<string, ILayoutDecision>;
+  interface ILayoutDecision
+    readonly bindingPath: string;
+    readonly cascadeReadOnly?: boolean;
+    readonly layoutBudget?: number;
+    readonly renderMode: RenderModeType;
+    readonly resolvedRef?: IPropertyMetadata;
+    readonly scope: string;
+    readonly score: number;
+    readonly widget?: string;
+module nz/co/siliconst/ui5/metaui/core/PayloadValidator
+  class PayloadValidator
+    static isEvaluableNot(notMeta: unknown): boolean;
+    static matchesStructuralType(meta: IPropertyMetadata, value: unknown): boolean;
+    static validatePayloadArrays(schema: ISchema, payload: unknown, currentPath: string, getPluginByPath: (path: string) => IPlugin | undefined, resolveDefinition?: (ref: string) => ISchema | null, getDynamicRowRequired?: (path: string) => boolean | undefined, isPathHidden?: (path: string) => boolean, depth?: number, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): IPluginValidationResult[];
+    static validateTree(metadata: IPropertyMetadata, value: unknown, resolveDefinition?: (ref: string) => ISchema | null, depth?: number, isDynamicallyRequired?: boolean, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { isValid: boolean; errorMessage?: string; };
+module nz/co/siliconst/ui5/metaui/core/PolicyEngine
+  class PolicyEngine
+    constructor(policies: IPolicy[], pluginRegistry?: PluginRegistry);
+    evaluate(data: unknown): IDeltaState[];
+    reset(): void;
+  interface IDeltaState
+    degraded?: boolean;
+    errorMessage?: string;
+    property: PropertyName;
+    target: string;
+    value: boolean;
+module nz/co/siliconst/ui5/metaui/core/SafeConvert
+  export function safeToNumber(value: unknown): number;
+  export function safeToString(value: unknown): string;
+module nz/co/siliconst/ui5/metaui/core/SandboxJSONModel
+  class SandboxJSONModel extends JSONModel
+    constructor(data?: object, observe?: boolean);
+    destroy(): void;
+    getListBindingCapacity(): number;
+    setData(data: object, merge?: boolean): void;
+    setProperty(path: string, value: unknown, context?: Context, asyncUpdate?: boolean): boolean;
+    setPropertyChangeHook(hook: PropertyChangeHook | null): void;
+    static getMaxListBindingCapacity(): number;
+  export type PropertyChangeHook = (absolutePath: string, value: unknown) => void;
+module nz/co/siliconst/ui5/metaui/core/SchemaBuilderRegistry
+  class SchemaBuilderRegistry
+    static getBuilderFor(rawSchema: unknown): ISchemaBuilderPlugin | null;
+    static register(plugin: ISchemaBuilderPlugin): void;
+module nz/co/siliconst/ui5/metaui/core/SchemaDirectiveNormalizer
+  class SchemaDirectiveNormalizer
+    static exampleAsPlaceholder(example: unknown): string | undefined;
+    static formatToWidget(formatStr?: string): { widget?: string; uiFormat?: string; };
+    static inlinePolymorphicBranchRef(entry: JsonRecord, refPath: string, rootSchema: unknown): { inlined: JsonRecord; refName: string; } | null;
+    static normalizeDataSource(rawDataSource: unknown, rawValueHelp?: unknown): IDataSourceConfig | undefined;
+    static normalizeDiscriminator(raw: unknown): IPropertyMetadata["discriminator"];
+    static normalizeEnum(raw: unknown): (string | number | boolean | null)[] | undefined;
+    static normalizeLayout(raw: unknown): ILayoutElement[] | undefined;
+    static normalizePolicies(raw: unknown): IPolicy[] | undefined;
+    static normalizeUI(ui: JsonRecord, prop: JsonRecord, keyName: string, type: FieldType, hasChoices: boolean): IUIDirective;
+    static normalizeValidators(raw: unknown): (string | IValidationRule)[] | undefined;
+    static normalizeValueHelp(raw: unknown): IValueHelp[] | IRemoteValueHelpConfig | undefined;
+    static resolveSchemaType(prop: JsonRecord, keyName?: string): { type: FieldType; rawType: unknown; hasNullType: boolean; };
+module nz/co/siliconst/ui5/metaui/core/SchemaNormalizer
+  class SchemaNormalizer implements ISchemaBuilderPlugin
+    build(rawSchema: unknown): ISchema;
+    canHandle(): boolean;
+    static inferSchemaFromData(data: unknown): ISchema;
+    static normalize(rawSchema?: unknown, data?: unknown): ISchema;
+    static normalizeDefinition(rawDef: unknown, key: string, rootSource?: JsonRecord): ISchema;
+    static resolveScope(schema: ISchema, scope: string, resolveDefinition?: (ref: string) => ISchema | null, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata | undefined; bindingPath: string; propKey: string; };
+    static stripWriteOnlyValues(schema: ISchema | undefined, data: unknown): void;
+  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+module nz/co/siliconst/ui5/metaui/core/SchemaValidator
+  class SchemaValidator
+    static validateSchemaStructure(schema: unknown, initialDepth?: number): string[];
+module nz/co/siliconst/ui5/metaui/core/SchemaWalker
+  class SchemaWalker
+    static resolveScope(schema: ISchema, scope: string, resolveDefinition?: (ref: string) => ISchema | null, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata | undefined; bindingPath: string; propKey: string; };
+    static toBindingPath(scope: string): string;
+    static walk(root: Partial<ISchema> | IPropertyMetadata | Record<string, unknown> | null | undefined, visitor: SchemaVisitor, options?: ISchemaWalkOptions): void;
+  export type SchemaVisitor = (ctx: ISchemaVisitContext) => SchemaVisitorResult;
+  export type SchemaVisitorResult = void | "skip-subtree" | "stop";
+  interface ISchemaVisitContext
+    readonly bindingPath: string;
+    readonly depth: number;
+    readonly isArrayItem: boolean;
+    readonly key: string;
+    readonly node: IPropertyMetadata;
+    readonly parent: IPropertyMetadata | null;
+    readonly rawNode: IPropertyMetadata;
+    readonly scope: string;
+  interface ISchemaWalkOptions
+    readonly baseBindingPath?: string;
+    readonly baseScope?: string;
+    readonly definitions?: Record<string, ISchema | IPropertyMetadata>;
+    readonly initialDepth?: number;
+    readonly maxDepth?: number;
+    readonly onInvalidProperty?: (key: string, rawValue: unknown, parent: IPropertyMetadata) => void;
+    readonly onLeave?: (ctx: ISchemaVisitContext) => void;
+    readonly onTruncate?: (scope: string, reason: "depth" | "cycle") => void;
+    readonly resolveRef?: (ref: string) => ISchema | IPropertyMetadata | undefined;
+    readonly resolveRefs?: boolean;
+    readonly shouldVisitChild?: (child: IPropertyMetadata, key: string, parent: IPropertyMetadata, isArrayItem: boolean) => boolean;
+    readonly silentTruncationLog?: boolean;
+    readonly skipHidden?: boolean;
+    readonly visitAdditionalProperties?: boolean;
+    readonly visitCombinators?: boolean;
+    readonly visitRoot?: boolean;
+module nz/co/siliconst/ui5/metaui/core/StateManager
+  class StateManager
+    clearArrayMessages(arrayPath: string): void;
+    constructor(initialData: unknown, schema: ISchema);
+    destroy(): void;
+    extractPayload(): JsonRecord | unknown[];
+    getModel(): SandboxJSONModel;
+    getOwnMessages(targetPrefix?: string): Message[];
+    getProperty(path: string): unknown;
+    getSchema(): ISchema;
+    getUseMessageManager(): boolean;
+    setProperty(path: string, value: unknown): void;
+    setUseMessageManager(use: boolean): void;
+module nz/co/siliconst/ui5/metaui/core/ValidationLedger
+  class ValidationLedger
+    applyRowControlState(targetPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
+    clear(resetVisuals?: boolean): void;
+    clearArrayEntries(arrayPath: string): void;
+    clearFieldGenerationFailures(): void;
+    constructor(useMessageManager: boolean, getPluginByPath: (path: string) => IPlugin | undefined, getActivePlugins: () => ReadonlyArray<{ plugin: IPlugin; path: string; }>, getHost: () => IEngineHost | undefined);
+    extractShiftedRowEntries(arrayPath: string, deletedRowIndex?: number): Array<{ key: string; entry: IValidationLedgerEntry; }>;
+    getFieldGenerationFailures(): ReadonlyMap<string, string>;
+    hasActiveErrors(): boolean;
+    hasActiveErrorsForPaths(fieldPaths: string[]): boolean;
+    isInsideAbsentOptionalObject(fieldPath: string): boolean;
+    isPathHidden(fieldPath: string): boolean;
+    reportCustomError(fieldPath: string, errorMessage: string | null): void;
+    reportFieldGenerationFailure(fieldPath: string, errorMessage: string): void;
+    reportPolicyError(fieldPath: string, errorMessage: string | null): void;
+    reportSchemaError(fieldPath: string, errorMessage: string | null): void;
+    resolveVisualState(fieldPath: string): void;
+    restoreRowEntries(shiftedEntries: ReadonlyArray<{ key: string; entry: IValidationLedgerEntry; }>): void;
+    setUseMessageManager(use: boolean): void;
+    validateAll(applyVisualState?: boolean): IPluginValidationResult[];
+    validateArrayField(arrayPath: string, meta: IPropertyMetadata): boolean;
+  interface IValidationLedgerEntry
+    customError: string | null;
+    policyError: string | null;
+    schemaError: string | null;
+module nz/co/siliconst/ui5/metaui/layouts/CompactLayout
+  class CompactLayout implements ILayoutManager
+    render(schema: ISchema, modelName: string, engine: Engine, _onSubmit?: () => void): Control;
+module nz/co/siliconst/ui5/metaui/layouts/FormLayout
+  class FormLayout implements ILayoutManager
+    render(schema: ISchema, modelName: string, engine: Engine, _onSubmit?: () => void): Control;
+module nz/co/siliconst/ui5/metaui/layouts/LayoutElementWalker
+  class ArraySubSchemaFactory
+    static build(elementLabel: string | undefined, fallbackTitle: string, meta: IPropertyMetadata): ISchema;
+    static isTableSubLayout(meta: IPropertyMetadata, decision?: ILayoutDecision): boolean;
+  class LayoutElementWalker
+    static createSimpleFormSink(form: SimpleForm, schema: ISchema, modelName: string, engine: Engine, layoutName: string, fieldPaths?: string[], onFieldRendered?: () => void): ILayoutWalkerSink;
+    static resolveControlElement(element: ILayoutElement, schema: ISchema, engine: Engine, layoutName: string, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata; bindingPath: string; propKey: string; } | null;
+    static walk(elements: ILayoutElement[], schema: ISchema, engine: Engine, sink: ILayoutWalkerSink, layoutName: string, depth?: number, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): number;
+  class LayoutFieldFactory
+    static cloneFieldMetadata(meta: IPropertyMetadata, widgetOverride?: string, forceReadOnly?: boolean): IPropertyMetadata;
+    static createHorizontalCell(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata, modelName: string, engine: Engine): { cellBox: VBox; absolutePath: string; };
+    static createLabelledField(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata, modelName: string, engine: Engine, isLabelRendered?: boolean): ILabelledFieldResult;
+    static createSimpleForm(title?: string, rootUi?: IUIDirective): SimpleForm;
+  interface ILabelledFieldResult
+    absolutePath: string;
+    control: Control;
+    effectiveMeta: IPropertyMetadata;
+    isFullWidth: boolean;
+    label: Label;
+  interface ILayoutWalkerSink
+    onEnterContainer?(element: ILayoutElement): void;
+    onExitContainer?(element: ILayoutElement): void;
+    onHorizontalControls?(controls: IResolvedLayoutControl[]): void;
+    onScalarField(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata): void;
+    onSectionHeader?(label: string, containerType: ILayoutElement["type"]): void;
+    onTableSubLayout?(element: ILayoutElement, bindingPath: string, propKey: string, meta: IPropertyMetadata): void;
+  interface IResolvedLayoutControl
+    bindingPath: string;
+    element: ILayoutElement;
+    meta: IPropertyMetadata;
+    propKey: string;
+module nz/co/siliconst/ui5/metaui/layouts/TableLayout
+  class TableLayout implements ILayoutManager
+    render(schema: ISchema, modelName: string, engine: Engine, _onSubmit?: () => void, bindingPath?: string): Control;
+    static readonly GROWING_PAGE_SIZE = 100;
+module nz/co/siliconst/ui5/metaui/layouts/TableRowHelper
+  class TableRowHelper
+    static addRow(tbl: Table | undefined, modelName: string, itemsSchema: IPropertyMetadata, engine: Engine, actualPath: string, tableSchema?: ISchema): void;
+    static createSkeleton(meta: ISchema | IPropertyMetadata): unknown;
+    static deleteRow(item: ColumnListItem | undefined, modelName: string, engine: Engine, actualPath: string, tableSchema?: ISchema): void;
+    static resolveItemsSchema(schema: ISchema, engine: Engine, bindingPath: string): IPropertyMetadata | undefined;
+module nz/co/siliconst/ui5/metaui/layouts/WizardLayout
+  class WizardLayout implements ILayoutManager
+    render(schema: ISchema, modelName: string, engine: Engine, onSubmit?: () => void): Control;
+module nz/co/siliconst/ui5/metaui/layouts/WizardStepRenderer
+  class WizardStepRenderer
+    static buildStepForm(stepElement: ILayoutElement, schema: ISchema, modelName: string, engine: Engine, fieldPaths: string[]): SimpleForm;
+    static validateStep(fieldPaths: string[], engine: Engine, schema?: ISchema): boolean;
+module nz/co/siliconst/ui5/metaui/openapi/OpenApiBuilder
+  class OpenApiBuilder implements ISchemaBuilderPlugin
+    build(rawSchema: unknown, targetDefinition?: string): ISchema;
+    canHandle(rawSchema: unknown): boolean;
+    static build(openApiRoot: unknown, targetDefinition?: string): ISchema;
+    static fetchAndBuild(url: string, targetDefinition?: string): Promise<ISchema>;
+module nz/co/siliconst/ui5/metaui/openapi/OpenApiParserFactory
+  class OpenApiParserFactory
+    static detectSpecVersion(rawSchema: unknown): "2.0" | "3.0" | undefined;
+    static getParser(rawSchema: unknown): IOpenApiParserPlugin;
+module nz/co/siliconst/ui5/metaui/openapi/OpenApiRefResolver
+  class OpenApiRefResolver
+    static escapePointerSegment(segment: string): string;
+    static extractRefName(refPath: string): string;
+    static resolve(refUrl: string, openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): unknown;
+    static unescapePointerSegment(segment: string): string;
+module nz/co/siliconst/ui5/metaui/openapi/OpenApiTypeMapper
+  class OpenApiTypeMapper
+    static mapType(openApiType: string): FieldType;
+module nz/co/siliconst/ui5/metaui/openapi/OpenApiUIMapper
+  class OpenApiUIMapper
+    static build(rawProp: unknown, keyName: string): IUIDirective;
+module nz/co/siliconst/ui5/metaui/openapi/heuristics/OpenApiHeuristicEngine
+  class OpenApiHeuristicEngine
+    constructor();
+    run(openApiRoot: unknown): void;
+module nz/co/siliconst/ui5/metaui/openapi/heuristics/plugins/ProtobufVariantHeuristic
+  class ProtobufVariantHeuristic implements IHeuristicPlugin
+    apply(openApiRoot: unknown): void;
+module nz/co/siliconst/ui5/metaui/openapi/parsers/BaseOpenApiParser
+  abstract class BaseOpenApiParser implements IOpenApiParserPlugin
+    parse(openApiRoot: unknown, targetDefinition?: string): ISchema;
+    protected abstract getDefinitionsMap(root: JsonRecord): JsonRecord | undefined;
+module nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApi2Parser
+  class OpenApi2Parser extends BaseOpenApiParser
+    protected getDefinitionsMap(root: JsonRecord): JsonRecord | undefined;
+module nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApi3Parser
+  class OpenApi3Parser extends BaseOpenApiParser
+    protected getDefinitionsMap(root: JsonRecord): JsonRecord | undefined;
+module nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApiConstraintMapper
+  class OpenApiConstraintMapper
+    static applyConstraints(metaProp: IPropertyMetadata, currentProp: JsonRecord): void;
+    static applyDiscriminator(metaProp: IPropertyMetadata, currentProp: JsonRecord): void;
+    static applyStateModifiers(metaProp: IPropertyMetadata, currentProp: JsonRecord): void;
+    static deepMergeSchemas(target: unknown, source: unknown): unknown;
+    static resolveAllOf(currentProp: JsonRecord, openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): JsonRecord;
+module nz/co/siliconst/ui5/metaui/openapi/parsers/OpenApiPropertyMapper
+  class OpenApiPropertyMapper
+    static mapProperties(properties: unknown, requiredKeys: string[], openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): Record<string, IPropertyMetadata>;
+    static mapPropertyMetadata(swaggerProp: unknown, keyName: string, isRequired: boolean, openApiRoot: unknown, depth?: number, activeRefs?: Set<string>): IPropertyMetadata;
+  export const DECLINED_SCHEMA_FIELDS: Readonly<Record<string, string>>;
+module nz/co/siliconst/ui5/metaui/plugins/actions/ActionButtonPlugin
+  abstract class ActionButtonPlugin extends BasePlugin
+    protected abstract onPress(event: Event): void;
+    protected abstract readonly actionConfig: IActionButtonConfig;
+    protected applyState(): void;
+    protected buildLabelBinding(metadata: IPropertyMetadata, bindingPath: string, modelName: string): PropertyBindingInfo | string;
+    protected getValue(sourceControl?: Control): unknown;
+    protected isEnabledStateExternallyOwned(): boolean;
+    protected resolveEnabled(): boolean;
+    protected resolveLabelText(val: unknown, fallbackLabel: string): string;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    validate(): { isValid: boolean; errorMessage?: string; };
+  interface IActionButtonConfig
+    buttonType: ButtonType;
+    fallbackLabelKey: MetaUITextKey;
+    icon: string;
+module nz/co/siliconst/ui5/metaui/plugins/actions/ClearFormActionPlugin
+  class ClearFormActionPlugin extends ActionButtonPlugin
+    protected onPress(event: Event): void;
+    protected readonly actionConfig: IActionButtonConfig;
+module nz/co/siliconst/ui5/metaui/plugins/actions/SubmitFormActionPlugin
+  class SubmitFormActionPlugin extends ActionButtonPlugin
+    protected onPress(event: Event): void;
+    protected readonly actionConfig: IActionButtonConfig;
+module nz/co/siliconst/ui5/metaui/plugins/actions/UrlNavigationActionPlugin
+  class UrlNavigationActionPlugin extends ActionButtonPlugin
+    protected getValue(sourceControl?: Control): unknown;
+    protected isEnabledStateExternallyOwned(): boolean;
+    protected onPress(event: Event): void;
+    protected readonly actionConfig: IActionButtonConfig;
+    protected readonly isNavigationAffordance: boolean;
+    protected resolveEnabled(): boolean;
+    protected resolveLabelText(val: unknown, fallbackLabel: string): string;
+module nz/co/siliconst/ui5/metaui/plugins/controls/ArrayPlugin
+  class ArrayPlugin extends NestedDialogPlugin
+    protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor;
+    protected coerceCurrentData(rawCurrent: unknown): unknown;
+    protected coerceSavedData(extractedData: unknown): unknown;
+    protected getButtonIcon(_canEdit: boolean): string;
+    protected getDefaultLabel(metadata: IPropertyMetadata): string;
+    protected readonly defaultErrorTooltipKey: MetaUITextKey;
+    protected readonly emptyFallbackValue: unknown;
+module nz/co/siliconst/ui5/metaui/plugins/controls/BooleanPlugin
+  class BooleanPlugin extends SingleBoundWidgetPlugin
+    protected readonly widgetConfig: ISingleBoundWidgetConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/CameraPlugin
+  class CameraPlugin extends HardwareControlPlugin<CameraControl>
+    protected readonly HardwareControlClass: typeof CameraControl;
+    protected renderDisplayControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/CodeEditorPlugin
+  class CodeEditorPlugin extends TextLikeInputPlugin
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected readonly supportsExpandDialog: boolean;
+    protected renderDisplayControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/DatePlugin
+  class DatePlugin extends PickerPlugin
+    protected readonly pickerConfig: IPickerPluginConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/DateTimePlugin
+  class DateTimePlugin extends PickerPlugin
+    protected readonly pickerConfig: IPickerPluginConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/DictionaryMapPlugin
+  class DictionaryMapPlugin extends BasePlugin
+    clearError(): void;
+    destroy(): void;
+    protected applyState(): void;
+    protected getValue(): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    validate(): { isValid: boolean; errorMessage?: string; };
+module nz/co/siliconst/ui5/metaui/plugins/controls/DropdownPlugin
+  class DropdownPlugin extends OptionListPlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/EmailPlugin
+  class EmailPlugin extends TextLikeInputPlugin
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/FileUploaderPlugin
+  class FileUploaderPlugin extends BasePlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/GeolocationPlugin
+  class GeolocationPlugin extends HardwareControlPlugin<GeolocationControl>
+    protected readonly HardwareControlClass: typeof GeolocationControl;
+    protected renderDisplayControl(_metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/HardwareControlPlugin
+  abstract class HardwareControlPlugin<T extends BaseHardwareControl = BaseHardwareControl> extends BasePlugin
+    protected abstract readonly HardwareControlClass: new (settings?: $BaseHardwareControlSettings) => T;
+    protected abstract renderDisplayControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    protected renderSafeImageDisplay(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId: string | undefined, defaultAlt: string): Control;
+    protected resolveAccessibleNameTargets(control: Control): Control[];
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/LinkPlugin
+  class LinkPlugin extends BasePlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    protected readonly isNavigationAffordance: boolean;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/MessageStripPlugin
+  class MessageStripPlugin extends BasePlugin
+    protected applyState(): void;
+    protected getValue(): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    validate(): { isValid: boolean; errorMessage?: string; };
+module nz/co/siliconst/ui5/metaui/plugins/controls/MultiInputPlugin
+  class MultiInputPlugin extends BasePlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/MultiSelectPlugin
+  class MultiSelectPlugin extends OptionListPlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/NestedDialogPlugin
+  abstract class NestedDialogPlugin extends BasePlugin
+    protected abstract buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor | null;
+    protected abstract getButtonIcon(canEdit: boolean): string;
+    protected abstract getDefaultLabel(metadata: IPropertyMetadata): string;
+    protected abstract readonly defaultErrorTooltipKey: MetaUITextKey;
+    protected abstract readonly emptyFallbackValue: unknown;
+    protected applyState(): void;
+    protected buildSubSchemaUi(metadata: IPropertyMetadata, inheritedUi?: IUIDirective): IUIDirective | undefined;
+    protected coerceCurrentData(rawCurrent: unknown): unknown;
+    protected coerceSavedData(extractedData: unknown): unknown;
+    protected getValue(sourceControl?: Control): unknown;
+    protected openNestedDialog(btn: Button, metadata: IPropertyMetadata): void;
+    protected readonly isNavigationAffordance: boolean;
+    protected resolveNestedLayoutBudget(metadata: IPropertyMetadata): number;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+    setVisualValidationState(isValid: boolean, errorMessage?: string): void;
+    validate(sourceControl?: Control): { isValid: boolean; errorMessage?: string; };
+  interface INestedDialogDescriptor
+    isArrayRoot: boolean;
+    subSchema: ISchema;
+    title: string;
+module nz/co/siliconst/ui5/metaui/plugins/controls/NumberPlugin
+  class NumberPlugin extends BasePlugin
+    clearError(): void;
+    protected applyState(): void;
+    protected getParseError(sourceControl?: Control): string | undefined;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/ObjectPlugin
+  class ObjectPlugin extends NestedDialogPlugin
+    protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor;
+    protected coerceCurrentData(rawCurrent: unknown): unknown;
+    protected getButtonIcon(canEdit: boolean): string;
+    protected getDefaultLabel(metadata: IPropertyMetadata): string;
+    protected readonly defaultErrorTooltipKey: MetaUITextKey;
+    protected readonly emptyFallbackValue: unknown;
+module nz/co/siliconst/ui5/metaui/plugins/controls/OptionListPlugin
+  abstract class OptionListPlugin extends BasePlugin
+    protected buildOptionItems(metadata: IPropertyMetadata, enumList?: unknown[]): IOptionItem[];
+    protected createOptionDisplayText(engineScopeId: string | undefined, bindingPath: string, modelName: string, metadata: IPropertyMetadata): Control;
+    protected resolveValueHelpList(metadata: IPropertyMetadata): IValueHelpOption[] | undefined;
+    protected syncOptionItems(target: IOptionListControl, desiredItems: IOptionItem[], readSelection: () => string[], writeSelection: (keys: string[]) => void): void;
+  interface IOptionItem
+    key: string;
+    text: string;
+  interface IOptionListControl extends Control
+    addItem(item: Item): unknown;
+    destroyItems(): unknown;
+    getItems(): Item[];
+module nz/co/siliconst/ui5/metaui/plugins/controls/PasswordPlugin
+  class PasswordPlugin extends TextLikeInputPlugin
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected renderDisplayControl(_metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/PickerPlugin
+  abstract class PickerPlugin extends BasePlugin
+    protected abstract readonly pickerConfig: IPickerPluginConfig;
+    protected applyState(): void;
+    protected getParseError(sourceControl?: Control): string | undefined;
+    protected getValue(sourceControl?: Control): unknown;
+    render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+  export type PickerControlInstance = (DatePicker | TimePicker | DateTimePicker) & { isValidValue?(): boolean; };
+  export type PickerSettings = $DatePickerSettings & $TimePickerSettings & $DateTimePickerSettings;
+  interface IPickerPluginConfig
+    ControlClass: new (mSettings?: PickerSettings) => PickerControlInstance;
+    bindingType: string;
+    displayFormat?: string;
+    parseErrorMessageKey: MetaUITextKey;
+    sourcePattern: string;
+module nz/co/siliconst/ui5/metaui/plugins/controls/PolymorphicPlugin
+  class PolymorphicPlugin extends BasePlugin
+    applyVisibility(visible: boolean): void;
+    clearError(): void;
+    destroy(): void;
+    getChildPluginByPath(path: string): IPlugin | undefined;
+    protected applyState(): void;
+    protected getValue(): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, directModel?: JSONModel): Control;
+    setVisualValidationState(isValid: boolean, errorMessage?: string): void;
+    validate(): { isValid: boolean; errorMessage?: string; };
+module nz/co/siliconst/ui5/metaui/plugins/controls/RatingIndicatorPlugin
+  class RatingIndicatorPlugin extends SingleBoundWidgetPlugin
+    protected applyExtraState(control: Control, metadata: IPropertyMetadata): void;
+    protected buildExtraSettings(metadata: IPropertyMetadata): SingleBoundWidgetSettings;
+    protected readonly widgetConfig: ISingleBoundWidgetConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/ReferencePlugin
+  class ReferencePlugin extends NestedDialogPlugin
+    protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor | null;
+    protected getButtonIcon(_canEdit: boolean): string;
+    protected getDefaultLabel(metadata: IPropertyMetadata): string;
+    protected readonly defaultErrorTooltipKey: MetaUITextKey;
+    protected readonly emptyFallbackValue: unknown;
+module nz/co/siliconst/ui5/metaui/plugins/controls/RichTextPlugin
+  class RichTextPlugin extends HardwareControlPlugin<RichTextControl>
+    protected readonly HardwareControlClass: typeof RichTextControl;
+    protected renderDisplayControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/SignaturePlugin
+  class SignaturePlugin extends HardwareControlPlugin<SignatureControl>
+    protected readonly HardwareControlClass: typeof SignatureControl;
+    protected renderDisplayControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/controls/SingleBoundWidgetPlugin
+  abstract class SingleBoundWidgetPlugin extends BasePlugin
+    protected abstract readonly widgetConfig: ISingleBoundWidgetConfig;
+    protected applyExtraState(control: Control, metadata: IPropertyMetadata): void;
+    protected applyState(): void;
+    protected buildExtraSettings(metadata: IPropertyMetadata): SingleBoundWidgetSettings;
+    protected getValue(sourceControl?: Control): unknown;
+    protected resolveStep(metadata: IPropertyMetadata): number;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+  export type SingleBoundWidgetInstance = CheckBox | Switch | Slider | StepInput | RatingIndicator;
+  export type SingleBoundWidgetSettings = $CheckBoxSettings & $SwitchSettings & $SliderSettings & $StepInputSettings & $RatingIndicatorSettings;
+  interface ISingleBoundWidgetConfig
+    ControlClass: new (mSettings?: SingleBoundWidgetSettings) => SingleBoundWidgetInstance;
+    changeEvent: string;
+    coerceModelValue?: (modelValue: unknown) => unknown;
+    editableProperty: "editable" | "enabled";
+    readValue: (control: Control) => unknown;
+    valueProperty: string;
+module nz/co/siliconst/ui5/metaui/plugins/controls/SliderPlugin
+  class SliderPlugin extends SingleBoundWidgetPlugin
+    protected applyExtraState(control: Control, metadata: IPropertyMetadata): void;
+    protected buildExtraSettings(metadata: IPropertyMetadata): SingleBoundWidgetSettings;
+    protected readonly widgetConfig: ISingleBoundWidgetConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/StepInputPlugin
+  class StepInputPlugin extends SingleBoundWidgetPlugin
+    protected applyExtraState(control: Control, metadata: IPropertyMetadata): void;
+    protected buildExtraSettings(metadata: IPropertyMetadata): SingleBoundWidgetSettings;
+    protected readonly widgetConfig: ISingleBoundWidgetConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/StringPlugin
+  class StringPlugin extends TextLikeInputPlugin
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected readonly syncPlaceholderAndMaxLength: boolean;
+module nz/co/siliconst/ui5/metaui/plugins/controls/SwitchPlugin
+  class SwitchPlugin extends SingleBoundWidgetPlugin
+    protected readonly widgetConfig: ISingleBoundWidgetConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/TextAreaPlugin
+  class TextAreaPlugin extends TextLikeInputPlugin
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected readonly supportsExpandDialog: boolean;
+    protected readonly syncPlaceholderAndMaxLength: boolean;
+module nz/co/siliconst/ui5/metaui/plugins/controls/TextLikeInputPlugin
+  abstract class TextLikeInputPlugin extends BasePlugin
+    protected abstract createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    protected readonly supportsExpandDialog: boolean;
+    protected readonly syncPlaceholderAndMaxLength: boolean;
+    protected renderDisplayControl(_metadata: IPropertyMetadata, bindingPath: string, _modelName: string, engineScopeId?: string): Control;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+  interface ITextLikeControl extends Control
+    getValue?(): string;
+    setEditable?(bEditable: boolean): this;
+    setMaxLength?(iMaxLength: number): this;
+    setPlaceholder?(sPlaceholder: string): this;
+    setRequired?(bRequired: boolean): this;
+module nz/co/siliconst/ui5/metaui/plugins/controls/TimePlugin
+  class TimePlugin extends PickerPlugin
+    protected readonly pickerConfig: IPickerPluginConfig;
+module nz/co/siliconst/ui5/metaui/plugins/controls/VoiceInputPlugin
+  class VoiceInputPlugin extends HardwareControlPlugin<VoiceInputControl>
+    protected readonly HardwareControlClass: typeof VoiceInputControl;
+    protected renderDisplayControl(_metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/datasources/LiveSearchPlugin
+  class LiveSearchPlugin extends TextLikeInputPlugin
+    destroy(): void;
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/datasources/ODataListBindingPlugin
+  class ODataListBindingPlugin extends BasePlugin
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteDropdownPlugin
+  class RemoteDropdownPlugin extends OptionListPlugin
+    destroy(): void;
+    protected applyState(): void;
+    protected getValue(sourceControl?: Control): unknown;
+    render(metadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
+module nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteValueHelpPlugin
+  class RemoteValueHelpPlugin extends TextLikeInputPlugin
+    destroy(): void;
+    protected createEditableControl(metadata: IPropertyMetadata, bindingPath: string, modelName: string, engineScopeId?: string): Control;
+module nz/co/siliconst/ui5/metaui/plugins/formatters/CurrencyFormatterPlugin
+  class CurrencyFormatterPlugin implements IFormatter, IParser
+    constructor();
+    format(rawValue: unknown, args?: unknown): string;
+    parse(uiValue: unknown, args?: unknown): unknown;
+module nz/co/siliconst/ui5/metaui/plugins/formatters/DateFormatterPlugin
+  class DateFormatterPlugin implements IFormatter, IParser
+    constructor();
+    format(rawValue: unknown, _args?: unknown): string;
+    parse(uiValue: unknown, _args?: unknown): unknown;
+module nz/co/siliconst/ui5/metaui/plugins/formatters/PhoneFormatterPlugin
+  class PhoneFormatterPlugin implements IFormatter, IParser
+    format(rawValue: unknown, _args?: unknown): string;
+    parse(uiValue: unknown, _args?: unknown): unknown;
+module nz/co/siliconst/ui5/metaui/plugins/formatters/TextCaseFormatterPlugin
+  class TextCaseFormatterPlugin implements IFormatter
+    format(rawValue: unknown, args?: unknown): string;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/DateLessThanConditionPlugin
+  class DateLessThanConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/IsNotNullConditionPlugin
+  class IsNotNullConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/IsNullConditionPlugin
+  class IsNullConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/NumericGreaterThanConditionPlugin
+  class NumericGreaterThanConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/NumericLessThanConditionPlugin
+  class NumericLessThanConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/conditions/StringEqualsConditionPlugin
+  class StringEqualsConditionPlugin implements IPolicyConditionPlugin
+    evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/policies/effects/BinaryEffectPlugin
+  class BinaryEffectPlugin implements IPolicyEffectPlugin
+    resolveState(isConditionMet: boolean, originalEffect: string): { property: PropertyName; value: boolean; };
+module nz/co/siliconst/ui5/metaui/plugins/validators/ArrayItemsValidatorPlugin
+  class ArrayItemsValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+  export function canonicalSerialize(value: unknown): string;
+  interface IArrayItemsArgs
+    maxItems?: number;
+    minItems?: number;
+    uniqueItems?: boolean;
+module nz/co/siliconst/ui5/metaui/plugins/validators/ConstValidatorPlugin
+  class ConstValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/EmailValidatorPlugin
+  class EmailValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, _args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/EnumValidatorPlugin
+  class EnumValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/IbanValidatorPlugin
+  class IbanValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/IntegerValidatorPlugin
+  class IntegerValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/MaxLengthValidatorPlugin
+  class MaxLengthValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/MinLengthValidatorPlugin
+  class MinLengthValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/MultipleOfValidatorPlugin
+  class MultipleOfValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/ObjectPropertiesValidatorPlugin
+  class ObjectPropertiesValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/plugins/validators/PatternValidatorPlugin
+  class PatternValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+  export function resetPatternSafetyState(): void;
+module nz/co/siliconst/ui5/metaui/plugins/validators/RangeValidatorPlugin
+  class RangeValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+  interface IRangeArgs
+    exclusiveMaximum?: boolean | number;
+    exclusiveMinimum?: boolean | number;
+    max?: number;
+    min?: number;
+module nz/co/siliconst/ui5/metaui/plugins/validators/RequiredValidatorPlugin
+  class RequiredValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata, isDynamicallyRequired?: boolean): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+  export function isEmptyValue(value: unknown): boolean;
+module nz/co/siliconst/ui5/metaui/plugins/validators/UrlValidatorPlugin
+  class UrlValidatorPlugin implements IValidator
+    extractRule(propMeta: IPropertyMetadata): IValidatorRuleExtraction;
+    validate(parsedValue: unknown, _args?: unknown): IValidationResult;
+module nz/co/siliconst/ui5/metaui/services/SchemaProvider
+  class SchemaProvider
+    static resolve(url: string, timeoutMs?: number): Promise<Record<string, unknown>>;
+module nz/co/siliconst/ui5/metaui/swagger/OpenApiExtractor
+  class OpenApiExtractor extends UI5Object
+    static extractTargets(rawSchema: unknown): OpenApiTarget[];
+  interface OpenApiTarget
+    key: string;
+    text: string;
+module nz/co/siliconst/ui5/metaui/utils/ControlCapabilities
+  export const ALLOWED_CONTROL_PROP_PRIMITIVES: ReadonlySet<string>;
+  export const BLOCKED_CONTROL_PROPS: ReadonlySet<string>;
+  export const HTML_SINK_CONTROL_PROPS: ReadonlySet<string>;
+  export function extractDataSourceList(payload: unknown, dataPath?: string): unknown[];
+  export function forEachBoundControl(control: ManagedObject | null | undefined, host: IEngineHost, targetPath: string, callback: (inspectable: IBoundInspectable) => void, matchPrefix?: boolean): void;
+  export function isEditableSupport(control: unknown): control is IEditableSupport;
+  export function isEnabledSupport(control: unknown): control is IEnabledSupport;
+  export function isRequiredSupport(control: unknown): control is IRequiredSupport;
+  export function isValueStateSupport(control: unknown): control is IValueStateSupport;
+  export function openNestedHostDialog(options: INestedEditorLaunchOptions): void;
+  export function resolveContextualPath(target: Control | undefined, rawPath: string, modelName?: string): string;
+  export function resolveDataSourceDescriptor(metadata: IPropertyMetadata): IDataSourceConfig | undefined;
+  export function sanitizeUriPropertyValue(rawValue: unknown): string;
+  export function vetControlProperty(target: Control | undefined, propName: string): IControlPropVerdict;
+  export function writeControlProperty(target: Control, propName: string, value: unknown): void;
+  interface IBoundInspectable
+    data?: (key: string, value?: unknown) => unknown;
+    getAggregation?: (name: string) => ManagedObject | ManagedObject[] | null;
+    isValidValue?: () => boolean;
+    setValueState?: (state: ValueState) => void;
+    setValueStateText?: (text: string) => void;
+    setVisible?: (visible: boolean) => void;
+  interface IControlPropVerdict
+    readonly allowed: boolean;
+    readonly isUri: boolean;
+    readonly reason?: string;
+  interface IEditableSupport
+    setEditable(editable: boolean): unknown;
+  interface IEnabledSupport
+    setEnabled(enabled: boolean): unknown;
+  interface IRequiredSupport
+    setRequired(required: boolean): unknown;
+  interface IValueStateSupport
+    setValueState(state: ValueState): unknown;
+    setValueStateText?(text: string): unknown;
+module nz/co/siliconst/ui5/metaui/utils/ControlDirectiveUtil
+  class ControlDirectiveUtil
+    static applyBoundRowPolicyState(root: Control, host: IEngineHost, cleanPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
+    static applyCommonDirectives(control: Control, effectiveTarget: Control, metadata: IPropertyMetadata, pathForExpr: string, isEditable: boolean, modelName?: string, accessibility?: IAccessibilityContext): void;
+    static applyEditableState(target: Control | undefined, effectiveEditable: boolean): void;
+    static applyRequiredState(target: Control | undefined, required: boolean): void;
+    static applyVisualValidationState(target: Control, isValid: boolean, errorMessage?: string): void;
+    static associateAriaLabel(control: Control | undefined, labelProvider: Control | undefined): void;
+    static clearAccessibleName(target: Control | undefined): void;
+    static clearBoundControlSubtree(root: Control, host: IEngineHost, cleanPrefix: string): void;
+    static collectInputDescendants(root: Control): Control[];
+    static createDisplayTextControl(id: string | undefined, effectiveBinding: PropertyBindingInfo | string, metadata: IPropertyMetadata | undefined, pathForExpr: string, modelName?: string): Control;
+    static destroyAccessibilityTexts(root: Control | undefined): void;
+    static generateBindingInfo(bindingPath: string, modelName?: string, metadata?: IPropertyMetadata, type?: string, additionalOptions?: Record<string, unknown>): PropertyBindingInfo | string;
+    static materializeDependentLabels(root: Control | undefined): void;
+    static nameCellByColumnHeader(cell: Control | undefined, headerText: string): void;
+    static openNestedHostDialog(options: INestedEditorLaunchOptions): void;
+    static reconcileLabelAssociation(label: Label, labelText: string, isLabelRendered: boolean): void;
+    static resolveAbsolutePath(target: Control | undefined, rawPath: string, modelName?: string): string;
+    static resolveDataSourceConfig(metadata: IPropertyMetadata): IDataSourceConfig | undefined;
+    static setAccessibleDescription(target: Control | undefined, text: string): void;
+    static setAccessibleName(target: Control | undefined, text: string): void;
+    static setLiveValidationDescription(target: Control | undefined, text: string): void;
+  export * from "nz/co/siliconst/ui5/metaui/utils/ControlCapabilities";
+  export function isAriaDescriptionSupport(control: unknown): control is IAriaDescriptionSupport;
+  export function isAriaLabelSupport(control: unknown): control is IAriaLabelSupport;
+  interface IAccessibilityContext
+    nameTargets?: Control[];
+    required?: boolean;
+  interface IAriaDescriptionSupport extends Control
+    addAriaDescribedBy(id: string): this;
+    getAriaDescribedBy(): string[];
+    removeAriaDescribedBy(id: string): string | null;
+  interface IAriaLabelSupport extends Control
+    addAriaLabelledBy(id: string): this;
+    getAriaLabelledBy(): string[];
+    removeAriaLabelledBy(id: string): string | null;
+module nz/co/siliconst/ui5/metaui/utils/DictionaryMapUtil
+  class DictionaryMapUtil
+    static buildEntryRow(options: IDictionaryRowBuildOptions): { rowBox: HBox; valuePlugin: IPlugin; };
+    static createDefaultValue(valueSchema: IPropertyMetadata): unknown;
+    static evaluateKeyValidity(rawKey: unknown, index: number, localModel: JSONModel, staticProperties?: Record<string, IPropertyMetadata>): { isValid: boolean; message: string; };
+    static extractEntries(rawMap: unknown, staticProperties?: Record<string, IPropertyMetadata>): IDictionaryEntry[];
+    static generateUniqueKey(entries: IDictionaryEntry[]): string;
+    static resolveEntryValueSchema(baseSchema: IPropertyMetadata, entryValue: unknown, engineContext?: IPluginEngineContext): IPropertyMetadata;
+    static serializeEntries(entries: IDictionaryEntry[], existingObj: unknown, staticProperties?: Record<string, IPropertyMetadata>): IDictionarySerializationResult;
+  interface IDictionaryEntry
+    key: string;
+    value: unknown;
+  interface IDictionaryRowBuildOptions
+    readonly canEdit: boolean;
+    readonly engineContext?: IPluginEngineContext;
+    readonly fieldKey?: string;
+    readonly index: number;
+    readonly localModel: JSONModel;
+    readonly onRemove: (index: number) => void;
+    readonly onSync: () => void;
+    readonly scopeId?: string;
+    readonly staticProperties?: Record<string, IPropertyMetadata>;
+    readonly valueSchema: IPropertyMetadata;
+  interface IDictionarySerializationResult
+    readonly hasInvalidKeys: boolean;
+    readonly record: Record<string, unknown>;
+module nz/co/siliconst/ui5/metaui/utils/ExpressionBuilder
+  class ExpressionBuilder
+    static build(rule: string, bindingPath: string, modelName?: string): string;
+    static buildChecked(rule: string, bindingPath: string, modelName?: string): string | undefined;
+module nz/co/siliconst/ui5/metaui/utils/I18n
+  class I18n
+    static getBundle(): ResourceBundle | undefined;
+    static getDeclaredKeys(): MetaUITextKey[];
+    static getText(key: MetaUITextKey, args?: (string | number)[]): string;
+    static hasText(key: string): boolean;
+  export const METAUI_LIBRARY_NAME = "nz.co.siliconst.ui5.metaui";
+  export const TEXT_KEY: { readonly required: "metaui.validation.required"; readonly requiredNull: "metaui.validation.required.null"; readonly minLength: "metaui.validation.minLength"; readonly maxLength: "metaui.validation.maxLength"; readonly pattern: "metaui.validation.pattern"; readonly email: "metaui.validation.email"; readonly url: "metaui.validation.url"; readonly urlProtocol: "metaui.validation.url.protocol"; readonly iban: "metaui.validation.iban"; readonly ibanChecksum: "metaui.validation.iban.checksum"; readonly integer: "metaui.validation.integer"; readonly finiteNumber: "metaui.validation.number.finite"; readonly multipleOf: "metaui.validation.multipleOf"; readonly rangeMinimum: "metaui.validation.range.minimum"; readonly rangeExclusiveMinimum: "metaui.validation.range.exclusiveMinimum"; readonly rangeMaximum: "metaui.validation.range.maximum"; readonly rangeExclusiveMaximum: "metaui.validation.range.exclusiveMaximum"; readonly enumMembership: "metaui.validation.enum"; readonly constEquality: "metaui.validation.const"; readonly arrayMinItems: "metaui.validation.array.minItems"; readonly arrayMaxItems: "metaui.validation.array.maxItems"; readonly arrayUniqueItems: "metaui.validation.array.uniqueItems"; readonly objectMinProperties: "metaui.validation.object.minProperties"; readonly objectMaxProperties: "metaui.validation.object.maxProperties"; readonly systemError: "metaui.validation.systemError"; readonly fieldPrefix: "metaui.validation.field"; readonly rowPrefix: "metaui.validation.row"; readonly invalidValue: "metaui.validation.invalidValue"; readonly invalidItem: "metaui.validation.invalidItem"; readonly dateParseError: "metaui.picker.date.parseError"; readonly timeParseError: "metaui.picker.time.parseError"; readonly dateTimeParseError: "metaui.picker.dateTime.parseError"; readonly numberParseError: "metaui.number.parseError"; readonly integerParseError: "metaui.number.integerParseError"; readonly dictionaryLabel: "metaui.dictionary.defaultLabel"; readonly dictionaryAddEntry: "metaui.dictionary.addEntry"; readonly dictionaryEmpty: "metaui.dictionary.empty"; readonly dictionaryInvalidKeys: "metaui.dictionary.invalidKeys"; readonly fileUploadNoFile: "metaui.fileUpload.noFile"; readonly fileUploadImageAlt: "metaui.fileUpload.imageAlt"; readonly fileUploadPlaceholder: "metaui.fileUpload.placeholder"; readonly fileUploadBrowse: "metaui.fileUpload.browse"; readonly hardwareImageAlt: "metaui.hardware.imageAlt"; readonly hardwareSignatureAlt: "metaui.hardware.signatureAlt"; readonly geolocationCoordinates: "metaui.geolocation.coordinates"; readonly multiInputPlaceholder: "metaui.multiInput.placeholder"; readonly passwordPlaceholder: "metaui.password.placeholder"; readonly editorExpand: "metaui.editor.expand"; readonly editorDialogTitle: "metaui.editor.dialogTitle"; readonly editorClose: "metaui.editor.close"; readonly nestedEdit: "metaui.nested.edit"; readonly nestedView: "metaui.nested.view"; readonly nestedViewSummary: "metaui.nested.viewSummary"; readonly nestedArrayLabel: "metaui.nested.array.label"; readonly nestedArrayInvalid: "metaui.nested.array.invalid"; readonly nestedObjectLabel: "metaui.nested.object.label"; readonly nestedObjectTitle: "metaui.nested.object.title"; readonly nestedObjectInvalid: "metaui.nested.object.invalid"; readonly nestedReferenceLabel: "metaui.nested.reference.label"; readonly nestedReferenceInvalid: "metaui.nested.reference.invalid"; readonly actionClearForm: "metaui.action.clearForm"; readonly actionSubmit: "metaui.action.submit"; readonly actionOpenLink: "metaui.action.openLink"; readonly dataSourceSearchPlaceholder: "metaui.dataSource.searchPlaceholder"; readonly dataSourceSelectPlaceholder: "metaui.dataSource.selectPlaceholder"; readonly dataSourceValueHelpPlaceholder: "metaui.dataSource.valueHelpPlaceholder"; readonly dataSourceValueHelpTitle: "metaui.dataSource.valueHelpTitle"; };
+  export type MetaUITextKey = (typeof TEXT_KEY)[keyof typeof TEXT_KEY];
+module nz/co/siliconst/ui5/metaui/utils/PolicyConditionUtil
+  class PolicyConditionUtil
+    static coerceToNumber(value: unknown): number;
+    static resolveThreshold(rawThreshold: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): unknown;
+module nz/co/siliconst/ui5/metaui/utils/PolymorphicUtil
+  class PolymorphicUtil
+    static applyVariantSwitch(model: JSONModel | undefined, targetPath: string, variants: IPolymorphicVariant[], newKey: string, discProp?: string): void;
+    static detectActiveVariantKey(variants: IPolymorphicVariant[], currentObj: unknown, discProp?: string): string;
+    static ensureVariantDefaults(model: JSONModel | undefined, targetPath: string, variants: IPolymorphicVariant[], variantKey: string, discProp?: string): void;
+    static extractVariants(metadata: IPropertyMetadata, definitions?: Record<string, ISchema>): IPolymorphicVariant[];
+    static mergePolymorphicRootBranches(schema: ISchema, rootMeta: IPropertyMetadata): void;
+  interface IPolymorphicVariant
+    readonly key: string;
+    readonly properties: Record<string, IPropertyMetadata>;
+    readonly title: string;
+module nz/co/siliconst/ui5/metaui/utils/TypeGuards
+  export function deepClone<T>(value: T, seen?: WeakMap<object, unknown>): T;
+  export function isRecord(value: unknown): value is JsonRecord;
+  export function readBoolean(record: JsonRecord, key: string): boolean | undefined;
+  export function readNumber(record: JsonRecord, key: string): number | undefined;
+  export function readRecord(record: JsonRecord, key: string): JsonRecord | undefined;
+  export function readString(record: JsonRecord, key: string): string | undefined;
+  export function readStringArray(record: JsonRecord, key: string): string[] | undefined;
+  export type JsonRecord = Record<string, unknown>;
+
+# modules: 151 (public 6, extension 16, internal 132)
+# declarations: 290 (public 30, extension 25, internal 235)
+# excluded, not MetaUI's API: sap/ui/base/BindingParser, sap/ui/richtexteditor/RichTextEditor

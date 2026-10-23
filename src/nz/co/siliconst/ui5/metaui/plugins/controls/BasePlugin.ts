@@ -13,7 +13,7 @@ import Control from "sap/ui/core/Control";
 import Element from "sap/ui/core/Element";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
-import { ControlDirectiveUtil, INestedEditorLaunchOptions } from "../../utils/ControlDirectiveUtil";
+import { ControlDirectiveUtil, INestedEditorLaunchOptions, isEnabledSupport } from "../../utils/ControlDirectiveUtil";
 
 /**
  * Abstract base class for all UI5 control plugins in the MetaUI framework.
@@ -30,6 +30,15 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
     protected engineContext?: IPluginEngineContext;
     protected readonly invalidParsePaths: Map<string, string> = new Map();
     private readonly activeNestedHosts: Set<Control> = new Set();
+
+    /**
+     * Marks the plugin's control as a navigation affordance rather than a value editor: a trigger whose only
+     * job is to open or follow a target (`sap.m.Link`, the nested-dialog trigger `sap.m.Button`).
+     * `ControlDirectiveUtil.applyCommonDirectives` disables every control without an `editable` property when the
+     * host is read-only, which for these controls hides the payload behind a dead widget instead of protecting it.
+     * Read-only state belongs on the dialog or the bound value, not on the ability to reach it.
+     */
+    protected readonly isNavigationAffordance: boolean = false;
 
     /**
      * Injects the owning Engine context into the plugin.
@@ -90,6 +99,31 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
         return model && typeof model.getProperty === "function"
             ? model.getProperty(this.resolveAbsolutePath(target))
             : undefined;
+    }
+
+    /**
+     * Writes a value the user just produced in the UI into the bound `JSONModel`.
+     *
+     * Every widget that commits imperatively (rather than relying on two-way binding alone) must go through
+     * this method. Resolving the model as `sourceControl.getModel(modelName) ?? engineContext.getModel()` is
+     * the whole point: a control only carries a model once it is inside a tree the host propagated the model
+     * to. A widget rendered into dialog content, into a detached cell template, or before it is added to its
+     * parent has no local model, and a plugin that looked only at `sourceControl.getModel()` dropped the
+     * edit on the floor — the UI accepted it and the payload never saw it.
+     *
+     * @param sourceControl The control that produced the value (the event source, or a cloned row cell).
+     * @param value The value to persist at the control's resolved absolute path.
+     * @returns {boolean} True if a model was resolved and the value was written.
+     */
+    protected commitValue(sourceControl: Control, value: unknown): boolean {
+        const model = (sourceControl.getModel(this.modelName) || this.engineContext?.getModel()) as
+            | JSONModel
+            | undefined;
+        if (!model) {
+            return false;
+        }
+        model.setProperty(this.resolveAbsolutePath(sourceControl), value);
+        return true;
     }
 
     /**
@@ -237,10 +271,27 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
         ControlDirectiveUtil.openNestedHostDialog({
             ...options,
             onHostCreated: (nestedHost) => {
-                this.activeNestedHosts.add(nestedHost);
+                this.trackNestedHost(nestedHost);
                 options.onHostCreated?.(nestedHost);
             }
         });
+    }
+
+    /**
+     * Registers a nested modal `DynamicHost` for lifecycle ownership, first discarding every host that the
+     * dialog layer already destroyed on close. `openNestedHostDialog` destroys its host in the `finally` of
+     * `openInDialog`, but it exposes no close hook, so without this sweep the tracking set would grow by one
+     * dead reference per dialog open for the whole life of the form.
+     *
+     * @param nestedHost The freshly created nested `DynamicHost` instance.
+     */
+    protected trackNestedHost(nestedHost: Control): void {
+        for (const trackedHost of this.activeNestedHosts) {
+            if (trackedHost.isDestroyed()) {
+                this.activeNestedHosts.delete(trackedHost);
+            }
+        }
+        this.activeNestedHosts.add(nestedHost);
     }
 
     /**
@@ -253,6 +304,9 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
             }
         }
         this.activeNestedHosts.clear();
+        // The InvisibleText controls that carry accessible names and descriptions live in UI5's static
+        // area, not in this plugin's control tree, so destroying the tree would leave them behind.
+        ControlDirectiveUtil.destroyAccessibilityTexts(this.control);
         super.destroy();
     }
 
@@ -334,12 +388,36 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
     /**
      * Validates the current value of the control against the schema rules via the `PipelineManager`.
      *
+     * A plugin that did not finish rendering fails **closed**, whether what is missing is its metadata or its
+     * control. `Engine.generateField` registers the plugin before calling `render()`, so a render that throws
+     * leaves a registered plugin behind: before `initialize()` ran it has neither metadata nor control, after
+     * it has metadata but no control. Both states used to differ, and the metadata-less one returned
+     * `{ isValid: true }` — so a required field the user could see had failed to render still let
+     * `triggerSubmit()` through. A *hidden* control is a different case and still returns valid: the field is
+     * rendered, the user simply cannot reach it.
+     *
+     * Widgets that hold no user data (`ActionButtonPlugin`, `MessageStripPlugin`) opt out by overriding this
+     * method outright, so tightening the guard here cannot make a form unsubmittable.
+     *
      * @param sourceControl Optional runtime source control (e.g., a cloned table row cell).
      * @returns {{ isValid: boolean; errorMessage?: string }} The validation result.
      */
     public validate(sourceControl?: Control): { isValid: boolean; errorMessage?: string } {
         const target = sourceControl ?? this.control;
-        if (!target || !this.metadata || !this.isTargetVisible(sourceControl)) {
+        const label = this.bindingPath || this.fieldKey || "unknown";
+        if (!this.metadata) {
+            return {
+                isValid: false,
+                errorMessage: `Field '${label}' failed to initialize, so its value could not be validated.`
+            };
+        }
+        if (!target) {
+            return {
+                isValid: false,
+                errorMessage: `Field '${label}' failed to render, so its value could not be validated.`
+            };
+        }
+        if (!this.isTargetVisible(sourceControl)) {
             return { isValid: true };
         }
         const cleanPath = (
@@ -389,14 +467,42 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
      * @param modelName The UI5 JSONModel alias.
      */
     protected applyCommonDirectives(control: Control, metadata: IPropertyMetadata, modelName: string = "meta"): void {
+        const effectiveTarget = this.mainControl ?? control;
         ControlDirectiveUtil.applyCommonDirectives(
             control,
-            this.mainControl ?? control,
+            effectiveTarget,
             metadata,
             this.bindingPath || this.fieldKey || "",
             this.isEditable,
-            modelName
+            modelName,
+            { required: this.isRequired(), nameTargets: this.resolveAccessibleNameTargets(control) }
         );
+        if (this.isNavigationAffordance && !metadata.ui?.enabledOn && isEnabledSupport(effectiveTarget)) {
+            effectiveTarget.setEnabled(this.isAffordanceEnabled());
+        }
+    }
+
+    /**
+     * Resolves which controls carry this field's accessible name and description. The default is the one
+     * control the user interacts with, which is what a companion `sap.m.Label` also points at. A composite
+     * widget whose outer control cannot hold an `ariaLabelledBy` overrides this to name the inner control
+     * that actually takes focus.
+     *
+     * @param control The outer control produced by `render`.
+     * @returns {Control[]} The controls that should receive the accessible name.
+     */
+    protected resolveAccessibleNameTargets(control: Control): Control[] {
+        return [this.mainControl ?? control];
+    }
+
+    /**
+     * Resolves whether a navigation affordance stays interactive. Only an explicit `ui.enabled: false`
+     * switches it off; `readOnly` and host display mode do not, because they constrain editing, not navigation.
+     *
+     * @returns {boolean} True when the affordance should remain clickable.
+     */
+    protected isAffordanceEnabled(): boolean {
+        return this.metadata?.ui?.enabled !== false;
     }
 
     /**

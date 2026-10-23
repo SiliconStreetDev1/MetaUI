@@ -12,7 +12,6 @@ import Button from "sap/m/Button";
 import Image from "sap/m/Image";
 import HTML from "sap/ui/core/HTML";
 import { ButtonType } from "sap/m/library";
-import { Logger } from "../utils/Logger";
 import { UrlValidator } from "../utils/UrlValidator";
 
 /**
@@ -23,6 +22,10 @@ import { UrlValidator } from "../utils/UrlValidator";
  */
 export default class CameraControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;
+
+    /** Device name used in the user-visible message when the camera is unavailable. */
+    private static readonly CAPABILITY_NAME = "Camera";
+
     private videoElement: HTMLVideoElement | null = null;
     private mediaStream: MediaStream | null = null;
     private imagePreview!: Image;
@@ -129,24 +132,42 @@ export default class CameraControl extends BaseHardwareControl {
                         stream.getTracks().forEach((track) => track.stop());
                         return;
                     }
+                    this.clearCapabilityFailure();
                     this.mediaStream = stream;
                     if (this.videoElement) {
                         this.videoElement.srcObject = this.mediaStream;
                         this.captureBtn.setText("Take Snapshot");
                     }
                 } else {
-                    Logger.warn("[MetaUI CameraControl]", "Camera API not available in this browser.", "CameraControl");
+                    // WebKit on Windows exposes no `navigator.mediaDevices`. Logging and falling through
+                    // left the button pressable and the control unchanged, which is indistinguishable
+                    // from a camera that is simply slow to start.
+                    this.reportCapabilityFailure(CameraControl.CAPABILITY_NAME, "unsupported");
                 }
             } catch (err) {
-                Logger.error(
-                    "[MetaUI CameraControl]",
-                    `Failed to access camera: ${(err as Error).message}`,
-                    "CameraControl"
+                const error = err as Error;
+                this.reportCapabilityFailure(
+                    CameraControl.CAPABILITY_NAME,
+                    CameraControl.isPermissionDenial(error) ? "denied" : "failed",
+                    `${error.name || "Error"}: ${error.message}`
                 );
             }
         } else {
             this.takeSnapshot();
         }
+    }
+
+    /**
+     * Classifies a `getUserMedia` rejection as a permission refusal rather than a device failure.
+     *
+     * The names come from the Media Capture and Streams specification; `PermissionDeniedError` is the
+     * legacy name older WebKit builds still throw, and `SecurityError` is what a non-secure origin raises.
+     *
+     * @param error The rejection from `navigator.mediaDevices.getUserMedia`.
+     * @returns {boolean} True when the user or the origin policy refused access.
+     */
+    private static isPermissionDenial(error: Error): boolean {
+        return error.name === "NotAllowedError" || error.name === "PermissionDeniedError" || error.name === "SecurityError";
     }
 
     /**

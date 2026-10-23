@@ -12,7 +12,7 @@ A runtime metadata-driven UI engine for SAP UI5. It consumes JSON Schema (Draft-
 
 It is deliberately **not** a Fiori Elements replacement. Fiori Elements is driven by design-time OData CDS annotations. MetaUI targets cases where those are unavailable, impossible, or too rigid, using universal JSON Schema at runtime.
 
-Library version is declared in `library.ts` (`Core.initLibrary`) and must match `package.json`. UI5 dependencies: `sap.ui.core`, `sap.m`, `sap.ui.layout`, `sap.ui.unified`, `sap.ui.codeeditor`, `sap.ndc`.
+Library version is declared in `library.ts` (`Core.initLibrary`) and must match `package.json`. UI5 dependencies: `sap.ui.core`, `sap.m`, `sap.ui.layout` (eager) and `sap.ui.unified`, `sap.ui.codeeditor` (lazy). All ship with OpenUI5 as well as SAPUI5.
 
 ---
 
@@ -154,7 +154,7 @@ It resolves these into one visual state per field, suppresses errors on hidden f
 
 `PluginRegistry` is a singleton mapping keys to **module path strings**, loaded lazily through `sap.ui.require`. Registration is cheap; nothing is loaded until a schema needs it.
 
-Registered by `DefaultPluginBootstrapper` (canonical counts reported from AST by `npm run metrics`): **52** `(type, widget)` control/action/datasource mappings, **4** layout strategies, **6** policy conditions, **8** policy effects.
+Registered by `DefaultPluginBootstrapper` (canonical counts reported from AST by `npm run metrics`): **51** `(type, widget)` control/action/datasource mappings, **4** layout strategies, **6** policy conditions, **8** policy effects.
 
 Separately, `PipelineManager` is an eagerly-constructed singleton holding **14 validators**, **4 formatters**, and **3 parsers** as static imports (reported from AST by `npm run metrics`). These two mechanisms coexist; the difference is historical rather than principled.
 
@@ -198,6 +198,99 @@ The wizard is a custom composable rather than `sap.m.Wizard`, because that contr
 
 ---
 
+## 10a. Tree traversal, and the bug class it caused
+
+This section exists because six independent audits of this codebase each found the same shape of
+defect: **a rule implemented correctly in one place and silently missing in its twin.** Read it
+before adding anything that walks a schema.
+
+### The cause
+
+One tree is traversed by many functions, and `IPropertyMetadata` has **every field optional**. So a
+producer that forgets to set a field compiles cleanly and the consumer reads `undefined` — no
+error, no crash, just a directive that quietly stops working. Likewise, a rule added to one walker
+does not exist in the others.
+
+Three pieces of evidence that this is self-perpetuating rather than historical:
+
+1. `invalidateStaleDataJson` was extracted into a shared static *specifically* to stop duplication,
+   and a third copy grew anyway.
+2. There were **fifteen** distinct depth caps for one concept. Two of them appeared *while* the
+   consolidation onto a shared constant was in progress.
+3. The walker count rose from twelve to thirteen during a single day's work, and a fourteenth
+   (`PluginRegistry.getPathsToLoad`) was later found with no depth cap and no cycle detection.
+
+**Extraction alone does not prevent the next copy. The gates do.**
+
+### `core/SchemaWalker.ts`
+
+The single canonical traversal of the schema tree. It owns depth capping (from
+`MAX_SCHEMA_DEPTH`), path-scoped cycle detection, `$ref` resolution via `OpenApiRefResolver`,
+`ui.visible: false` skipping, and JSON-Pointer scope construction. Read-only traversals delegate to
+it and supply a visitor.
+
+Cycle detection is **path-scoped** — a node is added on entry and removed on exit. A flat `visited`
+set is wrong: it breaks legitimate diamonds, where the same `$ref` is reached by two sibling
+branches and must resolve in both. Only a node reachable from itself along the *current* path is a
+cycle.
+
+Scope and binding path are both carried because they are not interchangeable: the binding path is
+not injective for array items (`#/items` versus a property literally named `items`), which is why
+`LayoutScorer`'s decision table is keyed on scope.
+
+### Why some walkers are legitimately exempt
+
+A `WALKER_EXEMPT:` comment, audited by the `[SINGLE_WALKER]` gate, marks a traversal that cannot
+use `SchemaWalker`. There are exactly two valid reasons, and neither is "it was inconvenient":
+
+- **Co-inductive walkers** traverse a schema *and* a runtime payload in lockstep — `PayloadValidator.validateTree`,
+  `DataSyncDelegate.injectSchemaDefaults`, `SchemaNormalizer.stripWriteOnlyNode`,
+  `ODataDelegate.sanitizeODataPayload`, `TypeGuards.cloneInternal`. A single-tree walker cannot
+  serve a two-tree traversal.
+- **Bottom-up producers** build `IPropertyMetadata` from raw, unnormalized input —
+  `SchemaNormalizer.normalizeProperties`, `OpenApiPropertyMapper.mapProperties`,
+  `OpenApiConstraintMapper.resolveAllOf`, `DataInferenceBuilder`. There is no schema to walk yet;
+  they are creating one.
+
+If a new traversal fits neither description, it belongs on `SchemaWalker`.
+
+### The pattern worth copying
+
+`PipelineManager` *asks* each validator for its rule — `extractRule(meta)` — rather than pushing
+metadata into it. All fourteen validators implement it, and it is **the only mapping in this
+framework that has never produced a twin.** Every push-model mapping has. Prefer a pull model when
+adding a new mapping.
+
+---
+
+## 10b. Structural gates
+
+`npm run lint` runs ten machine-checked architectural gates alongside the AST lint. They are not
+style rules; each one exists because the divergence it catches has already happened here at least
+once.
+
+| Gate | Enforces |
+|---|---|
+| `[PRODUCER_COMPLETENESS]` | Every `IPropertyMetadata` / `IUIDirective` member is written by each known producer, or named in that producer's `DECLINED_SCHEMA_FIELDS` with a justification. Adding a field to `ISchema.ts` fails the build until all producers take a position on it. |
+| `[DEPTH_CONSTANT]` | No numeric literal in a depth comparison; no `MAX_*_DEPTH` declared outside `constants/MetaUIConstants.ts`; `MAX_SCHEMA_DEPTH` may not fall below `MAX_LAYOUT_DEPTH`. Tests may read a cap, never restate it. |
+| `[SINGLE_WALKER]` | No recursive schema-tree traversal outside `SchemaWalker`, unless carrying a `WALKER_EXEMPT:` justification. |
+| `[REF_RESOLVER]` | No hand-rolled `$ref` parsing outside `OpenApiRefResolver`. |
+| `[LAYOUT_STRATEGY_DEFAULT]` | The array-to-table / object-to-form default lives only in `DefaultLayoutGenerator.resolveLayoutStrategy`. |
+| `[SCHEMA_CONSTANT]` | A string compared against `ui.renderMode`, `layoutStrategy` or `ui.widget` comes from `MetaUIConstants`, including when hoisted into a local. |
+| `[DATA_WRITER]` | The committed `data` / `dataJson` pair is written only by `DataSyncDelegate.commitDataPair` / `invalidateStaleDataJson`. |
+| `[CATCH_SIGNAL]` | A caught failure logs, rethrows or fires; otherwise it needs a counted `// CATCH_EXEMPT:` justification. |
+| `[DEPTH_SIGNAL]` | A depth guard names its limit and what it discarded. No silent truncation. |
+| `[RENDER_DEGRADATION]` | A layout `catch` sets `engine.hasPartialRenderingErrors`, so the partial-render banner appears. |
+
+**`scripts/prove-structural-gates.js` is the executable explanation.** It injects one divergence
+per gate into `src/`, asserts the gate catches it *by name*, and restores the tree. If a gate's
+purpose is unclear, read its proof case — that is the specification.
+
+Before concluding a gate is wrong and exempting past it: every exemption is counted and reported in
+the `npm run lint` tally, and a gate with a growing exemption list has stopped being a gate.
+
+---
+
 ## 11. Core capabilities
 
 These exist and are expected to keep working. Each is covered by tests rather than by instruction.
@@ -221,6 +314,26 @@ Violating any of these produces whole-class bugs rather than local ones.
 5. **Specification-first.** Behaviour derives from JSON Schema / OpenAPI / UI5 specifications, never from the field names in a particular mock scenario.
 6. **The model holds data; formatters are display-only unless explicitly transforming.** Presentational formatters (`phone`, `currency`, `date`, which implement `parse()`) never write their display strings into `SandboxJSONModel`, and validators always run against the raw model value. Only transforming formatters (those without `parse()`, such as `textCase`) write their transformed output to the model.
 7. **Host containment.** A `DynamicHost` must never make its container wider than the width that container offers it (`min-width: 0`, `max-width: 100%`, `box-sizing: border-box`, default `width: "100%"`, default `height: "auto"`).
+8. **The schema is untrusted input.** Every path from a schema directive to a UI5 sink is validated at the sink, by an allowlist wherever the sink's own metadata makes one derivable. A refused directive is logged and skipped; it is never silently applied and never aborts the render.
+
+### Trust boundary
+
+The boundary runs between the **schema** (and the data bound to it) and the **UI5 control tree**. Everything crossing it is validated. The consumer-facing statement of what a schema may and may not do, and what exposure remains, is [`docs/wiki/SupportedFeatures.md`](wiki/SupportedFeatures.md) § *Security Posture & Trust Model*; this is the structural summary.
+
+| Sink | Gate | Owner |
+|---|---|---|
+| UI5 control property (`ui.controlProps`) | Allowlist over the *declared UI5 property type* resolved through `sap.ui.base.DataType`, not a denylist of names. Only `string` / `boolean` / `int` / `float` pass. Plus two name lists that metadata cannot express: the eleven state properties MetaUI owns, and the four raw-markup sinks. | `vetControlProperty()` in `ControlCapabilities.ts` |
+| The write itself | The control's generated `set<Property>`, so UI5's typed-setter coercion is never bypassed. `ManagedObject.setProperty` only where no setter is generated. | `writeControlProperty()` |
+| `sap.ui.core.URI` property values | Protocol allowlist, applied to the literal *and* appended as a formatter to the binding so a model-delivered value is checked at write time. | `sanitizeUriPropertyValue()`, `UrlValidator` |
+| Condition rules (`visibleOn`, `enabledOn`, bound `controlProps`) | Structural grammar: a `{…}` token must be a plain model reference. Complex-binding object syntax is identified by a top-level `:` / `,` or a second `>`, never by alphabet, which is what keeps OData key predicates such as `/Items(ID=1,Name='x')/Qty` working. | `ExpressionBuilder.buildChecked()` |
+| …and again at the sink | Independent backstop that does not depend on reading UI5's parser correctly: the parsed binding is discarded if `BindingParser` resolved a named global into `formatter`, `events`, `factory` or `type`. | `ControlDirectiveUtil` |
+| `pattern` evaluation | Length cap, static refusal of provably ambiguous repetition, then a wall-clock budget with session quarantine for what the analysis cannot classify. | `PatternValidatorPlugin` |
+| Outbound `fetch` (`ui.dataSource.url`, `valueHelp.url`, remote `schemaDefinition`) | Scheme allowlist, always. Cross-origin is a separate, library-global policy that defaults to permissive-with-warning. | `UrlValidator.isSafeDataSourceUrl()` |
+
+Two deliberate asymmetries are worth recording, because they look like inconsistencies:
+
+- **The markup sinks are refused by name, not by type.** UI5 property metadata carries no "renders raw HTML" flag, so there is nothing to derive an allowlist from. Every other rule in the gate avoids naming properties; this one cannot.
+- **Read-only constrains editing, not reaching.** A control whose only job is to open or follow a target (`LinkPlugin`, `UrlNavigationActionPlugin`, the `NestedDialogPlugin` trigger buttons) stays enabled when the host is not editable, because disabling it hides the payload behind a dead widget instead of protecting it. The dialog it opens is itself read-only, and the mutating action plugins keep the default and stay disabled. The opt-in is `BasePlugin.isNavigationAffordance`.
 
 ---
 

@@ -16,6 +16,7 @@ import Control from "sap/ui/core/Control";
  */
 export class TextAreaPlugin extends TextLikeInputPlugin {
     protected override readonly syncPlaceholderAndMaxLength: boolean = true;
+    protected override readonly supportsExpandDialog: boolean = true;
 
     /**
      * Constructs the editable `sap.m.TextArea` component.

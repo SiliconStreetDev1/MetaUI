@@ -5,6 +5,7 @@
 
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Fails when a number is not an exact multiple of the configured step.
@@ -32,19 +33,19 @@ export class MultipleOfValidatorPlugin implements IValidator {
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof parsedValue !== "number" || Number.isNaN(parsedValue)) return { isValid: true };
         if (!Number.isFinite(parsedValue)) {
-            return { isValid: false, errorMessage: "Value must be a finite number." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.finiteNumber) };
         }
         if (typeof args !== "number" || !Number.isFinite(args) || args <= 0) {
             return { isValid: false, errorMessage: "Schema configuration error: 'multipleOf' must be a positive number." };
         }
         const quotient = parsedValue / args;
         if (!Number.isFinite(quotient)) {
-            return { isValid: false, errorMessage: `Value must be a multiple of ${args}.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.multipleOf, [args]) };
         }
         const nearestInt = Math.round(quotient);
         const diff = Math.abs(quotient - nearestInt);
         if (diff > 1e-7) {
-            return { isValid: false, errorMessage: `Value must be a multiple of ${args}.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.multipleOf, [args]) };
         }
         return { isValid: true };
     }

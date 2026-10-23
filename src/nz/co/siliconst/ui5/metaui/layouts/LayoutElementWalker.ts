@@ -15,12 +15,13 @@ import SimpleForm from "sap/ui/layout/form/SimpleForm";
 import GridData from "sap/ui/layout/GridData";
 import { ILayoutElement, IPropertyMetadata, ISchema, IUIDirective } from "../interfaces/ISchema";
 import { Engine } from "../core/Engine";
-import { SchemaNormalizer } from "../core/SchemaNormalizer";
+import { SchemaWalker } from "../core/SchemaWalker";
+import { ILayoutDecision, LayoutScorer } from "../core/LayoutScorer";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
 import { Logger } from "../utils/Logger";
 import { deepClone, isRecord, readBoolean, readNumber } from "../utils/TypeGuards";
+import { RENDER_MODE, MAX_LAYOUT_DEPTH } from "../constants/MetaUIConstants";
 
-const MAX_LAYOUT_DEPTH = 30;
 
 /**
  * Result returned by {@link LayoutFieldFactory.createLabelledField}.
@@ -34,6 +35,18 @@ export interface ILabelledFieldResult {
 }
 
 /**
+ * A `Control` layout element whose `scope` has already been resolved against the active schema by the walker.
+ * Delivered to {@link ILayoutWalkerSink.onHorizontalControls} so a row renders only the fields that exist,
+ * and so the scope is resolved exactly once per element.
+ */
+export interface IResolvedLayoutControl {
+    element: ILayoutElement;
+    bindingPath: string;
+    propKey: string;
+    meta: IPropertyMetadata;
+}
+
+/**
  * Visitor sink contract implemented by concrete layout renderers (`FormLayout`, `WizardStepRenderer`,
  * `CompactLayout`, and `TableLayout`).
  */
@@ -41,7 +54,7 @@ export interface ILayoutWalkerSink {
     onSectionHeader?(label: string, containerType: ILayoutElement["type"]): void;
     onEnterContainer?(element: ILayoutElement): void;
     onExitContainer?(element: ILayoutElement): void;
-    onHorizontalControls?(controls: ILayoutElement[]): void;
+    onHorizontalControls?(controls: IResolvedLayoutControl[]): void;
     onScalarField(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata): void;
     onTableSubLayout?(element: ILayoutElement, bindingPath: string, propKey: string, meta: IPropertyMetadata): void;
 }
@@ -139,6 +152,8 @@ export class LayoutFieldFactory {
      * @param meta The resolved property metadata.
      * @param modelName The bound UI5 JSONModel name.
      * @param engine The active `Engine` instance.
+     * @param isLabelRendered False when the caller parks the label as a dependent (`ui.labelSpan: 0`), in which
+     *        case the field is named by an `InvisibleText` instead of by `labelFor`.
      * @returns {ILabelledFieldResult} The paired label, control, effective metadata, path, and width flag.
      */
     public static createLabelledField(
@@ -146,12 +161,17 @@ export class LayoutFieldFactory {
         bindingPath: string,
         meta: IPropertyMetadata,
         modelName: string,
-        engine: Engine
+        engine: Engine,
+        isLabelRendered: boolean = true
     ): ILabelledFieldResult {
         const labelText = element.label || meta.ui?.label || meta.title || bindingPath;
+        // A required marker belongs on something that can be filled in. In display mode the field renders
+        // as a sap.m.Text, and UI5's LabelEnablement forwards the label's `required` onto it as
+        // aria-required="true" — an attribute that role is not allowed to carry, which makes assistive
+        // technology announce static output as an unfilled mandatory field.
         const label = new Label({
             text: labelText,
-            required: meta.required === true
+            required: meta.required === true && engine.isEditable
         });
         const effectiveMeta = this.cloneFieldMetadata(meta, element.widget);
         const absolutePath = `/${bindingPath}`;
@@ -174,6 +194,7 @@ export class LayoutFieldFactory {
         } else {
             label.setLabelFor(control);
         }
+        ControlDirectiveUtil.reconcileLabelAssociation(label, labelText, isLabelRendered);
 
         const isNativelyWide = engine.pluginRegistry.isPluginNativelyWide(
             effectiveMeta.type || "string",
@@ -240,16 +261,21 @@ export class ArraySubSchemaFactory {
      * Determines whether an array property should be delegated to an inline `TableLayout` sub-layout.
      *
      * @param meta The property metadata to inspect.
+     * @param decision The scope's decision from `LayoutScorer`, when the active schema was scored. The
+     *        decision is the authority on render mode; `meta.ui.renderMode` remains the fallback for an
+     *        author-declared directive on a schema no scoring pass covered — an array sub-schema built
+     *        for a nested table is not the root the decisions were keyed against.
      * @returns {boolean} True if the property represents an inline array of objects without an explicit widget override.
      */
-    public static isTableSubLayout(meta: IPropertyMetadata): boolean {
+    public static isTableSubLayout(meta: IPropertyMetadata, decision?: ILayoutDecision): boolean {
         const isCollectionOfRecords = Boolean(meta.items?.type === "object" || meta.items?.properties);
         const hasExplicitWidget = Boolean(meta.ui?.widget);
+        const renderMode = decision?.renderMode ?? meta.ui?.renderMode;
         return (
             meta.type === "array" &&
             isCollectionOfRecords &&
             !hasExplicitWidget &&
-            meta.ui?.renderMode !== "dialog"
+            renderMode !== RENDER_MODE.DIALOG
         );
     }
 
@@ -291,20 +317,35 @@ export class LayoutElementWalker {
      * @param schema The root or item schema.
      * @param engine The active `Engine` instance.
      * @param layoutName Diagnostic caller name for error logs.
+     * @param activeNodes Optional path-scoped set of active layout/schema objects for cycle detection.
+     * @param activeRefs Optional path-scoped set of active `$ref` pointers for cycle detection.
      * @returns {{ meta: IPropertyMetadata; bindingPath: string; propKey: string } | null} Resolved scope tuple or `null`.
      */
     public static resolveControlElement(
         element: ILayoutElement,
         schema: ISchema,
         engine: Engine,
-        layoutName: string
+        layoutName: string,
+        activeNodes?: WeakSet<object>,
+        activeRefs?: Set<string>
     ): { meta: IPropertyMetadata; bindingPath: string; propKey: string } | null {
         if (!element.scope || !element.scope.startsWith("#/properties/")) {
             Logger.error(`[MetaUI] Invalid scope '${element.scope}' in uiLayout Control.`, "", layoutName);
             engine.hasPartialRenderingErrors = true;
             return null;
         }
-        const { meta, bindingPath, propKey } = SchemaNormalizer.resolveScope(schema, element.scope);
+        const host = engine?.host;
+        const resolveDef =
+            host && typeof host.getSchemaDefinition === "function"
+                ? (ref: string) => host.getSchemaDefinition?.(ref) ?? null
+                : undefined;
+        const { meta, bindingPath, propKey } = SchemaWalker.resolveScope(
+            schema,
+            element.scope,
+            resolveDef,
+            activeNodes,
+            activeRefs
+        );
         if (!meta) {
             Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", layoutName);
             engine.hasPartialRenderingErrors = true;
@@ -338,15 +379,13 @@ export class LayoutElementWalker {
             onSectionHeader: (label: string) => {
                 form.addContent(new Title({ text: label }));
             },
-            onHorizontalControls: (directControls: ILayoutElement[]) => {
+            onHorizontalControls: (resolvedControls: IResolvedLayoutControl[]) => {
                 onFieldRendered?.();
                 const rowBox = new HBox({ width: "100%", renderType: FlexRendertype.Bare });
                 rowBox.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
-                for (const ctrlEl of directControls) {
-                    const resolved = this.resolveControlElement(ctrlEl, schema, engine, layoutName);
-                    if (!resolved) continue;
+                for (const resolved of resolvedControls) {
                     const { cellBox, absolutePath } = LayoutFieldFactory.createHorizontalCell(
-                        ctrlEl,
+                        resolved.element,
                         resolved.bindingPath,
                         resolved.meta,
                         modelName,
@@ -370,6 +409,7 @@ export class LayoutElementWalker {
                         form.addContent(control);
                     }
                 } catch (error) {
+                    engine.hasPartialRenderingErrors = true;
                     const msg = (error as Error).message;
                     Logger.error(`[MetaUI] Failed to render inline array field ${bindingPath}`, msg, layoutName);
                     Logger.showErrorPopup(`Failed to render array field '${bindingPath}'.\n\nDetails: ${msg}`);
@@ -378,17 +418,18 @@ export class LayoutElementWalker {
             onScalarField: (element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata) => {
                 onFieldRendered?.();
                 try {
+                    const hideLabels =
+                        schema.ui?.labelSpan === 0 ||
+                        (isRecord(schema.ui?.controlProps) && readNumber(schema.ui.controlProps, "labelSpanS") === 0);
                     const { label, control, absolutePath, isFullWidth } = LayoutFieldFactory.createLabelledField(
                         element,
                         bindingPath,
                         meta,
                         modelName,
-                        engine
+                        engine,
+                        !hideLabels
                     );
                     fieldPaths?.push(absolutePath);
-                    const hideLabels =
-                        schema.ui?.labelSpan === 0 ||
-                        (isRecord(schema.ui?.controlProps) && readNumber(schema.ui.controlProps, "labelSpanS") === 0);
                     if (isFullWidth || hideLabels) {
                         control.setLayoutData(new GridData({ span: "XL12 L12 M12 S12" }));
                     }
@@ -399,6 +440,7 @@ export class LayoutElementWalker {
                     }
                     form.addContent(control);
                 } catch (error) {
+                    engine.hasPartialRenderingErrors = true;
                     const msg = (error as Error).message;
                     Logger.error(`[MetaUI] Failed to render field ${bindingPath}`, msg, layoutName);
                     Logger.showErrorPopup(`Failed to render field '${bindingPath}'.\n\nDetails: ${msg}`);
@@ -408,7 +450,8 @@ export class LayoutElementWalker {
     }
 
     /**
-     * Recursively walks an array of `ILayoutElement` nodes with a depth guard and dispatches to `sink`.
+     * Recursively walks an array of `ILayoutElement` nodes with a depth guard and path-scoped
+     * cycle detection, dispatching to `sink`.
      *
      * @param elements The layout elements to walk.
      * @param schema The active `ISchema`.
@@ -416,6 +459,8 @@ export class LayoutElementWalker {
      * @param sink The layout visitor sink.
      * @param layoutName Diagnostic layout name for logs.
      * @param depth Current recursion depth.
+     * @param activeNodes Path-scoped set of visited layout/schema objects for cycle detection.
+     * @param activeRefs Path-scoped set of active `$ref` pointers for cycle detection.
      * @returns {number} Total number of `Control` elements encountered during traversal.
      */
     public static walk(
@@ -424,61 +469,144 @@ export class LayoutElementWalker {
         engine: Engine,
         sink: ILayoutWalkerSink,
         layoutName: string,
-        depth: number = 0
+        depth: number = 0,
+        activeNodes: WeakSet<object> = new WeakSet<object>(),
+        activeRefs: Set<string> = new Set<string>()
     ): number {
+        // WALKER_EXEMPT: LayoutElementWalker.walk traverses the ILayoutElement[] (uiLayout) container tree (Group, WizardStep, HorizontalLayout, VerticalLayout, Control) capped by MAX_LAYOUT_DEPTH, not ISchema.properties.
         if (depth > MAX_LAYOUT_DEPTH) {
             Logger.warn(`[MetaUI ${layoutName}] Max layout nesting depth (${MAX_LAYOUT_DEPTH}) exceeded.`, "", layoutName);
             return 0;
         }
         let controlCount = 0;
         for (const element of elements) {
-            if (element.type === "HorizontalLayout") {
-                if (element.label) {
-                    sink.onSectionHeader?.(element.label, element.type);
-                }
-                if (sink.onHorizontalControls) {
-                    const directControls = (element.elements || []).filter((e) => e.type === "Control");
-                    const nonControls = (element.elements || []).filter((e) => e.type !== "Control");
-                    controlCount += directControls.length;
-                    if (directControls.length > 0) {
-                        sink.onHorizontalControls(directControls);
+            if (activeNodes.has(element)) {
+                Logger.warn(
+                    `[MetaUI ${layoutName}] Circular layout element reference detected; stopping recursion.`,
+                    "",
+                    layoutName
+                );
+                continue;
+            }
+            activeNodes.add(element);
+            try {
+                if (element.type === "HorizontalLayout") {
+                    if (element.label) {
+                        sink.onSectionHeader?.(element.label, element.type);
                     }
-                    if (nonControls.length > 0) {
-                        controlCount += this.walk(nonControls, schema, engine, sink, layoutName, depth + 1);
+                    if (sink.onHorizontalControls) {
+                        const directControls = (element.elements || []).filter((e) => e.type === "Control");
+                        const nonControls = (element.elements || []).filter((e) => e.type !== "Control");
+                        // Resolve before counting and before dispatching, for the same reason as the `Control`
+                        // branch below: an unresolvable scope is not a rendered field. Counting it inflated
+                        // `controlCount`, and dispatching on the raw list made the sink emit a labelled but empty
+                        // row for a HorizontalLayout whose every scope was bad.
+                        const resolvedControls: IResolvedLayoutControl[] = [];
+                        for (const ctrlEl of directControls) {
+                            const resolved = this.resolveControlElement(
+                                ctrlEl,
+                                schema,
+                                engine,
+                                layoutName,
+                                activeNodes,
+                                activeRefs
+                            );
+                            if (resolved) {
+                                resolvedControls.push({ element: ctrlEl, ...resolved });
+                            }
+                        }
+                        controlCount += resolvedControls.length;
+                        if (resolvedControls.length > 0) {
+                            sink.onHorizontalControls(resolvedControls);
+                        }
+                        if (nonControls.length > 0) {
+                            controlCount += this.walk(
+                                nonControls,
+                                schema,
+                                engine,
+                                sink,
+                                layoutName,
+                                depth + 1,
+                                activeNodes,
+                                activeRefs
+                            );
+                        }
+                    } else {
+                        sink.onEnterContainer?.(element);
+                        if (Array.isArray(element.elements) && element.elements.length > 0) {
+                            controlCount += this.walk(
+                                element.elements,
+                                schema,
+                                engine,
+                                sink,
+                                layoutName,
+                                depth + 1,
+                                activeNodes,
+                                activeRefs
+                            );
+                        }
+                        sink.onExitContainer?.(element);
                     }
-                } else {
+                } else if (
+                    element.type === "Group" ||
+                    element.type === "WizardStep" ||
+                    element.type === "VerticalLayout"
+                ) {
                     sink.onEnterContainer?.(element);
+                    if (element.label) {
+                        sink.onSectionHeader?.(element.label, element.type);
+                    }
                     if (Array.isArray(element.elements) && element.elements.length > 0) {
-                        controlCount += this.walk(element.elements, schema, engine, sink, layoutName, depth + 1);
+                        controlCount += this.walk(
+                            element.elements,
+                            schema,
+                            engine,
+                            sink,
+                            layoutName,
+                            depth + 1,
+                            activeNodes,
+                            activeRefs
+                        );
                     }
                     sink.onExitContainer?.(element);
-                }
-            } else if (
-                element.type === "Group" ||
-                element.type === "WizardStep" ||
-                element.type === "VerticalLayout"
-            ) {
-                sink.onEnterContainer?.(element);
-                if (element.label) {
-                    sink.onSectionHeader?.(element.label, element.type);
-                }
-                if (Array.isArray(element.elements) && element.elements.length > 0) {
-                    controlCount += this.walk(element.elements, schema, engine, sink, layoutName, depth + 1);
-                }
-                sink.onExitContainer?.(element);
-            } else if (element.type === "Control") {
-                controlCount++;
-                const resolved = this.resolveControlElement(element, schema, engine, layoutName);
-                if (!resolved) {
-                    continue;
-                }
-                if (sink.onTableSubLayout && ArraySubSchemaFactory.isTableSubLayout(resolved.meta)) {
-                    sink.onTableSubLayout(element, resolved.bindingPath, resolved.propKey, resolved.meta);
+                } else if (element.type === "Control") {
+                    const resolved = this.resolveControlElement(
+                        element,
+                        schema,
+                        engine,
+                        layoutName,
+                        activeNodes,
+                        activeRefs
+                    );
+                    if (!resolved) {
+                        continue;
+                    }
+                    // Counted only after the scope resolves: the count is consumed by TableLayout as
+                    // "this uiLayout produced columns", so counting unresolvable elements yielded a
+                    // zero-column table instead of the items.properties fallback.
+                    controlCount++;
+                    const decision = LayoutScorer.getDecision(schema, element.scope);
+                    activeNodes.add(resolved.meta);
+                    if (resolved.meta.$ref) {
+                        activeRefs.add(resolved.meta.$ref);
+                    }
+                    try {
+                        if (sink.onTableSubLayout && ArraySubSchemaFactory.isTableSubLayout(resolved.meta, decision)) {
+                            sink.onTableSubLayout(element, resolved.bindingPath, resolved.propKey, resolved.meta);
+                        } else {
+                            sink.onScalarField(element, resolved.bindingPath, resolved.meta);
+                        }
+                    } finally {
+                        activeNodes.delete(resolved.meta);
+                        if (resolved.meta.$ref) {
+                            activeRefs.delete(resolved.meta.$ref);
+                        }
+                    }
                 } else {
-                    sink.onScalarField(element, resolved.bindingPath, resolved.meta);
+                    Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", layoutName);
                 }
-            } else {
-                Logger.warn(`[MetaUI] Unsupported layout element type '${element.type}'.`, "", layoutName);
+            } finally {
+                activeNodes.delete(element);
             }
         }
         return controlCount;

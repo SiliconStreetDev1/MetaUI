@@ -22,6 +22,13 @@ export interface IDeltaState {
     value: boolean;
     /** An optional custom error message to paint onto the field if validity is false. */
     errorMessage?: string;
+    /**
+     * True when at least one policy contributing to this target property had a condition the engine could not
+     * evaluate (an unregistered operator, a malformed condition block, or a condition plugin that threw).
+     * A degraded delta is a statement about a *broken rule*, never about the user's data: consumers must not
+     * let it hide a field or prune its value out of the payload. See `PolicyDelegate.applyDelta`.
+     */
+    degraded?: boolean;
 }
 
 interface ITargetState {
@@ -30,6 +37,7 @@ interface ITargetState {
     required?: boolean;
     editable?: boolean;
     errorMessage?: string;
+    degraded?: Partial<Record<PropertyName, boolean>>;
 }
 
 interface IPropertyCounts {
@@ -37,8 +45,22 @@ interface IPropertyCounts {
     activeTrue: number;
     fallbackFalse: number;
     fallbackTrue: number;
+    /** Number of contributing policies whose condition could not be evaluated; these cast no vote. */
+    degraded: number;
     lastMessage?: string;
 }
+
+/** Result of evaluating one policy condition tree against the live payload. */
+interface IConditionOutcome {
+    /** True when every operator in the condition block was satisfied. */
+    met: boolean;
+    /** True when at least one operator could not be evaluated, so `met` carries no information. */
+    degraded: boolean;
+}
+
+type TargetLedger = Record<PropertyName, IPropertyCounts>;
+
+const ALL_PROPERTY_NAMES: readonly PropertyName[] = ["visibility", "validity", "required", "editable"];
 
 /**
  * The PolicyEngine is responsible for evaluating complex, cross-field conditional logic defined in the schema's `uiPolicies` array.
@@ -128,33 +150,59 @@ export class PolicyEngine {
 
     /**
      * Evaluates a complex condition tree against the live JSON payload.
-     * Fails closed (`false`) if an unrecognized condition operator is encountered.
+     *
+     * A condition the engine cannot evaluate — an empty or malformed block, an unregistered operator, or a
+     * condition plugin that throws — is reported as **degraded** rather than as a plain `false`. A plain `false`
+     * means "the rule says no"; degraded means "there is no rule here", and `evaluate()` must not let it mutate
+     * UI state, because for a `Show` policy `false` becomes `visibility: false`, which prunes the user's value out
+     * of the submit payload. Degradation is logged at `error`, matching the severity of an unrecognized *effect*.
      *
      * @param condition The condition block to evaluate.
      * @param data The live JSON payload from the StateManager.
-     * @returns {boolean} True if all condition parameters are met, otherwise false.
+     * @returns {IConditionOutcome} Whether the condition was met, and whether it could be evaluated at all.
      */
-    private evaluateCondition(condition: IPolicyCondition, data: unknown): boolean {
+    private evaluateCondition(condition: IPolicyCondition, data: unknown): IConditionOutcome {
         if (!isRecord(condition) || Object.keys(condition).length === 0) {
-            Logger.warn("[MetaUI PolicyEngine] Malformed or empty policy condition block. Failing closed (false).");
-            return false;
+            Logger.error(
+                "[MetaUI PolicyEngine]",
+                "Malformed or empty policy condition block. The policy is treated as broken and applies no state.",
+                "PolicyEngine"
+            );
+            return { met: false, degraded: true };
         }
         let result = true;
+        let degraded = false;
         const registry = this.pluginRegistry;
 
         for (const [key, payload] of Object.entries(condition)) {
             const plugin = registry.getPolicyConditionPlugin(key);
-            if (plugin) {
+            if (!plugin) {
+                Logger.error(
+                    "[MetaUI PolicyEngine]",
+                    `Unrecognized condition operator: ${key}. The policy is treated as broken and applies no state.`,
+                    "PolicyEngine"
+                );
+                result = false;
+                degraded = true;
+                continue;
+            }
+            try {
                 if (!plugin.evaluate(payload, data, this.resolvePointer.bind(this))) {
                     result = false;
                 }
-            } else {
-                Logger.warn(`[MetaUI PolicyEngine] Unrecognized condition operator: ${key}`);
+            } catch (e) {
+                Logger.error(
+                    "[MetaUI PolicyEngine]",
+                    `Condition operator '${key}' threw and could not be evaluated: ` +
+                        (e instanceof Error ? e.message : String(e)),
+                    "PolicyEngine"
+                );
                 result = false;
+                degraded = true;
             }
         }
 
-        return result;
+        return { met: result, degraded };
     }
 
     /**
@@ -247,6 +295,79 @@ export class PolicyEngine {
     }
 
     /**
+     * Accumulates one policy's resolved effect into the per-target state resolution ledger.
+     *
+     * A policy whose condition is degraded casts **no vote**: it increments the bucket's `degraded` counter and
+     * leaves the active/fallback tallies untouched, so a rule the engine could not evaluate can never flip a field
+     * to hidden, optional or editable on its own.
+     *
+     * @param policy The (row-expanded) policy to accumulate.
+     * @param data The live JSON payload.
+     * @param initTargetInLedger Factory returning the mutable ledger row for a target pointer.
+     */
+    private accumulatePolicy(
+        policy: IPolicy,
+        data: unknown,
+        initTargetInLedger: (target: string) => TargetLedger
+    ): void {
+        const outcome = this.evaluateCondition(policy.condition, data);
+
+        for (const target of policy.targets || []) {
+            const currentLedger = initTargetInLedger(target);
+
+            const effectPlugin = this.pluginRegistry.getPolicyEffectPlugin(policy.effect);
+            if (!effectPlugin) {
+                Logger.error(`[MetaUI PolicyEngine] Unrecognized policy effect: ${policy.effect}`);
+                continue;
+            }
+            const mapped = effectPlugin.resolveState(outcome.met, policy.effect);
+            const bucket = currentLedger[mapped.property];
+            if (outcome.degraded) {
+                bucket.degraded++;
+                continue;
+            }
+            const isActiveTrigger = outcome.met || (policy.effect === "Validate" && !outcome.met);
+
+            if (isActiveTrigger) {
+                if (mapped.value) {
+                    bucket.activeTrue++;
+                } else {
+                    bucket.activeFalse++;
+                }
+            } else {
+                if (mapped.value) {
+                    bucket.fallbackTrue++;
+                } else {
+                    bucket.fallbackFalse++;
+                }
+            }
+
+            if (mapped.property === "validity" && !mapped.value && policy.message) {
+                bucket.lastMessage = policy.message;
+            }
+        }
+    }
+
+    /**
+     * Marks every property of a failed policy's targets as degraded.
+     *
+     * Used when the failure happened before the effect could be resolved, so the affected property is unknown.
+     * Registering the targets also keeps them present in the new state matrix, which stops `evaluate()` from
+     * emitting restorative cleanup deltas that would silently clear a policy error the broken rule had painted.
+     *
+     * @param policy The policy whose evaluation threw.
+     * @param initTargetInLedger Factory returning the mutable ledger row for a target pointer.
+     */
+    private markPolicyDegraded(policy: IPolicy, initTargetInLedger: (target: string) => TargetLedger): void {
+        for (const target of policy.targets || []) {
+            const currentLedger = initTargetInLedger(target);
+            for (const property of ALL_PROPERTY_NAMES) {
+                currentLedger[property].degraded++;
+            }
+        }
+    }
+
+    /**
      * Evaluates policies against the given data payload using a State Resolution Matrix.
      * Distinguishes active rules (`isConditionMet === true`) from un-met fallback reversals so multiple
      * `Show`/`Enable`/`Require`/`Optional` policies compose without cancelling each other out.
@@ -266,53 +387,38 @@ export class PolicyEngine {
             activeFalse: 0,
             activeTrue: 0,
             fallbackFalse: 0,
-            fallbackTrue: 0
+            fallbackTrue: 0,
+            degraded: 0
         });
 
-        const initTargetInLedger = (target: string): void => {
-            if (!ledger.has(target)) {
-                ledger.set(target, {
+        const initTargetInLedger = (target: string): TargetLedger => {
+            let entry = ledger.get(target);
+            if (!entry) {
+                entry = {
                     visibility: createCounts(),
                     validity: createCounts(),
                     required: createCounts(),
                     editable: createCounts()
-                });
+                };
+                ledger.set(target, entry);
             }
+            return entry;
         };
 
         for (const policy of expandedPolicies) {
-            const isConditionMet = this.evaluateCondition(policy.condition, data);
-
-            for (const target of policy.targets) {
-                initTargetInLedger(target);
-                const currentLedger = ledger.get(target)!;
-
-                const effectPlugin = this.pluginRegistry.getPolicyEffectPlugin(policy.effect);
-                if (!effectPlugin) {
-                    Logger.error(`[MetaUI PolicyEngine] Unrecognized policy effect: ${policy.effect}`);
-                    continue;
-                }
-                const mapped = effectPlugin.resolveState(isConditionMet, policy.effect);
-                const bucket = currentLedger[mapped.property];
-                const isActiveTrigger = isConditionMet || (policy.effect === "Validate" && !isConditionMet);
-
-                if (isActiveTrigger) {
-                    if (mapped.value) {
-                        bucket.activeTrue++;
-                    } else {
-                        bucket.activeFalse++;
-                    }
-                } else {
-                    if (mapped.value) {
-                        bucket.fallbackTrue++;
-                    } else {
-                        bucket.fallbackFalse++;
-                    }
-                }
-
-                if (mapped.property === "validity" && !mapped.value && policy.message) {
-                    bucket.lastMessage = policy.message;
-                }
+            // Per-policy isolation: one unregistered effect, one throwing effect plugin or one throwing condition
+            // plugin degrades only its own policy. Before this, a single throw aborted `evaluate()` entirely and
+            // every sibling policy in the form — including the ones holding validation errors — silently vanished.
+            try {
+                this.accumulatePolicy(policy, data, initTargetInLedger);
+            } catch (e) {
+                Logger.error(
+                    "[MetaUI PolicyEngine]",
+                    `Policy '${policy.effect}' on [${(policy.targets || []).join(", ")}] failed and applies no state: ` +
+                        (e instanceof Error ? e.message : String(e)),
+                    "PolicyEngine"
+                );
+                this.markPolicyDegraded(policy, initTargetInLedger);
             }
         }
 
@@ -332,21 +438,38 @@ export class PolicyEngine {
 
         for (const [target, stateMap] of ledger.entries()) {
             const entry: ITargetState = {};
-            const vis = resolveBucket(stateMap.visibility, false);
+            const previous = this.lastStateMatrix.get(target) || {};
+            const degraded: Partial<Record<PropertyName, boolean>> = {};
+            // A property whose only contributors were degraded resolves to `undefined`, which would drop it from the
+            // matrix and let the next pass re-emit it as a "change". Carrying the previous value forward keeps the
+            // state a working rule had already established while its broken sibling is unevaluable.
+            const resolveProperty = (property: PropertyName, preferTrueOnActiveConflict: boolean): boolean | undefined => {
+                const counts = stateMap[property];
+                if (counts.degraded > 0) {
+                    degraded[property] = true;
+                }
+                const resolved = resolveBucket(counts, preferTrueOnActiveConflict);
+                return resolved !== undefined ? resolved : counts.degraded > 0 ? previous[property] : undefined;
+            };
+
+            const vis = resolveProperty("visibility", false);
             if (vis !== undefined) entry.visibility = vis;
 
-            const val = resolveBucket(stateMap.validity, false);
+            const val = resolveProperty("validity", false);
             if (val !== undefined) {
                 entry.validity = val;
-                entry.errorMessage = val ? undefined : stateMap.validity.lastMessage;
+                entry.errorMessage = val ? undefined : stateMap.validity.lastMessage || previous.errorMessage;
             }
 
-            const req = resolveBucket(stateMap.required, true);
+            const req = resolveProperty("required", true);
             if (req !== undefined) entry.required = req;
 
-            const edit = resolveBucket(stateMap.editable, false);
+            const edit = resolveProperty("editable", false);
             if (edit !== undefined) entry.editable = edit;
 
+            if (Object.keys(degraded).length > 0) {
+                entry.degraded = degraded;
+            }
             newStateMatrix.set(target, entry);
         }
 
@@ -354,9 +477,15 @@ export class PolicyEngine {
 
         for (const [target, newState] of newStateMatrix.entries()) {
             const lastState = this.lastStateMatrix.get(target) || {};
+            const isDegraded = (property: PropertyName): boolean => newState.degraded?.[property] === true;
 
             if (newState.visibility !== undefined && newState.visibility !== lastState.visibility) {
-                deltas.push({ target, property: "visibility", value: newState.visibility });
+                deltas.push({
+                    target,
+                    property: "visibility",
+                    value: newState.visibility,
+                    degraded: isDegraded("visibility") || undefined
+                });
             }
             if (
                 newState.validity !== undefined &&
@@ -366,14 +495,25 @@ export class PolicyEngine {
                     target,
                     property: "validity",
                     value: newState.validity,
-                    errorMessage: newState.errorMessage
+                    errorMessage: newState.errorMessage,
+                    degraded: isDegraded("validity") || undefined
                 });
             }
             if (newState.required !== undefined && newState.required !== lastState.required) {
-                deltas.push({ target, property: "required", value: newState.required });
+                deltas.push({
+                    target,
+                    property: "required",
+                    value: newState.required,
+                    degraded: isDegraded("required") || undefined
+                });
             }
             if (newState.editable !== undefined && newState.editable !== lastState.editable) {
-                deltas.push({ target, property: "editable", value: newState.editable });
+                deltas.push({
+                    target,
+                    property: "editable",
+                    value: newState.editable,
+                    degraded: isDegraded("editable") || undefined
+                });
             }
         }
 

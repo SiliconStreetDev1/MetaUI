@@ -9,6 +9,7 @@ import { ValueState } from "sap/ui/core/library";
 import Event from "sap/ui/base/Event";
 import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
+import { Logger } from "../utils/Logger";
 
 /**
  * Constructor settings supported by `BaseHardwareControl` and all derived hardware controls.
@@ -22,6 +23,30 @@ export interface $BaseHardwareControlSettings extends $ControlSettings {
 }
 
 /**
+ * Why a hardware control could not obtain a value from the device it depends on.
+ *
+ * Every member describes the same class of event — *the browser will not hand this control the
+ * device* — which is why {@link BaseHardwareControl.reportCapabilityFailure} reports all of them
+ * at one severity and through one visible state. Before this existed, an absent camera logged at
+ * `warn` while a denied camera logged at `error`, so the same user-visible outcome (the button
+ * did nothing) was classified two different ways depending on which engine the page ran on.
+ */
+export type HardwareFailureReason = "unsupported" | "denied" | "timeout" | "failed";
+
+/**
+ * End-user sentence for each failure reason. `{capability}` is replaced with the device name.
+ *
+ * These are deliberately plain and actionable: the person pressed a button and nothing happened,
+ * and the message has to tell them whether to change a browser setting or give up on this engine.
+ */
+const FAILURE_TEXT: Readonly<Record<HardwareFailureReason, string>> = {
+    unsupported: "{capability} is not available in this browser.",
+    denied: "{capability} access was blocked. Allow it in the browser's site permissions and try again.",
+    timeout: "{capability} did not respond in time. Please try again.",
+    failed: "{capability} could not be used."
+};
+
+/**
  * Abstract base control providing shared properties (`value`, `schemaMetadata`, `readOnly`, `valueState`, `valueStateText`),
  * a hidden `_content` aggregation, and a `capture` event for hardware/media controls.
  *
@@ -29,6 +54,13 @@ export interface $BaseHardwareControlSettings extends $ControlSettings {
  * @public
  */
 export default class BaseHardwareControl extends Control {
+    /**
+     * Text of the capability message this control is currently painting, or `""` when none.
+     * Remembered so {@link BaseHardwareControl.clearCapabilityFailure} can retract its own message
+     * without erasing a validation error that the ValidationLedger painted in the meantime.
+     */
+    private capabilityFailureText: string = "";
+
     constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings) {
         super(idOrSettings as string, settings);
     }
@@ -148,6 +180,63 @@ export default class BaseHardwareControl extends Control {
      */
     protected syncHardwareState(): void {
         // Default no-op; overridden by subclasses
+    }
+
+    /**
+     * Reports that the device capability this control depends on could not be used.
+     *
+     * A missing or refused device API is the one failure a hardware control cannot work around, so it
+     * is **painted**, not merely logged: `valueState` becomes `Error` and `valueStateText` carries the
+     * sentence, which `BaseHardwareControlRenderer` renders as a red outline, an inline message line
+     * and `aria-invalid="true"` on the wrapper. A `Logger.warn` alone was invisible, because UI5's stock
+     * log level on a production page is `ERROR` and discarded it before anything — including the test
+     * harness — could observe it.
+     *
+     * The log entry is kept, at `error` for every reason. The severity is uniform on purpose: to the
+     * person pressing the button, an absent API and a denied permission are the same event, and `error`
+     * is the only level that survives the stock log level.
+     *
+     * @param capability Human-readable name of the device capability, e.g. `"Camera"`.
+     * @param reason Why the capability could not be used.
+     * @param detail Optional technical detail (an exception message, an error code) added to the log entry only.
+     */
+    protected reportCapabilityFailure(capability: string, reason: HardwareFailureReason, detail?: string): void {
+        const text = FAILURE_TEXT[reason].replace("{capability}", capability);
+        this.capabilityFailureText = text;
+        this.setValueState(ValueState.Error);
+        this.setValueStateText(text);
+        const shortName = this.getShortControlName();
+        Logger.error(`[MetaUI ${shortName}]`, detail ? `${text} (${reason}: ${detail})` : `${text} (${reason})`, shortName);
+    }
+
+    /**
+     * Retracts a message previously painted by {@link BaseHardwareControl.reportCapabilityFailure}.
+     *
+     * Called by a derived control once the device does deliver a value, so a retried capture clears the
+     * earlier failure. It only clears the state when the control is still showing *that* message: a
+     * validation error painted since then belongs to the ValidationLedger and must survive.
+     */
+    protected clearCapabilityFailure(): void {
+        const painted = this.capabilityFailureText;
+        if (!painted) {
+            return;
+        }
+        this.capabilityFailureText = "";
+        if (this.getValueStateText() !== painted) {
+            return;
+        }
+        this.setValueState(ValueState.None);
+        this.setValueStateText("");
+    }
+
+    /**
+     * Returns the unqualified class name used as the log prefix and component, e.g. `"CameraControl"`.
+     *
+     * @returns {string} The last segment of the UI5 metadata class name.
+     */
+    private getShortControlName(): string {
+        const segments = this.getMetadata().getName().split(".");
+        return segments[segments.length - 1] || "BaseHardwareControl";
     }
 
     /**

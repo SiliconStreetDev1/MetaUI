@@ -33,6 +33,8 @@ export interface IPluginEngineContext {
     getSchemaDefinition: (refPath: string) => ISchema | undefined;
     /** Returns the full normalized definitions dictionary from the host. */
     getSchemaDefinitions: () => Record<string, ISchema> | undefined;
+    /** Returns the host's layout budget, which a nested modal host inherits explicitly rather than through the schema. */
+    getLayoutBudget?: () => number;
     /** Returns the active JSONModel bound to the Engine. */
     getModel: () => Model | undefined;
     /** Triggers the host's form submission pipeline. */

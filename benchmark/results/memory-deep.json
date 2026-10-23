@@ -1,0 +1,232 @@
+{
+  "environment": {
+    "timestamp": "2026-10-22T22:53:59.684Z",
+    "node": "v24.15.0",
+    "v8": "13.6.233.17-node.48",
+    "puppeteer": "25.15.0",
+    "platform": "win32 10.0.26200 x64",
+    "cpuModel": "AMD Ryzen 7 7800X3D 8-Core Processor",
+    "cpuCount": 16,
+    "totalMemGB": 63.1,
+    "loadAvg": [
+      0,
+      0,
+      0
+    ],
+    "repeats": 7,
+    "quick": false,
+    "deep": false,
+    "groups": [
+      "memory"
+    ],
+    "distSource": "benchmark/.dist",
+    "distPath": "C:\\projects\\Games\\MetaUI\\benchmark\\.dist",
+    "chromium": "Chrome/155.0.8059.84",
+    "pageErrors": [],
+    "validationLogLines": 0
+  },
+  "records": [
+    {
+      "group": "memory",
+      "scenario": "mem.hostLifecycle",
+      "pass": 1,
+      "label": "create+generate+destroy x500 [pass 1]",
+      "params": {
+        "cycles": 500,
+        "fields": 30
+      },
+      "samples": {},
+      "summary": {},
+      "meta": {
+        "before": {
+          "usedHeapBytes": 6399796,
+          "totalHeapBytes": 7340032,
+          "domNodes": 120,
+          "jsEventListeners": 72,
+          "uiControls": 1,
+          "liveDomNodes": 99
+        },
+        "after": {
+          "usedHeapBytes": 11462620,
+          "totalHeapBytes": 12058624,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "deltaHeapBytes": 5062824,
+        "deltaHeapPerCycleBytes": 10125.648,
+        "deltaDomNodes": 18,
+        "deltaListeners": 32,
+        "deltaUiControls": 1,
+        "absHeapBytesAfter": 11462620,
+        "absUiControlsAfter": 2,
+        "absDomNodesAfter": 138,
+        "wallMs": 23698,
+        "error": null
+      }
+    },
+    {
+      "group": "memory",
+      "scenario": "mem.hostLifecycle",
+      "pass": 2,
+      "label": "create+generate+destroy x500 [pass 2]",
+      "params": {
+        "cycles": 500,
+        "fields": 30
+      },
+      "samples": {},
+      "summary": {},
+      "meta": {
+        "before": {
+          "usedHeapBytes": 11455960,
+          "totalHeapBytes": 12058624,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "after": {
+          "usedHeapBytes": 11667372,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "deltaHeapBytes": 211412,
+        "deltaHeapPerCycleBytes": 422.824,
+        "deltaDomNodes": 0,
+        "deltaListeners": 0,
+        "deltaUiControls": 0,
+        "absHeapBytesAfter": 11667372,
+        "absUiControlsAfter": 2,
+        "absDomNodesAfter": 138,
+        "wallMs": 21824,
+        "error": null
+      }
+    },
+    {
+      "group": "memory",
+      "scenario": "mem.hostLifecycle",
+      "pass": 3,
+      "label": "create+generate+destroy x500 [pass 3]",
+      "params": {
+        "cycles": 500,
+        "fields": 30
+      },
+      "samples": {},
+      "summary": {},
+      "meta": {
+        "before": {
+          "usedHeapBytes": 11667400,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "after": {
+          "usedHeapBytes": 11710340,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "deltaHeapBytes": 42940,
+        "deltaHeapPerCycleBytes": 85.88,
+        "deltaDomNodes": 0,
+        "deltaListeners": 0,
+        "deltaUiControls": 0,
+        "absHeapBytesAfter": 11710340,
+        "absUiControlsAfter": 2,
+        "absDomNodesAfter": 138,
+        "wallMs": 21954,
+        "error": null
+      }
+    },
+    {
+      "group": "memory",
+      "scenario": "mem.hostLifecycle",
+      "pass": 4,
+      "label": "create+generate+destroy x500 [pass 4]",
+      "params": {
+        "cycles": 500,
+        "fields": 30
+      },
+      "samples": {},
+      "summary": {},
+      "meta": {
+        "before": {
+          "usedHeapBytes": 11710340,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "after": {
+          "usedHeapBytes": 11724948,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "deltaHeapBytes": 14608,
+        "deltaHeapPerCycleBytes": 29.216,
+        "deltaDomNodes": 0,
+        "deltaListeners": 0,
+        "deltaUiControls": 0,
+        "absHeapBytesAfter": 11724948,
+        "absUiControlsAfter": 2,
+        "absDomNodesAfter": 138,
+        "wallMs": 22198,
+        "error": null
+      }
+    },
+    {
+      "group": "memory",
+      "scenario": "mem.hostLifecycle",
+      "pass": 5,
+      "label": "create+generate+destroy x500 [pass 5]",
+      "params": {
+        "cycles": 500,
+        "fields": 30
+      },
+      "samples": {},
+      "summary": {},
+      "meta": {
+        "before": {
+          "usedHeapBytes": 11724948,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "after": {
+          "usedHeapBytes": 11748264,
+          "totalHeapBytes": 12582912,
+          "domNodes": 138,
+          "jsEventListeners": 104,
+          "uiControls": 2,
+          "liveDomNodes": 115
+        },
+        "deltaHeapBytes": 23316,
+        "deltaHeapPerCycleBytes": 46.632,
+        "deltaDomNodes": 0,
+        "deltaListeners": 0,
+        "deltaUiControls": 0,
+        "absHeapBytesAfter": 11748264,
+        "absUiControlsAfter": 2,
+        "absDomNodesAfter": 138,
+        "wallMs": 21498,
+        "error": null
+      }
+    }
+  ],
+  "curves": {},
+  "servedRequests": 89
+}

@@ -6,11 +6,14 @@
 
 import { IPlugin } from "../interfaces/IPlugin";
 import { FieldType, ISchema, IPropertyMetadata, ILayoutElement } from "../interfaces/ISchema";
-import { SCHEMA_TYPE, LAYOUT_STRATEGY } from "../constants/MetaUIConstants";
+import { SCHEMA_TYPE, LAYOUT_STRATEGY, MAX_SCHEMA_DEPTH, MAX_LAYOUT_DEPTH } from "../constants/MetaUIConstants";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { IPolicyConditionPlugin, IPolicyEffectPlugin } from "../interfaces/IPolicyPlugin";
 import { DefaultPluginBootstrapper } from "./DefaultPluginBootstrapper";
+import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import { Registry } from "./Registry";
+import { SchemaNormalizer } from "./SchemaNormalizer";
+import { SchemaWalker, ISchemaWalkOptions, SchemaVisitor } from "./SchemaWalker";
 import { Logger } from "../utils/Logger";
 import { isRecord } from "../utils/TypeGuards";
 
@@ -31,6 +34,44 @@ export class PluginRegistry {
     private readonly policyEffectIndex: Registry<string> = new Registry<string>("PolicyEffectIndex");
     private activePromises: Record<string, Promise<unknown>> = {};
 
+    /**
+     * Diagnostics already emitted by this registry, keyed by what they describe.
+     *
+     * A single misconfigured field is walked repeatedly - once per preload scan, once per host and
+     * once per validation pass - so an undeduplicated warning was printed nine times for one typo and
+     * buried every other message on the page. The warning still fires; it fires once.
+     */
+    private readonly emittedDiagnostics: Set<string> = new Set<string>();
+
+    /**
+     * Memoised policy plugin instances, keyed by operator / effect name.
+     *
+     * `PolicyEngine` resolves a condition plugin once per condition key per rule and an effect plugin
+     * once per *target* per rule, on every evaluation pass. Each unmemoised resolution cost a
+     * synchronous `sap.ui.require()` plus a `new Ctor()` - 1.39 us against the ~0.005 us of actual work
+     * the instance then performs, which made plugin lookup 40-78% of all policy evaluation time.
+     *
+     * Memoising is only sound because both policy plugin contracts are stateless: every
+     * `IPolicyConditionPlugin.evaluate` and `IPolicyEffectPlugin.resolveState` implementation is a pure
+     * function of its arguments, holds no instance fields and has no lifecycle. **A policy plugin that
+     * carries per-call state would be shared across every rule in every form by this cache.**
+     *
+     * `IPlugin` action plugins are deliberately NOT cached: they are `BasePlugin` subclasses that own a
+     * rendered control and are destroyed with their field, so sharing one instance across two fields
+     * would alias their controls and let one field's `destroy()` tear down the other's.
+     */
+    private readonly policyConditionInstances: Map<string, IPolicyConditionPlugin> = new Map();
+    private readonly policyEffectInstances: Map<string, IPolicyEffectPlugin> = new Map();
+
+    /** Emits `message` as a warning the first time this registry sees `key`, and never again. */
+    private warnOnce(key: string, message: string): void {
+        if (this.emittedDiagnostics.has(key)) {
+            return;
+        }
+        this.emittedDiagnostics.add(key);
+        Logger.warn(message);
+    }
+
     private constructor() {
         DefaultPluginBootstrapper.registerDefaults(this);
     }
@@ -43,30 +84,37 @@ export class PluginRegistry {
         return PluginRegistry.instance;
     }
 
-    /** Registers a UI5 module path for a `(type, widget)` combination. */
+    /**
+     * Registers a UI5 module path for a `(type, widget)` combination.
+     *
+     * Goes through {@link Registry.register} so replacing an existing mapping emits the registry's
+     * overwrite warning instead of silently shadowing a built-in plugin.
+     */
     public registerPluginPath(type: FieldType, widgetName: string | undefined, path: string): void {
         const key = widgetName ? `${type}:${widgetName}` : type;
-        this.fieldIndex.items.set(key, path);
+        this.fieldIndex.register(key, path);
     }
 
-    /** Registers a custom action plugin path. */
+    /** Registers a custom action plugin path, resolvable through {@link PluginRegistry.getActionPlugin}. */
     public registerActionPath(actionName: string, path: string): void {
-        this.actionIndex.items.set(actionName, path);
+        this.actionIndex.register(actionName, path);
     }
 
     /** Registers a layout strategy module path. */
     public registerLayoutPath(strategy: string, path: string): void {
-        this.layoutIndex.items.set(strategy, path);
+        this.layoutIndex.register(strategy, path);
     }
 
-    /** Registers a policy condition operator module path. */
+    /** Registers a policy condition operator module path, discarding any memoised instance for that key. */
     public registerPolicyConditionPath(conditionKey: string, path: string): void {
-        this.policyConditionIndex.items.set(conditionKey, path);
+        this.policyConditionIndex.register(conditionKey, path);
+        this.policyConditionInstances.delete(conditionKey);
     }
 
-    /** Registers a policy effect module path. */
+    /** Registers a policy effect module path, discarding any memoised instance for that effect. */
     public registerPolicyEffectPath(effectName: string, path: string): void {
-        this.policyEffectIndex.items.set(effectName, path);
+        this.policyEffectIndex.register(effectName, path);
+        this.policyEffectInstances.delete(effectName);
     }
 
     private getFieldPath(type: FieldType, widgetName?: string): string {
@@ -74,9 +122,10 @@ export class PluginRegistry {
         if (widgetName) {
             path = this.fieldIndex.get(`${type}:${widgetName}`);
             if (!path) {
-                Logger.warn(
+                this.warnOnce(
+                    `unregistered-widget:${type}:${widgetName}`,
                     `[MetaUI PluginRegistry] Unregistered widget '${widgetName}' for type '${type}'; ` +
-                        `falling back to default '${type}' plugin.`
+                        `falling back to default '${type}' plugin. (Reported once per registry.)`
                 );
             }
         }
@@ -106,101 +155,218 @@ export class PluginRegistry {
      */
     public getPathsToLoad(schema: ISchema, normalizedDefinitions?: Record<string, ISchema>): Set<string> {
         const pathsToLoad = new Set<string>();
-        const strategy =
-            schema.layoutStrategy || (schema.type === SCHEMA_TYPE.ARRAY ? LAYOUT_STRATEGY.TABLE : LAYOUT_STRATEGY.FORM);
+        const strategy = DefaultLayoutGenerator.resolveLayoutStrategy(schema);
         pathsToLoad.add(this.getLayoutPath(strategy));
 
-        const scanProperty = (prop: IPropertyMetadata, key: string): void => {
-            if (!prop || typeof prop !== "object") return;
-            if (prop.type || prop.ui?.widget) {
+        // WALKER_EXEMPT: PluginRegistry.scanLayoutElements walks an ILayoutElement[] uiLayout tree (Group/WizardStep/Control nodes), not an ISchema property tree.
+        const scanLayoutElements = (
+            elements: ILayoutElement[] | undefined,
+            propsContext?: Record<string, IPropertyMetadata>,
+            depth: number = 0,
+            activeElements: WeakSet<object> = new WeakSet<object>()
+        ): void => {
+            if (!Array.isArray(elements)) return;
+            if (depth > MAX_LAYOUT_DEPTH) {
+                Logger.warn(
+                    `[MetaUI PluginRegistry] uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); ` +
+                        `layout elements below this level were not scanned for plugin preloading.`
+                );
+                return;
+            }
+            for (const el of elements) {
+                if (!el || typeof el !== "object") continue;
+                if (activeElements.has(el)) {
+                    Logger.warn(
+                        "[MetaUI PluginRegistry] Circular uiLayout element reference detected; stopping recursion."
+                    );
+                    continue;
+                }
+                activeElements.add(el);
                 try {
-                    pathsToLoad.add(this.getFieldPath(prop.type || SCHEMA_TYPE.STRING, prop.ui?.widget));
+                    if (el.widget) {
+                        let resolvedType: FieldType = SCHEMA_TYPE.STRING;
+                        if (el.scope && propsContext) {
+                            // A nested scope such as '#/properties/Header/properties/Code' must be walked in full.
+                            // Taking only the last segment looked 'Code' up in the ROOT property map, missed it, and
+                            // preloaded the default 'string' plugin - so the real widget failed to render at runtime.
+                            const { meta } = SchemaNormalizer.resolveScope(
+                                { type: "object", properties: propsContext },
+                                el.scope
+                            );
+                            if (meta?.type) {
+                                resolvedType = meta.type;
+                            }
+                        }
+                        try {
+                            pathsToLoad.add(this.getFieldPath(resolvedType, el.widget));
+                        } catch (e) {
+                            // Logger.debug is suppressed in production, which made this the one genuinely
+                            // silent failure in the registry: the widget is skipped and the field later
+                            // renders as something the schema never asked for, with nothing in the console.
+                            this.warnOnce(
+                                `unpreloadable-layout-widget:${resolvedType}:${el.widget}`,
+                                `[MetaUI PluginRegistry] Skipping preload for uiLayout widget '${el.widget}' on type ` +
+                                    `'${resolvedType}': ${(e as Error).message} (Reported once per registry.)`
+                            );
+                        }
+                    }
+                    if (el.elements) {
+                        scanLayoutElements(el.elements, propsContext, depth + 1, activeElements);
+                    }
+                } finally {
+                    activeElements.delete(el);
+                }
+            }
+        };
+
+        const formatDiagKey = (scope: string, fallbackKey: string): string => {
+            const propIdx = scope.lastIndexOf("/properties/");
+            const tail =
+                propIdx >= 0
+                    ? scope.slice(propIdx + "/properties/".length)
+                    : scope.startsWith("#/definitions/")
+                      ? scope.slice("#/definitions/".length)
+                      : scope.startsWith("#/")
+                        ? scope.slice(2)
+                        : fallbackKey;
+            return tail
+                .replace(/\/items\//g, ".items.")
+                .replace(/\/(oneOf|anyOf|allOf)\/(\d+)/g, ".$1[$2]");
+        };
+
+        const arrayItemNodes = new WeakSet<object>();
+        const pendingItemTypeNodes = new WeakSet<object>();
+        const additionalPropNodes = new WeakSet<object>();
+
+        const addArrayItemFieldPath = (itemNode: IPropertyMetadata): void => {
+            if (!pendingItemTypeNodes.has(itemNode)) return;
+            pendingItemTypeNodes.delete(itemNode);
+            if (itemNode.type || itemNode.ui?.widget) {
+                try {
+                    pathsToLoad.add(this.getFieldPath(itemNode.type || SCHEMA_TYPE.STRING, itemNode.ui?.widget));
                 } catch (e) {
-                    const msg = `[MetaUI LazyLoad] Could not find mapped plugin for field ${key}: ${(e as Error).message}`;
+                    const msg =
+                        `[MetaUI LazyLoad] Could not find mapped plugin for array item type ` +
+                        `${itemNode.type}: ${(e as Error).message}`;
                     Logger.error(msg);
                     throw new Error(msg);
                 }
             }
-            if (prop.properties) scanProperties(prop.properties);
-            if (prop.items) {
-                if (prop.items.properties || prop.items.$ref) {
-                    pathsToLoad.add(this.getLayoutPath(LAYOUT_STRATEGY.TABLE));
-                    if (prop.items.properties) {
-                        scanProperties(prop.items.properties);
-                    }
-                }
-                if (prop.items.type || prop.items.ui?.widget) {
-                    try {
-                        pathsToLoad.add(this.getFieldPath(prop.items.type || SCHEMA_TYPE.STRING, prop.items.ui?.widget));
-                    } catch (e) {
-                        const msg =
-                            `[MetaUI LazyLoad] Could not find mapped plugin for array item type ` +
-                            `${prop.items.type}: ${(e as Error).message}`;
-                        Logger.error(msg);
-                        throw new Error(msg);
-                    }
-                }
-                if (prop.items.oneOf) prop.items.oneOf.forEach((b, idx) => scanProperty(b, `${key}.items.oneOf[${idx}]`));
-                if (prop.items.anyOf) prop.items.anyOf.forEach((b, idx) => scanProperty(b, `${key}.items.anyOf[${idx}]`));
-                if (prop.items.allOf) prop.items.allOf.forEach((b, idx) => scanProperty(b, `${key}.items.allOf[${idx}]`));
+        };
+
+        const visitor: SchemaVisitor = (ctx) => {
+            if (ctx.parent && pendingItemTypeNodes.has(ctx.parent) && ctx.parent.properties?.[ctx.key] !== ctx.rawNode) {
+                addArrayItemFieldPath(ctx.parent);
             }
-            if (isRecord(prop.additionalProperties) && typeof prop.additionalProperties.type === "string") {
-                const addProp = prop.additionalProperties as IPropertyMetadata;
+            if (ctx.parent && ctx.parent.not === ctx.rawNode && ctx.key === "not") {
+                return "skip-subtree";
+            }
+            if (ctx.parent && additionalPropNodes.has(ctx.parent)) {
+                if (ctx.parent.properties?.[ctx.key] !== ctx.rawNode) {
+                    return "skip-subtree";
+                }
+            }
+            if (ctx.parent && arrayItemNodes.has(ctx.parent)) {
+                if (ctx.parent.additionalProperties === ctx.rawNode && ctx.key === "additionalProperties") {
+                    return "skip-subtree";
+                }
+            }
+            if (ctx.parent && ctx.parent.additionalProperties === ctx.rawNode && ctx.key === "additionalProperties") {
+                if (typeof ctx.node.type !== "string") {
+                    return "skip-subtree";
+                }
+                const parentScope = ctx.scope.slice(0, -"/additionalProperties".length);
+                const parentKey = formatDiagKey(parentScope, ctx.key);
                 try {
-                    pathsToLoad.add(this.getFieldPath(addProp.type, addProp.ui?.widget));
+                    pathsToLoad.add(this.getFieldPath(ctx.node.type, ctx.node.ui?.widget));
                 } catch (e) {
                     Logger.warn(
-                        `[MetaUI LazyLoad] Could not preload additionalProperties plugin for '${key}': ${(e as Error).message}`
+                        `[MetaUI LazyLoad] Could not preload additionalProperties plugin for '${parentKey}': ` +
+                            `${(e as Error).message}`
                     );
                 }
-                if (addProp.properties) scanProperties(addProp.properties);
-            }
-            if (prop.oneOf) prop.oneOf.forEach((b, idx) => scanProperty(b, `${key}.oneOf[${idx}]`));
-            if (prop.anyOf) prop.anyOf.forEach((b, idx) => scanProperty(b, `${key}.anyOf[${idx}]`));
-            if (prop.allOf) prop.allOf.forEach((b, idx) => scanProperty(b, `${key}.allOf[${idx}]`));
-            if (prop.uiLayout) scanLayoutElements(prop.uiLayout, prop.properties);
-        };
-
-        const scanProperties = (props: Record<string, IPropertyMetadata>): void => {
-            for (const key of Object.keys(props)) {
-                scanProperty(props[key], key);
-            }
-        };
-
-        const scanLayoutElements = (
-            elements: ILayoutElement[] | undefined,
-            propsContext?: Record<string, IPropertyMetadata>
-        ): void => {
-            if (!Array.isArray(elements)) return;
-            for (const el of elements) {
-                if (el.widget) {
-                    let resolvedType: FieldType = SCHEMA_TYPE.STRING;
-                    if (el.scope && propsContext) {
-                        const propKey = el.scope.split("/").pop();
-                        if (propKey && propsContext[propKey]?.type) {
-                            resolvedType = propsContext[propKey].type;
-                        }
-                    }
-                    try {
-                        pathsToLoad.add(this.getFieldPath(resolvedType, el.widget));
-                    } catch (e) {
-                        Logger.debug(
-                            "[MetaUI PluginRegistry]",
-                            `Skipping preload for layout widget '${el.widget}' on type '${resolvedType}': ${(e as Error).message}`
-                        );
-                    }
+                if (!ctx.node.properties) {
+                    return "skip-subtree";
                 }
-                if (el.elements) {
-                    scanLayoutElements(el.elements, propsContext);
+                additionalPropNodes.add(ctx.node);
+                return;
+            }
+            if (ctx.isArrayItem) {
+                if (ctx.node.properties || ctx.node.$ref) {
+                    pathsToLoad.add(this.getLayoutPath(LAYOUT_STRATEGY.TABLE));
+                }
+                pendingItemTypeNodes.add(ctx.node);
+                if (!ctx.node.properties) {
+                    addArrayItemFieldPath(ctx.node);
+                }
+                arrayItemNodes.add(ctx.node);
+                return;
+            }
+            if (ctx.node.type || ctx.node.ui?.widget) {
+                const diagKey = formatDiagKey(ctx.scope, ctx.key);
+                try {
+                    pathsToLoad.add(this.getFieldPath(ctx.node.type || SCHEMA_TYPE.STRING, ctx.node.ui?.widget));
+                } catch (e) {
+                    const msg =
+                        `[MetaUI LazyLoad] Could not find mapped plugin for field ${diagKey}: ` +
+                        `${(e as Error).message}`;
+                    Logger.error(msg);
+                    throw new Error(msg);
+                }
+            }
+            return;
+        };
+
+        const walkOptions: ISchemaWalkOptions = {
+            resolveRefs: false,
+            visitCombinators: true,
+            silentTruncationLog: true,
+            shouldVisitChild: (_child, _key, parent, isArrayItem) => {
+                if (isArrayItem) {
+                    if (Array.isArray(parent.items)) return false;
+                    if (arrayItemNodes.has(parent) || additionalPropNodes.has(parent)) return false;
+                }
+                return true;
+            },
+            onLeave: (ctx) => {
+                if (ctx.isArrayItem) {
+                    addArrayItemFieldPath(ctx.node);
+                    arrayItemNodes.delete(ctx.node);
+                    return;
+                }
+                if (ctx.parent && ctx.parent.additionalProperties === ctx.rawNode && ctx.key === "additionalProperties") {
+                    additionalPropNodes.delete(ctx.node);
+                    return;
+                }
+                if (ctx.node.uiLayout) {
+                    scanLayoutElements(ctx.node.uiLayout, ctx.node.properties);
+                }
+            },
+            onTruncate: (scope, reason) => {
+                if (reason === "depth") {
+                    Logger.warn(
+                        "[MetaUI PluginRegistry]",
+                        `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${scope}'; ` +
+                            `plugins below this level were not preloaded.`
+                    );
+                } else {
+                    Logger.warn(
+                        "[MetaUI PluginRegistry]",
+                        `Circular schema reference detected at '${scope}'; stopping plugin preload recursion.`
+                    );
                 }
             }
         };
 
         if (schema.properties) {
-            scanProperties(schema.properties);
+            SchemaWalker.walk({ type: SCHEMA_TYPE.OBJECT, properties: schema.properties }, visitor, walkOptions);
         }
         if (schema.items) {
-            scanProperty({ type: SCHEMA_TYPE.ARRAY, items: schema.items }, "items");
+            SchemaWalker.walk(
+                { type: SCHEMA_TYPE.ARRAY, items: schema.items },
+                visitor,
+                { ...walkOptions, visitRoot: true, baseScope: "#/items" }
+            );
         }
         if (schema.uiLayout) {
             scanLayoutElements(schema.uiLayout, schema.properties || schema.items?.properties);
@@ -212,7 +378,7 @@ export class PluginRegistry {
         };
         for (const defKey of Object.keys(allDefs)) {
             const defSchema = allDefs[defKey];
-            scanProperty(
+            SchemaWalker.walk(
                 {
                     type: defSchema.type || SCHEMA_TYPE.OBJECT,
                     properties: defSchema.properties,
@@ -223,7 +389,8 @@ export class PluginRegistry {
                     additionalProperties: defSchema.additionalProperties,
                     ui: defSchema.ui
                 },
-                defKey
+                visitor,
+                { ...walkOptions, visitRoot: true, baseScope: `#/definitions/${defKey}` }
             );
         }
 
@@ -250,20 +417,28 @@ export class PluginRegistry {
     }
 
     /**
-     * Defers the generation of the UI until all required UI5 modules have been
-     * downloaded asynchronously. Maintains a cache of active promises to prevent
-     * redundant network requests for the same module.
+     * Defers the generation of the UI until every required UI5 module has been resolved one way or
+     * the other. Maintains a cache of active promises to prevent redundant network requests for the
+     * same module.
+     *
+     * **This settles; it never rejects.** A single unresolvable module path used to reject the whole
+     * batch, which aborted `GeneratorHost` generation and left the user with no form at all. The
+     * modules that *did* load are in the require cache either way, so the fields that need them must
+     * still render. A field whose module is missing fails later, in `Engine.generateField`, where it
+     * degrades to the per-field `[Error generating field X]` placeholder and raises the form-level
+     * `MessageStrip` - the same visible degradation a plugin whose `render()` throws already produces.
      *
      * @param {ISchema} schema The root JSON schema payload to parse.
      * @param {Record<string, ISchema>} [normalizedDefinitions] Optional external `$ref` definitions dictionary.
-     * @returns {Promise<void>} Resolves when all dependencies are securely in the UI5 require cache.
+     * @returns {Promise<void>} Resolves once every dependency has either loaded or failed loudly.
      */
     public async preloadDependencies(
         schema: ISchema,
         normalizedDefinitions?: Record<string, ISchema>
     ): Promise<void> {
         const pathsToLoad = this.getPathsToLoad(schema, normalizedDefinitions);
-        const promises = Array.from(pathsToLoad).map((path) => {
+        const orderedPaths = Array.from(pathsToLoad);
+        const promises = orderedPaths.map((path) => {
             if (!this.activePromises[path]) {
                 this.activePromises[path] = new Promise((resolve, reject) => {
                     sap.ui.require(
@@ -289,7 +464,16 @@ export class PluginRegistry {
             }
             return this.activePromises[path];
         });
-        await Promise.all(promises);
+
+        const outcomes = await Promise.allSettled(promises);
+        const unloadable = orderedPaths.filter((_, index) => outcomes[index].status === "rejected");
+        if (unloadable.length > 0) {
+            Logger.error(
+                `[MetaUI PluginRegistry] ${unloadable.length} of ${orderedPaths.length} required modules could not be ` +
+                    `loaded: ${unloadable.join(", ")}. The fields that need them will render an inline error ` +
+                    `placeholder; every other field renders normally.`
+            );
+        }
     }
 
     /**
@@ -383,15 +567,86 @@ export class PluginRegistry {
         return this.requireAndConstruct<ILayoutManager>(path, "Layout")!;
     }
 
-    /** Gets a specific condition plugin. */
-    public getPolicyConditionPlugin(conditionKey: string): IPolicyConditionPlugin | undefined {
-        const path = this.policyConditionIndex.get(conditionKey);
-        return path ? this.requireAndConstruct<IPolicyConditionPlugin>(path) : undefined;
+    /**
+     * Resolves the module path registered for a custom action by {@link PluginRegistry.registerActionPath}.
+     *
+     * @param actionName The registered action name.
+     * @returns {string | undefined} The registered module path, or undefined when the action is unknown.
+     */
+    public getActionPath(actionName: string): string | undefined {
+        return this.actionIndex.get(actionName);
     }
 
-    /** Gets a specific effect plugin. */
+    /**
+     * Instantiates a custom action plugin registered by {@link PluginRegistry.registerActionPath}.
+     *
+     * Deliberately **not** memoised, unlike the policy plugin getters: an `IPlugin` owns the control it
+     * rendered and is destroyed with its field, so handing two fields the same instance would alias
+     * their controls. It is also not on a hot path - `PolicyEngine` is.
+     *
+     * @param actionName The registered action name.
+     * @returns {IPlugin | undefined} The instantiated action plugin, or undefined when unregistered or not preloaded.
+     */
+    public getActionPlugin(actionName: string): IPlugin | undefined {
+        const path = this.actionIndex.get(actionName);
+        return path ? this.requireAndConstruct<IPlugin>(path) : undefined;
+    }
+
+    /**
+     * Resolves a policy plugin instance, memoising it so the hot `PolicyEngine` path pays the
+     * `sap.ui.require()` + `new Ctor()` round trip once per key instead of once per rule per pass.
+     *
+     * A registered key whose module is not in the AMD cache is reported once, explicitly, because
+     * `PolicyEngine` cannot tell that case apart from an unknown operator: it logs
+     * "Unrecognized condition operator" per rule, per target, per pass, which both misdiagnoses the
+     * cause and buries it. Nothing is memoised on that path, so a later
+     * {@link PluginRegistry.preloadDependencies} still repairs it.
+     */
+    private resolvePolicyPlugin<T>(
+        kind: "condition" | "effect",
+        key: string,
+        index: Registry<string>,
+        cache: Map<string, T>
+    ): T | undefined {
+        const cached = cache.get(key);
+        if (cached) {
+            return cached;
+        }
+        const path = index.get(key);
+        if (!path) {
+            return undefined;
+        }
+        const plugin = this.requireAndConstruct<T>(path);
+        if (!plugin) {
+            this.warnOnce(
+                `unpreloaded-policy-${kind}:${key}`,
+                `[MetaUI PluginRegistry] Policy ${kind} '${key}' is registered to '${path}', but that module is not ` +
+                    `in the UI5 module cache, so every rule using it is being discarded as unrecognized. Call ` +
+                    `preloadDependencies() for the schema before evaluating its policies. (Reported once per registry.)`
+            );
+            return undefined;
+        }
+        cache.set(key, plugin);
+        return plugin;
+    }
+
+    /** Gets a specific condition plugin. Memoised: see {@link PluginRegistry.resolvePolicyPlugin}. */
+    public getPolicyConditionPlugin(conditionKey: string): IPolicyConditionPlugin | undefined {
+        return this.resolvePolicyPlugin<IPolicyConditionPlugin>(
+            "condition",
+            conditionKey,
+            this.policyConditionIndex,
+            this.policyConditionInstances
+        );
+    }
+
+    /** Gets a specific effect plugin. Memoised: see {@link PluginRegistry.resolvePolicyPlugin}. */
     public getPolicyEffectPlugin(effectName: string): IPolicyEffectPlugin | undefined {
-        const path = this.policyEffectIndex.get(effectName);
-        return path ? this.requireAndConstruct<IPolicyEffectPlugin>(path) : undefined;
+        return this.resolvePolicyPlugin<IPolicyEffectPlugin>(
+            "effect",
+            effectName,
+            this.policyEffectIndex,
+            this.policyEffectInstances
+        );
     }
 }

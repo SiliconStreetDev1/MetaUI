@@ -1,0 +1,13 @@
+{
+  "name": "@siliconst/metaui-browser-matrix",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Self-contained cross-engine (Chromium/Firefox/WebKit) compatibility harness for MetaUI. Kept out of the root package.json deliberately: Playwright pulls ~1GB of browser binaries and must not be a dependency of the normal `npm test` path.",
+  "scripts": {
+    "install-browsers": "playwright install chromium firefox webkit",
+    "test": "node run-browser-matrix.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

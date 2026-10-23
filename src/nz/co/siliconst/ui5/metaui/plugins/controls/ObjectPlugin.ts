@@ -7,6 +7,7 @@
 import { INestedDialogDescriptor, NestedDialogPlugin } from "./NestedDialogPlugin";
 import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering nested object triggers (`sap.m.Button`) inside forms or table cells,
@@ -16,7 +17,7 @@ import { isRecord } from "../../utils/TypeGuards";
  * @public
  */
 export class ObjectPlugin extends NestedDialogPlugin {
-    protected readonly defaultErrorTooltip: string = "Invalid nested object";
+    protected readonly defaultErrorTooltipKey: MetaUITextKey = TEXT_KEY.nestedObjectInvalid;
     protected readonly emptyFallbackValue: unknown = null;
 
     /**
@@ -26,7 +27,7 @@ export class ObjectPlugin extends NestedDialogPlugin {
      * @returns {string} The button label stem.
      */
     protected getDefaultLabel(metadata: IPropertyMetadata): string {
-        return metadata.ui?.label || "Details";
+        return metadata.ui?.label || I18n.getText(TEXT_KEY.nestedObjectLabel);
     }
 
     /**
@@ -56,7 +57,7 @@ export class ObjectPlugin extends NestedDialogPlugin {
      * @returns {INestedDialogDescriptor} The modal dialog descriptor.
      */
     protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor {
-        const title = metadata.ui?.label || "Object Details";
+        const title = metadata.ui?.label || I18n.getText(TEXT_KEY.nestedObjectTitle);
         const subSchema: ISchema = {
             title,
             type: "object",
@@ -66,7 +67,8 @@ export class ObjectPlugin extends NestedDialogPlugin {
             readOnly: metadata.readOnly,
             minProperties: metadata.minProperties,
             maxProperties: metadata.maxProperties,
-            required: Array.isArray(metadata.required) ? metadata.required : undefined
+            required: Array.isArray(metadata.required) ? metadata.required : undefined,
+            ui: this.buildSubSchemaUi(metadata)
         };
         return { title, subSchema, isArrayRoot: false };
     }

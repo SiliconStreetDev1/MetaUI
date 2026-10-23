@@ -8,6 +8,7 @@ import Message from "sap/ui/core/message/Message";
 import Messaging from "sap/ui/core/Messaging";
 import { ISchema } from "../interfaces/ISchema";
 import SandboxJSONModel from "./SandboxJSONModel";
+import { SchemaNormalizer } from "./SchemaNormalizer";
 import { JsonRecord, isRecord, deepClone } from "../utils/TypeGuards";
 
 /**
@@ -28,6 +29,17 @@ export class StateManager {
     /**
      * Initializes a new isolated `StateManager` sandbox.
      *
+     * Values of `writeOnly` properties are dropped from the incoming payload: the spec defines them as
+     * never returned on a read, so the sandbox must not display or echo one that arrived with the data.
+     * Values the user subsequently types are kept and emitted by {@link StateManager.extractPayload}.
+     *
+     * The sandbox model sizes its own list-binding capacity from this payload — see
+     * {@link SandboxJSONModel}. UI5 caps every list binding at 100 contexts by default, which made a
+     * generated table render the first 100 rows of a larger collection and silently discard the rest.
+     * The capacity is deliberately *not* set from here: rows added after load go through
+     * `SandboxJSONModel.setProperty`, so the model is the only place that sees every change to a
+     * collection's size.
+     *
      * @param initialData The initial JSON payload (object or array). Deep-copied so the caller's reference is never mutated.
      * @param schema The normalized schema associated with this state.
      */
@@ -39,6 +51,7 @@ export class StateManager {
                 : schema.type === "array"
                   ? []
                   : {};
+        SchemaNormalizer.stripWriteOnlyValues(schema, safeInitial);
         this.model = new SandboxJSONModel(safeInitial as object);
         this.model.setDefaultBindingMode(BindingMode.TwoWay);
     }
@@ -80,20 +93,25 @@ export class StateManager {
     }
 
     /**
-     * Returns all global messages owned by this sandbox model, optionally filtered by target prefix.
+     * Returns all global messages owned by this sandbox model, optionally filtered by target path prefix.
      *
-     * @param targetPrefix Optional absolute path prefix (e.g. `"/Items"`).
+     * The prefix is matched on **path segment boundaries**: `"/Item"` matches `"/Item"` and `"/Item/0/Name"`
+     * but never `"/ItemTotal"`. A raw `startsWith` instead purged sibling fields whose names merely began
+     * with the array's name.
+     *
+     * @param targetPrefix Optional absolute path prefix (e.g. `"/Items"`, or `"/"` for a root array).
      * @returns {Message[]} The matching messages.
      */
     public getOwnMessages(targetPrefix?: string): Message[] {
         const modelId = this.model.getId();
         const all: Message[] = Messaging.getMessageModel().getData();
+        const boundary = targetPrefix === undefined || targetPrefix.endsWith("/") ? targetPrefix : `${targetPrefix}/`;
         return all.filter((msg) => {
             const processor = msg.getMessageProcessor();
             if (!processor || processor.getId() !== modelId) return false;
-            if (targetPrefix === undefined) return true;
+            if (targetPrefix === undefined || boundary === undefined) return true;
             const target = msg.getTarget();
-            return typeof target === "string" && target.startsWith(targetPrefix);
+            return typeof target === "string" && (target === targetPrefix || target.startsWith(boundary));
         });
     }
 
@@ -101,7 +119,7 @@ export class StateManager {
      * Purges all MessageManager errors under an array path.
      * Used to clean up ghost errors when rows are removed and indexes shift.
      *
-     * @param arrayPath The root array path (e.g. `"/Items"`).
+     * @param arrayPath The array path (e.g. `"/Items"`, or `"/"` for a root array).
      */
     public clearArrayMessages(arrayPath: string): void {
         const prefix = arrayPath.startsWith("/") ? arrayPath : `/${arrayPath}`;

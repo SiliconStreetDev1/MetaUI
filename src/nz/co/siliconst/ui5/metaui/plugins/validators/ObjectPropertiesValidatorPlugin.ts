@@ -6,6 +6,7 @@
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { isRecord, readNumber } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Enforces `minProperties` and `maxProperties` bounds on object payloads.
@@ -51,10 +52,10 @@ export class ObjectPropertiesValidatorPlugin implements IValidator {
         const maxProps = readNumber(args, "maxProperties");
 
         if (minProps !== undefined && keyCount < minProps) {
-            return { isValid: false, errorMessage: `At least ${minProps} properties required.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.objectMinProperties, [minProps]) };
         }
         if (maxProps !== undefined && keyCount > maxProps) {
-            return { isValid: false, errorMessage: `At most ${maxProps} properties allowed.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.objectMaxProperties, [maxProps]) };
         }
         return { isValid: true };
     }

@@ -5,6 +5,8 @@
 
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
+import { safeToString } from "../../core/SafeConvert";
 
 /**
  * Enforces the JSON Schema `const` constraint.
@@ -38,7 +40,7 @@ export class ConstValidatorPlugin implements IValidator {
             return { isValid: true };
         }
         if (parsedValue !== args) {
-            return { isValid: false, errorMessage: `Value must equal '${String(args)}'.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.constEquality, [safeToString(args)]) };
         }
         return { isValid: true };
     }

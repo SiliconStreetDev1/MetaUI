@@ -23,6 +23,14 @@ export interface IEngineHost {
     /** Returns the full normalized schemaDefinitions dictionary. */
     getSchemaDefinitions?(): Record<string, ISchema> | undefined;
 
+    /**
+     * Returns the layout budget in force on the host, so a nested modal host inherits it explicitly.
+     * Before this existed the budget reached a nested host only because `LayoutScorer` wrote
+     * `ui.layoutBudget` onto the schema node and `NestedDialogPlugin` copied the node's `ui` block
+     * onto the modal sub-schema - layout state travelling through the consumer's schema.
+     */
+    getLayoutBudget?(): number;
+
     /** Fires a UI5 event on the host control. */
     fireEvent?(eventName: string, parameters?: Record<string, unknown>): unknown;
 

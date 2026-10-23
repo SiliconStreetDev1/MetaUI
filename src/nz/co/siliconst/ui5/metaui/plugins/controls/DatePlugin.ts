@@ -5,6 +5,7 @@
 
 import DatePicker from "sap/m/DatePicker";
 import { IPickerPluginConfig, PickerPlugin } from "./PickerPlugin";
+import { TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering logic for ISO Date strings (`yyyy-MM-dd`).
@@ -18,6 +19,6 @@ export class DatePlugin extends PickerPlugin {
         bindingType: "sap.ui.model.type.Date",
         sourcePattern: "yyyy-MM-dd",
         displayFormat: "long",
-        parseErrorMessage: "Please enter a valid date."
+        parseErrorMessageKey: TEXT_KEY.dateParseError
     };
 }

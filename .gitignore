@@ -3,6 +3,25 @@ node_modules/
 dist/
 .ui5/
 .env
+.env.*
+!.env.example
+
+# Credentials. This is a public repository and a published npm package; a single
+# accidental commit here hands someone the ability to publish as this package.
+# `.npmrc` is where npm writes a registry auth token, and `npm pack` leaves a
+# tarball behind. Releases use OIDC and need neither, so neither is ever wanted
+# in a commit. If you later need a committed, token-free .npmrc (for example to
+# set engine-strict), force-add it: `git add -f .npmrc`.
+.npmrc
+*.tgz
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Tool logs and caches
+npm-debug.log*
+.stryker-tmp/
 
 # AI Agent / Development Artifacts (never published - this is a public repo)
 persona.md
@@ -29,3 +48,6 @@ scrape.js
 # Fetch with: npm run stress:fetch
 test/swagger_schemas/k8s_oa2.json
 test/swagger_schemas/github_oa3.json
+
+# Agent worktrees are scratch checkouts, never part of the repository.
+.claude/worktrees/

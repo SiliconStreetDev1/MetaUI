@@ -1,0 +1,21 @@
+# Blank issues stay enabled: there are no issue forms here, so disabling them
+# would leave people with nowhere to go. The contact links route security
+# reports away from the public tracker before anyone types a proof of concept
+# into it.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/SiliconStreetDev1/MetaUI/security/advisories/new
+    about: >-
+      Do not open a public issue for a security problem. This opens a private
+      advisory visible only to the maintainer. See SECURITY.md for scope and
+      what to expect.
+
+  - name: Documentation
+    url: https://github.com/SiliconStreetDev1/MetaUI/blob/main/docs/wiki/Home.md
+    about: Supported features, schema reference and tutorials.
+
+  - name: How to build and verify a change
+    url: https://github.com/SiliconStreetDev1/MetaUI/blob/main/CONTRIBUTING.md
+    about: Prerequisites, the verification loop, and what a pull request needs.

@@ -6,6 +6,7 @@
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { isRecord } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Checks whether a value counts as "empty" for required-field purposes.
@@ -56,7 +57,7 @@ export class RequiredValidatorPlugin implements IValidator {
         const cfg = isRecord(args) ? args : undefined;
         if (cfg && cfg.required === false && cfg.nullable === false) {
             if (parsedValue === null) {
-                return { isValid: false, errorMessage: "Value cannot be null." };
+                return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.requiredNull) };
             }
             return { isValid: true };
         }
@@ -64,7 +65,7 @@ export class RequiredValidatorPlugin implements IValidator {
             return { isValid: true };
         }
         if (isEmptyValue(parsedValue)) {
-            return { isValid: false, errorMessage: "This field is required." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.required) };
         }
         return { isValid: true };
     }

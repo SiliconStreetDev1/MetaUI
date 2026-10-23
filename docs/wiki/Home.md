@@ -38,6 +38,7 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
    - Properties
    - Events
    - Methods
+   - Library-Level Configuration (`UrlValidator`, `Logger`)
 6. [Extensibility](CreatingPlugins.md)
    - Creating Custom Plugins
    - The BasePlugin Lifecycle
@@ -50,3 +51,4 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
    - `TestOracle.js`, QUnit Physical DOM Unit Tests, E2E Matrix, Sandbox Smoke Tests, and Standalone Consumer Verification
 10. [Supported Features & Known Limitations](SupportedFeatures.md)
    - Complete Source-Derived Capability Inventory (`52` Widget Mappings, `14` Validators, `4` Formatters, `3` Parsers, `6` Policy Conditions, `8` Policy Effects) and Honest Known Limitations
+   - **Security Posture & Trust Model** — what an untrusted schema may and may not do, and the residual exposure that remains

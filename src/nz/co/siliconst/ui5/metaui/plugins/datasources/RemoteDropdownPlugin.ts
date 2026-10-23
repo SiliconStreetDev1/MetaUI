@@ -3,8 +3,8 @@
  * @description Renders a sap.m.Select or sap.m.ComboBox populated asynchronously from a REST endpoint.
  */
 
-import { BasePlugin } from "../controls/BasePlugin";
-import { IPropertyMetadata, IValueHelpOption } from "../../interfaces/ISchema";
+import { OptionListPlugin } from "../controls/OptionListPlugin";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { ControlDirectiveUtil, extractDataSourceList } from "../../utils/ControlDirectiveUtil";
 import Select from "sap/m/Select";
 import ComboBox from "sap/m/ComboBox";
@@ -13,6 +13,7 @@ import Control from "sap/ui/core/Control";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { UrlValidator } from "../../utils/UrlValidator";
 import { isRecord } from "../../utils/TypeGuards";
 import { WIDGET_TYPE } from "../../constants/MetaUIConstants";
 
@@ -23,7 +24,7 @@ import { WIDGET_TYPE } from "../../constants/MetaUIConstants";
  * @namespace nz.co.siliconst.ui5.metaui.plugins.datasources
  * @public
  */
-export class RemoteDropdownPlugin extends BasePlugin {
+export class RemoteDropdownPlugin extends OptionListPlugin {
     private optionsModel?: JSONModel;
 
     /**
@@ -46,24 +47,7 @@ export class RemoteDropdownPlugin extends BasePlugin {
         this.initialize(metadata, bindingPath, modelName, onChange);
 
         if (!this.isEditable) {
-            const vhList: IValueHelpOption[] | undefined = Array.isArray(metadata.ui?.valueHelp)
-                ? metadata.ui.valueHelp
-                : Array.isArray(metadata.valueHelp)
-                  ? metadata.valueHelp
-                  : undefined;
-            if (vhList && vhList.length > 0) {
-                const displayBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
-                    formatter: (val: unknown) => {
-                        if (val === undefined || val === null) {
-                            return "";
-                        }
-                        const matched = vhList.find((opt) => String(opt.key) === String(val));
-                        return matched ? String(matched.text) : String(val);
-                    }
-                });
-                return this.createDisplayText(engineScopeId, bindingPath, displayBinding);
-            }
-            return this.createDisplayText(engineScopeId, bindingPath);
+            return this.createOptionDisplayText(engineScopeId, bindingPath, modelName, metadata);
         }
 
         if (this.optionsModel) {
@@ -185,17 +169,17 @@ export class RemoteDropdownPlugin extends BasePlugin {
     private async loadRemoteItems(target: Select | ComboBox, metadata: IPropertyMetadata): Promise<void> {
         const ds = ControlDirectiveUtil.resolveDataSourceConfig(metadata);
         if (!ds || !ds.url) {
-            const staticItems: Array<{ key: string; text: string }> = [];
-            if (Array.isArray(metadata.ui?.valueHelp)) {
-                for (const opt of metadata.ui.valueHelp) {
-                    staticItems.push({ key: String(opt.key), text: String(opt.text) });
-                }
-            } else if (Array.isArray(metadata.enum)) {
-                for (const val of metadata.enum) {
-                    staticItems.push({ key: String(val), text: String(val) });
-                }
-            }
-            this.mergeAndSetItems(staticItems);
+            this.mergeAndSetItems(this.buildOptionItems(metadata, metadata.enum));
+            this.ensureBoundValueItem(target);
+            return;
+        }
+
+        if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
+            Logger.warn(
+                "[MetaUI RemoteDropdownPlugin]",
+                `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`,
+                "RemoteDropdownPlugin"
+            );
             this.ensureBoundValueItem(target);
             return;
         }

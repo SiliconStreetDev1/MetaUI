@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MetaUI Time To First Render (library declared)</title>
+    <script>
+        // Recorded before the UI5 bootstrap tag is even parsed, so `navigationStart -> t0`
+        // covers nothing but this document's own parse.
+        window.__tfr = { t0: performance.now() };
+    </script>
+    <script id="sap-ui-bootstrap"
+        src="https://ui5.sap.com/resources/sap-ui-core.js"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-libs="sap.m, sap.ui.core, sap.ui.layout, nz.co.siliconst.ui5.metaui"
+        data-sap-ui-resourceroots='{
+            "nz.co.siliconst.ui5.metaui": "/resources/nz/co/siliconst/ui5/metaui"
+        }'
+        data-sap-ui-compatVersion="edge"
+        data-sap-ui-async="true">
+    </script>
+</head>
+<body class="sapUiBody" id="tfr-root" style="margin:0; padding:16px;">
+    <div id="tfr-mount"></div>
+    <script>
+        /**
+         * Trivial 3-field schema, rendered as early as the framework allows.
+         * Each phase boundary is stamped so the driver can attribute the total.
+         */
+        (function () {
+            var S = window.__tfr;
+            var SCHEMA = {
+                type: "object",
+                title: "Trivial",
+                properties: {
+                    Name: { type: "string", ui: { label: "Name" } },
+                    Age: { type: "number", ui: { label: "Age" } },
+                    Active: { type: "boolean", ui: { label: "Active" } }
+                }
+            };
+
+            sap.ui.getCore().attachInit(function () {
+                S.tCoreInit = performance.now();
+                sap.ui.require(
+                    ["nz/co/siliconst/ui5/metaui/controls/DynamicHost", "sap/ui/core/Core"],
+                    function (DynamicHost, Core) {
+                        S.tModuleLoaded = performance.now();
+                        var host = new DynamicHost({
+                            schemaDefinition: SCHEMA,
+                            data: { Name: "Ada", Age: 36, Active: true },
+                            editable: true
+                        });
+                        host.placeAt("tfr-mount");
+                        Core.applyChanges();
+                        host.generate().then(function () {
+                            Core.applyChanges();
+                            S.tFirstRender = performance.now();
+                            S.domNodes = document.getElementById("tfr-mount").querySelectorAll("*").length;
+                            S.done = true;
+                        });
+                    }
+                );
+            });
+        })();
+    </script>
+</body>
+</html>

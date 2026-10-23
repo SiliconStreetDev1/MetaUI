@@ -16,9 +16,9 @@
 
 ---
 
-## 2. Widget Registry (`DefaultPluginBootstrapper` — 52 `(type, widget)` Mappings: 31 Concrete Control Plugins + 5 Abstract Bases, 3 Actions, 4 Datasources)
+## 2. Widget Registry (`DefaultPluginBootstrapper` — 51 `(type, widget)` Mappings: 30 Concrete Control Plugins + 7 Abstract Bases, 4 Actions, 4 Datasources)
 
-All 52 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core/DefaultPluginBootstrapper.ts`:
+All 51 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core/DefaultPluginBootstrapper.ts`:
 
 | # | Schema `type` | `ui.widget` | Plugin Class | Edit Mode UI5 Control | Display Mode UI5 Control (`editable: false`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -26,12 +26,12 @@ All 52 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core
 | 2 | `number` | *(omitted)* | `NumberPlugin` | `sap.m.Input` (`type="Number"`) | `sap.m.Text` |
 | 3 | `integer` | *(omitted)* | `NumberPlugin` | `sap.m.Input` (`type="Number"`) | `sap.m.Text` |
 | 4 | `date` | *(omitted)* | `DatePlugin` | `sap.m.DatePicker` | `sap.m.Text` |
-| 5 | `boolean` | *(omitted)* | `BooleanPlugin` | `sap.m.CheckBox` | `sap.m.ObjectStatus` |
-| 6 | `array` | *(omitted)* | `ArrayPlugin` | `sap.m.Button` (Modal Trigger) or inline `TableLayout` | `sap.m.Button` (View Dialog Trigger) or inline `TableLayout` |
-| 7 | `object` | *(omitted)* | `ObjectPlugin` | `sap.m.Button` (Modal Trigger) or inline `FormLayout` | `sap.m.Button` (View Dialog Trigger) or inline `FormLayout` |
+| 5 | `boolean` | *(omitted)* | `BooleanPlugin` | `sap.m.CheckBox` | `sap.m.Text` |
+| 6 | `array` | *(omitted)* | `ArrayPlugin` | `sap.m.Button` (Modal Trigger) or inline `TableLayout` | `sap.m.Button` ("View …" dialog trigger, **stays enabled**) or inline `TableLayout` |
+| 7 | `object` | *(omitted)* | `ObjectPlugin` | `sap.m.Button` (Modal Trigger) or inline `FormLayout` | `sap.m.Button` ("View …" dialog trigger, **stays enabled**) or inline `FormLayout` |
 | 8 | `string` | `"default"` | `StringPlugin` | `sap.m.Input` | `sap.m.Text` |
 | 9 | `object` | `"dictionaryMap"` | `DictionaryMapPlugin` | `sap.m.VBox` (Key-Value Map) | `sap.m.VBox` (Read-Only Key-Value Rows) |
-| 10 | `object` | `"reference"` | `ReferencePlugin` | `sap.m.VBox` (Inline) or `sap.m.Button` (Dialog) | `sap.m.VBox` (Inline) or `sap.m.Button` (View Dialog) |
+| 10 | `object` | `"reference"` | `ReferencePlugin` | `sap.m.VBox` (Inline) or `sap.m.Button` (Dialog) | `sap.m.VBox` (Inline) or `sap.m.Button` ("View …" dialog trigger, **stays enabled**) |
 | 11 | `object` | `"polymorphic"` | `PolymorphicPlugin` | `sap.m.VBox` (`sap.m.Select` + nested `DynamicHost`) | `sap.m.VBox` (Disabled `sap.m.Select` + read-only `DynamicHost`) |
 | 12 | `string` | `"date"` | `DatePlugin` | `sap.m.DatePicker` | `sap.m.Text` |
 | 13 | `string` | `"datePicker"` | `DatePlugin` | `sap.m.DatePicker` | `sap.m.Text` |
@@ -39,41 +39,40 @@ All 52 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core
 | 15 | `date` | `"datePicker"` | `DatePlugin` | `sap.m.DatePicker` | `sap.m.Text` |
 | 16 | `string` | `"time"` | `TimePlugin` | `sap.m.TimePicker` | `sap.m.Text` |
 | 17 | `string` | `"datetime"` | `DateTimePlugin` | `sap.m.DateTimePicker` | `sap.m.Text` |
-| 18 | `boolean` | `"switch"` | `SwitchPlugin` | `sap.m.Switch` | `sap.m.ObjectStatus` |
+| 18 | `boolean` | `"switch"` | `SwitchPlugin` | `sap.m.Switch` | `sap.m.Text` |
 | 19 | `number` | `"step"` | `StepInputPlugin` | `sap.m.StepInput` | `sap.m.Text` |
 | 20 | `integer` | `"step"` | `StepInputPlugin` | `sap.m.StepInput` | `sap.m.Text` |
 | 21 | `string` | `"select"` | `DropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
 | 22 | `number` | `"select"` | `DropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
 | 23 | `integer` | `"select"` | `DropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
 | 24 | `string` | `"textArea"` | `TextAreaPlugin` | `sap.m.TextArea` / `sap.m.HBox` (when `expandable`) | `sap.m.Text` |
-| 25 | `string` | `"codeEditor"` | `CodeEditorPlugin` | `sap.m.VBox` (`sap.ui.codeeditor.CodeEditor`) | `sap.m.VBox` (Read-Only `CodeEditor`) |
-| 26 | `string` | `"link"` | `LinkPlugin` | `sap.m.Link` | `sap.m.Link` |
+| 25 | `string` | `"codeEditor"` | `CodeEditorPlugin` | `sap.ui.codeeditor.CodeEditor` / `sap.m.HBox` (when `expandable`) | `sap.ui.codeeditor.CodeEditor` (`editable: false`, `syntaxHints: false`) |
+| 26 | `string` | `"link"` | `LinkPlugin` | `sap.m.Link` | `sap.m.Link` (**stays enabled**) |
 | 27 | `string` | `"password"` | `PasswordPlugin` | `sap.m.Input` (`type="Password"`) | `sap.m.Text` (Masked `"********"`) |
 | 28 | `string` | `"email"` | `EmailPlugin` | `sap.m.Input` (`type="Email"`) | `sap.m.Text` |
-| 29 | `string` | `"fileUploader"` | `FileUploaderPlugin` | `sap.m.VBox` (`sap.m.Image` + `sap.ui.unified.FileUploader`) | `sap.m.VBox` (Preview only, uploader hidden) |
-| 30 | `array` | `"multiSelect"` | `MultiSelectPlugin` | `sap.m.MultiComboBox` | `sap.m.Tokenizer` (Read-Only) |
-| 31 | `array` | `"multiInput"` | `MultiInputPlugin` | `sap.m.MultiInput` | `sap.m.Tokenizer` (Read-Only) |
-| 32 | `number` | `"slider"` | `SliderPlugin` | `sap.m.Slider` | `sap.m.ProgressIndicator` |
-| 33 | `integer` | `"slider"` | `SliderPlugin` | `sap.m.Slider` | `sap.m.ProgressIndicator` |
-| 34 | `number` | `"rating"` | `RatingIndicatorPlugin` | `sap.m.RatingIndicator` | `sap.m.RatingIndicator` (`editable: false`) |
-| 35 | `integer` | `"rating"` | `RatingIndicatorPlugin` | `sap.m.RatingIndicator` | `sap.m.RatingIndicator` (`editable: false`) |
+| 29 | `string` | `"fileUploader"` | `FileUploaderPlugin` | `sap.m.VBox` (`sap.m.Image` + `sap.ui.unified.FileUploader`) | `sap.m.VBox` (`sap.m.Image` preview, or `sap.m.Text` fallback; no uploader) |
+| 30 | `array` | `"multiSelect"` | `MultiSelectPlugin` | `sap.m.MultiComboBox` | `sap.m.Text` (comma-joined; `valueHelp` keys resolved to their text) |
+| 31 | `array` | `"multiInput"` | `MultiInputPlugin` | `sap.m.MultiInput` | `sap.m.Text` (comma-joined) |
+| 32 | `number` | `"slider"` | `SliderPlugin` | `sap.m.Slider` | `sap.m.Text` |
+| 33 | `integer` | `"slider"` | `SliderPlugin` | `sap.m.Slider` | `sap.m.Text` |
+| 34 | `number` | `"rating"` | `RatingIndicatorPlugin` | `sap.m.RatingIndicator` | `sap.m.Text` |
+| 35 | `integer` | `"rating"` | `RatingIndicatorPlugin` | `sap.m.RatingIndicator` | `sap.m.Text` |
 | 36 | `string` | `"messageStrip"` | `MessageStripPlugin` | `sap.m.MessageStrip` | `sap.m.MessageStrip` |
-| 37 | `string` | `"camera"` | `CameraPlugin` | `nz.co.siliconst.ui5.metaui.controls.CameraControl` | `CameraControl` (`editable: false`) |
-| 38 | `string` | `"signature"` | `SignaturePlugin` | `nz.co.siliconst.ui5.metaui.controls.SignatureControl` | `SignatureControl` (`editable: false`) |
-| 39 | `object` | `"location"` | `GeolocationPlugin` | `nz.co.siliconst.ui5.metaui.controls.GeolocationControl` | `GeolocationControl` (`editable: false`) |
-| 40 | `string` | `"scanner"` | `BarcodeScannerPlugin` | `sap.m.HBox` (`sap.m.Input` + `sap.ndc.BarcodeScannerButton`) | `sap.m.Text` |
-| 41 | `string` | `"voiceInput"` | `VoiceInputPlugin` | `nz.co.siliconst.ui5.metaui.controls.VoiceInputControl` | `VoiceInputControl` (`editable: false`) |
-| 42 | `string` | `"richText"` | `RichTextPlugin` | `nz.co.siliconst.ui5.metaui.controls.RichTextControl` | `RichTextControl` (`editable: false`) |
-| 43 | `string` | `"urlButton"` | `UrlNavigationActionPlugin` | `sap.m.Button` | `sap.m.Button` |
-| 44 | `string` | `"submitButton"` | `SubmitFormActionPlugin` | `sap.m.Button` | `sap.m.Button` (`enabled: false`) |
-| 45 | `string` | `"clearButton"` | `ClearFormActionPlugin` | `sap.m.Button` | `sap.m.Button` (`enabled: false`) |
-| 46 | `string` | `"odataSelect"` | `ODataListBindingPlugin` | `sap.m.ComboBox` | `sap.m.Text` |
-| 47 | `string` | `"remoteDropdown"` | `RemoteDropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
-| 48 | `string` | `"remoteSelect"` | `RemoteDropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
-| 49 | `string` | `"combobox"` | `RemoteDropdownPlugin` | `sap.m.ComboBox` | `sap.m.Text` |
-| 50 | `string` | `"liveSearch"` | `LiveSearchPlugin` | `sap.m.Input` (with suggestion items) | `sap.m.Text` |
-| 51 | `string` | `"remoteValueHelp"` | `RemoteValueHelpPlugin` | `sap.m.Input` (`showValueHelp: true` + `SelectDialog`) | `sap.m.Text` |
-| 52 | `string` | `"valueHelp"` | `RemoteValueHelpPlugin` | `sap.m.Input` (`showValueHelp: true` + `SelectDialog`) | `sap.m.Text` |
+| 37 | `string` | `"camera"` | `CameraPlugin` | `nz.co.siliconst.ui5.metaui.controls.CameraControl` | `sap.m.Image` (`src` filtered by `UrlValidator`) |
+| 38 | `string` | `"signature"` | `SignaturePlugin` | `nz.co.siliconst.ui5.metaui.controls.SignatureControl` | `sap.m.Image` (`src` filtered by `UrlValidator`) |
+| 39 | `object` | `"location"` | `GeolocationPlugin` | `nz.co.siliconst.ui5.metaui.controls.GeolocationControl` | `sap.m.Text` (`Lat: <lat>, Lng: <lng>`) |
+| 40 | `string` | `"voiceInput"` | `VoiceInputPlugin` | `nz.co.siliconst.ui5.metaui.controls.VoiceInputControl` | `sap.m.Text` |
+| 41 | `string` | `"richText"` | `RichTextPlugin` | `nz.co.siliconst.ui5.metaui.controls.RichTextControl` | `sap.m.FormattedText` (value written through its own `htmlText` setter) |
+| 42 | `string` | `"urlButton"` | `UrlNavigationActionPlugin` | `sap.m.Button` | `sap.m.Button` (**stays enabled**) |
+| 43 | `string` | `"submitButton"` | `SubmitFormActionPlugin` | `sap.m.Button` | `sap.m.Button` (`enabled: false`) |
+| 44 | `string` | `"clearButton"` | `ClearFormActionPlugin` | `sap.m.Button` | `sap.m.Button` (`enabled: false`) |
+| 45 | `string` | `"odataSelect"` | `ODataListBindingPlugin` | `sap.m.ComboBox` | `sap.m.Text` |
+| 46 | `string` | `"remoteDropdown"` | `RemoteDropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
+| 47 | `string` | `"remoteSelect"` | `RemoteDropdownPlugin` | `sap.m.Select` | `sap.m.Text` |
+| 48 | `string` | `"combobox"` | `RemoteDropdownPlugin` | `sap.m.ComboBox` | `sap.m.Text` |
+| 49 | `string` | `"liveSearch"` | `LiveSearchPlugin` | `sap.m.Input` (with suggestion items) | `sap.m.Text` |
+| 50 | `string` | `"remoteValueHelp"` | `RemoteValueHelpPlugin` | `sap.m.Input` (`showValueHelp: true` + `SelectDialog`) | `sap.m.Text` |
+| 51 | `string` | `"valueHelp"` | `RemoteValueHelpPlugin` | `sap.m.Input` (`showValueHelp: true` + `SelectDialog`) | `sap.m.Text` |
 
 ---
 
@@ -123,7 +122,7 @@ All 14 `IValidator` plugins registered in `src/nz/co/siliconst/ui5/metaui/core/P
 | 2 | `minLength` | `MinLengthValidatorPlugin` | `minLength` on `string` |
 | 3 | `maxLength` | `MaxLengthValidatorPlugin` | `maxLength` on `string` |
 | 4 | `pattern` | `PatternValidatorPlugin` | `pattern` on `string` (also OpenAPI `format: "uuid" \| "ipv4" \| "ipv6" \| "hostname"` mapped via `OpenApiConstraintMapper`) |
-| 5 | `range` | `RangeValidatorPlugin` | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `precision`, `scale` on `number` / `integer` |
+| 5 | `range` | `RangeValidatorPlugin` | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` on `number` / `integer` |
 | 6 | `multipleOf` | `MultipleOfValidatorPlugin` | `multipleOf` on `number` / `integer` |
 | 7 | `arrayItems` | `ArrayItemsValidatorPlugin` | `minItems`, `maxItems`, `uniqueItems` on `array` |
 | 8 | `email` | `EmailValidatorPlugin` | `format: "email"` or `ui.format: "email"` or `ui.widget: "email"` |
@@ -168,7 +167,10 @@ All 14 `IValidator` plugins registered in `src/nz/co/siliconst/ui5/metaui/core/P
 ## 8. Display Modes, Sizing & Dialogs
 
 - **Editable vs. Read-Only Display Mode (`editable: true | false`)**:
-  - When `editable="false"` on `DynamicHost` (or `readOnly: true` on the root schema), all 52 `(type, widget)` mappings render non-interactive display controls (`sap.m.Text`, `sap.m.ObjectStatus`, `sap.m.Tokenizer`, `sap.m.ProgressIndicator`, read-only `sap.m.RatingIndicator`, etc.).
+  - When `editable="false"` on `DynamicHost` (or `readOnly: true` on the root schema), value editors render non-interactive display controls — `sap.m.Text` for most widgets, `sap.m.Image` for `camera` / `signature`, `sap.m.FormattedText` for `richText`, and read-only variants for `codeEditor`, `dictionaryMap` and `polymorphic`. See the Display Mode column in the widget table above for the exact control per mapping.
+  - **Navigation affordances stay reachable.** Read-only constrains *editing*, not *reaching*: a control whose only job is to open or follow a target remains clickable in display mode. These are `ui.widget: "link"` (`sap.m.Link`), `ui.widget: "urlButton"` (`UrlNavigationActionPlugin`), and the nested-dialog "View …" trigger buttons produced by `ObjectPlugin`, `ArrayPlugin` and `ReferencePlugin`. Disabling them would hide the payload behind a dead widget rather than protect it; the dialog they open is itself rendered read-only.
+    - Only an explicit `ui.enabled: false` switches an affordance off (`BasePlugin.isAffordanceEnabled()`), and a `ui.enabledOn` expression, when present, always takes precedence over this rule.
+  - **Mutating actions stay disabled.** `ui.widget: "submitButton"` (`SubmitFormActionPlugin`) and `ui.widget: "clearButton"` (`ClearFormActionPlugin`) keep the default behaviour and render with `enabled: false` in display mode.
 - **Host Sizing & Containment**:
   - `DynamicHost` exposes `width` (default `"100%"`, `sap.ui.core.CSSSize`) and `height` (default `"auto"`, `sap.ui.core.CSSSize`) and emits `min-width: 0`, `max-width: 100%`, and `box-sizing: border-box` so a host never expands its parent container or table column wider than the width offered to it.
   - For compact label-beside-field rows inside narrow containers (such as a `340px` table column), set root `ui.labelSpan` (`1`–`12` for side-by-side label/field spans across all breakpoints, or `0` to omit labels) or root `ui.controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`) while preserving the default `labelSpanS: 12` when omitted.
@@ -178,7 +180,77 @@ All 14 `IValidator` plugins registered in `src/nz/co/siliconst/ui5/metaui/core/P
 
 ---
 
-## 9. Known Limitations (What MetaUI Does Not Do)
+## 9. Security Posture & Trust Model
+
+MetaUI renders a UI from a schema. The schema is therefore *code-adjacent input*, and the library's design position is explicit:
+
+> **A schema is treated as untrusted input.** Every directive that can reach a UI5 sink — a control property, a binding expression, a URL, a regular expression — is validated before it is applied. A directive that fails validation is refused and logged; it never renders a plausible-looking result and it never aborts the rest of the form.
+
+This is a defence-in-depth position, not a proof. Read the **Residual exposure** list below before deciding whether it is sufficient for your deployment. If your application only ever renders schemas it authored itself, none of this changes what you can express.
+
+### What a schema is permitted to do
+
+- Declare fields, types, constraints, labels and layout, and have them rendered as native Fiori controls.
+- Set scalar UI5 properties on the generated control through `ui.controlProps` — anything whose declared UI5 type resolves to `string`, `boolean`, `int` or `float`, including every UI5 enum and `sap.ui.core.CSSSize`.
+- Bind those properties, and `ui.visibleOn` / `ui.enabledOn`, to model paths and `{= … }` expression bindings, including bindings against models the host application supplies (`i18n>`, `settings>`, an OData model, …) and OData key predicates.
+- Point `ui.dataSource.url` (or a remote `schemaDefinition` URL) at an `http:`/`https:` endpoint, including a cross-origin one by default.
+- Carry markup, through the bound *value* of a `ui.widget: "richText"` field, which is rendered by `sap.m.FormattedText` through that control's own `htmlText` setter.
+- Reference a validator, formatter or policy plugin **by registered name**. Names are looked up in `PluginRegistry` / `PipelineManager` and are never resolved against the global scope, so a schema cannot name an arbitrary function and have it invoked. An unregistered *validator* name is logged by `PipelineManager.runValidators()`; an unregistered *formatter* name is skipped without a warning.
+
+### What a schema is prevented from doing
+
+| Prevented | Mechanism | Where |
+| :--- | :--- | :--- |
+| Writing a UI5 property the control does not declare, or one whose type is `object` / `function` / `any` (or an array of those) | Type allowlist derived from UI5's own property metadata via `sap.ui.base.DataType`, not a denylist of names | `vetControlProperty()` |
+| Writing MetaUI's own state properties (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`) | `BLOCKED_CONTROL_PROPS` | `vetControlProperty()` |
+| Injecting raw markup through a control property (`htmlText`, `html`, `innerHTML`, `content`) | `HTML_SINK_CONTROL_PROPS` — refused by name, because UI5 metadata carries no "renders raw HTML" flag | `vetControlProperty()` |
+| Bypassing a UI5 typed setter's own coercion or sanitization | Vetted values are written through the control's generated `set<Property>` when one exists; `ManagedObject.setProperty` is used only where no setter is generated | `writeControlProperty()` |
+| Putting a `javascript:` (or any other unsafe-scheme) URI into an `href`, `src`, `icon` or other `sap.ui.core.URI` property — whether written literally in the schema **or** delivered later through the model | `UrlValidator.isSafeUiResourceUri()` applied statically, plus a sanitizing formatter appended to the binding | `vetControlProperty()`, `sanitizeUriPropertyValue()` |
+| Smuggling UI5 complex-binding object syntax (`{path:'…', formatter:'…'}`) into a condition rule, which `BindingParser` would resolve against the global scope and invoke with the live field value | Structural grammar check — a top-level `:` or `,` inside a `{…}` token, a second `>` separator, an out-of-alphabet character, a top-level quoted literal, or a stray brace is refused | `ExpressionBuilder.buildChecked()` |
+| The same, via any parser behaviour the grammar check failed to anticipate | Independent sink-side backstop: the parsed binding is discarded if `BindingParser` resolved a named global into `formatter`, `events`, `factory` or `type` | `ControlDirectiveUtil` |
+| *Repeatedly* hanging the browser with a catastrophic-backtracking `pattern` | 512-character source cap; static refusal of provably ambiguous repetition shapes; a 50 ms wall-clock budget measured per evaluation, with per-session quarantine for anything that overruns it. The first evaluation of an unprovable pattern is **not** bounded — see residual exposure #1 | `PatternValidatorPlugin` |
+| Fetching over a non-HTTP scheme, or from a protocol-relative (`//host/…`) target | Scheme allowlist (`http:`, `https:`) enforced on every `ui.dataSource.url`, `valueHelp.url` and remote `schemaDefinition` URL, always, regardless of policy | `UrlValidator.isSafeDataSourceUrl()` |
+| Fetching cross-origin — **only once the application opts in** to a restrictive policy; permitted by default | `UrlValidator.setDataSourceOriginPolicy("same-origin")` or `("allowlist", […])`, see below | `UrlValidator` |
+
+Every refusal above emits an unconditional `Logger.warn()` (warnings are never gated by `debugMode`) and skips the offending directive. The field, and the rest of the form, still render.
+
+### Locking down data source origins
+
+Scheme validation is unconditional. The *cross-origin* decision is policy, and the default is permissive:
+
+```javascript
+sap.ui.require(["nz/co/siliconst/ui5/metaui/utils/UrlValidator"], function (UrlValidator) {
+    // Default: any http/https endpoint, with a one-time logged warning per cross-origin host.
+    UrlValidator.setDataSourceOriginPolicy("any");
+
+    // Only the document's own origin.
+    UrlValidator.setDataSourceOriginPolicy("same-origin");
+
+    // The document origin plus an explicit list.
+    UrlValidator.setDataSourceOriginPolicy("allowlist", ["https://api.example.com"]);
+});
+```
+
+The setting is **library-global and static**, not per-host: the last call wins for every `DynamicHost` in the page. Call it during application startup, before the first host renders. `UrlValidator.getDataSourceOriginPolicy()` reads back the active mode and the normalized origin list. An unparseable allowlist entry is dropped with a warning rather than silently widening the policy. Changing the policy clears the record of which cross-origin hosts have already been warned about.
+
+**If your application renders schemas it did not author, set this to `"same-origin"` or `"allowlist"`.** Leaving it at the default means a hostile schema can make the user's browser contact an arbitrary third-party host — leaking the visit, and whatever the schema author encoded into the URL path or query — and then render that host's response as the field's dropdown or value-help items. The requests themselves are issued with `fetch`'s default `credentials: "same-origin"`, so no cookies are sent cross-origin.
+
+### Residual exposure
+
+These are known and accepted, not oversights:
+
+1. **A pattern that cannot be *proven* unsafe gets one unbounded evaluation.** The static analysis only refuses shapes it can prove ambiguous. Anything else — including a genuinely catastrophic pattern the analysis cannot classify — is executed with no timeout; the 50 ms budget is measured *after* the regular expression returns, and only then is the pattern quarantined for the session. So the first keystroke that triggers such a pattern can still freeze the tab for as long as that one evaluation takes. There is no pre-emptive timeout, because a synchronous regular-expression match cannot be interrupted on the main thread.
+2. **The quarantine and analysis caches are bounded and cleared wholesale.** Both hold at most 256 entries and are emptied when full. A schema carrying more than 256 distinct slow patterns can therefore evict a quarantined pattern and earn it another unbounded evaluation.
+3. **Cross-origin data sources are permitted by default** (see above). This is a deliberate compatibility default for the common case of a trusted schema pointing at a trusted API; it is not safe for untrusted schemas.
+4. **`ui.controlProps` can still set any scalar property the control declares.** The gate bounds the *type*, not the semantics. A schema can set a misleading `placeholder`, `tooltip`-like text property or `width`. It cannot reach a DOM sink, a URL sink, or MetaUI's state.
+5. **Markup in a `richText` value is only as safe as `sap.m.FormattedText`.** MetaUI does not add its own HTML sanitizer on that path; it relies on the UI5 control's `htmlText` setter. `RichTextControl` sanitizes on write in edit mode, but a value that arrives directly from the model in display mode is handed to UI5 to filter.
+6. **The engine does not sandbox the data.** Validation constrains what the user may submit; it does not constrain what a host application does with `payload` afterwards.
+7. **`OpenApiBuilder.fetchAndBuild()` is not covered by the origin policy.** It fetches the URL it is handed directly. Nothing in `src/` calls it — it is a convenience entry point for a consumer who already has a spec URL in hand, so the URL comes from your code, not from a schema. If you pass it a URL that came from untrusted input, check it yourself with `UrlValidator.isSafeDataSourceUrl()` first. The schema-driven path (`schemaDefinition` as a URL string) goes through `SchemaProvider`, which does enforce the policy.
+8. **None of this applies to plugins you register yourself.** A custom `IValidator`, formatter or control plugin runs with full privileges; the gates above protect the built-in path from schema input, not the library from your own code.
+
+---
+
+## 10. Known Limitations (What MetaUI Does Not Do)
 
 1. **No built-in phone validator.**
    Setting `ui.format: "phone"` (or `ui.formatter: "phone"`) performs **no validation**. Only `"email"`, `"url"` / `"uri"`, and `"iban"` have dedicated format validators (plus OpenAPI `"uuid"`, `"ipv4"`, `"ipv6"`, and `"hostname"` via `pattern`). To validate phone numbers, declare a `pattern` constraint (e.g., `"pattern": "^\\+?\\d{10,15}$"` or `"pattern": "^\\d{10}$"`), which runs against the unformatted raw value produced by `PhoneFormatterPlugin.parse()`.
@@ -196,9 +268,19 @@ All 14 `IValidator` plugins registered in `src/nz/co/siliconst/ui5/metaui/core/P
    Calling `addError(fieldPath, message)` inside `beforeSubmit` or `beforeLayoutSectionChange` records a `customError` in `ValidationLedger`. While `ValidationDelegate.confirmBeforeSubmit()` clears its own prior `beforeSubmit` errors on the next submit attempt, errors added during `beforeLayoutSectionChange` must be cleared by calling `host.clearCustomError(fieldPath)` before navigation can proceed (tracked as Phase 13.2.1 in `docs/ARCHITECTURE.md` §6).
 8. **`InferredGeneratorHost` is currently a pass-through subclass of `GeneratorHost`.**
    When `DynamicHost` is given data without a schema, `SchemaResolutionDelegate` instantiates `InferredGeneratorHost`, which currently adds no behaviour over `GeneratorHost` (tracked as Phase 13.5.5 in `docs/ARCHITECTURE.md` §3).
-9. **`writeOnly`, `deprecated`, and `not` are metadata-only.**
-   `SchemaNormalizer` and `OpenApiPropertyMapper` preserve `writeOnly`, `deprecated`, and `not` on normalized `IPropertyMetadata` for consumer or custom-plugin inspection, but the core layouts and validator pipeline do not automatically hide `writeOnly` fields, badge `deprecated` fields, or evaluate `not` sub-schemas.
-10. **OpenAPI nesting deeper than `MAX_MAPPING_DEPTH` (8) is truncated.**
-    `OpenApiPropertyMapper` stops descending past eight levels of nested `properties`. Properties below that point are dropped and a warning is logged on the `OpenApiPropertyMapper` component; nothing is silently discarded, but the generated form will not contain those fields. This guard exists to bound recursion on circular specifications.
+9. **`not` is enforced; `writeOnly` suppresses the read, not the write.**
+   `PayloadValidator` rejects any value matching a `not` sub-schema, in forms and in table cells alike. A `not` declaring nothing the pipeline can evaluate is reported by `SchemaValidator` rather than silently accepted. A `writeOnly` value supplied in the inbound payload is stripped before the sandbox is seeded, so it is never rendered and never returned; a value the user types is submitted normally. `deprecated`, `precision` and `scale` were withdrawn in 2.0.0 -- they were mapped by the normalizer and read by nothing.
+10. **Schema nesting deeper than `MAX_SCHEMA_DEPTH` (30) is truncated.**
+    Every walker over the (schema, data) tree — normalization, OpenAPI mapping, inference, validation, `writeOnly` stripping, default injection, OData payload sanitizing, layout scoring — stops at the single shared cap exported from `constants/MetaUIConstants.ts`. Anything below that point is dropped and a warning naming the limit and what was discarded is logged; nothing is silently truncated, but the generated form will not contain those fields. This guard exists to bound recursion on circular specifications. `deepClone` has a deliberately separate, much higher cap (`MAX_CLONE_DEPTH`) because it copies consumer-owned data rather than schema.
 11. **`validationError` and `validationSuccess` events carry `ManagedObject`'s accessor types.**
     UI5's `ManagedObject` already defines `validationError`, `validationSuccess`, `parseError` and `formatError` events for binding type validation. MetaUI's control metadata reuses the first two names. This works at runtime because the control's own event registry handles them, but their generated accessors cannot be narrowed without conflicting with the base class signature, so `attachValidationError` and `attachValidationSuccess` are typed as `ManagedObject` declares them rather than with MetaUI's `{ fieldPath, message }` parameters. Read those through `event.getParameter("fieldPath")`, or use `fieldChange` and `validationStateChanged`, which are fully typed. Every other property and event accessor is generated and typed.
+12. **`ui.controlProps` cannot reach non-scalar or markup properties.**
+    An entry is written only if the generated control declares the property and its UI5 type resolves to `string`, `boolean`, `int` or `float`. UI5's `object`, `function` and `any` primitives (and all array forms) are out of reach, as are `htmlText`, `html`, `innerHTML` and `content`, and the eleven state properties MetaUI owns. This is a deliberate narrowing from the earlier behaviour, which accepted any property that was not on an 11-entry denylist. A refused entry is logged (`REFUSED controlProps entry …`) and skipped; the field still renders. See §9 and [Data Binding & State Management](DataBindingAndState.md).
+13. **UI5 complex-binding object syntax is not accepted from a schema.**
+    `ui.visibleOn`, `ui.enabledOn` and binding-valued `ui.controlProps` accept model paths, `{= … }` expression bindings, `$root.` / `$row.` references and OData key predicates — but **not** the object form `{path:'…', formatter:'…'}`, because `BindingParser` resolves a named formatter against the global scope. Such a rule is logged (`REFUSED condition rule …`) and the directive is skipped, leaving the field visible and enabled. If you need a named formatter, register it as a MetaUI formatter plugin and reference it through `ui.formatter` / `ui.formatters` instead.
+14. **A `pattern` can be rejected for its shape, not just its syntax.**
+    `PatternValidatorPlugin` refuses a `pattern` longer than 512 characters, and one whose repetition is provably ambiguous — a quantifier applied to a group built only from variable-length elements (`(a+)+`, `(a?)*`, `(\w+\s?)*`) or to an alternation whose branches can start with the same token (`(a|a)+`, `(a|)+`). The field then reports `Schema configuration error: 'pattern' is unsafe (…)` and is marked invalid, rather than the pattern being quietly ignored. Anchoring the repeated group with one fixed atom (`([a-z]+\.)+`, `(a+b)+`, `(\d{4})+`) is accepted and runs under the evaluation budget described in §9.
+15. **`ui.enabledOn` is inert on controls with no `enabled` property.**
+    The binding is only applied when the target control declares `enabled`. Most widgets fall back to `sap.m.Text` in display mode, which does not, so an `enabledOn` rule simply has no effect there. (Binding it unguarded previously turned the directive into a hard render failure for the whole field.)
+16. **The data source origin policy is library-global, not per host.**
+    `UrlValidator.setDataSourceOriginPolicy()` holds static state shared by every `DynamicHost` on the page; the last call wins. An application that must apply different origin rules to trusted and untrusted schemas in the same page cannot express that through this API.

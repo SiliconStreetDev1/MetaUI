@@ -11,6 +11,7 @@ import Control from "sap/ui/core/Control";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { Logger } from "../../utils/Logger";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering a `sap.m.ComboBox` bound to a live OData entity set (`ui.widget = "odataSelect"`).
@@ -19,6 +20,18 @@ import { Logger } from "../../utils/Logger";
  * @public
  */
 export class ODataListBindingPlugin extends BasePlugin {
+    /**
+     * Checks that `dataSource.url` is an OData model entity set path rather than an absolute or
+     * protocol-relative URL, so a schema cannot redirect the aggregation binding off the configured service.
+     *
+     * @param rawPath The configured `dataSource.url`.
+     * @returns {boolean} True when the value is a plain model path.
+     */
+    private static isEntitySetPath(rawPath: string): boolean {
+        const trimmed = rawPath.trim();
+        return Boolean(trimmed) && !trimmed.startsWith("//") && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(trimmed);
+    }
+
     /**
      * Renders a `sap.m.ComboBox` whose `items` aggregation is bound to the configured OData entity set.
      *
@@ -48,7 +61,7 @@ export class ODataListBindingPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             selectedKey: bindingInfo,
             value: !ds?.url ? bindingInfo : undefined,
-            placeholder: metadata.ui?.placeholder || "Select...",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.dataSourceSelectPlaceholder),
             width: "100%",
             required: this.isRequired(),
             change: (oEvent: Event) => {
@@ -62,7 +75,19 @@ export class ODataListBindingPlugin extends BasePlugin {
             }
         });
 
-        if (ds && ds.url && ds.keyField && ds.textField) {
+        if (!ds || !ds.url || !ds.keyField || !ds.textField) {
+            Logger.warn(
+                "[MetaUI ODataListBindingPlugin]",
+                "Incomplete dataSource configuration for odataSelect widget.",
+                "ODataListBindingPlugin"
+            );
+        } else if (!ODataListBindingPlugin.isEntitySetPath(ds.url)) {
+            Logger.warn(
+                "[MetaUI ODataListBindingPlugin]",
+                `REFUSED dataSource.url '${ds.url}': odataSelect expects a model entity set path, not an absolute URL.`,
+                "ODataListBindingPlugin"
+            );
+        } else {
             const odataModelPrefix = ds.modelName ? `${ds.modelName}>` : "";
             combo.bindAggregation("items", {
                 path: `${odataModelPrefix}${ds.url}`,
@@ -72,12 +97,6 @@ export class ODataListBindingPlugin extends BasePlugin {
                 }),
                 templateShareable: true
             });
-        } else {
-            Logger.warn(
-                "[MetaUI ODataListBindingPlugin]",
-                "Incomplete dataSource configuration for odataSelect widget.",
-                "ODataListBindingPlugin"
-            );
         }
 
         combo.attachModelContextChange((oEvent: Event) => {

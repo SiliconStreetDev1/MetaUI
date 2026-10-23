@@ -115,10 +115,55 @@ oHost.attachFieldChange(function(oEvent) {
 
 ## Advanced Data Binding: Custom Properties (`controlProps`)
 
-The `ui.controlProps` object acts as an escape hatch in your JSON Schema, allowing you to inject raw, native SAPUI5 properties directly into the generated widget. While it can be used for static properties (e.g., `"showClearIcon": true`), its true power lies in **Dynamic Expression Bindings**.
+The `ui.controlProps` object injects native SAPUI5 properties into the generated widget. An entry is either a static value (`"showClearIcon": true`) or a UI5 binding expression string.
+
+It is **not** an unrestricted escape hatch. A schema may arrive from a source the application does not control, so every entry is vetted against the target control's own UI5 property metadata before it is written, by `vetControlProperty()` in `src/nz/co/siliconst/ui5/metaui/utils/ControlCapabilities.ts`. The gate is an allowlist over UI5 property **types**, not a denylist of dangerous property names.
+
+### Which control receives the property
+
+The engine looks for the property on the interactive control first, then on the outer wrapper control:
+
+1. the primary interactive control (the inner `sap.m.Input`, `sap.m.TextArea`, … where the widget wraps one), if `getMetadata().hasProperty(name)` is true for it;
+2. otherwise the outer generated control, if that declares it;
+3. otherwise the entry is refused — no control in the pair declares the property.
+
+### What is accepted
+
+An entry is written only when every one of these holds. They are evaluated in this order, and the first failure decides the logged reason:
+
+| # | Rule | Refusal reason logged when it fails |
+| :--- | :--- | :--- |
+| 1 | It is not a core state property MetaUI owns (`BLOCKED_CONTROL_PROPS`) | `it is a core state property owned by MetaUI` |
+| 2 | It is not a raw-markup property (`HTML_SINK_CONTROL_PROPS`: `htmlText`, `html`, `innerHTML`, `content`) | `it is rendered as raw markup` |
+| 3 | Some generated control in the pair declares the property | `no generated control declares it` |
+| 4 | That control's metadata gives the property a type | `the control declares no type for it` |
+| 5 | The declared UI5 type resolves to a scalar primitive — `string`, `boolean`, `int` or `float` (`ALLOWED_CONTROL_PROP_PRIMITIVES`) | `its UI5 type '<type>' is not a scalar primitive` |
+
+The type rule is resolved through `sap.ui.base.DataType`, so registered UI5 types collapse to one of those four primitives: `sap.ui.core.CSSSize` and every UI5 enum (`sap.m.InputType`, `sap.m.ButtonType`, …) resolve to `string` and are accepted. UI5's remaining built-in primitives — `object`, `function` and `any`, and all array forms — resolve to none of the four and are therefore refused without any property having to be named.
+
+**Core state properties MetaUI owns** (`BLOCKED_CONTROL_PROPS`), unchanged from earlier versions:
+
+- `value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens` — data paths managed strictly by `StateManager`.
+- `editable`, `enabled`, `visible` — managed strictly by `visibleOn`, `enabledOn`, and the `readOnly` schema directives.
+- `valueState`, `valueStateText` — managed exclusively by the validation pipeline.
+
+**Markup properties are refused outright.** There is no `ui.controlProps` route for injecting HTML. The supported way to render markup is the bound field value of `ui.widget: "richText"`, which renders a `sap.m.FormattedText` in display mode and routes the value through that control's own `htmlText` setter.
+
+### URI-typed properties (`href`, `src`, `icon`, …)
+
+A property whose declared UI5 type is `sap.ui.core.URI` is accepted but its value is protocol-checked by `UrlValidator.isSafeUiResourceUri()`:
+
+- A **static** value that fails the check is refused with `unsafe URI scheme` and never written.
+- A **bound** value is wrapped in a sanitizing formatter (`sanitizeUriPropertyValue()`), so a hostile URI that arrives later through the model is collapsed to the empty string at the moment it would be written — not only the literal in the schema.
+
+Accepted URI values are `http:`, `https:`, `mailto:` and `tel:` URLs; document-relative paths beginning `/`, `./`, `../` or `#` (but not protocol-relative `//`); raster `data:image/(png|jpeg|jpg|gif|webp|bmp);base64,` URIs; `sap-icon://…`; and the empty string. Everything else — `javascript:`, non-image `data:`, and any other scheme — resolves to `""`.
+
+### How the value is written
+
+A vetted value is written through the control's own generated setter (`setPlaceholder`, `setWidth`, …) when one exists, via `writeControlProperty()`. `ManagedObject.setProperty` is used only for a property that generates no setter, so UI5's own coercion and sanitization in the typed setter is never bypassed.
 
 ### Dynamic Expression Bindings
-You can write full UI5 `{= ... }` expressions to dynamically toggle UI states based on other fields in the payload, or even bind to external models supplied by your parent application.
+A `controlProps` value that is a string starting with `{` and ending with `}` is treated as a binding and parsed by the same grammar as `visibleOn` / `enabledOn` (see **Condition expression grammar** below). You can write full UI5 `{= ... }` expressions to dynamically toggle UI states based on other fields in the payload, or bind to external models supplied by your parent application.
 
 **Binding to the Internal MetaUI Payload:**
 The MetaUI Engine intercepts both the host's configured `modelName` (default `meta>`) and the generic placeholder `metaui>` (rewriting `${metaui>` to `${<modelName>>` in `ControlDirectiveUtil.ts`). This shields you from sandbox model collisions and avoids conflicts with Fiori Elements metadata models.
@@ -136,10 +181,49 @@ Because the engine selectively routes the `metaui>` prefix, you can freely bind 
 }
 ```
 
-### Blocked Properties (Sandbox Integrity)
-To maintain the security and architectural integrity of the two-way data binding engine, certain critical properties (`BLOCKED_CONTROL_PROPS` in `ControlCapabilities.ts`) are blocked and cannot be overridden in `controlProps`. These include:
-- `value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens` (Data paths managed strictly by the `StateManager`)
-- `editable`, `enabled`, `visible` (Managed strictly by `visibleOn`, `enabledOn`, and `readOnly` schema directives)
-- `valueState`, `valueStateText` (Managed exclusively by the validation pipeline)
+### What a refused entry does
 
-If you attempt to inject these, the Engine will block them and log an `ILLEGAL OVERRIDE` warning via `Logger.warn`.
+A refused entry is skipped and a warning is emitted through `Logger.warn()` — `REFUSED controlProps entry '<name>': <reason>.` — on the `ControlDirectiveUtil` component. Warnings are never suppressed by `debugMode`. The remaining entries, and the field itself, still render: one bad directive does not abort the form.
+
+---
+
+## Condition expression grammar (`visibleOn`, `enabledOn`, bound `controlProps`)
+
+`ui.visibleOn`, `ui.enabledOn` and any `controlProps` value written as a binding string are compiled by `ExpressionBuilder.buildChecked()` and then handed to UI5's `BindingParser`. The grammar is explicit, and a rule outside it is refused rather than passed through.
+
+### Supported forms
+
+| Form | Example | Compiles to |
+| :--- | :--- | :--- |
+| Absolute model path | `"{/Active}"` | `{meta>/Active}` |
+| Relative property name or dotted path | `"{Active}"`, `"{Address.City}"` | resolved against the current field's parent context |
+| The engine placeholder prefix | `"{metaui>/Active}"` | rewritten to the host's configured `modelName` |
+| Any named external model | `"{settings>/liveUpdate}"`, `"{i18n>/label}"` | passed through unchanged |
+| OData path with a key predicate | `"{odata>/Employees('E100')/Active}"` | passed through unchanged |
+| Expression binding | `"{= ${/Qty} > 5 }"` | `{= ${meta>/Qty} > 5 }` |
+| Key predicate inside an expression binding | `"{= ${odata>/Items(ID=1,Name='x')/Qty} > 5 }"` | passed through unchanged |
+| `$root.` absolute reference | `"$root.Status === 'NEW'"` | `{= ${meta>/Status} === 'NEW' }` |
+| `$row.` row-relative reference (inline tables) | `"$row.Discount > 0"` | resolved against the current row context |
+| Bare identifier expression | `"Category === 'A'"` | identifiers become sibling model paths |
+| Empty or whitespace-only rule | `""` | `{= true }` |
+
+Identifiers that are JavaScript built-ins are left alone rather than turned into model paths:
+
+```text
+true  false  null  undefined  NaN  Infinity  Math  String  Number  Array
+Object  Boolean  RegExp  Date  JSON  parseInt  parseFloat  isNaN  isFinite
+```
+
+### Not supported
+
+**UI5 complex-binding object syntax is refused.** A rule such as `"{path:'/Active', formatter:'my.app.fn'}"` is rejected before it reaches `BindingParser`, because that parser resolves a named formatter against the global scope and would then invoke it with the live field value. The structural test is a `:` or `,` at the *top level* of a `{…}` token, or a second `>` model separator; commas and colons nested inside `(…)` or inside a quoted literal are fine, which is what keeps OData key predicates working.
+
+Also refused: a token containing a character outside the path alphabet; inside an expression binding, a quoted string literal sitting at a token's top level rather than inside a `(…)` key predicate; and any stray `{` or `}` left in a compiled expression (which would otherwise close the `{= … }` wrapper early and let the remainder be parsed as a second binding).
+
+A refused rule is logged — `REFUSED condition rule: raw UI5 binding syntax is not accepted from a schema ('<rule>')` — and the directive is **skipped**. The field still renders, with the directive simply not applied.
+
+`ControlDirectiveUtil` additionally re-checks the parsed result: if `BindingParser` came back having resolved a named global reference into `formatter`, `events`, `factory` or `type`, the binding is discarded with `the parsed binding resolved a named global reference`. An expression the parser cannot read at all is logged as `Unparseable binding expression from schema` and skipped.
+
+### `enabledOn` and display mode
+
+`enabledOn` is bound only when the target control actually declares an `enabled` property. Most widgets fall back to `sap.m.Text` in display mode, which has none, so `enabledOn` is inert there rather than a render failure.

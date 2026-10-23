@@ -15,14 +15,13 @@ verify a change, and how the repository is laid out.
 - **Node.js** 22.14.0 or later
 - **npm** 11.5.1 or later
 
-MetaUI is a SAPUI5 custom library. It declares `sap.ui.core`, `sap.m`,
-`sap.ui.layout`, `sap.ui.unified`, `sap.ui.codeeditor` and `sap.ndc` as UI5
-library dependencies.
+MetaUI is a UI5 custom library. It declares `sap.ui.core`, `sap.m` and
+`sap.ui.layout` as eager UI5 library dependencies, plus `sap.ui.unified` and
+`sap.ui.codeeditor` as lazy ones.
 
-> **`sap.ndc` ships with SAPUI5 but not OpenUI5.** A consuming application must
-> therefore run on SAPUI5 (for example bootstrapping from `https://ui5.sap.com/`),
-> or declare the libraries it needs through UI5 Tooling. Loading MetaUI against a
-> pure OpenUI5 distribution fails while resolving `sap/ndc/library.js`.
+> **It runs on OpenUI5 and on SAPUI5.** Every declared dependency ships with
+> both distributions, so there is no SAPUI5-only requirement. Verified on
+> OpenUI5 1.120.50.
 
 ```bash
 git clone https://github.com/SiliconStreetDev1/MetaUI.git
@@ -36,7 +35,7 @@ Run these before opening a pull request. All five must pass.
 
 ```bash
 npm run metrics      # read-only canonical counts (files, lines, registrations, assertions)
-npm run lint         # AST lint + architectural gate -> 0 violations, 0 exemptions
+npm run lint         # AST lint + architectural gate -> 0 violations; exemptions are counted and reported
 npm run typecheck    # tsc --noEmit -p .              -> 0 errors
 npm run build        # ui5 build --clean-dest         -> dist/
 npm test             # full suite in headless Chromium

@@ -8,6 +8,7 @@ import { ISchema } from "../interfaces/ISchema";
 import { ISchemaBuilderPlugin } from "../interfaces/ISchemaBuilderPlugin";
 import { Logger } from "../utils/Logger";
 import { isRecord, deepClone } from "../utils/TypeGuards";
+import { UrlValidator } from "../utils/UrlValidator";
 import { OpenApiParserFactory } from "./OpenApiParserFactory";
 import { OpenApiHeuristicEngine } from "./heuristics/OpenApiHeuristicEngine";
 
@@ -43,11 +44,21 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
     /**
      * Asynchronously fetches a remote OpenAPI document and compiles it into a MetaUI ISchema.
      *
+     * The endpoint passes through the same scheme and origin policy as every other outbound request
+     * MetaUI makes, so an application that narrows {@link UrlValidator.setDataSourceOriginPolicy} is
+     * not left with an unguarded side door on this sibling of `SchemaProvider.resolve`.
+     *
      * @param {string} url The URL to fetch the JSON payload from.
      * @param {string} [targetDefinition] Optional. The specific entity schema to extract.
      * @returns {Promise<ISchema>} A Promise resolving to the compiled ISchema.
+     * @throws {Error} If the URL is blocked by the data source URL policy, or the fetch or parse fails.
      */
     public static async fetchAndBuild(url: string, targetDefinition?: string): Promise<ISchema> {
+        if (!UrlValidator.isSafeDataSourceUrl(url)) {
+            const refusal = `Refused OpenAPI URL '${url}': blocked by the data source URL policy.`;
+            Logger.warn("[MetaUI OpenApiBuilder]", refusal);
+            throw new Error(refusal);
+        }
         try {
             const response = await fetch(url);
             if (!response.ok) {

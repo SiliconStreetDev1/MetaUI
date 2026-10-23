@@ -1,5 +1,9 @@
 sap.ui.define([
     "metaui/sandbox/test/TestOracle",
+    "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin",
+    "nz/co/siliconst/ui5/metaui/plugins/controls/SingleBoundWidgetPlugin",
+    "nz/co/siliconst/ui5/metaui/plugins/controls/OptionListPlugin",
+    "nz/co/siliconst/ui5/metaui/plugins/actions/ActionButtonPlugin",
     "nz/co/siliconst/ui5/metaui/core/PluginRegistry",
     "nz/co/siliconst/ui5/metaui/core/PipelineManager",
     "nz/co/siliconst/ui5/metaui/core/SchemaNormalizer",
@@ -11,9 +15,15 @@ sap.ui.define([
     "nz/co/siliconst/ui5/metaui/controls/DynamicHost",
     "sap/ui/model/json/JSONModel",
     "sap/m/Label",
+    "sap/m/Token",
+    "sap/m/library",
     "sap/ui/core/Core"
 ], function (
     TestOracle,
+    BasePluginMod,
+    SingleBoundWidgetPluginMod,
+    OptionListPluginMod,
+    ActionButtonPluginMod,
     PluginRegistryMod,
     PipelineManagerMod,
     SchemaNormalizerMod,
@@ -25,10 +35,16 @@ sap.ui.define([
     DynamicHostMod,
     JSONModel,
     Label,
+    Token,
+    mobileLibrary,
     Core
 ) {
     "use strict";
 
+    var BasePlugin = BasePluginMod.BasePlugin;
+    var SingleBoundWidgetPlugin = SingleBoundWidgetPluginMod.SingleBoundWidgetPlugin;
+    var OptionListPlugin = OptionListPluginMod.OptionListPlugin;
+    var ActionButtonPlugin = ActionButtonPluginMod.ActionButtonPlugin;
     var PluginRegistry = PluginRegistryMod.PluginRegistry;
     var GlobalPipeline = PipelineManagerMod.GlobalPipeline;
     var SchemaNormalizer = SchemaNormalizerMod.SchemaNormalizer;
@@ -496,11 +512,45 @@ sap.ui.define([
                 "[" + key + " display] Display control has non-zero DOM geometry (" + Math.round(dispRect.width) + "x" + Math.round(dispRect.height) + ")"
             );
 
-            // 4. Control is not interactive
+            // 4. Control is not interactive.
+            //    The old final branch asserted `typeof dispControl.setValue === "undefined"`, which
+            //    is a fixed SAPUI5 API fact for sap.m.Text / FormattedText / Image / MessageStrip
+            //    and is already implied by assertion 1 above, so no plugin defect could ever fail
+            //    it. Both checks below read the control's actual rendered DOM instead.
+            var writableSelector =
+                "input:not([type=hidden]):not([disabled]):not([readonly])," +
+                "textarea:not([disabled]):not([readonly])," +
+                "select:not([disabled])," +
+                '[contenteditable="true"],[contenteditable=""]';
+            var interactiveSelector = "input,textarea,select,button,[contenteditable]";
+            var describeEls = function (els) {
+                return els
+                    .map(function (el) {
+                        var cls = String(el.className || "").split(" ")[0];
+                        return el.tagName.toLowerCase() + (cls ? "." + cls : "");
+                    })
+                    .join(", ");
+            };
+            var writableEls = dispDom ? Array.prototype.slice.call(dispDom.querySelectorAll(writableSelector)) : [];
+
             if (typeof dispControl.getEditable === "function") {
                 assert.strictEqual(dispControl.getEditable(), false, "[" + key + " display] Display control getEditable() is false");
             } else if (spec.displaySameAsEdit && typeof dispControl.getEnabled === "function") {
-                assert.strictEqual(dispControl.getEnabled(), false, "[" + key + " display] Display control getEnabled() is false");
+                // Navigation affordances (nested payload triggers, hyperlinks, and the URL button, which opens
+                // a target and mutates nothing) stay clickable in display mode: read-only constrains the dialog
+                // and the bound value, not the ability to reach them. The mutating action buttons (submit,
+                // clear) remain disabled.
+                var staysReachable =
+                    key === "array" ||
+                    key === "object" ||
+                    key === "object:reference" ||
+                    key === "string:link" ||
+                    key === "string:urlButton";
+                assert.strictEqual(
+                    dispControl.getEnabled(),
+                    staysReachable,
+                    "[" + key + " display] Display control getEnabled() is " + staysReachable
+                );
             } else if (key === "object:dictionaryMap") {
                 var addBtn = dispControl.getItems()[0].getItems()[1];
                 assert.strictEqual(addBtn.getVisible(), false, "[" + key + " display] Dictionary Add Entry button is hidden in display mode");
@@ -517,20 +567,28 @@ sap.ui.define([
                     return it.getMetadata().getName() === "sap.ui.unified.FileUploader";
                 });
                 assert.strictEqual(hasUploader, false, "[" + key + " display] FileUploader input omitted in display mode");
-            } else if (
-                actualClass === "sap.m.Text" ||
-                actualClass === "sap.m.FormattedText" ||
-                actualClass === "sap.m.Image" ||
-                actualClass === "sap.m.MessageStrip"
-            ) {
-                assert.strictEqual(
-                    typeof dispControl.setValue === "undefined",
-                    true,
-                    "[" + key + " display] Display control (" + actualClass + ") is non-interactive"
-                );
             } else {
-                assert.ok(false, "[" + key + " display] Unverified non-interactive state for " + actualClass);
+                // Pure display controls (sap.m.Text / FormattedText / Image / MessageStrip and any
+                // future equivalent): the rendered subtree must contain no interactive element at
+                // all, which fails if a plugin ever renders its edit control here.
+                var interactiveEls = dispDom
+                    ? Array.prototype.slice.call(dispDom.querySelectorAll(interactiveSelector))
+                    : [];
+                assert.strictEqual(
+                    interactiveEls.length,
+                    0,
+                    "[" + key + " display] Display control (" + actualClass + ") renders no interactive element (found: " + describeEls(interactiveEls) + ")"
+                );
             }
+
+            // 4b. Whichever branch verified the control's own state, nothing in the rendered
+            //     subtree may still accept typing. This catches an edit control leaking into a
+            //     display-mode container (dictionary values, polymorphic children, uploader input).
+            assert.strictEqual(
+                writableEls.length,
+                0,
+                "[" + key + " display] Rendered DOM exposes no enabled, writable element (found: " + describeEls(writableEls) + ")"
+            );
 
             // 5. After mutating the model, the displayed text updates
             if (key === "string:password") {
@@ -1216,20 +1274,7 @@ sap.ui.define([
         geoPlugin.destroy();
         geoModel.destroy();
 
-        // 3. BarcodeScannerPlugin hides scanner button when readOnly is toggled
-        var scanPlugin = registry.getPlugin("string", "scanner");
-        var scanBox = scanPlugin.render(
-            { type: "string", ui: { widget: "scanner" } },
-            "/Barcode",
-            "meta",
-            "scanScope"
-        );
-        assert.strictEqual(scanBox.getItems()[1].getVisible(), true, "BarcodeScannerButton is visible when editable");
-        scanPlugin.applyEditable(false);
-        assert.strictEqual(scanBox.getItems()[1].getVisible(), false, "BarcodeScannerButton hides when applyEditable(false) is called");
-        scanPlugin.destroy();
-
-        // 4. CameraPlugin & LinkPlugin reject unsafe javascript: URLs and do not fire capture on programmatic setValue
+        // 3. CameraPlugin & LinkPlugin reject unsafe javascript: URLs and do not fire capture on programmatic setValue
         var camCaptureFired = 0;
         var camPlugin = registry.getPlugin("string", "camera");
         var camCtrl = camPlugin.render(
@@ -1598,4 +1643,1754 @@ sap.ui.define([
             done();
         });
     });
+
+    function makeHardeningEngine(registry, model, refDefinition) {
+        var engine = new Engine(true, false, registry);
+        engine.activeModel = model;
+        engine.host = {
+            activeModelName: "meta",
+            getSchemaDefinition: function () { return refDefinition || null; },
+            getSchemaDefinitions: function () { return refDefinition ? { MockReference: refDefinition } : {}; }
+        };
+        engine.onChange = function () { return undefined; };
+        return engine;
+    }
+
+    QUnit.test("Plugin hardening: ui.expandable restores the full-screen editor dialog on textArea and codeEditor", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Plain: { type: "string", ui: { label: "Plain", widget: "textArea", rows: 3 } },
+                Notes: { type: "string", ui: { label: "Notes", widget: "textArea", rows: 3, expandable: true } },
+                Source: { type: "string", ui: { label: "Source", widget: "codeEditor", expandable: true } }
+            }
+        });
+
+        registry.preloadDependencies(schema).then(function () {
+            var sandboxId = "sandbox-hardening-expandable";
+            createPhysicalSandbox(sandboxId);
+            var model = new JSONModel({ Plain: "a\nb", Notes: "a\nb", Source: "{ \"a\": 1 }" });
+
+            var plainPlugin = registry.getPlugin("string", "textArea");
+            var plainCtrl = plainPlugin.render(schema.properties.Plain, "/Plain", "meta", "expPlain", function () {}, model);
+            assert.strictEqual(
+                plainCtrl.getMetadata().getName(),
+                "sap.m.TextArea",
+                "[expandable] Without ui.expandable the textArea stays a bare sap.m.TextArea (default rendering unchanged)"
+            );
+
+            var taPlugin = registry.getPlugin("string", "textArea");
+            var taCtrl = taPlugin.render(schema.properties.Notes, "/Notes", "meta", "expNotes", function () {}, model);
+            taCtrl.setModel(model, "meta");
+            taCtrl.placeAt(sandboxId);
+            Core.applyChanges();
+            assert.strictEqual(
+                taCtrl.getMetadata().getName(),
+                "sap.m.HBox",
+                "[expandable textArea] ui.expandable wraps the editor in an sap.m.HBox"
+            );
+            var taItems = typeof taCtrl.getItems === "function" ? taCtrl.getItems() : [];
+            assert.strictEqual(
+                taItems.length === 2 &&
+                    taItems[0].getMetadata().getName() === "sap.m.TextArea" &&
+                    taItems[1].getIcon() === "sap-icon://full-screen",
+                true,
+                "[expandable textArea] HBox holds [sap.m.TextArea, full-screen Button]"
+            );
+            assert.strictEqual(
+                taItems.length === 2 && taPlugin.mainControl === taItems[0],
+                true,
+                "[expandable textArea] mainControl stays the editor so state and validation still target it"
+            );
+
+            if (taItems.length === 2) {
+                taItems[1].firePress();
+            }
+            var taDeps = taCtrl.getDependents();
+            var taDialog = taDeps.length > 0 ? taDeps[0] : null;
+            assert.strictEqual(
+                taDeps.length === 1 && taDeps[0].getMetadata().getName() === "sap.m.Dialog",
+                true,
+                "[expandable textArea] Pressing the expand button adds a dependent sap.m.Dialog"
+            );
+            assert.strictEqual(
+                Boolean(taDialog) &&
+                    taDialog.getContentWidth() === "80%" &&
+                    taDialog.getContentHeight() === "80%" &&
+                    taDialog.getResizable(),
+                true,
+                "[expandable textArea] Expand dialog is a resizable 80% x 80% modal"
+            );
+            assert.strictEqual(
+                taDialog && taDialog.getContent().length > 0
+                    ? taDialog.getContent()[0].getMetadata().getName()
+                    : "<no expand dialog>",
+                "sap.m.TextArea",
+                "[expandable textArea] Expand dialog hosts a second sap.m.TextArea on the same binding"
+            );
+            if (taDialog) {
+                taDialog.destroy();
+            }
+
+            var cePlugin = registry.getPlugin("string", "codeEditor");
+            var ceCtrl = cePlugin.render(schema.properties.Source, "/Source", "meta", "expSource", function () {}, model);
+            ceCtrl.setModel(model, "meta");
+            assert.strictEqual(
+                ceCtrl.getMetadata().getName(),
+                "sap.m.HBox",
+                "[expandable codeEditor] ui.expandable wraps the editor in an sap.m.HBox"
+            );
+            var ceItems = typeof ceCtrl.getItems === "function" ? ceCtrl.getItems() : [];
+            assert.strictEqual(
+                ceItems.length === 2 &&
+                    ceItems[0].getMetadata().getName() === "sap.ui.codeeditor.CodeEditor" &&
+                    ceItems[1].getIcon() === "sap-icon://full-screen",
+                true,
+                "[expandable codeEditor] HBox holds [sap.ui.codeeditor.CodeEditor, full-screen Button]"
+            );
+            assert.strictEqual(
+                ceItems.length === 2 && cePlugin.mainControl === ceItems[0],
+                true,
+                "[expandable codeEditor] mainControl stays the editor so state and validation still target it"
+            );
+
+            taPlugin.destroy();
+            cePlugin.destroy();
+            plainPlugin.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Plugin hardening: codeEditor honours ui.rows for height, ui.args for language, and renders a read-only editor in display mode", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var sampleCode = "function test() {\n    return true;\n}";
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Defaults: { type: "string", ui: { label: "Defaults", widget: "codeEditor" } },
+                Sized: { type: "string", ui: { label: "Sized", widget: "codeEditor", rows: 10, args: "javascript" } },
+                Shown: { type: "string", ui: { label: "Shown", widget: "codeEditor", rows: 6 } }
+            }
+        });
+
+        registry.preloadDependencies(schema).then(function () {
+            var model = new JSONModel({ Defaults: sampleCode, Sized: sampleCode, Shown: sampleCode });
+
+            var defPlugin = registry.getPlugin("string", "codeEditor");
+            var defCtrl = defPlugin.render(schema.properties.Defaults, "/Defaults", "meta", "ceDef", function () {}, model);
+            assert.strictEqual(
+                defCtrl.getHeight() === "250px" && defCtrl.getType() === "json",
+                true,
+                "[codeEditor] Without ui.rows / ui.args the editor keeps its 250px json defaults"
+            );
+
+            var sizedPlugin = registry.getPlugin("string", "codeEditor");
+            var sizedCtrl = sizedPlugin.render(schema.properties.Sized, "/Sized", "meta", "ceSized", function () {}, model);
+            assert.strictEqual(
+                sizedCtrl.getHeight(),
+                "200px",
+                "[codeEditor] ui.rows: 10 sizes the editor to 200px, matching the row directive TextAreaPlugin honours"
+            );
+            assert.strictEqual(
+                sizedCtrl.getType(),
+                "javascript",
+                "[codeEditor] ui.args selects the Ace language mode"
+            );
+
+            var dispPlugin = registry.getPlugin("string", "codeEditor");
+            dispPlugin.setEditable(false);
+            var dispCtrl = dispPlugin.render(schema.properties.Shown, "/Shown", "meta", "ceDisp", function () {}, model);
+            dispCtrl.setModel(model, "meta");
+            assert.strictEqual(
+                dispCtrl.getMetadata().getName(),
+                "sap.ui.codeeditor.CodeEditor",
+                "[codeEditor display] Display mode renders a CodeEditor, not the single-line sap.m.Text it inherited"
+            );
+            assert.strictEqual(
+                typeof dispCtrl.getEditable === "function" && dispCtrl.getEditable() === false,
+                true,
+                "[codeEditor display] Display-mode CodeEditor is not editable"
+            );
+            assert.strictEqual(
+                typeof dispCtrl.getValue === "function" ? dispCtrl.getValue() : "",
+                sampleCode,
+                "[codeEditor display] Display-mode CodeEditor shows the bound multi-line source verbatim"
+            );
+            assert.strictEqual(
+                typeof dispCtrl.getHeight === "function" ? dispCtrl.getHeight() : "",
+                "128px",
+                "[codeEditor display] Display-mode CodeEditor honours ui.rows for its height"
+            );
+
+            defPlugin.destroy();
+            sizedPlugin.destroy();
+            dispPlugin.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Plugin hardening: CompactLayout renders an inline array table at its declared position instead of hoisting it to the root", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var compactSchema = SchemaNormalizer.normalize({
+            type: "object",
+            title: "Compact Row",
+            uiLayout: [
+                {
+                    type: "HorizontalLayout",
+                    elements: [
+                        { type: "Control", scope: "#/properties/Lines" },
+                        { type: "Control", scope: "#/properties/Note" }
+                    ]
+                }
+            ],
+            properties: {
+                Lines: { type: "array", items: { type: "object", properties: { Sku: { type: "string" } } } },
+                Note: { type: "string", ui: { label: "Note" } }
+            }
+        });
+
+        registry.preloadDependencies(compactSchema).then(function () {
+            sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/CompactLayout"], function (CompactLayoutMod) {
+                var CompactLayout = CompactLayoutMod.CompactLayout;
+                var sandboxId = "sandbox-hardening-compact";
+                createPhysicalSandbox(sandboxId);
+                var model = new JSONModel({ Lines: [{ Sku: "A-1" }], Note: "Hello" });
+                var engine = makeHardeningEngine(registry, model);
+
+                var container = new CompactLayout().render(compactSchema, "meta", engine);
+                container.setModel(model, "meta");
+                container.placeAt(sandboxId);
+                Core.applyChanges();
+
+                assert.strictEqual(
+                    container.getItems().length,
+                    1,
+                    "[compact] Root container holds only the declared HorizontalLayout row (no hoisted table appended after the walk)"
+                );
+                var row = container.getItems()[0];
+                assert.strictEqual(
+                    row.getMetadata().getName(),
+                    "sap.m.HBox",
+                    "[compact] The single root item is the HorizontalLayout row"
+                );
+                var rowItems = typeof row.getItems === "function" ? row.getItems() : [];
+                assert.strictEqual(
+                    rowItems.length,
+                    2,
+                    "[compact] Both declared elements render inside the row"
+                );
+                assert.strictEqual(
+                    rowItems.length > 0 ? rowItems[0].getMetadata().getName() : "<empty row>",
+                    "sap.m.Table",
+                    "[compact] The inline array table keeps its declared index 0 inside the row"
+                );
+                assert.strictEqual(
+                    rowItems.length > 0 && typeof rowItems[0].getColumns === "function"
+                        ? rowItems[0].getColumns().length
+                        : -1,
+                    1,
+                    "[compact] The inline array table rendered its item columns"
+                );
+
+                container.destroy();
+                model.destroy();
+                done();
+            });
+        });
+    });
+
+    QUnit.test("Plugin hardening: nested dialog sub-schemas carry metadata.ui so labelSpan, controlProps and layoutBudget survive renderMode dialog", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var refDefinition = SchemaNormalizer.normalize({
+            type: "object",
+            properties: { NestedString: { type: "string" } }
+        });
+        var sharedUi = { labelSpan: 3, layoutBudget: 40, controlProps: { columnsXL: 2 } };
+
+        var objPlugin = registry.getPlugin("object");
+        var objDescriptor = objPlugin.buildDialogDescriptor({
+            type: "object",
+            properties: { Street: { type: "string" } },
+            ui: JSON.parse(JSON.stringify(sharedUi))
+        });
+        assert.strictEqual(
+            objDescriptor.subSchema.ui && objDescriptor.subSchema.ui.labelSpan === 3 &&
+                objDescriptor.subSchema.ui.layoutBudget === 40 &&
+                objDescriptor.subSchema.ui.controlProps.columnsXL === 2,
+            true,
+            "[dialog ui] ObjectPlugin forwards ui.labelSpan, ui.layoutBudget and ui.controlProps onto the modal sub-schema"
+        );
+
+        var arrPlugin = registry.getPlugin("array");
+        var arrDescriptor = arrPlugin.buildDialogDescriptor({
+            type: "array",
+            items: { type: "object", properties: { Sku: { type: "string" } } },
+            ui: JSON.parse(JSON.stringify(sharedUi))
+        });
+        assert.strictEqual(
+            arrDescriptor.subSchema.ui && arrDescriptor.subSchema.ui.labelSpan === 3 &&
+                arrDescriptor.subSchema.ui.layoutBudget === 40,
+            true,
+            "[dialog ui] ArrayPlugin forwards the ui block onto the modal table sub-schema"
+        );
+
+        var refPlugin = registry.getPlugin("object", "reference");
+        refPlugin.setEngineContext({
+            getSchemaDefinition: function () { return refDefinition; },
+            getSchemaDefinitions: function () { return { MockReference: refDefinition }; },
+            getModel: function () { return null; }
+        });
+        var refDescriptor = refPlugin.buildDialogDescriptor({
+            type: "object",
+            $ref: "#/definitions/MockReference",
+            ui: JSON.parse(JSON.stringify(sharedUi))
+        });
+        assert.strictEqual(
+            refDescriptor.subSchema.ui && refDescriptor.subSchema.ui.labelSpan === 3 &&
+                refDescriptor.subSchema.ui.layoutBudget === 40,
+            true,
+            "[dialog ui] ReferencePlugin merges the property ui block onto the resolved $ref sub-schema"
+        );
+        assert.strictEqual(
+            refDefinition.ui === undefined,
+            true,
+            "[dialog ui] ReferencePlugin does not mutate the shared $ref definition while merging"
+        );
+
+        var roDescriptor = objPlugin.buildDialogDescriptor({
+            type: "object",
+            readOnly: true,
+            properties: { Street: { type: "string" } }
+        });
+        assert.strictEqual(
+            roDescriptor.subSchema.ui && roDescriptor.subSchema.ui.readOnly,
+            true,
+            "[dialog ui] A read-only nested property propagates ui.readOnly to the sub-schema, matching ArraySubSchemaFactory"
+        );
+
+        objPlugin.destroy();
+        arrPlugin.destroy();
+        refPlugin.destroy();
+    });
+
+    QUnit.test("Plugin hardening: ui.placeholder and maxLength are honoured by the date/time pickers and multiInput", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Day: { type: "string", ui: { label: "Day", widget: "date", placeholder: "Pick a day" } },
+                Moment: { type: "string", ui: { label: "Moment", widget: "datetime", placeholder: "Pick a moment" } },
+                Clock: { type: "string", ui: { label: "Clock", widget: "time", placeholder: "Pick a time" } },
+                Tags: {
+                    type: "array",
+                    items: { type: "string", maxLength: 8 },
+                    ui: { label: "Tags", widget: "multiInput", placeholder: "Add a tag" }
+                }
+            }
+        });
+
+        registry.preloadDependencies(schema).then(function () {
+            var model = new JSONModel({ Day: "2026-01-01", Moment: "", Clock: "", Tags: [] });
+
+            [
+                { key: "Day", widget: "date", expected: "Pick a day" },
+                { key: "Moment", widget: "datetime", expected: "Pick a moment" },
+                { key: "Clock", widget: "time", expected: "Pick a time" }
+            ].forEach(function (entry) {
+                var pickerPlugin = registry.getPlugin("string", entry.widget);
+                var pickerCtrl = pickerPlugin.render(
+                    schema.properties[entry.key],
+                    "/" + entry.key,
+                    "meta",
+                    "hp" + entry.key,
+                    function () {},
+                    model
+                );
+                assert.strictEqual(
+                    pickerCtrl.getPlaceholder(),
+                    entry.expected,
+                    "[directives] " + pickerCtrl.getMetadata().getName() + " honours ui.placeholder"
+                );
+                pickerPlugin.destroy();
+            });
+
+            var tagPlugin = registry.getPlugin("array", "multiInput");
+            var tagCtrl = tagPlugin.render(schema.properties.Tags, "/Tags", "meta", "hpTags", function () {}, model);
+            assert.strictEqual(
+                tagCtrl.getMaxLength(),
+                8,
+                "[directives] MultiInput honours the per-entry items.maxLength on its token entry field"
+            );
+
+            tagPlugin.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Plugin hardening: nested host tracking drops destroyed hosts and TableLayout falls back when no uiLayout scope resolves", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        var trackingPlugin = registry.getPlugin("object");
+        var hostA = new Label({ text: "host A" });
+        var hostB = new Label({ text: "host B" });
+        var canTrack = typeof trackingPlugin.trackNestedHost === "function";
+        assert.strictEqual(
+            canTrack,
+            true,
+            "[lifecycle] BasePlugin exposes a nested-host tracking seam that can prune destroyed hosts"
+        );
+        if (canTrack) {
+            trackingPlugin.trackNestedHost(hostA);
+        }
+        assert.strictEqual(
+            canTrack && trackingPlugin.activeNestedHosts.size === 1,
+            true,
+            "[lifecycle] The first nested host is tracked for destruction"
+        );
+        hostA.destroy();
+        if (canTrack) {
+            trackingPlugin.trackNestedHost(hostB);
+        }
+        assert.strictEqual(
+            canTrack && trackingPlugin.activeNestedHosts.size === 1,
+            true,
+            "[lifecycle] Opening another dialog discards the host the dialog layer already destroyed on close"
+        );
+        assert.strictEqual(
+            canTrack && trackingPlugin.activeNestedHosts.has(hostB),
+            true,
+            "[lifecycle] The live nested host is still owned by the plugin"
+        );
+        if (!canTrack) {
+            hostB.destroy();
+        }
+        trackingPlugin.destroy();
+
+        var sandboxId = "sandbox-hardening-tablefallback";
+        createPhysicalSandbox(sandboxId);
+        var model = new JSONModel({ items: [{ Code: "C1", Name: "First" }] });
+        var engine = makeHardeningEngine(registry, model);
+        var badLayoutSchema = {
+            type: "array",
+            title: "Unresolvable Layout",
+            uiLayout: [{ type: "Control", scope: "#/properties/MissingScopeField" }],
+            items: {
+                type: "object",
+                properties: { Code: { type: "string" }, Name: { type: "string" } }
+            }
+        };
+
+        var table = new TableLayout().render(badLayoutSchema, "meta", engine, undefined, "/items");
+        table.setModel(model, "meta");
+        table.placeAt(sandboxId);
+        Core.applyChanges();
+        assert.strictEqual(
+            table.getColumns().length,
+            2,
+            "[fallback] An unresolvable uiLayout scope no longer counts as a rendered column, so the items.properties fallback runs"
+        );
+        assert.strictEqual(
+            engine.hasPartialRenderingErrors,
+            true,
+            "[fallback] The unresolvable scope is still reported as a partial rendering error"
+        );
+
+        table.destroy();
+        model.destroy();
+    });
+
+    QUnit.test("Plugin hardening: display mode keeps nested payload triggers, hyperlinks and URL buttons reachable", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Address: {
+                    type: "object",
+                    ui: { label: "Address", renderMode: "dialog" },
+                    properties: { Street: { type: "string" } }
+                },
+                Lines: {
+                    type: "array",
+                    ui: { label: "Lines", renderMode: "dialog" },
+                    items: { type: "object", properties: { Sku: { type: "string" } } }
+                },
+                Homepage: { type: "string", ui: { label: "Homepage", widget: "link" } },
+                Docs: { type: "string", ui: { label: "Docs", widget: "urlButton", args: "https://example.com/docs" } },
+                Blocked: { type: "string", ui: { label: "Blocked", widget: "link", enabled: false } },
+                Sealed: { type: "string", ui: { label: "Sealed", widget: "urlButton", args: "https://example.com", enabled: false } },
+                Locked: { type: "object", ui: { label: "Locked", renderMode: "dialog", enabled: false }, properties: { A: { type: "string" } } }
+            }
+        });
+
+        registry.preloadDependencies(schema).then(function () {
+            var model = new JSONModel({
+                Address: { Street: "1 Queen St" },
+                Lines: [{ Sku: "A-1" }],
+                Homepage: "https://example.com",
+                Docs: "Open the docs",
+                Blocked: "https://example.com",
+                Sealed: "Sealed target",
+                Locked: { A: "x" }
+            });
+
+            [
+                { key: "Address", type: "object", widget: undefined, label: "nested object trigger" },
+                { key: "Lines", type: "array", widget: undefined, label: "nested array trigger" },
+                { key: "Homepage", type: "string", widget: "link", label: "hyperlink" },
+                { key: "Docs", type: "string", widget: "urlButton", label: "URL navigation button" }
+            ].forEach(function (entry) {
+                var plugin = registry.getPlugin(entry.type, entry.widget);
+                plugin.setEditable(false);
+                plugin.setEngineContext({
+                    getSchemaDefinition: function () { return null; },
+                    getSchemaDefinitions: function () { return {}; },
+                    getModel: function () { return model; }
+                });
+                var ctrl = plugin.render(
+                    schema.properties[entry.key],
+                    "/" + entry.key,
+                    "meta",
+                    "nav" + entry.key,
+                    function () {},
+                    model
+                );
+                assert.strictEqual(
+                    ctrl.getEnabled(),
+                    true,
+                    "[affordance] Read-only host leaves the " + entry.label + " clickable so the payload stays reachable"
+                );
+                plugin.setState("editable", false);
+                assert.strictEqual(
+                    ctrl.getEnabled(),
+                    true,
+                    "[affordance] A runtime editable=false toggle does not disable the " + entry.label
+                );
+                plugin.destroy();
+            });
+
+            [
+                { key: "Blocked", type: "string", widget: "link", label: "hyperlink" },
+                { key: "Sealed", type: "string", widget: "urlButton", label: "URL navigation button" },
+                { key: "Locked", type: "object", widget: undefined, label: "nested object trigger" }
+            ].forEach(function (entry) {
+                var offPlugin = registry.getPlugin(entry.type, entry.widget);
+                offPlugin.setEditable(false);
+                var offCtrl = offPlugin.render(
+                    schema.properties[entry.key],
+                    "/" + entry.key,
+                    "meta",
+                    "off" + entry.key,
+                    function () {},
+                    model
+                );
+                assert.strictEqual(
+                    offCtrl.getEnabled(),
+                    false,
+                    "[affordance] An explicit ui.enabled:false still disables the " + entry.label
+                );
+                offPlugin.destroy();
+            });
+
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Plugin hardening: switching a polymorphic variant clears the abandoned branch's validation entries", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var polyMeta = {
+            type: "object",
+            discriminator: { propertyName: "method" },
+            oneOf: [
+                {
+                    title: "Credit Card",
+                    properties: {
+                        method: { type: "string", const: "card" },
+                        cardNumber: { type: "string", minLength: 12 }
+                    },
+                    required: ["cardNumber"]
+                },
+                {
+                    title: "Bank Transfer",
+                    properties: {
+                        method: { type: "string", const: "bank" },
+                        iban: { type: "string", minLength: 10, default: "DE89370400440532013000" }
+                    },
+                    required: ["iban"]
+                }
+            ],
+            ui: { label: "Payment", widget: "polymorphic" }
+        };
+        var schema = SchemaNormalizer.normalize({ type: "object", properties: { Payment: polyMeta } });
+
+        registry.preloadDependencies(schema).then(function () {
+            var model = new JSONModel({ Payment: { method: "card", cardNumber: "41112222" } });
+            var engine = makeHardeningEngine(registry, model);
+            var polyBox = engine.generateField(schema.properties.Payment, "/Payment", "meta");
+            polyBox.setModel(model, "meta");
+
+            // A real error on the active variant's field, recorded the way Engine.onChange records it.
+            engine.reportSchemaError("Payment/cardNumber", "Minimum length is 12 characters.");
+            assert.strictEqual(
+                engine.validationLedger.hasActiveErrorsForPaths(["Payment/cardNumber"]),
+                true,
+                "[polymorphic] Precondition: the active variant's field error is held in the ValidationLedger"
+            );
+
+            var variantSelect = polyBox.getItems()[0];
+            variantSelect.setSelectedKey("bank");
+            variantSelect.fireChange({ selectedItem: variantSelect.getItems()[1] });
+
+            assert.strictEqual(
+                model.getProperty("/Payment/method"),
+                "bank",
+                "[polymorphic] Precondition: the variant actually switched"
+            );
+            assert.strictEqual(
+                engine.validationLedger.hasActiveErrorsForPaths(["Payment/cardNumber"]),
+                false,
+                "[polymorphic] Switching variants clears the abandoned branch's stale field error"
+            );
+            assert.strictEqual(
+                engine.validationLedger.hasActiveErrors(),
+                false,
+                "[polymorphic] No stale ledger entry survives for a field that no longer exists"
+            );
+
+            // An unrelated sibling error must survive: the prefix clear is scoped, not a global wipe.
+            engine.reportSchemaError("Unrelated/Field", "Untouched error");
+            engine.clearValidationPrefix("/Payment");
+            assert.strictEqual(
+                engine.validationLedger.hasActiveErrorsForPaths(["Unrelated/Field"]),
+                true,
+                "[polymorphic] Clearing the polymorphic prefix leaves sibling branches of the ledger intact"
+            );
+
+            engine.validationLedger.clear(true);
+            polyBox.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Plugin hardening: a HorizontalLayout row counts and renders only the Control elements whose scope resolves", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+
+        sap.ui.require([
+            "nz/co/siliconst/ui5/metaui/layouts/LayoutElementWalker",
+            "nz/co/siliconst/ui5/metaui/layouts/FormLayout"
+        ], function (WalkerMod, FormLayoutMod) {
+            var LayoutElementWalker = WalkerMod.LayoutElementWalker;
+            var FormLayout = FormLayoutMod.FormLayout;
+
+            var mixedSchema = SchemaNormalizer.normalize({
+                type: "object",
+                uiLayout: [
+                    {
+                        type: "HorizontalLayout",
+                        elements: [
+                            { type: "Control", scope: "#/properties/MissingScopeField" },
+                            { type: "Control", scope: "#/properties/Present" }
+                        ]
+                    }
+                ],
+                properties: { Present: { type: "string", ui: { label: "Present" } } }
+            });
+
+            var model = new JSONModel({ Present: "here" });
+            var countEngine = makeHardeningEngine(registry, model);
+            var delivered = null;
+            var rowCount = LayoutElementWalker.walk(
+                mixedSchema.uiLayout,
+                mixedSchema,
+                countEngine,
+                {
+                    onHorizontalControls: function (resolvedControls) { delivered = resolvedControls; },
+                    onScalarField: function () { return undefined; }
+                },
+                "HardeningProbe"
+            );
+
+            assert.strictEqual(
+                rowCount,
+                1,
+                "[horizontal] Only the Control whose scope resolves is counted towards controlCount"
+            );
+            assert.strictEqual(
+                delivered ? delivered.length : -1,
+                1,
+                "[horizontal] The sink receives only the resolvable Control elements"
+            );
+            assert.strictEqual(
+                delivered && delivered.length > 0 ? delivered[0].bindingPath : "<unresolved>",
+                "Present",
+                "[horizontal] The sink receives each element already resolved to its binding path"
+            );
+            assert.strictEqual(
+                countEngine.hasPartialRenderingErrors,
+                true,
+                "[horizontal] The unresolvable scope is still reported as a partial rendering error"
+            );
+
+            // A row whose every scope is unresolvable must render nothing, not an empty labelled row.
+            var deadSchema = SchemaNormalizer.normalize({
+                type: "object",
+                uiLayout: [
+                    {
+                        type: "HorizontalLayout",
+                        elements: [{ type: "Control", scope: "#/properties/MissingScopeField" }]
+                    }
+                ],
+                properties: { Present: { type: "string", ui: { label: "Present" } } }
+            });
+            var formEngine = makeHardeningEngine(registry, model);
+            var deadContainer = new FormLayout().render(deadSchema, "meta", formEngine);
+            assert.strictEqual(
+                deadContainer.getItems().length,
+                0,
+                "[horizontal] A row with no resolvable scope renders no form at all, instead of an empty labelled row"
+            );
+
+            deadContainer.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.module("Accessibility of the generated control tree");
+
+    function a11yTextOf(sId) {
+        var oText = sap.ui.core.Element.getElementById(sId);
+        return oText ? oText.getText() : "<no such InvisibleText>";
+    }
+
+    function a11yLabelledTexts(oDomRef) {
+        var sRefs = oDomRef ? oDomRef.getAttribute("aria-labelledby") || "" : "";
+        return sRefs.split(" ").filter(Boolean).map(function (sId) {
+            var oNode = document.getElementById(sId);
+            return oNode ? oNode.textContent : "<missing " + sId + ">";
+        });
+    }
+
+    QUnit.test("a11y: a field with a rendered label is named by labelFor alone, never by a second aria-labelledby", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/FormLayout"], function (FormLayoutMod) {
+            var FormLayout = FormLayoutMod.FormLayout;
+            var schema = SchemaNormalizer.normalize({
+                type: "object",
+                required: ["Code"],
+                uiLayout: [{ type: "Control", scope: "#/properties/Code" }],
+                properties: { Code: { type: "string", ui: { label: "Order Code" } } }
+            });
+            var model = new JSONModel({ Code: "ABC" });
+            var engine = makeHardeningEngine(registry, model);
+            var sandboxId = "sandbox-a11y-labelfor";
+            createPhysicalSandbox(sandboxId);
+            var container = new FormLayout().render(schema, "meta", engine);
+            container.setModel(model, "meta");
+            container.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var plugin = engine.getPluginByPath("/Code");
+            var target = plugin.mainControl || plugin.control;
+            var label = container.getItems()[0].getContent()[0];
+
+            assert.strictEqual(
+                label.getLabelFor(),
+                target.getId(),
+                "[a11y] The rendered sap.m.Label is programmatically associated with the generated field via labelFor"
+            );
+            assert.strictEqual(
+                target.getAriaLabelledBy().length,
+                0,
+                "[a11y] MetaUI adds no competing ariaLabelledBy: a control carrying BOTH a labelFor label and its own aria-labelledby can be skipped by screen readers"
+            );
+            assert.strictEqual(
+                target.data("metauiA11yNameId"),
+                null,
+                "[a11y] The synthetic InvisibleText created at render time is released once a real label takes the job"
+            );
+            assert.strictEqual(
+                a11yLabelledTexts(target.getDomRef("inner")).join("|"),
+                "Order Code",
+                "[a11y] The label text reaches the DOM exactly once as the field's accessible name"
+            );
+
+            container.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: a field with ui.labelSpan 0 is named by an InvisibleText and leaves no dangling labelFor", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/FormLayout"], function (FormLayoutMod) {
+            var FormLayout = FormLayoutMod.FormLayout;
+            var schema = SchemaNormalizer.normalize({
+                type: "object",
+                ui: { labelSpan: 0 },
+                uiLayout: [{ type: "Control", scope: "#/properties/Silent" }],
+                properties: { Silent: { type: "string", ui: { label: "Suppressed Label" } } }
+            });
+            var model = new JSONModel({ Silent: "value" });
+            var engine = makeHardeningEngine(registry, model);
+            var sandboxId = "sandbox-a11y-labelspan0";
+            createPhysicalSandbox(sandboxId);
+            var container = new FormLayout().render(schema, "meta", engine);
+            container.setModel(model, "meta");
+            container.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var plugin = engine.getPluginByPath("/Silent");
+            var target = plugin.mainControl || plugin.control;
+            var hiddenLabel = container.getItems()[0].getDependents()[0];
+
+            assert.strictEqual(
+                hiddenLabel.getLabelFor(),
+                null,
+                "[a11y] A label parked as a dependent is never rendered, so its labelFor is retracted instead of dangling"
+            );
+            assert.strictEqual(
+                target.getAriaLabelledBy().length,
+                1,
+                "[a11y] The field falls back to exactly one InvisibleText for its accessible name"
+            );
+            assert.strictEqual(
+                a11yTextOf(target.getAriaLabelledBy()[0]),
+                "Suppressed Label",
+                "[a11y] The InvisibleText carries the label the layout suppressed"
+            );
+            assert.strictEqual(
+                a11yLabelledTexts(target.getDomRef("inner")).join("|"),
+                "Suppressed Label",
+                "[a11y] The accessible name resolves in the DOM even though no label is painted"
+            );
+
+            container.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: required, invalid, read-only and disabled states are exposed to assistive technology", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/FormLayout"], function (FormLayoutMod) {
+            var FormLayout = FormLayoutMod.FormLayout;
+            var schema = SchemaNormalizer.normalize({
+                type: "object",
+                required: ["Code"],
+                uiLayout: [
+                    { type: "Control", scope: "#/properties/Code" },
+                    { type: "Control", scope: "#/properties/Score" },
+                    { type: "Control", scope: "#/properties/Frozen" },
+                    { type: "Control", scope: "#/properties/Locked" }
+                ],
+                properties: {
+                    Code: { type: "string", minLength: 4, ui: { label: "Order Code" } },
+                    Score: { type: "number", maximum: 5, ui: { label: "Score", widget: "rating" } },
+                    Frozen: { type: "string", readOnly: true, ui: { label: "Frozen" } },
+                    Locked: { type: "string", ui: { label: "Locked", enabled: false } }
+                }
+            });
+            var model = new JSONModel({ Code: "AB", Score: 3, Frozen: "locked", Locked: "off" });
+            var engine = makeHardeningEngine(registry, model);
+            var sandboxId = "sandbox-a11y-states";
+            createPhysicalSandbox(sandboxId);
+            var container = new FormLayout().render(schema, "meta", engine);
+            container.setModel(model, "meta");
+            container.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var codePlugin = engine.getPluginByPath("/Code");
+            var codeCtrl = codePlugin.mainControl || codePlugin.control;
+            var ratingPlugin = engine.getPluginByPath("/Score");
+            var ratingCtrl = ratingPlugin.mainControl || ratingPlugin.control;
+            var frozenPlugin = engine.getPluginByPath("/Frozen");
+            var frozenCtrl = frozenPlugin.mainControl || frozenPlugin.control;
+            var lockedPlugin = engine.getPluginByPath("/Locked");
+            var lockedCtrl = lockedPlugin.mainControl || lockedPlugin.control;
+
+            assert.strictEqual(
+                lockedCtrl.getDomRef("inner").hasAttribute("disabled"),
+                true,
+                "[a11y] A ui.enabled:false field renders the native disabled state, which assistive technology reports as unavailable"
+            );
+            assert.strictEqual(
+                codeCtrl.getDomRef("inner").getAttribute("aria-required"),
+                "true",
+                "[a11y] A schema-mandatory field renders aria-required, not only a visual asterisk"
+            );
+            assert.strictEqual(
+                frozenCtrl.getDomRef("inner").hasAttribute("readonly"),
+                true,
+                "[a11y] A readOnly property renders the native readonly state rather than only looking inert"
+            );
+
+            codePlugin.setState("valid", false, "Minimum length is 4 characters.");
+            Core.applyChanges();
+            assert.strictEqual(
+                codeCtrl.getDomRef("inner").getAttribute("aria-invalid"),
+                "true",
+                "[a11y] An invalid field renders aria-invalid, so a screen-reader user gets the equivalent of the red border"
+            );
+            assert.strictEqual(
+                codeCtrl.getValueStateText(),
+                "Minimum length is 4 characters.",
+                "[a11y] The validation message is published through the control's own value-state channel"
+            );
+
+            ratingPlugin.setState("valid", false, "Score is out of range.");
+            assert.strictEqual(
+                a11yTextOf(ratingCtrl.getAriaDescribedBy()[0]),
+                "Score is out of range.",
+                "[a11y] A control with no valueState of its own publishes the message as an accessible description instead of a tooltip only"
+            );
+            ratingPlugin.setState("valid", true);
+            assert.strictEqual(
+                ratingCtrl.getAriaDescribedBy().length,
+                0,
+                "[a11y] The accessible error description is withdrawn again once the field becomes valid"
+            );
+
+            codePlugin.setState("editable", false);
+            Core.applyChanges();
+            assert.strictEqual(
+                codeCtrl.getDomRef("inner").hasAttribute("readonly"),
+                true,
+                "[a11y] A runtime editable=false policy reaches the DOM as a read-only state"
+            );
+
+            container.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: display mode does not announce static output as a mandatory form field", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/FormLayout"], function (FormLayoutMod) {
+            var FormLayout = FormLayoutMod.FormLayout;
+            var schema = SchemaNormalizer.normalize({
+                type: "object",
+                required: ["Code"],
+                uiLayout: [{ type: "Control", scope: "#/properties/Code" }],
+                properties: { Code: { type: "string", ui: { label: "Order Code" } } }
+            });
+            var model = new JSONModel({ Code: "ABC" });
+            var engine = new Engine(false, false, registry);
+            engine.activeModel = model;
+            engine.host = { activeModelName: "meta" };
+            engine.onChange = function () { return undefined; };
+
+            var sandboxId = "sandbox-a11y-display";
+            createPhysicalSandbox(sandboxId);
+            var container = new FormLayout().render(schema, "meta", engine);
+            container.setModel(model, "meta");
+            container.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var label = container.getItems()[0].getContent()[0];
+            var plugin = engine.getPluginByPath("/Code");
+            var target = plugin.mainControl || plugin.control;
+
+            assert.strictEqual(
+                label.getRequired(),
+                false,
+                "[a11y] A read-only field carries no required marker: UI5 forwards it as aria-required onto a sap.m.Text, where that attribute is not allowed"
+            );
+            assert.strictEqual(
+                target.getDomRef().hasAttribute("aria-required"),
+                false,
+                "[a11y] The rendered display control carries no aria-required attribute"
+            );
+
+            container.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: ui.description becomes an accessible description, not only a tooltip", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Code: { type: "string", description: "Six characters, letters only.", ui: { label: "Order Code" } }
+            }
+        });
+        var model = new JSONModel({ Code: "ABC" });
+        var plugin = registry.getPlugin("string");
+        var control = plugin.render(schema.properties.Code, "/Code", "meta", "a11yDesc", function () {}, model);
+        control.setModel(model, "meta");
+        var sandboxId = "sandbox-a11y-description";
+        createPhysicalSandbox(sandboxId);
+        control.placeAt(sandboxId);
+        Core.applyChanges();
+
+        assert.strictEqual(
+            control.getAriaDescribedBy().length,
+            1,
+            "[a11y] A described field gains exactly one accessible description reference"
+        );
+        assert.strictEqual(
+            a11yTextOf(control.getAriaDescribedBy()[0]),
+            "Six characters, letters only.",
+            "[a11y] The schema description is what the description reference resolves to"
+        );
+        assert.strictEqual(
+            control.getTooltip(),
+            "Six characters, letters only.",
+            "[a11y] The visible tooltip affordance is kept alongside the accessible description"
+        );
+
+        plugin.destroy();
+        model.destroy();
+    });
+
+    QUnit.test("a11y: a hardware composite names the inner control that actually takes focus", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: { Note: { type: "string", ui: { label: "Voice Note", widget: "voiceInput" } } }
+        });
+        registry.preloadDependencies(schema).then(function () {
+            var model = new JSONModel({ Note: "spoken" });
+            var plugin = registry.getPlugin("string", "voiceInput");
+            var control = plugin.render(schema.properties.Note, "/Note", "meta", "a11yVoice", function () {}, model);
+            control.setModel(model, "meta");
+            var sandboxId = "sandbox-a11y-hardware";
+            createPhysicalSandbox(sandboxId);
+            control.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var innerInputs = control.findAggregatedObjects(true).filter(function (candidate) {
+                return candidate.isA && candidate.isA("sap.m.InputBase");
+            });
+
+            assert.strictEqual(
+                innerInputs.length > 0,
+                true,
+                "[a11y] The hardware composite exposes an inner text-entry control that can hold the accessible name"
+            );
+            assert.strictEqual(
+                a11yTextOf(innerInputs[0].getAriaLabelledBy()[0]),
+                "Voice Note",
+                "[a11y] BaseHardwareControl declares no ariaLabelledBy, so the field name is attached to the inner input instead of being dropped"
+            );
+
+            plugin.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: a table row cell is named by its column header exactly once", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    Name: { type: "string", required: true },
+                    Count: { type: "integer", minimum: 1 }
+                }
+            }
+        });
+        var model = new JSONModel([{ Name: "Row 1", Count: 3 }]);
+        var engine = makeHardeningEngine(registry, model);
+        var sandboxId = "sandbox-a11y-table";
+        createPhysicalSandbox(sandboxId);
+        var table = new TableLayout().render(schema, "meta", engine, undefined, "/");
+        table.setModel(model, "meta");
+        table.placeAt(sandboxId);
+        Core.applyChanges();
+
+        var cellInput = document.getElementById(sandboxId).querySelector("input.sapMInputBaseInner");
+
+        assert.strictEqual(
+            table.getAriaLabelledBy().length,
+            1,
+            "[a11y] The generated table is named by its own toolbar title instead of being an anonymous grid"
+        );
+        assert.deepEqual(
+            a11yLabelledTexts(cellInput),
+            ["Name"],
+            "[a11y] A row cell is named by its column header, and MetaUI does not add a second copy of that same text"
+        );
+
+        table.destroy();
+        model.destroy();
+    });
+
+    QUnit.test("a11y: wizard steps and the step progress bar are announced coherently", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/WizardLayout"], function (WizardLayoutMod) {
+            var WizardLayout = WizardLayoutMod.WizardLayout;
+            var schema = SchemaNormalizer.normalize({
+                type: "object",
+                uiLayout: [
+                    { type: "WizardStep", label: "Customer", elements: [{ type: "Control", scope: "#/properties/Who" }] },
+                    { type: "WizardStep", label: "Delivery", elements: [{ type: "Control", scope: "#/properties/Where" }] }
+                ],
+                properties: {
+                    Who: { type: "string", ui: { label: "Customer name" } },
+                    Where: { type: "string", ui: { label: "Delivery address" } }
+                }
+            });
+            var model = new JSONModel({ Who: "Ada", Where: "Auckland" });
+            var engine = makeHardeningEngine(registry, model);
+            var sandboxId = "sandbox-a11y-wizard";
+            createPhysicalSandbox(sandboxId);
+            var root = new WizardLayout().render(schema, "meta", engine);
+            root.setModel(model, "meta");
+            root.placeAt(sandboxId);
+            Core.applyChanges();
+
+            var header = root.getItems()[0];
+            var titleCtrl = header.getItems()[0].getItems()[0];
+            var counterCtrl = header.getItems()[0].getItems()[1];
+            var progressBar = header.getItems()[1];
+            var stepForm = root.getItems()[1].getItems()[0];
+
+            assert.deepEqual(
+                progressBar.getAriaLabelledBy(),
+                [counterCtrl.getId()],
+                "[a11y] The step progress bar is named by the visible step counter instead of announcing a bare percentage"
+            );
+            assert.deepEqual(
+                stepForm.getAriaLabelledBy(),
+                [titleCtrl.getId()],
+                "[a11y] Each wizard step form is named by the live step title, so its fields are announced as a titled region"
+            );
+            assert.strictEqual(
+                titleCtrl.getText(),
+                "Customer",
+                "[a11y] The step title the region is named by is the one currently on screen"
+            );
+
+            root.destroy();
+            model.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("a11y: a composite widget's unrendered labels are republished as accessible names", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var dictModel = new JSONModel({ EnvVars: { HOST: "localhost" } });
+        var dictPlugin = registry.getPlugin("object", "dictionaryMap");
+        dictPlugin.setEngineContext({
+            pluginRegistry: registry,
+            getSchemaDefinition: function () { return undefined; },
+            getSchemaDefinitions: function () { return undefined; },
+            getModel: function () { return dictModel; }
+        });
+        var dictControl = dictPlugin.render(
+            {
+                type: "object",
+                additionalProperties: { type: "string" },
+                ui: { widget: "dictionaryMap", label: "Environment Variables" }
+            },
+            "/EnvVars",
+            "meta",
+            "a11yDictScope"
+        );
+        dictControl.setModel(dictModel, "meta");
+        var sandboxId = "sandbox-a11y-dictionary";
+        createPhysicalSandbox(sandboxId);
+        dictControl.placeAt(sandboxId);
+        Core.applyChanges();
+
+        var firstRow = dictControl.getItems()[1].getItems()[0];
+        var valueControl = firstRow.getItems()[1];
+
+        assert.strictEqual(
+            firstRow.getDependents().length > 0,
+            true,
+            "[a11y] The row labels are parked as dependents, which UI5 never renders"
+        );
+        assert.strictEqual(
+            a11yTextOf(valueControl.getAriaLabelledBy()[0]),
+            "Dictionary entry value",
+            "[a11y] That unrendered label text is republished as an InvisibleText so the entry input still has an accessible name"
+        );
+
+        dictPlugin.destroy();
+        dictModel.destroy();
+    });
+
+    QUnit.test("a11y: destroying a plugin frees the InvisibleText controls it put in the static area", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            properties: {
+                Code: { type: "string", description: "Letters only.", ui: { label: "Order Code" } }
+            }
+        });
+        var model = new JSONModel({ Code: "ABC" });
+        var plugin = registry.getPlugin("string");
+        var control = plugin.render(schema.properties.Code, "/Code", "meta", "a11yLifecycle", function () {}, model);
+        var nameId = control.data("metauiA11yNameId");
+        var descId = control.data("metauiA11yDescriptionId");
+
+        assert.strictEqual(
+            sap.ui.core.Element.getElementById(nameId) !== undefined &&
+                sap.ui.core.Element.getElementById(descId) !== undefined,
+            true,
+            "[a11y] The accessible name and description texts exist while the field does"
+        );
+
+        plugin.destroy();
+
+        assert.strictEqual(
+            sap.ui.core.Element.getElementById(nameId),
+            undefined,
+            "[a11y] The accessible name text is destroyed with the plugin, not leaked into the static area"
+        );
+        assert.strictEqual(
+            sap.ui.core.Element.getElementById(descId),
+            undefined,
+            "[a11y] The accessible description text is destroyed with the plugin as well"
+        );
+
+        model.destroy();
+    });
+
+    QUnit.module("Consolidation: shared commit, single-bound widgets, option lists and action buttons");
+
+    /**
+     * Gives a plugin an engine context that can resolve the model, and deliberately does NOT call
+     * control.setModel(). A control reaches this state whenever the host owns the model and the
+     * widget is created outside the propagating control tree (dialog content, a detached cell
+     * template, a plugin rendered before it is added to its parent).
+     */
+    function contextOnlyModel(plugin, model) {
+        plugin.setEngineContext({
+            pluginRegistry: PluginRegistry.getInstance(),
+            getSchemaDefinition: function () { return undefined; },
+            getSchemaDefinitions: function () { return undefined; },
+            getModel: function () { return model; }
+        });
+    }
+
+    QUnit.test("Consolidation: a control with no local model still commits the user's edit through the engine context", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        // 1. CheckBox (BooleanPlugin) -- select event
+        var boolModel = new JSONModel({ Agreed: false });
+        var boolPlugin = registry.getPlugin("boolean");
+        contextOnlyModel(boolPlugin, boolModel);
+        var checkBox = boolPlugin.render({ type: "boolean", ui: { label: "Agreed" } }, "/Agreed", "meta", "ccBoolScope");
+        checkBox.setSelected(true);
+        checkBox.fireSelect({ selected: true });
+        assert.strictEqual(
+            boolModel.getProperty("/Agreed"),
+            true,
+            "BooleanPlugin commits through engineContext.getModel() when the CheckBox carries no local model"
+        );
+        boolPlugin.destroy();
+        boolModel.destroy();
+
+        // 2. Switch (SwitchPlugin) -- change event
+        var switchModel = new JSONModel({ Active: false });
+        var switchPlugin = registry.getPlugin("boolean", "switch");
+        contextOnlyModel(switchPlugin, switchModel);
+        var switchCtrl = switchPlugin.render(
+            { type: "boolean", ui: { label: "Active", widget: "switch" } }, "/Active", "meta", "ccSwitchScope");
+        switchCtrl.setState(true);
+        switchCtrl.fireChange({ state: true });
+        assert.strictEqual(
+            switchModel.getProperty("/Active"),
+            true,
+            "SwitchPlugin commits through engineContext.getModel() when the Switch carries no local model"
+        );
+        switchPlugin.destroy();
+        switchModel.destroy();
+
+        // 3. Slider (SliderPlugin) -- change event
+        var sliderModel = new JSONModel({ Volume: 10 });
+        var sliderPlugin = registry.getPlugin("number", "slider");
+        contextOnlyModel(sliderPlugin, sliderModel);
+        var sliderCtrl = sliderPlugin.render(
+            { type: "number", minimum: 0, maximum: 100, ui: { label: "Volume", widget: "slider" } },
+            "/Volume", "meta", "ccSliderScope");
+        sliderCtrl.setValue(42);
+        sliderCtrl.fireChange({ value: 42 });
+        assert.strictEqual(
+            sliderModel.getProperty("/Volume"),
+            42,
+            "SliderPlugin commits through engineContext.getModel() when the Slider carries no local model"
+        );
+        sliderPlugin.destroy();
+        sliderModel.destroy();
+
+        // 4. StepInput (StepInputPlugin) -- change event
+        var stepModel = new JSONModel({ Qty: 2 });
+        var stepPlugin = registry.getPlugin("number", "step");
+        contextOnlyModel(stepPlugin, stepModel);
+        var stepCtrl = stepPlugin.render(
+            { type: "number", minimum: 0, maximum: 10, multipleOf: 1, ui: { label: "Qty", widget: "step" } },
+            "/Qty", "meta", "ccStepScope");
+        stepCtrl.setValue(7);
+        stepCtrl.fireChange({ value: 7 });
+        assert.strictEqual(
+            stepModel.getProperty("/Qty"),
+            7,
+            "StepInputPlugin commits through engineContext.getModel() when the StepInput carries no local model"
+        );
+        stepPlugin.destroy();
+        stepModel.destroy();
+
+        // 5. RatingIndicator (RatingIndicatorPlugin) -- change event
+        var ratingModel = new JSONModel({ Stars: 1 });
+        var ratingPlugin = registry.getPlugin("number", "rating");
+        contextOnlyModel(ratingPlugin, ratingModel);
+        var ratingCtrl = ratingPlugin.render(
+            { type: "number", maximum: 5, ui: { label: "Stars", widget: "rating" } }, "/Stars", "meta", "ccRatingScope");
+        ratingCtrl.setValue(4);
+        ratingCtrl.fireChange({ value: 4 });
+        assert.strictEqual(
+            ratingModel.getProperty("/Stars"),
+            4,
+            "RatingIndicatorPlugin commits through engineContext.getModel() when the RatingIndicator carries no local model"
+        );
+        ratingPlugin.destroy();
+        ratingModel.destroy();
+
+        // 6. Select (DropdownPlugin, numeric coercion branch)
+        var ddModel = new JSONModel({ Priority: 1 });
+        var ddPlugin = registry.getPlugin("number", "select");
+        contextOnlyModel(ddPlugin, ddModel);
+        var ddCtrl = ddPlugin.render(
+            { type: "integer", enum: [1, 2, 3], ui: { label: "Priority", widget: "select" } },
+            "/Priority", "meta", "ccDropdownScope");
+        ddCtrl.setSelectedKey("3");
+        ddCtrl.fireChange({ selectedItem: ddCtrl.getItems()[2] });
+        assert.strictEqual(
+            ddModel.getProperty("/Priority"),
+            3,
+            "DropdownPlugin commits through engineContext.getModel() when the Select carries no local model"
+        );
+        ddPlugin.destroy();
+        ddModel.destroy();
+
+        // 7. MultiComboBox (MultiSelectPlugin)
+        var msModel = new JSONModel({ Codes: [10] });
+        var msPlugin = registry.getPlugin("array", "multiSelect");
+        contextOnlyModel(msPlugin, msModel);
+        var msCtrl = msPlugin.render(
+            { type: "array", items: { type: "integer", enum: [10, 20, 30] }, ui: { label: "Codes", widget: "multiSelect" } },
+            "/Codes", "meta", "ccMultiSelectScope");
+        msCtrl.setSelectedKeys(["10", "30"]);
+        msCtrl.fireSelectionFinish({ selectedItems: [msCtrl.getItems()[0], msCtrl.getItems()[2]] });
+        assert.deepEqual(
+            msModel.getProperty("/Codes"),
+            [10, 30],
+            "MultiSelectPlugin commits through engineContext.getModel() when the MultiComboBox carries no local model"
+        );
+        msPlugin.destroy();
+        msModel.destroy();
+
+        // 8. MultiInput (MultiInputPlugin)
+        var miModel = new JSONModel({ Scores: [] });
+        var miPlugin = registry.getPlugin("array", "multiInput");
+        contextOnlyModel(miPlugin, miModel);
+        var miCtrl = miPlugin.render(
+            { type: "array", items: { type: "number" }, ui: { label: "Scores", widget: "multiInput" } },
+            "/Scores", "meta", "ccMultiInputScope");
+        var addedToken = new Token({ key: "55", text: "55" });
+        miCtrl.fireTokenUpdate({ type: "added", addedTokens: [addedToken], removedTokens: [] });
+        assert.deepEqual(
+            miModel.getProperty("/Scores"),
+            [55],
+            "MultiInputPlugin commits through engineContext.getModel() when the MultiInput carries no local model"
+        );
+        addedToken.destroy();
+        miPlugin.destroy();
+        miModel.destroy();
+
+    });
+
+    QUnit.test("Consolidation: the shared bases are the only place the consolidated behaviour can live", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        // commitValue is the single write path. A plugin that reimplements it locally is how the
+        // engine-context fallback went missing in five widgets, so assert it exists exactly once.
+        assert.strictEqual(
+            typeof BasePlugin.prototype.commitValue,
+            "function",
+            "BasePlugin owns commitValue, so no plugin needs its own model-resolve-and-write block"
+        );
+
+        var boolPlugin = registry.getPlugin("boolean");
+        var switchPlugin = registry.getPlugin("boolean", "switch");
+        var sliderPlugin = registry.getPlugin("number", "slider");
+        var stepPlugin = registry.getPlugin("number", "step");
+        var ratingPlugin = registry.getPlugin("number", "rating");
+
+        assert.strictEqual(
+            boolPlugin instanceof SingleBoundWidgetPlugin &&
+                switchPlugin instanceof SingleBoundWidgetPlugin &&
+                sliderPlugin instanceof SingleBoundWidgetPlugin &&
+                stepPlugin instanceof SingleBoundWidgetPlugin &&
+                ratingPlugin instanceof SingleBoundWidgetPlugin,
+            true,
+            "CheckBox, Switch, Slider, StepInput and RatingIndicator all extend SingleBoundWidgetPlugin"
+        );
+        assert.strictEqual(
+            boolPlugin.getValue === switchPlugin.getValue &&
+                boolPlugin.getValue === sliderPlugin.getValue &&
+                boolPlugin.getValue === stepPlugin.getValue &&
+                boolPlugin.getValue === ratingPlugin.getValue,
+            true,
+            "The five widgets share one getValue function object: the live-or-model fallback cannot drift apart again"
+        );
+        assert.strictEqual(
+            boolPlugin.render === ratingPlugin.render && boolPlugin.applyState === sliderPlugin.applyState,
+            true,
+            "They also share one render and one applyState, so the display branch and the editable guard are single-sourced"
+        );
+
+        var dropdownPlugin = registry.getPlugin("string", "select");
+        var multiSelectPlugin = registry.getPlugin("array", "multiSelect");
+        assert.strictEqual(
+            dropdownPlugin instanceof OptionListPlugin && multiSelectPlugin instanceof OptionListPlugin,
+            true,
+            "Select and MultiComboBox both extend OptionListPlugin"
+        );
+        assert.strictEqual(
+            dropdownPlugin.resolveValueHelpList === multiSelectPlugin.resolveValueHelpList &&
+                dropdownPlugin.syncOptionItems === multiSelectPlugin.syncOptionItems,
+            true,
+            "They share one valueHelp resolution and one item-sync function: the ui.valueHelp precedence cannot diverge"
+        );
+        assert.strictEqual(
+            dropdownPlugin.resolveValueHelpList({ ui: { valueHelp: [{ key: "a", text: "A" }] }, valueHelp: [{ key: "b", text: "B" }] })[0].key,
+            "a",
+            "The shared resolver keeps ui.valueHelp ahead of the schema-level valueHelp"
+        );
+
+        var submitPlugin = registry.getPlugin("string", "submitButton");
+        var clearPlugin = registry.getPlugin("string", "clearButton");
+        var urlPlugin = registry.getPlugin("string", "urlButton");
+        assert.strictEqual(
+            submitPlugin instanceof ActionButtonPlugin &&
+                clearPlugin instanceof ActionButtonPlugin &&
+                urlPlugin instanceof ActionButtonPlugin,
+            true,
+            "Submit, Clear and URL navigation all extend ActionButtonPlugin"
+        );
+        assert.strictEqual(
+            submitPlugin.render === clearPlugin.render && submitPlugin.render === urlPlugin.render,
+            true,
+            "All three triggers are built by one render, so label binding, icon and enabled state stay consistent"
+        );
+
+        // The one genuine difference between the mutating buttons and the navigation affordance is
+        // now three declared overrides rather than three silent omissions.
+        assert.strictEqual(
+            [submitPlugin.isNavigationAffordance, clearPlugin.isNavigationAffordance, urlPlugin.isNavigationAffordance].join(","),
+            "false,false,true",
+            "Only the URL trigger declares itself a navigation affordance; the mutating buttons take the default"
+        );
+        var defaultOwnerCheck = ActionButtonPlugin.prototype.isEnabledStateExternallyOwned;
+        assert.strictEqual(
+            submitPlugin.isEnabledStateExternallyOwned === defaultOwnerCheck &&
+                clearPlugin.isEnabledStateExternallyOwned === defaultOwnerCheck &&
+                urlPlugin.isEnabledStateExternallyOwned !== defaultOwnerCheck,
+            true,
+            "Only the URL trigger overrides the enabled-state owner check that guards ui.enabledOn"
+        );
+
+        boolPlugin.destroy();
+        switchPlugin.destroy();
+        sliderPlugin.destroy();
+        stepPlugin.destroy();
+        ratingPlugin.destroy();
+        dropdownPlugin.destroy();
+        multiSelectPlugin.destroy();
+        submitPlugin.destroy();
+        clearPlugin.destroy();
+        urlPlugin.destroy();
+    });
+
+    QUnit.test("Consolidation: the remaining imperative commit sites also survive a control with no local model", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        // 1. LiveSearchPlugin -- picking a suggestion is the whole point of the widget, and it wrote
+        //    nowhere when the Input had no local model: the user watched their pick vanish.
+        var lsModel = new JSONModel({ Query: "" });
+        var lsPlugin = registry.getPlugin("string", "liveSearch");
+        contextOnlyModel(lsPlugin, lsModel);
+        var lsInput = lsPlugin.render(
+            {
+                type: "string",
+                ui: {
+                    widget: "liveSearch",
+                    dataSource: { url: "/mockData/scenarios/index.json", keyField: "code", textField: "name" }
+                }
+            },
+            "/Query", "meta", "ccLiveSearchScope");
+        var suggestion = new sap.m.SuggestionItem({ key: "NZL", text: "New Zealand" });
+        lsInput.fireSuggestionItemSelected({ selectedItem: suggestion });
+        assert.strictEqual(
+            lsModel.getProperty("/Query"),
+            "NZL",
+            "LiveSearchPlugin commits the chosen suggestion through engineContext.getModel()"
+        );
+        suggestion.destroy();
+        lsPlugin.destroy();
+        lsModel.destroy();
+
+        // 2. NumberPlugin -- a non-zero write. Starting from 7 rather than 0 so that a silent no-op
+        //    cannot be mistaken for a successful write.
+        var numModel = new JSONModel({ Qty: 7 });
+        var numPlugin = registry.getPlugin("number");
+        contextOnlyModel(numPlugin, numModel);
+        var numInput = numPlugin.render({ type: "number", ui: { label: "Qty" } }, "/Qty", "meta", "ccNumberScope");
+        numInput.setValue("42");
+        numInput.fireChange({ value: "42" });
+        assert.strictEqual(
+            numModel.getProperty("/Qty"),
+            42,
+            "NumberPlugin commits a parsed number through engineContext.getModel() (7 -> 42, so a no-op cannot pass)"
+        );
+        assert.strictEqual(
+            typeof numModel.getProperty("/Qty"),
+            "number",
+            "NumberPlugin still writes a native number, not the raw input string"
+        );
+        numPlugin.destroy();
+        numModel.destroy();
+
+        // 3. NumberPlugin -- zero is the value most likely to hide a no-op, so assert it from a
+        //    non-zero starting point where only a real write can produce it.
+        var zeroModel = new JSONModel({ Qty: 7 });
+        var zeroPlugin = registry.getPlugin("number");
+        contextOnlyModel(zeroPlugin, zeroModel);
+        var zeroInput = zeroPlugin.render({ type: "number", ui: { label: "Qty" } }, "/Qty", "meta", "ccNumberZeroScope");
+        zeroInput.setValue("0");
+        zeroInput.fireChange({ value: "0" });
+        assert.strictEqual(
+            zeroModel.getProperty("/Qty"),
+            0,
+            "NumberPlugin commits a literal zero (7 -> 0), which a silent no-op would leave at 7"
+        );
+        zeroPlugin.destroy();
+        zeroModel.destroy();
+
+        // 4. NumberPlugin -- clearing the field is the second write in the same handler.
+        var clearNumModel = new JSONModel({ Qty: 42 });
+        var clearNumPlugin = registry.getPlugin("number");
+        contextOnlyModel(clearNumPlugin, clearNumModel);
+        var clearNumInput = clearNumPlugin.render(
+            { type: "number", ui: { label: "Qty" } }, "/Qty", "meta", "ccNumberClearScope");
+        clearNumInput.setValue("");
+        clearNumInput.fireChange({ value: "" });
+        assert.strictEqual(
+            clearNumModel.getProperty("/Qty"),
+            null,
+            "NumberPlugin commits the cleared value through engineContext.getModel() (42 -> null)"
+        );
+        clearNumPlugin.destroy();
+        clearNumModel.destroy();
+
+        // 5. RemoteValueHelpPlugin -- the dialog is built synchronously by valueHelpRequest, so the
+        //    confirm handler can be exercised before the backing fetch settles.
+        var vhModel = new JSONModel({ Country: "" });
+        var vhPlugin = registry.getPlugin("string", "valueHelp");
+        contextOnlyModel(vhPlugin, vhModel);
+        var vhInput = vhPlugin.render(
+            {
+                type: "string",
+                ui: { widget: "valueHelp" },
+                valueHelp: { url: "/mockData/scenarios/index.json", keyPath: "category", textPath: "category" }
+            },
+            "/Country", "meta", "ccValueHelpScope");
+        vhInput.fireValueHelpRequest();
+        var chosen = new sap.m.StandardListItem({ title: "New Zealand", description: "NZL" });
+        vhPlugin.selectDialog.fireConfirm({ selectedItem: chosen });
+        assert.strictEqual(
+            vhModel.getProperty("/Country"),
+            "NZL",
+            "RemoteValueHelpPlugin commits the confirmed value-help row through engineContext.getModel()"
+        );
+
+        // Tearing down now is deliberate: openValueHelpDialog re-checks the dialog and the input
+        // after its await, so the in-flight fetch returns at that guard instead of opening a modal
+        // over the rest of the suite.
+        chosen.destroy();
+        vhPlugin.destroy();
+        vhModel.destroy();
+    });
+
+    QUnit.test("Consolidation: RemoteDropdownPlugin reads the same option sources as every other option list", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        // The oracle's own 'string:combobox' mapping declares its options as a schema-level valueHelp
+        // array with no dataSource. Display mode mapped CB_1 -> 'Combo 1'; edit mode looked only at
+        // ui.valueHelp, found nothing, and offered the user the bare key instead of the two options.
+        var comboMeta = {
+            type: "string",
+            ui: { label: "ComboBox", widget: "combobox" },
+            valueHelp: [{ key: "CB_1", text: "Combo 1" }, { key: "CB_2", text: "Combo 2" }]
+        };
+
+        var comboModel = new JSONModel({ Choice: "CB_1" });
+        var comboPlugin = registry.getPlugin("string", "combobox");
+        var combo = comboPlugin.render(cloneVal(comboMeta), "/Choice", "meta", "ccComboScope");
+        combo.setModel(comboModel, "meta");
+        createPhysicalSandbox("sandbox-cc-combo");
+        combo.placeAt("sandbox-cc-combo");
+        Core.applyChanges();
+
+        assert.strictEqual(
+            combo.getItems().length,
+            2,
+            "RemoteDropdownPlugin offers both declared valueHelp options in edit mode, not just the bound key"
+        );
+        assert.deepEqual(
+            combo.getItems().map(function (item) { return item.getText(); }),
+            ["Combo 1", "Combo 2"],
+            "The options carry their declared labels, matching what display mode already showed"
+        );
+        comboPlugin.destroy();
+        comboModel.destroy();
+
+        var dispModel = new JSONModel({ Choice: "CB_2" });
+        var dispPlugin = registry.getPlugin("string", "combobox");
+        dispPlugin.setEditable(false);
+        var dispText = dispPlugin.render(cloneVal(comboMeta), "/Choice", "meta", "ccComboDispScope");
+        dispText.setModel(dispModel, "meta");
+        Core.applyChanges();
+        assert.strictEqual(
+            dispText.getText(),
+            "Combo 2",
+            "Display mode still maps the stored key to its option text (regression guard on the shared resolver)"
+        );
+        dispPlugin.destroy();
+        dispModel.destroy();
+
+        var sharedPlugin = registry.getPlugin("string", "combobox");
+        var listPlugin = registry.getPlugin("string", "select");
+        assert.strictEqual(
+            sharedPlugin instanceof OptionListPlugin &&
+                sharedPlugin.resolveValueHelpList === listPlugin.resolveValueHelpList,
+            true,
+            "RemoteDropdownPlugin now shares OptionListPlugin's single valueHelp resolver with DropdownPlugin"
+        );
+        sharedPlugin.destroy();
+        listPlugin.destroy();
+    });
+
+    QUnit.test("Consolidation: the URL trigger navigates to the metadata it currently has, not the metadata it was rendered from", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var navigated = [];
+        var originalRedirect = mobileLibrary.URLHelper.redirect;
+        mobileLibrary.URLHelper.redirect = function (url) {
+            navigated.push(url);
+        };
+
+        var urlPlugin = registry.getPlugin("string", "urlButton");
+        var urlBtn = urlPlugin.render(
+            { type: "string", ui: { label: "Open", widget: "urlButton", args: "https://example.com/original" } },
+            "/Target", "meta", "ccUrlScope");
+
+        urlBtn.firePress();
+        assert.strictEqual(
+            navigated[navigated.length - 1],
+            "https://example.com/original",
+            "The trigger navigates to the URL it was rendered with"
+        );
+
+        // A policy effect reaches the plugin through updateMetadata, exactly as PolicyEngine does.
+        urlPlugin.updateMetadata({
+            type: "string",
+            ui: { label: "Open", widget: "urlButton", args: "https://example.com/updated" }
+        });
+
+        assert.strictEqual(
+            urlPlugin.getValue(),
+            "https://example.com/updated",
+            "getValue() reports the updated target, because it reads this.metadata"
+        );
+
+        urlBtn.firePress();
+        assert.strictEqual(
+            navigated[navigated.length - 1],
+            "https://example.com/updated",
+            "press() navigates to the same updated target rather than the stale render-time one"
+        );
+
+        mobileLibrary.URLHelper.redirect = originalRedirect;
+        urlPlugin.destroy();
+    });
+
+    QUnit.test("Consolidation: a plugin that never finished rendering fails closed instead of reporting valid", function (assert) {
+        var registry = PluginRegistry.getInstance();
+
+        // Engine.generateField pushes the plugin onto activePlugins and only then calls render(),
+        // so a render that throws before initialize() leaves precisely this state: a registered
+        // plugin with no metadata and no control. Reporting valid there lets a required field that
+        // visibly failed to render pass triggerSubmit().
+        var neverRendered = registry.getPlugin("string");
+        var unrenderedResult = neverRendered.validate();
+        assert.strictEqual(
+            unrenderedResult.isValid,
+            false,
+            "A plugin with neither metadata nor a control reports invalid, matching validate()'s documented fail-closed contract"
+        );
+        assert.strictEqual(
+            typeof unrenderedResult.errorMessage === "string" && unrenderedResult.errorMessage.length > 0,
+            true,
+            "It carries an explanatory message rather than an empty failure"
+        );
+        neverRendered.destroy();
+
+        // The sibling case - metadata present, control missing - already failed closed and must stay that way.
+        var renderedThenLost = registry.getPlugin("string");
+        renderedThenLost.render({ type: "string", ui: { label: "Code" } }, "/Code", "meta", "ccFailClosedScope");
+        renderedThenLost.destroy();
+        assert.strictEqual(
+            renderedThenLost.validate().isValid,
+            false,
+            "A plugin whose control is gone still reports invalid (regression guard on the existing branch)"
+        );
+
+        // Widgets that hold no user data opt out through their own validate() override and never
+        // reach the guard, so tightening it cannot make a form unsubmittable.
+        var submitPlugin = registry.getPlugin("string", "submitButton");
+        var clearPlugin = registry.getPlugin("string", "clearButton");
+        var urlPlugin = registry.getPlugin("string", "urlButton");
+        var stripPlugin = registry.getPlugin("string", "messageStrip");
+        assert.strictEqual(
+            submitPlugin.validate().isValid &&
+                clearPlugin.validate().isValid &&
+                urlPlugin.validate().isValid &&
+                stripPlugin.validate().isValid,
+            true,
+            "Action buttons and the message strip still report valid with no metadata, so the form stays submittable"
+        );
+        submitPlugin.destroy();
+        clearPlugin.destroy();
+        urlPlugin.destroy();
+        stripPlugin.destroy();
+    });
+
 });

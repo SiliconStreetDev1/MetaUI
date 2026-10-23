@@ -4,6 +4,7 @@
  */
 
 import { IFormatter, IParser } from "../../interfaces/IPipeline";
+import { safeToString } from "../../core/SafeConvert";
 import DateFormat from "sap/ui/core/format/DateFormat";
 
 /**
@@ -31,7 +32,7 @@ export class DateFormatterPlugin implements IFormatter, IParser {
             if (rawValue instanceof Date) {
                 return Number.isNaN(rawValue.getTime()) ? "" : this.dateFormat.format(rawValue);
             }
-            const strVal = String(rawValue).trim();
+            const strVal = safeToString(rawValue).trim();
             const isoDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(strVal);
             if (isoDateMatch) {
                 const year = Number(isoDateMatch[1]);
@@ -54,7 +55,10 @@ export class DateFormatterPlugin implements IFormatter, IParser {
             }
             return this.dateFormat.format(dateObj);
         } catch (_e) {
-            return String(rawValue); // Fallback to raw string if invalid date
+            // CATCH_EXEMPT: format() is a total function by contract. The unformatted raw value is
+            // itself the visible signal -- the user sees the date they supplied rather than a blank
+            // cell -- and this runs once per cell per render, so logging would be per-row noise.
+            return safeToString(rawValue);
         }
     }
 
@@ -99,6 +103,9 @@ export class DateFormatterPlugin implements IFormatter, IParser {
                 return `${yyyy}-${mm}-${dd}`;
             }
         } catch (err) {
+            // CATCH_EXEMPT: DateFormat.parse() throwing is how UI5 says 'this is not a date in the
+            // configured pattern', which is the answer parse() needs. The original input is returned
+            // unchanged below and remains visible and editable; nothing is discarded.
             void err;
         }
         return uiValue;

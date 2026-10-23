@@ -8,9 +8,9 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import MultiInput from "sap/m/MultiInput";
 import Token from "sap/m/Token";
 import Control from "sap/ui/core/Control";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering tokenized primitive arrays (`sap.m.MultiInput`).
@@ -21,6 +21,8 @@ import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 export class MultiInputPlugin extends BasePlugin {
     /**
      * Renders a `sap.m.MultiInput` component bound to a primitive array in the `JSONModel`.
+     * The token entry field honours `items.maxLength` (the JSON-Schema-correct per-entry limit) and falls back
+     * to the property-level `maxLength` so the directive behaves as it does on every other text entry control.
      *
      * @param metadata The specific JSON schema properties for this field.
      * @param bindingPath The JSON path bound to this control.
@@ -52,7 +54,8 @@ export class MultiInputPlugin extends BasePlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             width: "100%",
             showValueHelp: false,
-            placeholder: metadata.ui?.placeholder || "Type a value and press Enter",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.multiInputPlaceholder),
+            maxLength: metadata.items?.maxLength ?? metadata.maxLength ?? 0,
             required: this.isRequired(),
             tokenUpdate: (oEvent: Event) => {
                 const params = oEvent.getParameters() as {
@@ -78,10 +81,7 @@ export class MultiInputPlugin extends BasePlugin {
                     ? survivingKeys.map((v) => Number(v)).filter((n) => !Number.isNaN(n))
                     : survivingKeys;
 
-                const model = src.getModel(modelName) as JSONModel | undefined;
-                if (model) {
-                    model.setProperty(this.resolveAbsolutePath(src), finalValues);
-                }
+                this.commitValue(src, finalValues);
                 this.notifyChange(src.getId());
             }
         });
@@ -136,14 +136,8 @@ export class MultiInputPlugin extends BasePlugin {
                 return keys;
             }
         }
-        const model = mi.getModel(this.modelName) as JSONModel | undefined;
-        if (model) {
-            const val = model.getProperty(this.resolveAbsolutePath(mi));
-            if (Array.isArray(val)) {
-                return val;
-            }
-        }
-        return [];
+        const modelVal = this.getModelValue(mi);
+        return Array.isArray(modelVal) ? modelVal : [];
     }
 
     /**

@@ -94,7 +94,10 @@ export class Engine {
         engineScopeId?: string,
         onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
     ): Control {
-        this.activePlugins = [];
+        // A rebuild replaces every plugin instance from the previous pass. Dropping the arrays without
+        // destroying them leaked their UI5 controls, and templatePlugins was never reset at all, so each
+        // rebuild grew the template list and re-notified dead plugins from setUseMessageManager/destroy.
+        this.disposePlugins();
         this.activeModel = model;
         this.engineScopeId = engineScopeId;
         this.onSubmitCallback = onSubmit;
@@ -108,7 +111,7 @@ export class Engine {
         };
 
         try {
-            const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
+            const layoutStrategy = DefaultLayoutGenerator.resolveLayoutStrategy(schema);
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, onSubmit);
         } catch (error) {
@@ -116,6 +119,7 @@ export class Engine {
             const msg = (error as Error).message;
             Logger.error("[MetaUI Engine] Critical error during layout generation", msg);
             Logger.showErrorPopup(`Engine failed to generate the layout.\n\nDetails: ${msg}`);
+            this.reportGenerationFailure("", `The form layout failed to render, so its values could not be validated.`);
             return new Text({ text: "Critical Layout Error" });
         }
     }
@@ -147,6 +151,7 @@ export class Engine {
                 resolveSchemaRef: (refPath: string) => this.host?.getSchemaDefinition?.(refPath),
                 getSchemaDefinition: (refPath: string) => this.host?.getSchemaDefinition?.(refPath),
                 getSchemaDefinitions: () => this.host?.getSchemaDefinitions?.(),
+                getLayoutBudget: () => this.host?.getLayoutBudget?.() ?? 0,
                 getModel: () => this.activeModel,
                 onSubmit: this.onSubmitCallback,
                 reportSchemaError: (fieldPath: string, errorMessage: string | null) =>
@@ -167,6 +172,16 @@ export class Engine {
             const msg = (error as Error).message;
             Logger.error(`[MetaUI Engine] Failed to generate field at ${bindingPath}`, msg);
             Logger.showErrorPopup(`Failed to generate field '${bindingPath}'.\n\nDetails: ${msg}`);
+            if (!isTemplate) {
+                // A template's `bindingPath` is a column key relative to the row context ("", "Price"), not a data
+                // path, so recording one would invent an error against a path no payload value lives at. Row cells
+                // are validated from the payload by `PayloadValidator.validatePayloadArrays`, which does not depend
+                // on the template plugin existing; the warning strip still reports the broken column.
+                this.reportGenerationFailure(
+                    bindingPath,
+                    `Field '${bindingPath}' failed to render, so its value could not be validated.`
+                );
+            }
             return new Text({ text: `[Error generating field ${bindingPath}]` });
         }
     }
@@ -187,7 +202,7 @@ export class Engine {
                     `[MetaUI Engine] Missing 'uiLayout' array in sub-schema for ${bindingPath}. Synthesized a default layout mapping.`
                 );
             }
-            const layoutStrategy = schema.layoutStrategy || (schema.type === "array" ? "table" : "form");
+            const layoutStrategy = DefaultLayoutGenerator.resolveLayoutStrategy(schema);
             const layoutManager = this.pluginRegistry.getLayout(layoutStrategy);
             return layoutManager.render(schema, modelName, this, undefined, bindingPath);
         } catch (error) {
@@ -195,6 +210,10 @@ export class Engine {
             const msg = (error as Error).message;
             Logger.error(`[MetaUI Engine] Critical error generating sub-layout for ${bindingPath}`, msg);
             Logger.showErrorPopup(`Engine failed to generate a sub-layout.\n\nDetails: ${msg}`);
+            this.reportGenerationFailure(
+                bindingPath ?? "",
+                `The sub-layout at '${bindingPath ?? "/"}' failed to render, so its values could not be validated.`
+            );
             return new Text({ text: "Critical Sub-Layout Error" });
         }
     }
@@ -273,6 +292,33 @@ export class Engine {
      */
     public hasActiveErrors(): boolean {
         return this.validationLedger.hasActiveErrors();
+    }
+
+    /**
+     * Records a path the Engine could not generate so the ledger fails closed on it.
+     *
+     * Every generation failure already degrades visibly - a per-field `[Error generating field X]` placeholder and
+     * the form-level warning strip - but a field that was never built has no plugin to validate it, so before this
+     * the form reported `isValid: true` and `triggerSubmit()` fired `submit` with the broken field unchecked.
+     * A `required` field whose plugin module 404'd, exported no valid constructor, or threw out of `render()`
+     * submitted empty and silently. Routing all three catch blocks through this one call closes them together:
+     * `getPlugin()` throws before the plugin is pushed onto `activePlugins`, and a `render()` that throws before
+     * `initialize()` leaves an entry with no metadata, so neither path can be caught by iterating plugins.
+     *
+     * @param bindingPath The path under generation. `""` is the root layout.
+     * @param message The error to surface through `validateAll()` and UI5 Messaging.
+     */
+    private reportGenerationFailure(bindingPath: string, message: string): void {
+        this.validationLedger.reportFieldGenerationFailure(bindingPath, message);
+    }
+
+    /**
+     * Returns the paths the Engine could not generate during the current build, mapped to their error messages.
+     *
+     * @returns {ReadonlyMap<string, string>} Normalized path to error message. Empty when every field rendered.
+     */
+    public getFieldGenerationFailures(): ReadonlyMap<string, string> {
+        return this.validationLedger.getFieldGenerationFailures();
     }
 
     /**
@@ -396,13 +442,26 @@ export class Engine {
      * Cleans up internal state and destroys active/template plugins to prevent memory leaks.
      */
     public destroy(): void {
+        this.disposePlugins();
+        this.validationLedger.clear();
+    }
+
+    /**
+     * Destroys and releases every active and template plugin instance tracked by this Engine.
+     *
+     * Also discards the recorded generation failures: `build()` calls this before it re-runs generation, so any
+     * field that still cannot be built re-records itself, and one that now builds correctly stops failing closed.
+     * The failures deliberately survive `clearValidationErrors()`, which is driven by data changes rather than by
+     * a rebuild, because a data hot-swap does not repair a plugin that would not load.
+     */
+    private disposePlugins(): void {
+        this.validationLedger.clearFieldGenerationFailures();
         for (const item of this.activePlugins) {
             item.plugin.destroy();
         }
         for (const item of this.templatePlugins) {
             item.plugin.destroy();
         }
-        this.validationLedger.clear();
         this.activePlugins = [];
         this.templatePlugins = [];
     }

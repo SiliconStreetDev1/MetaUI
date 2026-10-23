@@ -38,7 +38,6 @@
     "CameraVal": "",
     "SigVal": "",
     "LocVal": { "lat": -36.8485, "lng": 174.7633 },
-    "ScanVal": "9300000000012",
     "VoiceVal": "Recorded speech text",
     "RichTextVal": "<b>Bold</b> and <i>Italic</i>",
     "UrlVal": "Launch SAP",
@@ -137,7 +136,6 @@
       "CameraVal": { "type": "string", "ui": { "label": "Camera Plugin", "widget": "camera" } },
       "SigVal": { "type": "string", "ui": { "label": "Signature Plugin", "widget": "signature" } },
       "LocVal": { "type": "object", "ui": { "label": "Geolocation Plugin", "widget": "location" }, "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } } },
-      "ScanVal": { "type": "string", "ui": { "label": "Scanner Plugin", "widget": "scanner" } },
       "VoiceVal": { "type": "string", "ui": { "label": "Voice Input Plugin", "widget": "voiceInput" } },
       "RichTextVal": { "type": "string", "ui": { "label": "Rich Text Plugin", "widget": "richText" } },
       "UrlVal": { "type": "string", "ui": { "label": "URL Action Plugin", "widget": "urlButton", "args": "https://sap.com" } },
@@ -218,7 +216,6 @@
           { "type": "Control", "scope": "#/properties/CameraVal" },
           { "type": "Control", "scope": "#/properties/SigVal" },
           { "type": "Control", "scope": "#/properties/LocVal" },
-          { "type": "Control", "scope": "#/properties/ScanVal" },
           { "type": "Control", "scope": "#/properties/VoiceVal" }
         ]
       },

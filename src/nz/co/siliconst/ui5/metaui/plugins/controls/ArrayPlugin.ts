@@ -5,6 +5,7 @@
 
 import { INestedDialogDescriptor, NestedDialogPlugin } from "./NestedDialogPlugin";
 import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
+import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Plugin responsible for rendering nested array triggers (`sap.m.Button`) inside table cells or forms,
@@ -14,7 +15,7 @@ import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
  * @public
  */
 export class ArrayPlugin extends NestedDialogPlugin {
-    protected readonly defaultErrorTooltip: string = "Invalid nested array";
+    protected readonly defaultErrorTooltipKey: MetaUITextKey = TEXT_KEY.nestedArrayInvalid;
     protected readonly emptyFallbackValue: unknown = [];
 
     /**
@@ -24,7 +25,7 @@ export class ArrayPlugin extends NestedDialogPlugin {
      * @returns {string} The button label stem.
      */
     protected getDefaultLabel(metadata: IPropertyMetadata): string {
-        return metadata.ui?.label || "Items";
+        return metadata.ui?.label || I18n.getText(TEXT_KEY.nestedArrayLabel);
     }
 
     /**
@@ -64,7 +65,7 @@ export class ArrayPlugin extends NestedDialogPlugin {
      * @returns {INestedDialogDescriptor} The modal dialog descriptor.
      */
     protected buildDialogDescriptor(metadata: IPropertyMetadata): INestedDialogDescriptor {
-        const title = metadata.ui?.label || "Items";
+        const title = metadata.ui?.label || I18n.getText(TEXT_KEY.nestedArrayLabel);
         const subSchema: ISchema = {
             title,
             type: "array",
@@ -74,7 +75,8 @@ export class ArrayPlugin extends NestedDialogPlugin {
             readOnly: metadata.readOnly,
             minItems: metadata.minItems,
             maxItems: metadata.maxItems,
-            uniqueItems: metadata.uniqueItems
+            uniqueItems: metadata.uniqueItems,
+            ui: this.buildSubSchemaUi(metadata)
         };
         return { title, subSchema, isArrayRoot: true };
     }

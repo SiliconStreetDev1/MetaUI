@@ -7,9 +7,9 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import Input from "sap/m/Input";
 import Control from "sap/ui/core/Control";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { InputType } from "sap/m/library";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering logic for numeric (`number` and `integer`) properties.
@@ -58,7 +58,6 @@ export class NumberPlugin extends BasePlugin {
             change: (oEvent: Event) => {
                 const input = oEvent.getSource() as Input;
                 const rawVal = input.getValue().trim();
-                const model = input.getModel(modelName) as JSONModel | undefined;
                 const targetPath = this.resolveAbsolutePath(input);
                 const cleanPath = targetPath.replace(/^\//, "") || this.fieldKey || "";
 
@@ -67,12 +66,10 @@ export class NumberPlugin extends BasePlugin {
                     this.hasUnparseableInput = false;
                     this.invalidParsePaths.delete(cleanPath);
                     input.data("metauiParseInvalid", null);
-                    if (model) {
-                        const dynReq = this.getDynamicRequiredOverride(input);
-                        const effectiveReq = dynReq !== undefined ? dynReq : this.isRequired();
-                        const emptyVal = metadata.nullable === false && !effectiveReq ? undefined : null;
-                        model.setProperty(targetPath, emptyVal);
-                    }
+                    const dynReq = this.getDynamicRequiredOverride(input);
+                    const effectiveReq = dynReq !== undefined ? dynReq : this.isRequired();
+                    const emptyVal = metadata.nullable === false && !effectiveReq ? undefined : null;
+                    this.commitValue(input, emptyVal);
                 } else {
                     const parsedInput = this.hasPresentationalFormatter()
                         ? this.resolveModelWriteValue(rawVal)
@@ -80,19 +77,17 @@ export class NumberPlugin extends BasePlugin {
                     const numVal = typeof parsedInput === "number" ? parsedInput : Number(parsedInput);
                     if (Number.isNaN(numVal)) {
                         this.hasUnparseableInput = true;
-                        this.invalidParsePaths.set(cleanPath, "Please enter a valid number.");
+                        this.invalidParsePaths.set(cleanPath, I18n.getText(TEXT_KEY.numberParseError));
                         input.data("metauiParseInvalid", true);
                     } else if (metadata.type === "integer" && !Number.isInteger(numVal)) {
                         this.hasUnparseableInput = true;
-                        this.invalidParsePaths.set(cleanPath, "Please enter a valid whole number.");
+                        this.invalidParsePaths.set(cleanPath, I18n.getText(TEXT_KEY.integerParseError));
                         input.data("metauiParseInvalid", true);
                     } else {
                         this.hasUnparseableInput = false;
                         this.invalidParsePaths.delete(cleanPath);
                         input.data("metauiParseInvalid", null);
-                        if (model) {
-                            model.setProperty(targetPath, numVal);
-                        }
+                        this.commitValue(input, numVal);
                     }
                 }
 
@@ -113,8 +108,8 @@ export class NumberPlugin extends BasePlugin {
     protected override getParseError(sourceControl?: Control): string | undefined {
         if (!sourceControl && this.hasUnparseableInput && this.metadata) {
             return this.metadata.type === "integer"
-                ? "Please enter a valid whole number."
-                : "Please enter a valid number.";
+                ? I18n.getText(TEXT_KEY.integerParseError)
+                : I18n.getText(TEXT_KEY.numberParseError);
         }
         return undefined;
     }

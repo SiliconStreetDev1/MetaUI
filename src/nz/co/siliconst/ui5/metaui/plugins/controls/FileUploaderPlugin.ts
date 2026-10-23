@@ -9,10 +9,10 @@ import FileUploader from "sap/ui/unified/FileUploader";
 import VBox from "sap/m/VBox";
 import Image from "sap/m/Image";
 import Text from "sap/m/Text";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import { UrlValidator } from "../../utils/UrlValidator";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering logic for binary/byte string uploads.
@@ -55,7 +55,7 @@ export class FileUploaderPlugin extends BasePlugin {
                     if (UrlValidator.isSafeImageSource(val)) {
                         return "";
                     }
-                    return typeof val === "string" && val.trim() ? val.trim() : "No file uploaded";
+                    return typeof val === "string" && val.trim() ? val.trim() : I18n.getText(TEXT_KEY.fileUploadNoFile);
                 }
             });
             const displayTextVisibleBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
@@ -65,7 +65,7 @@ export class FileUploaderPlugin extends BasePlugin {
                 src: safeImageSrcBinding as unknown as string,
                 visible: safeImageVisibleBinding as unknown as boolean,
                 width: "200px",
-                alt: metadata.ui?.label || "Uploaded Image"
+                alt: metadata.ui?.label || I18n.getText(TEXT_KEY.fileUploadImageAlt)
             });
             const displayText = new Text({
                 text: displayTextBinding as unknown as string,
@@ -92,10 +92,10 @@ export class FileUploaderPlugin extends BasePlugin {
 
         const uploader = new FileUploader({
             id: this.generateStableId(engineScopeId, `${bindingPath}-uploader`),
-            placeholder: metadata.ui?.placeholder || "Choose a file...",
+            placeholder: metadata.ui?.placeholder || I18n.getText(TEXT_KEY.fileUploadPlaceholder),
             enabled: this.isControlEditable(),
             width: "100%",
-            buttonText: "Browse...",
+            buttonText: I18n.getText(TEXT_KEY.fileUploadBrowse),
             change: this.onFileChange.bind(this)
         });
 
@@ -126,15 +126,8 @@ export class FileUploaderPlugin extends BasePlugin {
 
             reader.onload = (e: ProgressEvent<FileReader>) => {
                 const base64Data = e.target?.result;
-                if (typeof base64Data === "string" && !uploader.isDestroyed()) {
-                    const model = (uploader.getModel(this.modelName) || this.engineContext?.getModel()) as
-                        | JSONModel
-                        | undefined;
-                    if (model) {
-                        const targetPath = this.resolveAbsolutePath(uploader);
-                        model.setProperty(targetPath, base64Data);
-                        this.notifyChange(uploader.getId());
-                    }
+                if (typeof base64Data === "string" && !uploader.isDestroyed() && this.commitValue(uploader, base64Data)) {
+                    this.notifyChange(uploader.getId());
                 }
             };
 

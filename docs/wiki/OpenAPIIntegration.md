@@ -47,7 +47,6 @@ Operational flags from OpenAPI map onto the normalized `IPropertyMetadata`:
 - **`readOnly`**: Makes the Fiori widget non-editable (`sap.m.InputBase#editable = false`).
 - **`writeOnly`**: Preserved on `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime).
 - **`nullable`**: Enforced by `RequiredValidatorPlugin` (`nullable: false` rejects `null`; `nullable: true` permits `null` even when `required: true`). Also normalized from OpenAPI 2.0 `x-nullable` and Draft 2020-12 `type: [..., "null"]`.
-- **`deprecated`**: Preserved on `IPropertyMetadata` for consumer inspection.
 
 ---
 
@@ -65,7 +64,7 @@ OpenAPI `format` modifiers are mapped to explicit MetaUI `IUIDirective` properti
 | `uri` / `url` | `widget: "link"`, `format: "url"` (`sap.m.Link`) |
 | `iban` | `format: "iban"` |
 | `binary` / `byte` | `widget: "fileUploader"` |
-| `uuid` / `ipv4` / `ipv6` / `hostname` | Mapped to standard RFC regular expressions on `pattern` (`OpenApiConstraintMapper`) and validated by `PatternValidatorPlugin`. |
+| `uuid` / `ipv4` / `ipv6` / `hostname` | Mapped to standard RFC regular expressions on `pattern` (`OpenApiConstraintMapper`) and validated by `PatternValidatorPlugin`. All four built-in mappings pass that plugin's catastrophic-backtracking screen; a `pattern` taken from the spec itself may not — see [Supported Features § Known Limitations](SupportedFeatures.md). |
 
 ---
 

@@ -40,6 +40,13 @@ export class OpenApiUIMapper {
             ui.widget = WIDGET_TYPE.FILE_UPLOADER;
         }
 
+        // Mirrors SchemaDirectiveNormalizer.normalizeUI so a document compiled through OpenApiBuilder
+        // alone carries the same placeholder as the same document run through SchemaNormalizer.
+        const placeholder = SchemaDirectiveNormalizer.exampleAsPlaceholder(swaggerProp.example);
+        if (placeholder !== undefined) {
+            ui.placeholder = placeholder;
+        }
+
         const format = readString(swaggerProp, "format");
         const formatMapping = SchemaDirectiveNormalizer.formatToWidget(format);
         if (formatMapping.widget) {

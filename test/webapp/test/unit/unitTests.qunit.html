@@ -4,10 +4,23 @@
     <meta charset="utf-8">
     <title>MetaUI - QUnit Unit Tests</title>
     <link rel="stylesheet" type="text/css" href="https://ui5.sap.com/resources/sap/ui/thirdparty/qunit-2.css">
+    <!--
+        nz.co.siliconst.ui5.metaui is named in data-sap-ui-libs, not only in data-sap-ui-resourceroots.
+        UI5 fetches a library's library-preload.js only for a library it was told about as a library,
+        so a resource root on its own makes the loader resolve every module separately: this page
+        pulled 173 requests that way, against 2 on the preload path. That is also the integration the
+        README documents, so it is the one this suite must exercise.
+
+        "Platform: this suite loads MetaUI the way the README tells consumers to" in
+        test/unit/core/CoreArchitecture.qunit.js fails if this declaration is dropped.
+
+        test/integration/opaTests.qunit.html is deliberately left on the resource-root-only path so
+        the individually built module files keep their coverage. Do not convert both.
+    -->
     <script id="sap-ui-bootstrap"
             src="https://ui5.sap.com/resources/sap-ui-core.js"
             data-sap-ui-theme="sap_horizon"
-            data-sap-ui-libs="sap.m, sap.ui.core, sap.ui.layout, sap.ui.codeeditor"
+            data-sap-ui-libs="sap.m, sap.ui.core, sap.ui.layout, sap.ui.codeeditor, nz.co.siliconst.ui5.metaui"
             data-sap-ui-resourceroots='{
                 "metaui.sandbox": "../../",
                 "nz.co.siliconst.ui5.metaui": "/resources/nz/co/siliconst/ui5/metaui"

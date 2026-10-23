@@ -17,6 +17,8 @@ import { UrlValidator } from "../../utils/UrlValidator";
  * @public
  */
 export class LinkPlugin extends BasePlugin {
+    protected override readonly isNavigationAffordance: boolean = true;
+
     /**
      * Renders a `sap.m.Link` component bound to the target URL string.
      *
@@ -45,7 +47,7 @@ export class LinkPlugin extends BasePlugin {
             text: (metadata.ui?.placeholder || this.generateBindingInfo(bindingPath, modelName)) as unknown as string,
             href: safeHrefBinding as unknown as string,
             target: "_blank",
-            enabled: this.isControlEditable()
+            enabled: this.isAffordanceEnabled()
         });
 
         this.applyCommonDirectives(this.control, metadata, modelName);
@@ -67,12 +69,13 @@ export class LinkPlugin extends BasePlugin {
     }
 
     /**
-     * Applies dynamic enabled state based on `isEditable` and `readOnly` metadata.
+     * Applies dynamic enabled state. A hyperlink stays followable in display mode and under `ui.readOnly`;
+     * only an explicit `ui.enabled: false` switches it off.
      */
     protected applyState(): void {
-        if (this.control && this.metadata) {
+        if (this.control && this.metadata && !this.metadata.ui?.enabledOn) {
             const link = this.control as Link;
-            link.setEnabled(this.isControlEditable());
+            link.setEnabled(this.isAffordanceEnabled());
         }
     }
 }

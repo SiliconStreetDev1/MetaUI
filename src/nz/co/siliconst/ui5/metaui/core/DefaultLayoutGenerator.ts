@@ -4,6 +4,7 @@
  */
 
 import { ISchema, ILayoutElement, IPropertyMetadata } from "../interfaces/ISchema";
+import { SCHEMA_TYPE, LAYOUT_STRATEGY } from "../constants/MetaUIConstants";
 import { Logger } from "../utils/Logger";
 
 /**
@@ -17,6 +18,22 @@ import { Logger } from "../utils/Logger";
  * @public
  */
 export class DefaultLayoutGenerator {
+    /**
+     * Resolves the layout strategy for a schema: the explicit `layoutStrategy` if the author set one,
+     * otherwise `table` for an array schema and `form` for everything else.
+     *
+     * This default previously appeared verbatim in three places (`Engine.generate`,
+     * `Engine.generateLayout`, `PluginRegistry.getPathsToLoad`), so the lazy-loader could
+     * preload one strategy's module while the renderer picked another. The `[LAYOUT_STRATEGY_DEFAULT]`
+     * gate in `scripts/run-tests.js` forbids the expression from reappearing inline.
+     *
+     * @param schema The normalized schema being rendered or scanned.
+     * @returns {string} The layout strategy key to look up in the `PluginRegistry`.
+     */
+    public static resolveLayoutStrategy(schema: ISchema): string {
+        return schema.layoutStrategy || (schema.type === SCHEMA_TYPE.ARRAY ? LAYOUT_STRATEGY.TABLE : LAYOUT_STRATEGY.FORM);
+    }
+
     /**
      * Inspects a schema. If it has properties but no `uiLayout`, it synthesizes a default.
      *

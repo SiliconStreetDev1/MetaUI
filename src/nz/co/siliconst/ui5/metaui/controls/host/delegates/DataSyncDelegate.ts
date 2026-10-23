@@ -8,6 +8,8 @@ import { SchemaNormalizer } from "../../../core/SchemaNormalizer";
 import { StateManager } from "../../../core/StateManager";
 import { ISchema, IPropertyMetadata } from "../../../interfaces/ISchema";
 import { isRecord, deepClone } from "../../../utils/TypeGuards";
+import { OpenApiRefResolver } from "../../../openapi/OpenApiRefResolver";
+import { MAX_SCHEMA_DEPTH } from "../../../constants/MetaUIConstants";
 
 /**
  * Host contract required by {@link DataSyncDelegate} to synchronize bound properties and trigger re-renders.
@@ -29,11 +31,77 @@ export interface IHostDataSync {
 }
 
 /**
+ * Minimal host surface required to apply the "writing `data` retires a stale `dataJson`" rule.
+ * Implemented by both `GeneratorHost` (via {@link IHostDataSync}) and the `DynamicHost` facade.
+ */
+export interface IDataJsonInvalidationTarget {
+    getBinding(name: string): unknown;
+    setBaseProperty(name: string, value: unknown, suppressInvalidate?: boolean): unknown;
+}
+
+/**
+ * Host surface required to commit the (`data`, `dataJson`) pair. Extends
+ * {@link IDataJsonInvalidationTarget} with the read needed to decide whether `dataJson`
+ * is actually observed, which the invalidation rule on its own does not need.
+ */
+export interface IDataPairCommitTarget extends IDataJsonInvalidationTarget {
+    getBaseProperty(name: string): unknown;
+}
+
+/**
  * Handles two-way data sync, JSON parsing, loop-breaking, and inference structural diffs.
  */
 export class DataSyncDelegate {
     private host: IHostDataSync;
     private _isSyncing: boolean = false;
+
+    /**
+     * Retires a stale literal `dataJson` whenever `data` is written, so the most recently supplied payload
+     * always wins. Both host properties describe the same payload, and `HOST_CONTROL_METADATA` declares
+     * `data` before `dataJson`; without this rule a leftover `dataJson` would silently override a newer
+     * `data` value when the facade replays its properties into a freshly spawned inner host.
+     *
+     * Does nothing when `dataJson` carries its own binding, since that binding owns the value.
+     *
+     * @param host The host whose base properties are being written.
+     * @param propertyName The property that was just written.
+     */
+    public static invalidateStaleDataJson(host: IDataJsonInvalidationTarget, propertyName: string): void {
+        if (propertyName !== "data" || host.getBinding("dataJson")) {
+            return;
+        }
+        host.setBaseProperty("dataJson", null, true);
+    }
+
+    /**
+     * The single writer of the committed (`data`, `dataJson`) property pair.
+     *
+     * `data` and `dataJson` are two views of one payload, so whoever writes one must decide about
+     * the other in the same breath. {@link DataSyncDelegate.invalidateStaleDataJson} was extracted
+     * to stop the facade and the inner host diverging on that rule, and a third copy grew in
+     * `SchemaResolutionDelegate.createAndWireInnerHost` anyway, bypassing it. Both rules now live
+     * here, and the `[DATA_WRITER]` gate in `scripts/run-tests.js` forbids
+     * `setBaseProperty("data", ...)` or `setBaseProperty("dataJson", ...)` anywhere outside this file.
+     *
+     * `dataJson` is serialized only when it is actually observed -- bound, already a string, or
+     * already serialized by the caller -- so an unused `dataJson` never costs a `JSON.stringify`.
+     *
+     * @param host The host whose base properties are written.
+     * @param payload The committed payload to store in `data`.
+     * @param serializedJson Optional pre-serialized JSON to reuse instead of re-stringifying.
+     */
+    public static commitDataPair(host: IDataPairCommitTarget, payload: unknown, serializedJson?: string): void {
+        host.setBaseProperty("data", payload, true);
+        const needsJson =
+            Boolean(host.getBinding("dataJson")) ||
+            typeof host.getBaseProperty("dataJson") === "string" ||
+            typeof serializedJson === "string";
+        if (needsJson) {
+            host.setBaseProperty("dataJson", serializedJson || JSON.stringify(payload, null, 2), true);
+            return;
+        }
+        this.invalidateStaleDataJson(host, "data");
+    }
 
     /**
      * Initializes a new DataSyncDelegate to handle data payload binding extraction.
@@ -123,7 +191,13 @@ export class DataSyncDelegate {
             } else {
                 try {
                     incomingObj = JSON.parse(value);
-                } catch (_e) {
+                } catch (e) {
+                    Logger.error(
+                        "[MetaUI]",
+                        `Failed to parse ${propertyName} string: ${(e as Error).message}. ` +
+                            "Tearing down the generated layout rather than rendering stale content.",
+                        "DataSyncDelegate"
+                    );
                     this.host.setBaseProperty(propertyName, value, false);
                     this.host.notifyAsyncDataArrived?.();
                     this.host.tearDownGeneratedLayout();
@@ -136,9 +210,7 @@ export class DataSyncDelegate {
         }
 
         this.host.setBaseProperty(propertyName, value, true);
-        if (propertyName === "data" && !this.host.getBinding("dataJson")) {
-            this.host.setBaseProperty("dataJson", null, true);
-        }
+        DataSyncDelegate.invalidateStaleDataJson(this.host, propertyName);
         this.host.notifyAsyncDataArrived?.();
 
         const stateManager = this.host.getStateManager();
@@ -237,7 +309,13 @@ export class DataSyncDelegate {
         if ((committed === null || committed === undefined) && typeof rawJson === "string" && rawJson.trim().length > 0) {
             try {
                 committed = JSON.parse(rawJson);
-            } catch (_e) {
+            } catch (e) {
+                Logger.error(
+                    "[MetaUI]",
+                    `Failed to parse dataJson string while reverting: ${(e as Error).message}. ` +
+                        "There is no readable committed baseline, so the form is reset to an empty payload.",
+                    "DataSyncDelegate"
+                );
                 committed = {};
             }
         }
@@ -309,12 +387,22 @@ export class DataSyncDelegate {
         depth: number = 0,
         definitions?: Record<string, ISchema>
     ): void {
-        if (!schema || !rootData || typeof rootData !== "object" || depth > 8) return;
+        // WALKER_EXEMPT: DataSyncDelegate.injectSchemaDefaults co-inductively mutates (schema, rootData) across runtime array rows (targetArray[i]) and only materializes a missing child object when its subtree yields non-empty defaults.
+        if (!schema || !rootData || typeof rootData !== "object") return;
+        if (depth > MAX_SCHEMA_DEPTH) {
+            Logger.warn(
+                "[MetaUI]",
+                `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); schema defaults below this ` +
+                    `level were not injected, so those fields start empty rather than at their declared default.`,
+                "DataSyncDelegate"
+            );
+            return;
+        }
 
         let effectiveSchema = schema;
         const schemaRef = "$ref" in schema ? schema.$ref : undefined;
         if (schemaRef && !schema.properties && definitions) {
-            const refKey = schemaRef.split("/").pop();
+            const refKey = OpenApiRefResolver.extractRefName(schemaRef);
             if (refKey && definitions[refKey]) {
                 effectiveSchema = definitions[refKey];
             }
@@ -323,7 +411,10 @@ export class DataSyncDelegate {
         if (effectiveSchema.type === "object" && effectiveSchema.properties && isRecord(rootData)) {
             for (const key of Object.keys(effectiveSchema.properties)) {
                 const rawPropSchema = effectiveSchema.properties[key];
-                const refKey = rawPropSchema.$ref && !rawPropSchema.properties ? rawPropSchema.$ref.split("/").pop() : undefined;
+                const refKey =
+                    rawPropSchema.$ref && !rawPropSchema.properties
+                        ? OpenApiRefResolver.extractRefName(rawPropSchema.$ref)
+                        : undefined;
                 const propSchema: ISchema | IPropertyMetadata = (refKey && definitions?.[refKey]) || rawPropSchema;
                 const propDefault = "default" in propSchema ? propSchema.default : undefined;
 

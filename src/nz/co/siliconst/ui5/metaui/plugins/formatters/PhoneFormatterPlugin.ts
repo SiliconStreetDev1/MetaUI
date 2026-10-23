@@ -4,10 +4,15 @@
  */
 
 import { IFormatter, IParser } from "../../interfaces/IPipeline";
+import { safeToString } from "../../core/SafeConvert";
 
 /**
  * Reversible presentational formatter and parser for phone numbers
  * (e.g. `"5551234567"` <-> `"(555) 123-4567"`, `"+15551234567"` <-> `"+1 (555) 123-4567"`).
+ *
+ * Non-NANP E.164 inputs use a lightweight length heuristic (2-digit country prefix for 9-12 digits,
+ * 3-digit prefix for 13 digits) rather than embedding an ITU-T E.164 / national numbering plan table;
+ * {@link PhoneFormatterPlugin.parse} strips the grouping space so the E.164 round-trip is exact.
  *
  * @namespace nz.co.siliconst.ui5.metaui.plugins.formatters
  * @public
@@ -25,7 +30,7 @@ export class PhoneFormatterPlugin implements IFormatter, IParser {
             return "";
         }
         if (typeof rawValue !== "string" && typeof rawValue !== "number") {
-            return String(rawValue);
+            return safeToString(rawValue);
         }
         const strVal = String(rawValue).trim();
         if (strVal.startsWith("+")) {

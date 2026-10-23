@@ -8,8 +8,10 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { IPlugin } from "../../interfaces/IPlugin";
 import { PayloadValidator } from "../../core/PayloadValidator";
+import { ControlDirectiveUtil } from "../../utils/ControlDirectiveUtil";
 import { DictionaryMapUtil, IDictionaryEntry } from "../../utils/DictionaryMapUtil";
 import { deepClone } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 import Control from "sap/ui/core/Control";
 import VBox from "sap/m/VBox";
 import HBox from "sap/m/HBox";
@@ -61,13 +63,13 @@ export class DictionaryMapPlugin extends BasePlugin {
         this.localModel = new JSONModel({ entries: [] as IDictionaryEntry[] });
         const canEdit = this.isControlEditable();
         const headerTitle = new Title({
-            text: metadata.ui?.label || this.fieldKey || "Dictionary",
+            text: metadata.ui?.label || this.fieldKey || I18n.getText(TEXT_KEY.dictionaryLabel),
             level: TitleLevel.H5
         });
 
         this.addButton = new Button({
             id: this.generateStableId(engineScopeId, `${bindingPath}-add`),
-            text: "Add Entry",
+            text: I18n.getText(TEXT_KEY.dictionaryAddEntry),
             icon: "sap-icon://add",
             type: ButtonType.Transparent,
             visible: canEdit,
@@ -229,7 +231,9 @@ export class DictionaryMapPlugin extends BasePlugin {
         const canEdit = this.isControlEditable();
 
         if (entries.length === 0) {
-            this.rowsContainer.addItem(new Text({ text: "No entries defined." }).addStyleClass("sapUiTinyMarginBottom"));
+            this.rowsContainer.addItem(
+                new Text({ text: I18n.getText(TEXT_KEY.dictionaryEmpty) }).addStyleClass("sapUiTinyMarginBottom")
+            );
             return;
         }
 
@@ -246,6 +250,10 @@ export class DictionaryMapPlugin extends BasePlugin {
                 onSync: () => this.syncToParentModel(),
                 onRemove: (removeIdx) => this.removeEntry(removeIdx)
             });
+            // `DictionaryMapUtil` parks each row's key and value labels in the row's `dependents`
+            // aggregation, which UI5 never renders: the `labelFor` they carry resolves to nothing and the
+            // inputs end up with no accessible name at all. Republish that text as an InvisibleText.
+            ControlDirectiveUtil.materializeDependentLabels(rowBox);
             this.childPlugins.push(valuePlugin);
             this.rowsContainer?.addItem(rowBox);
         });
@@ -255,7 +263,7 @@ export class DictionaryMapPlugin extends BasePlugin {
     public override validate(): { isValid: boolean; errorMessage?: string } {
         if (!this.control || !this.metadata || !this.isVisible()) return { isValid: true };
         if (this.hasInvalidKeys) {
-            return { isValid: false, errorMessage: "Dictionary contains empty or duplicate keys." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.dictionaryInvalidKeys) };
         }
 
         let firstChildFailure: { isValid: boolean; errorMessage?: string } | null = null;

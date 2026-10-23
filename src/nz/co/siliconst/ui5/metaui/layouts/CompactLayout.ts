@@ -43,7 +43,6 @@ export class CompactLayout implements ILayoutManager {
             return container;
         }
 
-        const tableElements: { scope: string; meta: IPropertyMetadata; label?: string }[] = [];
         const boxStack: (VBox | HBox)[] = [container];
         const currentBox = (): VBox | HBox => boxStack[boxStack.length - 1];
 
@@ -82,7 +81,7 @@ export class CompactLayout implements ILayoutManager {
                     }
                 },
                 onTableSubLayout: (element: ILayoutElement, bindingPath: string, _propKey: string, meta: IPropertyMetadata) => {
-                    tableElements.push({ scope: bindingPath, meta, label: element.label });
+                    this._renderArrayTable(currentBox(), element, bindingPath, meta, modelName, engine);
                 },
                 onScalarField: (element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata) => {
                     this._renderScalarField(currentBox(), element, bindingPath, meta, modelName, engine);
@@ -91,22 +90,47 @@ export class CompactLayout implements ILayoutManager {
             "CompactLayout"
         );
 
-        tableElements.forEach((field) => {
-            try {
-                const subSchema = ArraySubSchemaFactory.build(field.label, field.scope, field.meta);
-                const control = engine.generateLayout(subSchema, modelName, `/${field.scope}`);
-                if (control) {
-                    control.addStyleClass("sapUiTinyMarginTop");
-                    container.addItem(control);
-                }
-            } catch (error) {
-                const msg = (error as Error).message;
-                Logger.error(`[MetaUI] Failed to render array field ${field.scope}`, msg, "CompactLayout");
-                Logger.showErrorPopup(`Failed to render array field '${field.scope}'.\n\nDetails: ${msg}`);
-            }
-        });
-
         return container;
+    }
+
+    /**
+     * Synthesizes an inline array table into the container that is open at the element's declared position.
+     * Deferring these to the root container after the walk dropped every inline table out of its row and out
+     * of its declared order, which `FormLayout` never did.
+     *
+     * @param container The VBox or HBox container currently open in the walk.
+     * @param element The layout element definition.
+     * @param bindingPath The resolved relative binding path of the array property.
+     * @param meta The array property metadata.
+     * @param modelName The UI5 data model name.
+     * @param engine The core Engine instance.
+     */
+    private _renderArrayTable(
+        container: VBox | HBox,
+        element: ILayoutElement,
+        bindingPath: string,
+        meta: IPropertyMetadata,
+        modelName: string,
+        engine: Engine
+    ): void {
+        try {
+            const subSchema = ArraySubSchemaFactory.build(element.label, bindingPath, meta);
+            const control = engine.generateLayout(subSchema, modelName, `/${bindingPath}`);
+            if (!control) {
+                return;
+            }
+            control.addStyleClass("sapUiTinyMarginTop");
+            if (container.getMetadata().getName() === "sap.m.HBox") {
+                control.setLayoutData(new FlexItemData({ growFactor: 1, baseSize: "0%" }));
+                control.addStyleClass("sapUiTinyMarginEnd");
+            }
+            container.addItem(control);
+        } catch (error) {
+            engine.hasPartialRenderingErrors = true;
+            const msg = (error as Error).message;
+            Logger.error(`[MetaUI] Failed to render array field ${bindingPath}`, msg, "CompactLayout");
+            Logger.showErrorPopup(`Failed to render array field '${bindingPath}'.\n\nDetails: ${msg}`);
+        }
     }
 
     /**
@@ -156,6 +180,7 @@ export class CompactLayout implements ILayoutManager {
             }
             container.addItem(fieldBox);
         } catch (error) {
+            engine.hasPartialRenderingErrors = true;
             const msg = (error as Error).message;
             Logger.error(`[MetaUI] Failed to render field ${propKey}`, msg, "CompactLayout");
             Logger.showErrorPopup(`Failed to render field '${propKey}'.\n\nDetails: ${msg}`);

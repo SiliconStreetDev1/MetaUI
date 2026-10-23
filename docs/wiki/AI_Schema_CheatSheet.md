@@ -104,11 +104,11 @@ Every field inside `properties` supports standard JSON-Schema validation and Met
 - `const`: unknown
 - `maxLength`, `minLength`: number
 - `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`: number | boolean
-- `precision`, `scale`, `multipleOf`: number
-- `pattern`: string (regex)
+- `multipleOf`: number
+- `pattern`: string (regex). **Hard limits:** max 512 characters, and a repetition shape that is provably ambiguous — a quantifier over a group built only from variable-length elements (`(a+)+`, `(a?)*`, `(\w+\s?)*`) or over an alternation whose branches can start with the same token (`(a|a)+`, `(a|)+`) — is refused as a denial-of-service risk and reported as a schema configuration error on the field. Anchor repeated groups with at least one fixed atom (`([a-z]+\.)+`, `(\d{4})+`) and they are accepted.
 - `valueHelp`: Array of `{"key": "id", "text": "Label"}` or `{ "url": "/api", "keyPath": "id", "textPath": "name" }`
 - `enum`: string[] | number[]
-- `readOnly`, `writeOnly`, `nullable`, `deprecated`: boolean
+- `readOnly`, `writeOnly`, `nullable`: boolean
 - `default`, `example`: unknown
 
 **Array & Object Validations:**
@@ -137,8 +137,8 @@ The `ui` block dictates exactly how the field renders visually.
         "enabledOn": "$root.OtherField === true",
         "format": "email",        // Triggers native format validators
         "valueState": "None",     // Initial ValueState ("None", "Error", "Warning", "Success", "Information")
-        "rows": 4,                // For TextAreas
-        "expandable": true,       // For expandable containers
+        "rows": 4,                // For TextAreas and code editors
+        "expandable": true,       // Adds a full-screen expand button to textArea / codeEditor
         "fullWidth": true,        // Bypasses layout constraints
         "formatter": "textCase",  // Single formatter name
         "formatters": ["textCase"], // Chained formatter names
@@ -163,12 +163,22 @@ The `ui` block dictates exactly how the field renders visually.
     }
 }
 ```
-*Note: `controlProps` supports SAPUI5 Expression Bindings referencing `meta>` (the internal form data model). Blocked core properties (`value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`) cannot be overridden via `controlProps`. On the root schema's `ui` block, `labelSpan` (`0`–`12`) or `controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`, `emptySpan*`, `columns*`) configures `SimpleForm`'s `ResponsiveGridLayout` spans (default `labelSpanS: 12`, `M/L/XL: 4`).*
+**`controlProps` rules — a generated schema that breaks any of these has the entry silently dropped at render time (with a logged warning), so do not emit them:**
+
+1. The property must be **declared by the generated UI5 control** (checked against the control's own metadata). Invented property names are refused.
+2. Its declared UI5 type must resolve to a **scalar primitive** — `string`, `boolean`, `int` or `float`. UI5 enums and `sap.ui.core.CSSSize` qualify; anything typed `object`, `function`, `any`, or an array of those, does not.
+3. **MetaUI-owned state properties are refused:** `value`, `selectedKey`, `selectedKeys`, `selected`, `dateValue`, `tokens`, `editable`, `enabled`, `visible`, `valueState`, `valueStateText`. Use `visibleOn`, `enabledOn`, `readOnly` and the validation pipeline instead.
+4. **Raw-markup properties are refused:** `htmlText`, `html`, `innerHTML`, `content`. There is no `controlProps` route for injecting HTML; use `ui.widget: "richText"`, whose bound value is rendered through `sap.m.FormattedText`.
+5. A `sap.ui.core.URI` property (`href`, `src`, `icon`, …) is accepted but protocol-checked. Only `http:`, `https:`, `mailto:`, `tel:`, relative paths (`/`, `./`, `../`, `#`), `data:image/*;base64,`, `sap-icon://…` and `""` survive; anything else becomes `""`. This applies to bound values too.
+
+*`controlProps` also supports SAPUI5 Expression Bindings referencing `meta>` (the internal form data model) or `metaui>` (rewritten to the host's `modelName`). The binding grammar is the same one `visibleOn` / `enabledOn` use: model paths, `{= … }` expressions, `$root.` / `$row.` references and OData key predicates are accepted; UI5 complex-binding object syntax (`{path:'…', formatter:'…'}`) is refused. On the root schema's `ui` block, `labelSpan` (`0`–`12`) or `controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`, `emptySpan*`, `columns*`) configures `SimpleForm`'s `ResponsiveGridLayout` spans (default `labelSpanS: 12`, `M/L/XL: 4`) — these root-level keys are read directly as layout numbers and do not go through the per-field property gate above.*
+
+**`ui.dataSource.url` rules:** the URL is resolved against the document origin and must end up on `http:` or `https:`. Protocol-relative (`//host/...`) and backslash-prefixed values are refused outright. A cross-origin endpoint is permitted by default and logged once per origin; an application can tighten this to same-origin or an explicit allowlist with `UrlValidator.setDataSourceOriginPolicy()`, in which case a refused URL means the control simply renders with no remote items (and a logged warning). The same policy governs a remote `schemaDefinition` URL.
 
 ### D. The Widget Registry Dictionary
 You may specify these values in `ui.widget` to force the Engine to use a specific Fiori control (mapped via `DefaultPluginBootstrapper.ts` and `MetaUIConstants.ts`):
 
-- **String Widgets**: *(omitted)* / `default` (`sap.m.Input`), `date`, `datePicker`, `time`, `datetime`, `select`, `textArea`, `codeEditor`, `link`, `password`, `email`, `fileUploader`, `messageStrip`, `camera`, `signature`, `scanner`, `voiceInput`, `richText`, `urlButton`, `submitButton`, `clearButton`, `odataSelect`, `remoteDropdown`, `remoteSelect`, `combobox`, `liveSearch`, `remoteValueHelp`, `valueHelp`.
+- **String Widgets**: *(omitted)* / `default` (`sap.m.Input`), `date`, `datePicker`, `time`, `datetime`, `select`, `textArea`, `codeEditor`, `link`, `password`, `email`, `fileUploader`, `messageStrip`, `camera`, `signature`, `voiceInput`, `richText`, `urlButton`, `submitButton`, `clearButton`, `odataSelect`, `remoteDropdown`, `remoteSelect`, `combobox`, `liveSearch`, `remoteValueHelp`, `valueHelp`.
 - **Number & Integer Widgets**: *(omitted)* (`sap.m.Input` `type="Number"`), `step`, `slider`, `rating`, `select`.
 - **Boolean Widgets**: *(omitted)* (`sap.m.CheckBox`), `switch`.
 - **Date Widgets**: *(omitted)* (`sap.m.DatePicker`), `date`, `datePicker`.

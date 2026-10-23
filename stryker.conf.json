@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing over the pure-logic ingestion and validation core, driven by the fast-check suite in test/node/. Scope is deliberately the files those properties target: every surviving mutant has to be triaged, so a mutate set wider than the suite's reach would produce survivors nobody can honestly account for. UI orchestration (layouts, policies, plugins that build controls) stays with the browser QUnit suite. Run it with `npm run mutate`, which pins the fast-check seed and run count so the score is reproducible.",
+  "packageManager": "npm",
+  "testRunner": "mocha",
+  "plugins": ["@stryker-mutator/mocha-runner"],
+  "mochaOptions_comment": "spec, require, extension and timeout all come from the rc file, so `npm run test:prop` and `npm run mutate` drive exactly the same suite.",
+  "mochaOptions": {
+    "config": "test/node/.mocharc.json"
+  },
+  "mutate": [
+    "src/nz/co/siliconst/ui5/metaui/core/SchemaWalker.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/SchemaNormalizer.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/SchemaDirectiveNormalizer.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/DataInferenceBuilder.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/PayloadValidator.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/PipelineManager.ts",
+    "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiRefResolver.ts",
+    "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiParserFactory.ts",
+    "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiTypeMapper.ts",
+    "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiUIMapper.ts",
+    "src/nz/co/siliconst/ui5/metaui/openapi/parsers/*.ts",
+    "src/nz/co/siliconst/ui5/metaui/plugins/formatters/*.ts",
+    "src/nz/co/siliconst/ui5/metaui/plugins/validators/*.ts",
+    "src/nz/co/siliconst/ui5/metaui/utils/TypeGuards.ts"
+  ],
+  "ignorePatterns": [
+    "dist",
+    "docs",
+    "examples",
+    "test/webapp",
+    "test/mockserver",
+    "test/dist",
+    "test/node_modules",
+    "test/swagger_schemas/*.json",
+    "test/node/.mutation-report"
+  ],
+  "coverageAnalysis": "perTest",
+  "disableTypeChecks": true,
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "htmlReporter": { "fileName": "test/node/.mutation-report/index.html" },
+  "jsonReporter": { "fileName": "test/node/.mutation-report/mutation.json" },
+  "clearTextReporter": { "maxTestsToLog": 2, "allowEmojis": false },
+  "timeoutMS": 30000,
+  "timeoutFactor": 3,
+  "thresholds": { "high": 85, "low": 70, "break": null }
+}

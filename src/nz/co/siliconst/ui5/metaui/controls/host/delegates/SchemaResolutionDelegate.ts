@@ -12,6 +12,7 @@ import { SchemaBuilderRegistry } from "../../../core/SchemaBuilderRegistry";
 import { SchemaProvider } from "../../../services/SchemaProvider";
 import { Logger } from "../../../utils/Logger";
 import { isRecord } from "../../../utils/TypeGuards";
+import { DataSyncDelegate } from "./DataSyncDelegate";
 import type DynamicHost from "../../DynamicHost";
 
 /**
@@ -23,6 +24,7 @@ import type DynamicHost from "../../DynamicHost";
 export class SchemaResolutionDelegate {
     private fetchRequestId: number = 0;
     private fetchPromise: Promise<void> | null = null;
+    private fetchUrl: string | null = null;
 
     constructor(private readonly facade: DynamicHost) {}
 
@@ -75,7 +77,11 @@ export class SchemaResolutionDelegate {
         const schemaRaw: unknown = this.facade.getBaseProperty("schemaDefinition");
 
         if (typeof schemaRaw === "string" && (schemaRaw.startsWith("http://") || schemaRaw.startsWith("https://"))) {
-            this.startRemoteFetch(schemaRaw);
+            // `DynamicHost.setProperty` already starts the fetch when the URL is assigned. Only start one here
+            // when nothing is in flight for this exact URL, so a remote schema costs a single request.
+            if (this.fetchPromise === null || this.fetchUrl !== schemaRaw) {
+                this.startRemoteFetch(schemaRaw);
+            }
             return null;
         }
 
@@ -104,6 +110,7 @@ export class SchemaResolutionDelegate {
      */
     public startRemoteFetch(url: string): void {
         const reqId = ++this.fetchRequestId;
+        this.fetchUrl = url;
         this.facade.setBusy(true);
 
         this.fetchPromise = SchemaProvider.resolve(url)
@@ -131,6 +138,7 @@ export class SchemaResolutionDelegate {
             .finally(() => {
                 if (reqId === this.fetchRequestId && !this.facade.isDestroyed()) {
                     this.fetchPromise = null;
+                    this.fetchUrl = null;
                     this.facade.setBusy(false);
                 }
             });
@@ -192,15 +200,7 @@ export class SchemaResolutionDelegate {
                     if (params.payload) {
                         const isLive = this.facade.getBaseProperty("liveUpdate") === true;
                         if (eventName === "submit" || isLive) {
-                            this.facade.setBaseProperty("data", params.payload, true);
-                            const needsJson =
-                                Boolean(this.facade.getBinding("dataJson")) ||
-                                typeof this.facade.getBaseProperty("dataJson") === "string" ||
-                                typeof params.payloadJson === "string";
-                            if (needsJson) {
-                                const str = params.payloadJson || JSON.stringify(params.payload, null, 2);
-                                this.facade.setBaseProperty("dataJson", str, true);
-                            }
+                            DataSyncDelegate.commitDataPair(this.facade, params.payload, params.payloadJson);
                         }
                     }
                 }

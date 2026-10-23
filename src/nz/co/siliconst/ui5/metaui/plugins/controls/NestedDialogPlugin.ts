@@ -4,13 +4,15 @@
  */
 
 import { BasePlugin } from "./BasePlugin";
-import { IPropertyMetadata, ISchema } from "../../interfaces/ISchema";
+import { IPropertyMetadata, ISchema, IUIDirective } from "../../interfaces/ISchema";
 import Button from "sap/m/Button";
 import { ButtonType } from "sap/m/library";
 import Control from "sap/ui/core/Control";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { PayloadValidator } from "../../core/PayloadValidator";
+import { deepClone } from "../../utils/TypeGuards";
+import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Resolved sub-schema and modal dialog configuration for a nested dialog launch.
@@ -33,8 +35,28 @@ export interface INestedDialogDescriptor {
  * @public
  */
 export abstract class NestedDialogPlugin extends BasePlugin {
-    protected abstract readonly defaultErrorTooltip: string;
+    /**
+     * Bundle key of the tooltip shown on the trigger button when the nested payload is invalid and the
+     * validator supplied no reason of its own. A key rather than a string, so the text is resolved against
+     * the session locale at the moment it is rendered instead of at construction time.
+     */
+    protected abstract readonly defaultErrorTooltipKey: MetaUITextKey;
     protected abstract readonly emptyFallbackValue: unknown;
+    protected override readonly isNavigationAffordance: boolean = true;
+
+    /**
+     * Builds the trigger button's caption: `Edit <label>` while editable, `View <label>` otherwise.
+     *
+     * The label is a placeholder value rather than a concatenated fragment because languages order the
+     * two parts differently — German renders `{0} bearbeiten`, putting the verb last.
+     *
+     * @param label The resolved field label.
+     * @param canEdit True when the nested dialog will open in edit mode.
+     * @returns {string} The localized button caption.
+     */
+    private buildTriggerText(label: string, canEdit: boolean): string {
+        return I18n.getText(canEdit ? TEXT_KEY.nestedEdit : TEXT_KEY.nestedView, [label]);
+    }
 
     /**
      * Resolves the default label for the trigger button when `metadata.ui.label` is omitted.
@@ -81,6 +103,27 @@ export abstract class NestedDialogPlugin extends BasePlugin {
     }
 
     /**
+     * Carries the property's `ui` directive block onto the modal sub-schema root so that `labelSpan`,
+     * `controlProps` and `layoutBudget` govern the dialog exactly as they govern the inline rendering.
+     * Mirrors `ArraySubSchemaFactory.build`, including its read-only propagation.
+     *
+     * @param metadata The nested property metadata.
+     * @param inheritedUi Optional `ui` block already declared on a resolved `$ref` target, which the
+     *                    property-level directives override key by key.
+     * @returns {IUIDirective | undefined} The sub-schema root `ui` block, or `undefined` when none applies.
+     */
+    protected buildSubSchemaUi(metadata: IPropertyMetadata, inheritedUi?: IUIDirective): IUIDirective | undefined {
+        const merged: IUIDirective | undefined =
+            inheritedUi || metadata.ui
+                ? { ...(inheritedUi ? deepClone(inheritedUi) : {}), ...(metadata.ui ? deepClone(metadata.ui) : {}) }
+                : undefined;
+        if (metadata.readOnly || merged?.readOnly) {
+            return { ...(merged || {}), readOnly: true };
+        }
+        return merged;
+    }
+
+    /**
      * Renders a `sap.m.Button` that opens a nested `DynamicHost` dialog when pressed.
      *
      * @param metadata The specific JSON schema properties for this field.
@@ -101,19 +144,21 @@ export abstract class NestedDialogPlugin extends BasePlugin {
 
         const label = this.getDefaultLabel(metadata);
         const canEdit = this.isControlEditable();
-        const btnText = metadata.ui?.dialogButtonText || (canEdit ? `Edit ${label}` : `View ${label}`);
+        const btnText = metadata.ui?.dialogButtonText || this.buildTriggerText(label, canEdit);
         const textBinding =
             !this.isEditable && !metadata.ui?.dialogButtonText
                 ? this.generateBindingInfo(bindingPath, modelName, undefined, {
                       formatter: (val: unknown) => {
                           if (Array.isArray(val)) {
-                              return `View ${label} (${val.length})`;
+                              return I18n.getText(TEXT_KEY.nestedViewSummary, [label, val.length]);
                           }
                           if (val && typeof val === "object") {
                               const summary = Object.values(val as Record<string, unknown>).join(", ");
-                              return summary ? `View ${label} (${summary})` : `View ${label}`;
+                              return summary
+                                  ? I18n.getText(TEXT_KEY.nestedViewSummary, [label, summary])
+                                  : I18n.getText(TEXT_KEY.nestedView, [label]);
                           }
-                          return `View ${label}`;
+                          return I18n.getText(TEXT_KEY.nestedView, [label]);
                       }
                   })
                 : btnText;
@@ -157,12 +202,33 @@ export abstract class NestedDialogPlugin extends BasePlugin {
             currentData,
             definitions: this.engineContext?.getSchemaDefinitions(),
             editable: this.isControlEditable(),
+            layoutBudget: this.resolveNestedLayoutBudget(metadata),
             isArrayRoot: descriptor.isArrayRoot,
             onSave: (extractedData: unknown) => {
                 model.setProperty(absolutePath, this.coerceSavedData(extractedData));
                 this.notifyChange(btn.getId());
             }
         });
+    }
+
+    /**
+     * Resolves the layout budget the nested modal host runs under: the author's own `ui.layoutBudget`
+     * on this property when declared, otherwise the budget in force on the owning host.
+     *
+     * The budget used to reach the dialog only because `LayoutScorer` wrote the effective budget onto
+     * every schema node and {@link NestedDialogPlugin.buildSubSchemaUi} copied that node's `ui` block
+     * onto the modal sub-schema. Reading it from the engine context instead keeps the layout engine's
+     * working state out of the consumer's schema.
+     *
+     * @param metadata The nested property metadata.
+     * @returns {number} The budget for the nested host; 0 disables inline sub-layouts inside the dialog.
+     */
+    protected resolveNestedLayoutBudget(metadata: IPropertyMetadata): number {
+        const declared = metadata.ui?.layoutBudget;
+        if (typeof declared === "number" && declared > 0) {
+            return declared;
+        }
+        return this.engineContext?.getLayoutBudget?.() ?? 0;
     }
 
     /**
@@ -208,7 +274,9 @@ export abstract class NestedDialogPlugin extends BasePlugin {
         if (this.control instanceof Button) {
             this.control.setType(isValid ? ButtonType.Default : ButtonType.Reject);
             this.control.setTooltip(
-                isValid ? this.metadata?.description || "" : errorMessage || this.defaultErrorTooltip
+                isValid
+                    ? this.metadata?.description || ""
+                    : errorMessage || I18n.getText(this.defaultErrorTooltipKey)
             );
         }
     }
@@ -222,9 +290,12 @@ export abstract class NestedDialogPlugin extends BasePlugin {
             const label = this.getDefaultLabel(this.metadata);
             const canEdit = this.isControlEditable();
             if (this.isEditable || this.metadata.ui?.dialogButtonText) {
-                btn.setText(this.metadata.ui?.dialogButtonText || (canEdit ? `Edit ${label}` : `View ${label}`));
+                btn.setText(this.metadata.ui?.dialogButtonText || this.buildTriggerText(label, canEdit));
             }
             btn.setIcon(this.getButtonIcon(canEdit));
+            if (!this.metadata.ui?.enabledOn) {
+                btn.setEnabled(this.isAffordanceEnabled());
+            }
         }
     }
 }

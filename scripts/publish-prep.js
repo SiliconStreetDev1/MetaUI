@@ -25,6 +25,60 @@ if (fs.existsSync(resourcesDir)) {
     console.log('- dist/resources not found, might have already been renamed');
 }
 
+// 1b. Prune artifacts no consumer can use.
+//
+// Measured before this step existed: 74.3% of the published tarball was source maps
+// and raw .ts sources. The maps are only read by a devtools pane open against the
+// consumer's node_modules, and the .ts files are byte-identical to src/ while the
+// same text is ALSO embedded as `sourcesContent` inside those maps -- three copies
+// of every source file. TypeScript resolves the .d.ts, not the .ts, and UI5 loads
+// the .js, so neither is reachable.
+//
+// ui5.yaml already sets `removeSourceFiles: true`; it is not taking effect, so the
+// prune is done here where it can be verified rather than assumed.
+const prunedExtensions = { maps: 0, sources: 0, bytes: 0 };
+(function prune(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            prune(full);
+            continue;
+        }
+        const isMap = entry.name.endsWith('.js.map') || entry.name.endsWith('.d.ts.map');
+        // .d.ts must survive; only the hand-written .ts sources go.
+        const isRawSource = entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts');
+        if (!isMap && !isRawSource) {
+            continue;
+        }
+        prunedExtensions.bytes += fs.statSync(full).size;
+        prunedExtensions[isMap ? 'maps' : 'sources'] += 1;
+        fs.unlinkSync(full);
+    }
+})(srcDir);
+
+// Fail rather than ship a half-pruned tree: a surviving .ts means the walk missed a
+// directory, and a surviving .d.ts loss means the filter is wrong in the other
+// direction. Both are silent packaging defects of exactly the kind this guards.
+const survivors = [];
+(function check(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            check(full);
+        } else if (entry.name.endsWith('.map') || (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts'))) {
+            survivors.push(path.relative(distDir, full));
+        }
+    }
+})(srcDir);
+if (survivors.length > 0) {
+    console.error(`Error: ${survivors.length} prunable file(s) survived, e.g. ${survivors[0]}`);
+    process.exit(1);
+}
+console.log(
+    `- Pruned ${prunedExtensions.maps} source maps and ${prunedExtensions.sources} raw .ts sources ` +
+    `(${(prunedExtensions.bytes / (1024 * 1024)).toFixed(2)}MB)`
+);
+
 // 2. Copy and clean package.json
 const pkgPath = path.join(rootDir, 'package.json');
 const pkgDistPath = path.join(distDir, 'package.json');

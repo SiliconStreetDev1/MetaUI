@@ -6,6 +6,7 @@
 import { IValidator, IValidationResult, IValidatorRuleExtraction } from "../../interfaces/IPipeline";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { isRecord, readNumber, readBoolean } from "../../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Arguments accepted by the range validator.
@@ -58,7 +59,7 @@ export class RangeValidatorPlugin implements IValidator {
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof parsedValue !== "number" || Number.isNaN(parsedValue) || !isRecord(args)) return { isValid: true };
         if (!Number.isFinite(parsedValue)) {
-            return { isValid: false, errorMessage: "Value must be a finite number." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.finiteNumber) };
         }
 
         const min = readNumber(args, "min") ?? readNumber(args, "minimum");
@@ -71,24 +72,24 @@ export class RangeValidatorPlugin implements IValidator {
         if (min !== undefined) {
             if (exMinFlag === true ? parsedValue <= min : parsedValue < min) {
                 const msg = exMinFlag
-                    ? `Value must be greater than ${min}.`
-                    : `Value must be greater than or equal to ${min}.`;
+                    ? I18n.getText(TEXT_KEY.rangeExclusiveMinimum, [min])
+                    : I18n.getText(TEXT_KEY.rangeMinimum, [min]);
                 return { isValid: false, errorMessage: msg };
             }
         }
         if (exMinBound !== undefined && parsedValue <= exMinBound) {
-            return { isValid: false, errorMessage: `Value must be greater than ${exMinBound}.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMinimum, [exMinBound]) };
         }
         if (max !== undefined) {
             if (exMaxFlag === true ? parsedValue >= max : parsedValue > max) {
                 const msg = exMaxFlag
-                    ? `Value must be less than ${max}.`
-                    : `Value must be less than or equal to ${max}.`;
+                    ? I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [max])
+                    : I18n.getText(TEXT_KEY.rangeMaximum, [max]);
                 return { isValid: false, errorMessage: msg };
             }
         }
         if (exMaxBound !== undefined && parsedValue >= exMaxBound) {
-            return { isValid: false, errorMessage: `Value must be less than ${exMaxBound}.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [exMaxBound]) };
         }
         return { isValid: true };
     }

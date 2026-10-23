@@ -5,6 +5,7 @@
 
 import DateTimePicker from "sap/m/DateTimePicker";
 import { IPickerPluginConfig, PickerPlugin } from "./PickerPlugin";
+import { TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Handles rendering and logic for ISO timestamps/datetime inputs (`yyyy-MM-dd'T'HH:mm:ss'Z'`).
@@ -17,6 +18,6 @@ export class DateTimePlugin extends PickerPlugin {
         ControlClass: DateTimePicker,
         bindingType: "sap.ui.model.type.DateTime",
         sourcePattern: "yyyy-MM-dd'T'HH:mm:ss'Z'",
-        parseErrorMessage: "Please enter a valid date and time."
+        parseErrorMessageKey: TEXT_KEY.dateTimeParseError
     };
 }

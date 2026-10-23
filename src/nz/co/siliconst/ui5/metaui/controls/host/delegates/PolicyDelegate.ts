@@ -6,10 +6,11 @@
  */
 
 import { IPolicy } from "../../../interfaces/ISchema";
-import { PolicyEngine } from "../../../core/PolicyEngine";
+import { PolicyEngine, IDeltaState } from "../../../core/PolicyEngine";
 import { PluginRegistry } from "../../../core/PluginRegistry";
 import { Engine } from "../../../core/Engine";
 import { StateManager } from "../../../core/StateManager";
+import { Logger } from "../../../utils/Logger";
 
 /**
  * Delegate managing Policy-Based Rules Engine (PBRE) execution for `GeneratorHost`.
@@ -96,8 +97,83 @@ export class PolicyDelegate {
     }
 
     /**
+     * Applies a single policy delta to its target plugin or table row cell.
+     *
+     * A delta flagged `degraded` came from a policy whose condition the engine could not evaluate. It is a
+     * statement about a broken rule, not about the data, so it must never hide a field or prune its value:
+     * `StateManager.setProperty(target, undefined)` makes `extractPayload()` emit `undefined`, which
+     * `JSON.stringify` then drops, silently deleting the user's input from the submitted payload.
+     *
+     * @param delta The differential state mutation to apply.
+     * @param stateManager The active `StateManager` instance.
+     * @param engine The active `Engine` instance.
+     * @returns {boolean} True when the delta pruned a hidden field value out of the model.
+     */
+    private applyDelta(delta: IDeltaState, stateManager: StateManager, engine: Engine): boolean {
+        let valuePruned = false;
+        if (delta.property === "visibility" && delta.value === false) {
+            if (delta.degraded) {
+                Logger.error(
+                    "[MetaUI PolicyDelegate]",
+                    `Refusing to hide '${delta.target}' and prune its value: the policy governing it could not be ` +
+                        `evaluated. Fix the policy condition; the field stays visible and its value is preserved.`,
+                    "PolicyDelegate"
+                );
+                return false;
+            }
+            stateManager.setProperty(delta.target, undefined);
+            engine.reportSchemaError(delta.target, null);
+            valuePruned = true;
+        }
+
+        const plugin = engine.getPluginByPath(delta.target);
+        if (!plugin) {
+            if (delta.property === "validity") {
+                engine.reportPolicyError(
+                    delta.target,
+                    delta.value ? null : delta.errorMessage || "Validation failed by policy"
+                );
+            } else {
+                engine.applyRowPolicyState(delta.target, delta.property, delta.value);
+            }
+            return valuePruned;
+        }
+
+        switch (delta.property) {
+            case "visibility":
+                if (plugin.applyVisibility) plugin.applyVisibility(delta.value);
+                engine.refreshFieldValidationState(delta.target);
+                break;
+            case "validity":
+                engine.reportPolicyError(
+                    delta.target,
+                    delta.value ? null : delta.errorMessage || "Validation failed by policy"
+                );
+                break;
+            case "required":
+                if (plugin.applyRequired) plugin.applyRequired(delta.value);
+                if (!delta.value) {
+                    const res = plugin.validate();
+                    if (res.isValid) {
+                        engine.reportSchemaError(delta.target, null);
+                    }
+                }
+                break;
+            case "editable":
+                if (plugin.applyEditable) plugin.applyEditable(delta.value);
+                break;
+        }
+        return valuePruned;
+    }
+
+    /**
      * Immediately evaluates all active policies against the current payload and applies resulting deltas
      * to the corresponding plugins or table row cells. Prunes hidden field values from the model.
+     *
+     * Isolation holds at three levels, so one bad rule cannot take out the rest of the form:
+     * `PolicyEngine.evaluate` wraps each individual policy, this method wraps the whole evaluation pass as a
+     * backstop, and each delta is applied inside its own `try`. A policy the engine could not evaluate emits
+     * `degraded` deltas, which {@link PolicyDelegate.applyDelta} refuses to let hide a field or prune its value.
      *
      * @param stateManager The active `StateManager` instance.
      * @param engine The active `Engine` instance.
@@ -107,52 +183,30 @@ export class PolicyDelegate {
             return;
         }
         const payload = stateManager.extractPayload();
-        const deltas = this.policyEngine.evaluate(payload);
+        let deltas: IDeltaState[] = [];
+        try {
+            deltas = this.policyEngine.evaluate(payload);
+        } catch (e) {
+            Logger.error(
+                "[MetaUI PolicyDelegate]",
+                `Policy evaluation pass failed and emitted no deltas: ${e instanceof Error ? e.message : String(e)}`,
+                "PolicyDelegate"
+            );
+        }
         let anyValuePruned = false;
 
         for (const delta of deltas) {
-            if (delta.property === "visibility" && delta.value === false) {
-                stateManager.setProperty(delta.target, undefined);
-                engine.reportSchemaError(delta.target, null);
-                anyValuePruned = true;
-            }
-
-            const plugin = engine.getPluginByPath(delta.target);
-            if (!plugin) {
-                if (delta.property === "validity") {
-                    engine.reportPolicyError(
-                        delta.target,
-                        delta.value ? null : delta.errorMessage || "Validation failed by policy"
-                    );
-                } else {
-                    engine.applyRowPolicyState(delta.target, delta.property, delta.value);
+            try {
+                if (this.applyDelta(delta, stateManager, engine)) {
+                    anyValuePruned = true;
                 }
-                continue;
-            }
-
-            switch (delta.property) {
-                case "visibility":
-                    if (plugin.applyVisibility) plugin.applyVisibility(delta.value);
-                    engine.refreshFieldValidationState(delta.target);
-                    break;
-                case "validity":
-                    engine.reportPolicyError(
-                        delta.target,
-                        delta.value ? null : delta.errorMessage || "Validation failed by policy"
-                    );
-                    break;
-                case "required":
-                    if (plugin.applyRequired) plugin.applyRequired(delta.value);
-                    if (!delta.value) {
-                        const res = plugin.validate();
-                        if (res.isValid) {
-                            engine.reportSchemaError(delta.target, null);
-                        }
-                    }
-                    break;
-                case "editable":
-                    if (plugin.applyEditable) plugin.applyEditable(delta.value);
-                    break;
+            } catch (e) {
+                Logger.error(
+                    "[MetaUI PolicyDelegate]",
+                    `Failed to apply '${delta.property}' policy delta to '${delta.target}': ` +
+                        (e instanceof Error ? e.message : String(e)),
+                    "PolicyDelegate"
+                );
             }
         }
 

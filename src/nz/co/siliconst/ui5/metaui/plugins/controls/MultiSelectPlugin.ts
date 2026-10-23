@@ -3,12 +3,10 @@
  * @description Renders a sap.m.MultiComboBox control for array properties with enum or valueHelp options.
  */
 
-import { BasePlugin } from "./BasePlugin";
-import { IPropertyMetadata, IValueHelpOption } from "../../interfaces/ISchema";
+import { OptionListPlugin } from "./OptionListPlugin";
+import { IPropertyMetadata } from "../../interfaces/ISchema";
 import MultiComboBox from "sap/m/MultiComboBox";
-import Item from "sap/ui/core/Item";
 import Control from "sap/ui/core/Control";
-import JSONModel from "sap/ui/model/json/JSONModel";
 import Event from "sap/ui/base/Event";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 
@@ -19,7 +17,7 @@ import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
  * @namespace nz.co.siliconst.ui5.metaui.plugins.controls
  * @public
  */
-export class MultiSelectPlugin extends BasePlugin {
+export class MultiSelectPlugin extends OptionListPlugin {
     /**
      * Renders a `sap.m.MultiComboBox` component.
      *
@@ -40,11 +38,7 @@ export class MultiSelectPlugin extends BasePlugin {
         this.initialize(metadata, bindingPath, modelName, onChange);
 
         if (!this.isEditable) {
-            const vhList: IValueHelpOption[] | undefined = Array.isArray(metadata.ui?.valueHelp)
-                ? metadata.ui.valueHelp
-                : Array.isArray(metadata.valueHelp)
-                  ? metadata.valueHelp
-                  : undefined;
+            const vhList = this.resolveValueHelpList(metadata);
             const arrayFormatterBinding = this.generateBindingInfo(bindingPath, modelName, undefined, {
                 formatter: (val: unknown) => {
                     if (!Array.isArray(val)) {
@@ -82,14 +76,10 @@ export class MultiSelectPlugin extends BasePlugin {
             selectionFinish: (oEvent: Event) => {
                 const src = oEvent.getSource() as MultiComboBox;
                 const keys = src.getSelectedKeys();
-                const model = src.getModel(modelName) as JSONModel | undefined;
-                if (model) {
-                    const targetPath = this.resolveAbsolutePath(src);
-                    const finalVals = isNumericItems
-                        ? keys.map((k) => Number(k)).filter((n) => !Number.isNaN(n))
-                        : keys;
-                    model.setProperty(targetPath, finalVals);
-                }
+                const finalVals = isNumericItems
+                    ? keys.map((k) => Number(k)).filter((n) => !Number.isNaN(n))
+                    : keys;
+                this.commitValue(src, finalVals);
                 this.notifyChange(src.getId());
             }
         });
@@ -109,44 +99,16 @@ export class MultiSelectPlugin extends BasePlugin {
      * @param metadata The property metadata containing options.
      */
     private populateItems(mcb: MultiComboBox, metadata: IPropertyMetadata): void {
-        const vhList: IValueHelpOption[] | undefined = Array.isArray(metadata.ui?.valueHelp)
-            ? metadata.ui.valueHelp
-            : Array.isArray(metadata.valueHelp)
-              ? metadata.valueHelp
-              : undefined;
-
-        const desiredItems: Array<{ key: string; text: string }> = [];
-        if (vhList) {
-            for (const opt of vhList) {
-                desiredItems.push({ key: String(opt.key), text: String(opt.text) });
-            }
-        } else {
-            const enumList = metadata.items?.enum || metadata.enum;
-            if (Array.isArray(enumList)) {
-                for (const val of enumList) {
-                    desiredItems.push({ key: String(val), text: String(val) });
+        this.syncOptionItems(
+            mcb,
+            this.buildOptionItems(metadata, metadata.items?.enum || metadata.enum),
+            () => (typeof mcb.getSelectedKeys === "function" ? mcb.getSelectedKeys() : []),
+            (keys) => {
+                if (typeof mcb.setSelectedKeys === "function") {
+                    mcb.setSelectedKeys(keys);
                 }
             }
-        }
-
-        const existingItems = typeof mcb.getItems === "function" ? mcb.getItems() : [];
-        if (
-            existingItems.length === desiredItems.length &&
-            existingItems.every(
-                (item, idx) => item.getKey() === desiredItems[idx].key && item.getText() === desiredItems[idx].text
-            )
-        ) {
-            return;
-        }
-
-        const previousKeys = typeof mcb.getSelectedKeys === "function" ? mcb.getSelectedKeys() : [];
-        mcb.destroyItems();
-        for (const opt of desiredItems) {
-            mcb.addItem(new Item({ key: opt.key, text: opt.text }));
-        }
-        if (previousKeys.length > 0 && typeof mcb.setSelectedKeys === "function") {
-            mcb.setSelectedKeys(previousKeys);
-        }
+        );
     }
 
     /**
