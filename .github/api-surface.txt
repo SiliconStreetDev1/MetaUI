@@ -1589,6 +1589,32 @@ module nz/co/siliconst/ui5/metaui/swagger/OpenApiExtractor
   interface OpenApiTarget
     key: string;
     text: string;
+module nz/co/siliconst/ui5/metaui/utils/AccessibilityUtil
+  class AccessibilityUtil
+    static applyAccessibility(effectiveTarget: Control, metadata: IPropertyMetadata, accessibility?: IAccessibilityContext): void;
+    static associateAriaLabel(control: Control | undefined, labelProvider: Control | undefined): void;
+    static clearAccessibleName(target: Control | undefined): void;
+    static collectInputDescendants(root: Control): Control[];
+    static destroyAccessibilityTexts(root: Control | undefined): void;
+    static materializeDependentLabels(root: Control | undefined): void;
+    static nameCellByColumnHeader(cell: Control | undefined, headerText: string): void;
+    static reconcileLabelAssociation(label: Label, labelText: string, isLabelRendered: boolean): void;
+    static setAccessibleDescription(target: Control | undefined, text: string): void;
+    static setAccessibleName(target: Control | undefined, text: string): void;
+    static setLiveValidationDescription(target: Control | undefined, text: string): void;
+  export function isAriaDescriptionSupport(control: unknown): control is IAriaDescriptionSupport;
+  export function isAriaLabelSupport(control: unknown): control is IAriaLabelSupport;
+  interface IAccessibilityContext
+    nameTargets?: Control[];
+    required?: boolean;
+  interface IAriaDescriptionSupport extends Control
+    addAriaDescribedBy(id: string): this;
+    getAriaDescribedBy(): string[];
+    removeAriaDescribedBy(id: string): string | null;
+  interface IAriaLabelSupport extends Control
+    addAriaLabelledBy(id: string): this;
+    getAriaLabelledBy(): string[];
+    removeAriaLabelledBy(id: string): string | null;
 module nz/co/siliconst/ui5/metaui/utils/ControlCapabilities
   export const ALLOWED_CONTROL_PROP_PRIMITIVES: ReadonlySet<string>;
   export const BLOCKED_CONTROL_PROPS: ReadonlySet<string>;
@@ -1632,36 +1658,13 @@ module nz/co/siliconst/ui5/metaui/utils/ControlDirectiveUtil
     static applyEditableState(target: Control | undefined, effectiveEditable: boolean): void;
     static applyRequiredState(target: Control | undefined, required: boolean): void;
     static applyVisualValidationState(target: Control, isValid: boolean, errorMessage?: string): void;
-    static associateAriaLabel(control: Control | undefined, labelProvider: Control | undefined): void;
-    static clearAccessibleName(target: Control | undefined): void;
     static clearBoundControlSubtree(root: Control, host: IEngineHost, cleanPrefix: string): void;
-    static collectInputDescendants(root: Control): Control[];
     static createDisplayTextControl(id: string | undefined, effectiveBinding: PropertyBindingInfo | string, metadata: IPropertyMetadata | undefined, pathForExpr: string, modelName?: string): Control;
-    static destroyAccessibilityTexts(root: Control | undefined): void;
     static generateBindingInfo(bindingPath: string, modelName?: string, metadata?: IPropertyMetadata, type?: string, additionalOptions?: Record<string, unknown>): PropertyBindingInfo | string;
-    static materializeDependentLabels(root: Control | undefined): void;
-    static nameCellByColumnHeader(cell: Control | undefined, headerText: string): void;
     static openNestedHostDialog(options: INestedEditorLaunchOptions): void;
-    static reconcileLabelAssociation(label: Label, labelText: string, isLabelRendered: boolean): void;
     static resolveAbsolutePath(target: Control | undefined, rawPath: string, modelName?: string): string;
     static resolveDataSourceConfig(metadata: IPropertyMetadata): IDataSourceConfig | undefined;
-    static setAccessibleDescription(target: Control | undefined, text: string): void;
-    static setAccessibleName(target: Control | undefined, text: string): void;
-    static setLiveValidationDescription(target: Control | undefined, text: string): void;
   export * from "nz/co/siliconst/ui5/metaui/utils/ControlCapabilities";
-  export function isAriaDescriptionSupport(control: unknown): control is IAriaDescriptionSupport;
-  export function isAriaLabelSupport(control: unknown): control is IAriaLabelSupport;
-  interface IAccessibilityContext
-    nameTargets?: Control[];
-    required?: boolean;
-  interface IAriaDescriptionSupport extends Control
-    addAriaDescribedBy(id: string): this;
-    getAriaDescribedBy(): string[];
-    removeAriaDescribedBy(id: string): string | null;
-  interface IAriaLabelSupport extends Control
-    addAriaLabelledBy(id: string): this;
-    getAriaLabelledBy(): string[];
-    removeAriaLabelledBy(id: string): string | null;
 module nz/co/siliconst/ui5/metaui/utils/DictionaryMapUtil
   class DictionaryMapUtil
     static buildEntryRow(options: IDictionaryRowBuildOptions): { rowBox: HBox; valuePlugin: IPlugin; };
@@ -1726,6 +1729,6 @@ module nz/co/siliconst/ui5/metaui/utils/TypeGuards
   export function readStringArray(record: JsonRecord, key: string): string[] | undefined;
   export type JsonRecord = Record<string, unknown>;
 
-# modules: 151 (public 6, extension 16, internal 132)
-# declarations: 304 (public 30, extension 25, internal 249)
+# modules: 152 (public 6, extension 16, internal 133)
+# declarations: 305 (public 30, extension 25, internal 250)
 # excluded, not MetaUI's API: sap/ui/base/BindingParser, sap/ui/richtexteditor/RichTextEditor

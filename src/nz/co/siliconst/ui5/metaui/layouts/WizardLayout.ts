@@ -28,7 +28,7 @@ import { IPlugin } from "../interfaces/IPlugin";
 import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
 import { WizardStepRenderer } from "./WizardStepRenderer";
-import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../utils/AccessibilityUtil";
 import { Logger } from "../utils/Logger";
 
 /**
@@ -125,14 +125,14 @@ export class WizardLayout implements ILayoutManager {
         }).addStyleClass("sapUiTinyMarginTop");
         // A bare role="progressbar" announces "50%" and nothing else. The counter beside it already says
         // "Step 2 of 4" on screen, so it names the bar rather than a second copy of the same sentence.
-        ControlDirectiveUtil.associateAriaLabel(progressBar, stepCounterLabel);
+        AccessibilityUtil.associateAriaLabel(progressBar, stepCounterLabel);
 
         const contentArea = new VBox({ width: "100%" });
         // Each step's form is a region in its own right. Naming it with the live step title is what makes a
         // screen reader announce "Delivery details, form" on entry instead of dropping the user into a run
         // of unrelated fields with no indication of which step they belong to.
         stepForms.forEach((stepForm) => {
-            ControlDirectiveUtil.associateAriaLabel(stepForm, stepTitleControl);
+            AccessibilityUtil.associateAriaLabel(stepForm, stepTitleControl);
             contentArea.addDependent(stepForm);
         });
 

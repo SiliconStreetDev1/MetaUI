@@ -20,6 +20,7 @@ import { ILayoutManager } from "../interfaces/ILayoutManager";
 import { Engine } from "../core/Engine";
 import { TableRowHelper } from "./TableRowHelper";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../utils/AccessibilityUtil";
 import { Logger } from "../utils/Logger";
 import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
 import { isRecord } from "../utils/TypeGuards";
@@ -134,7 +135,7 @@ export class TableLayout implements ILayoutManager {
         table.data("metauiBindingPath", effectiveBindingPath);
         // The toolbar title names the table visually; the grid itself has no accessible name until the
         // application supplies one, which for a generated table is MetaUI's job and nobody else's.
-        ControlDirectiveUtil.associateAriaLabel(table, titleControl);
+        AccessibilityUtil.associateAriaLabel(table, titleControl);
         if (schema.ui?.visible === false || schema.ui?.visibleOn) {
             ControlDirectiveUtil.applyCommonDirectives(
                 table,
@@ -204,7 +205,7 @@ export class TableLayout implements ILayoutManager {
                 })
             );
             const primitiveCell = engine.generateField(withTableReadOnly(resolvedItemsSchema), "", effectiveModel, true);
-            ControlDirectiveUtil.nameCellByColumnHeader(primitiveCell, "Value");
+            AccessibilityUtil.nameCellByColumnHeader(primitiveCell, "Value");
             templateCells.push(primitiveCell);
             return templateCells;
         }
@@ -238,7 +239,7 @@ export class TableLayout implements ILayoutManager {
                         );
                         const effectiveMeta = withTableReadOnly(fieldMeta, element.widget);
                         const cell = engine.generateField(effectiveMeta, colBindingPath, effectiveModel, true);
-                        ControlDirectiveUtil.nameCellByColumnHeader(cell, headerText);
+                        AccessibilityUtil.nameCellByColumnHeader(cell, headerText);
                         templateCells.push(cell);
                     }
                 },
@@ -274,7 +275,7 @@ export class TableLayout implements ILayoutManager {
                     const cell = engine.generateField(fieldMeta, key, effectiveModel, true);
                     // A row cell has no label of its own. UI5 associates the column header with a plain
                     // cell control; a composite cell is the case it cannot reach.
-                    ControlDirectiveUtil.nameCellByColumnHeader(cell, headerText);
+                    AccessibilityUtil.nameCellByColumnHeader(cell, headerText);
                     templateCells.push(cell);
                 } catch (error) {
                     engine.hasPartialRenderingErrors = true;

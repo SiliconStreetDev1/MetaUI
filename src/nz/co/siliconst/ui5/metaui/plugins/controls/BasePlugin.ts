@@ -14,6 +14,7 @@ import Element from "sap/ui/core/Element";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import { ControlDirectiveUtil, INestedEditorLaunchOptions, isEnabledSupport } from "../../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../../utils/AccessibilityUtil";
 
 /**
  * Abstract base class for all UI5 control plugins in the MetaUI framework.
@@ -306,7 +307,7 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
         this.activeNestedHosts.clear();
         // The InvisibleText controls that carry accessible names and descriptions live in UI5's static
         // area, not in this plugin's control tree, so destroying the tree would leave them behind.
-        ControlDirectiveUtil.destroyAccessibilityTexts(this.control);
+        AccessibilityUtil.destroyAccessibilityTexts(this.control);
         super.destroy();
     }
 

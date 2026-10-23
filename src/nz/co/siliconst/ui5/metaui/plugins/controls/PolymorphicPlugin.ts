@@ -10,6 +10,7 @@ import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { PluginRegistry } from "../../core/PluginRegistry";
 import { IPolymorphicVariant, PolymorphicUtil } from "../../utils/PolymorphicUtil";
 import { ControlDirectiveUtil } from "../../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../../utils/AccessibilityUtil";
 import Control from "sap/ui/core/Control";
 import VBox from "sap/m/VBox";
 import Label from "sap/m/Label";
@@ -258,7 +259,7 @@ export class PolymorphicPlugin extends BasePlugin {
             }
             // The variant's label is added to fieldsContainer below, so it reaches the DOM: `labelFor` is
             // the single naming mechanism for this child and the synthetic InvisibleText stands down.
-            ControlDirectiveUtil.reconcileLabelAssociation(label, labelText, true);
+            AccessibilityUtil.reconcileLabelAssociation(label, labelText, true);
 
             this.activeChildPlugins.push(childPlugin);
             this.activeChildPaths.push(childPath);

@@ -9,7 +9,7 @@ import BaseHardwareControl, { $BaseHardwareControlSettings } from "../../control
 import Control from "sap/ui/core/Control";
 import Event from "sap/ui/base/Event";
 import ImageControl from "sap/m/Image";
-import { ControlDirectiveUtil } from "../../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../../utils/AccessibilityUtil";
 import { UrlValidator } from "../../utils/UrlValidator";
 
 /**
@@ -125,7 +125,7 @@ export abstract class HardwareControlPlugin<T extends BaseHardwareControl = Base
      */
     protected override resolveAccessibleNameTargets(control: Control): Control[] {
         const root = this.mainControl ?? control;
-        const nested = ControlDirectiveUtil.collectInputDescendants(root);
+        const nested = AccessibilityUtil.collectInputDescendants(root);
         return nested.length > 0 ? nested : [root];
     }
 

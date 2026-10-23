@@ -18,6 +18,7 @@ import { Engine } from "../core/Engine";
 import { SchemaWalker, LayoutElementShape } from "../core/SchemaWalker";
 import { ILayoutDecision, LayoutScorer } from "../core/LayoutScorer";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../utils/AccessibilityUtil";
 import { Logger } from "../utils/Logger";
 import { deepClone, isRecord, readBoolean, readNumber } from "../utils/TypeGuards";
 import { RENDER_MODE, MAX_LAYOUT_DEPTH } from "../constants/MetaUIConstants";
@@ -194,7 +195,7 @@ export class LayoutFieldFactory {
         } else {
             label.setLabelFor(control);
         }
-        ControlDirectiveUtil.reconcileLabelAssociation(label, labelText, isLabelRendered);
+        AccessibilityUtil.reconcileLabelAssociation(label, labelText, isLabelRendered);
 
         const isNativelyWide = engine.pluginRegistry.isPluginNativelyWide(
             effectiveMeta.type || "string",

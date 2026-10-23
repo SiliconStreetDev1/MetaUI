@@ -8,7 +8,7 @@ import { BasePlugin } from "./BasePlugin";
 import { IPropertyMetadata } from "../../interfaces/ISchema";
 import { IPlugin } from "../../interfaces/IPlugin";
 import { PayloadValidator } from "../../core/PayloadValidator";
-import { ControlDirectiveUtil } from "../../utils/ControlDirectiveUtil";
+import { AccessibilityUtil } from "../../utils/AccessibilityUtil";
 import { DictionaryMapUtil, IDictionaryEntry } from "../../utils/DictionaryMapUtil";
 import { deepClone } from "../../utils/TypeGuards";
 import { I18n, TEXT_KEY } from "../../utils/I18n";
@@ -253,7 +253,7 @@ export class DictionaryMapPlugin extends BasePlugin {
             // `DictionaryMapUtil` parks each row's key and value labels in the row's `dependents`
             // aggregation, which UI5 never renders: the `labelFor` they carry resolves to nothing and the
             // inputs end up with no accessible name at all. Republish that text as an InvisibleText.
-            ControlDirectiveUtil.materializeDependentLabels(rowBox);
+            AccessibilityUtil.materializeDependentLabels(rowBox);
             this.childPlugins.push(valuePlugin);
             this.rowsContainer?.addItem(rowBox);
         });
