@@ -15,6 +15,7 @@ import JSONModel from "sap/ui/model/json/JSONModel";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import { ControlDirectiveUtil, INestedEditorLaunchOptions, isEnabledSupport } from "../../utils/ControlDirectiveUtil";
 import { AccessibilityUtil } from "../../utils/AccessibilityUtil";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 
 /**
  * Abstract base class for all UI5 control plugins in the MetaUI framework.
@@ -409,13 +410,13 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
         if (!this.metadata) {
             return {
                 isValid: false,
-                errorMessage: `Field '${label}' failed to initialize, so its value could not be validated.`
+                errorMessage: I18n.getText(TEXT_KEY.fieldInitFailed, [label])
             };
         }
         if (!target) {
             return {
                 isValid: false,
-                errorMessage: `Field '${label}' failed to render, so its value could not be validated.`
+                errorMessage: I18n.getText(TEXT_KEY.fieldRenderFailed, [label])
             };
         }
         if (!this.isTargetVisible(sourceControl)) {

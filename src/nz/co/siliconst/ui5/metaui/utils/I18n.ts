@@ -103,7 +103,13 @@ export const TEXT_KEY = {
     dataSourceSearchPlaceholder: "metaui.dataSource.searchPlaceholder",
     dataSourceSelectPlaceholder: "metaui.dataSource.selectPlaceholder",
     dataSourceValueHelpPlaceholder: "metaui.dataSource.valueHelpPlaceholder",
-    dataSourceValueHelpTitle: "metaui.dataSource.valueHelpTitle"
+    dataSourceValueHelpTitle: "metaui.dataSource.valueHelpTitle",
+    hardwareUnsupported: "metaui.hardware.failure.unsupported",
+    hardwareDenied: "metaui.hardware.failure.denied",
+    hardwareTimeout: "metaui.hardware.failure.timeout",
+    hardwareFailed: "metaui.hardware.failure.failed",
+    fieldRenderFailed: "metaui.validation.fieldRenderFailed",
+    fieldInitFailed: "metaui.validation.fieldInitFailed"
 } as const;
 
 /** Union of the text keys declared in {@link TEXT_KEY}. */

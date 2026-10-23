@@ -1081,8 +1081,8 @@ sap.ui.define([
         );
         assert.strictEqual(
             I18n.getDeclaredKeys().length,
-            67,
-            "TEXT_KEY declares 67 end-user texts (bump this number and the bundles together when adding one)"
+            73,
+            "TEXT_KEY declares 73 end-user texts (bump this number and the bundles together when adding one)"
         );
         assert.deepEqual(
             unresolved,
@@ -1358,7 +1358,18 @@ sap.ui.define([
         "plugins/actions/UrlNavigationActionPlugin.ts": ["\"Open Link\""],
         "plugins/datasources/LiveSearchPlugin.ts": ["\"Type to search...\""],
         "plugins/datasources/ODataListBindingPlugin.ts": ["\"Select...\""],
-        "plugins/datasources/RemoteValueHelpPlugin.ts": ["\"Select a value...\"", "\"Select Value\""]
+        "plugins/datasources/RemoteValueHelpPlugin.ts": ["\"Select a value...\"", "\"Select Value\""],
+        "controls/BaseHardwareControl.ts": [
+            "is not available in this browser.",
+            "access was blocked. Allow it in the browser's site permissions and try again.",
+            "did not respond in time. Please try again.",
+            "\"{capability} could not be used.\""
+        ],
+        "core/Engine.ts": ["failed to render, so its value could not be validated."],
+        "plugins/controls/BasePlugin.ts": [
+            "failed to initialize, so its value could not be validated.",
+            "failed to render, so its value could not be validated."
+        ]
     };
 
     /**
@@ -1424,7 +1435,25 @@ sap.ui.define([
             [TEXT_KEY.dataSourceSearchPlaceholder, "Type to search..."],
             [TEXT_KEY.dataSourceSelectPlaceholder, "Select..."],
             [TEXT_KEY.dataSourceValueHelpPlaceholder, "Select a value..."],
-            [TEXT_KEY.dataSourceValueHelpTitle, "Select Value"]
+            [TEXT_KEY.dataSourceValueHelpTitle, "Select Value"],
+            [TEXT_KEY.hardwareUnsupported, "Camera is not available in this browser.", ["Camera"]],
+            [
+                TEXT_KEY.hardwareDenied,
+                "Camera access was blocked. Allow it in the browser's site permissions and try again.",
+                ["Camera"]
+            ],
+            [TEXT_KEY.hardwareTimeout, "Location did not respond in time. Please try again.", ["Location"]],
+            [TEXT_KEY.hardwareFailed, "Camera could not be used.", ["Camera"]],
+            [
+                TEXT_KEY.fieldRenderFailed,
+                "Field '/Street' failed to render, so its value could not be validated.",
+                ["/Street"]
+            ],
+            [
+                TEXT_KEY.fieldInitFailed,
+                "Field '/Street' failed to initialize, so its value could not be validated.",
+                ["/Street"]
+            ]
         ].forEach(function (testCase) {
             assert.strictEqual(I18n.hasText(testCase[0]), true, "'" + testCase[0] + "' resolves in the shipped bundle");
             assert.strictEqual(
@@ -1563,7 +1592,29 @@ sap.ui.define([
                 [TEXT_KEY.dataSourceSearchPlaceholder, "Zum Suchen tippen ..."],
                 [TEXT_KEY.dataSourceSelectPlaceholder, "Auswählen ..."],
                 [TEXT_KEY.dataSourceValueHelpPlaceholder, "Wert auswählen ..."],
-                [TEXT_KEY.dataSourceValueHelpTitle, "Wert auswählen"]
+                [TEXT_KEY.dataSourceValueHelpTitle, "Wert auswählen"],
+                [TEXT_KEY.hardwareUnsupported, "Camera ist in diesem Browser nicht verfügbar.", ["Camera"]],
+                [
+                    TEXT_KEY.hardwareDenied,
+                    "Der Zugriff auf Camera wurde blockiert. Erlauben Sie ihn in den Websiteberechtigungen des Browsers und versuchen Sie es erneut.",
+                    ["Camera"]
+                ],
+                [
+                    TEXT_KEY.hardwareTimeout,
+                    "Location hat nicht rechtzeitig reagiert. Bitte versuchen Sie es erneut.",
+                    ["Location"]
+                ],
+                [TEXT_KEY.hardwareFailed, "Camera konnte nicht verwendet werden.", ["Camera"]],
+                [
+                    TEXT_KEY.fieldRenderFailed,
+                    "Das Feld '/Street' konnte nicht dargestellt werden, daher konnte sein Wert nicht validiert werden.",
+                    ["/Street"]
+                ],
+                [
+                    TEXT_KEY.fieldInitFailed,
+                    "Das Feld '/Street' konnte nicht initialisiert werden, daher konnte sein Wert nicht validiert werden.",
+                    ["/Street"]
+                ]
             ].forEach(function (testCase) {
                 assert.strictEqual(
                     I18n.getText(testCase[0], testCase[2]),

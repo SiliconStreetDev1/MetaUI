@@ -10,6 +10,7 @@ import Event from "sap/ui/base/Event";
 import BaseHardwareControlRenderer from "./BaseHardwareControlRenderer";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import { Logger } from "../utils/Logger";
+import { I18n, MetaUITextKey, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Constructor settings supported by `BaseHardwareControl` and all derived hardware controls.
@@ -34,16 +35,16 @@ export interface $BaseHardwareControlSettings extends $ControlSettings {
 export type HardwareFailureReason = "unsupported" | "denied" | "timeout" | "failed";
 
 /**
- * End-user sentence for each failure reason. `{capability}` is replaced with the device name.
+ * Resource bundle key for each failure reason. `{0}` is replaced with the device name.
  *
  * These are deliberately plain and actionable: the person pressed a button and nothing happened,
  * and the message has to tell them whether to change a browser setting or give up on this engine.
  */
-const FAILURE_TEXT: Readonly<Record<HardwareFailureReason, string>> = {
-    unsupported: "{capability} is not available in this browser.",
-    denied: "{capability} access was blocked. Allow it in the browser's site permissions and try again.",
-    timeout: "{capability} did not respond in time. Please try again.",
-    failed: "{capability} could not be used."
+const FAILURE_TEXT_KEY: Readonly<Record<HardwareFailureReason, MetaUITextKey>> = {
+    unsupported: TEXT_KEY.hardwareUnsupported,
+    denied: TEXT_KEY.hardwareDenied,
+    timeout: TEXT_KEY.hardwareTimeout,
+    failed: TEXT_KEY.hardwareFailed
 };
 
 /**
@@ -201,7 +202,7 @@ export default class BaseHardwareControl extends Control {
      * @param detail Optional technical detail (an exception message, an error code) added to the log entry only.
      */
     protected reportCapabilityFailure(capability: string, reason: HardwareFailureReason, detail?: string): void {
-        const text = FAILURE_TEXT[reason].replace("{capability}", capability);
+        const text = I18n.getText(FAILURE_TEXT_KEY[reason], [capability]);
         this.capabilityFailureText = text;
         this.setValueState(ValueState.Error);
         this.setValueStateText(text);

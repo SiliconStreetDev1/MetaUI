@@ -11,6 +11,7 @@ import { PluginRegistry } from "./PluginRegistry";
 import { ValidationLedger } from "./ValidationLedger";
 import { DefaultLayoutGenerator } from "./DefaultLayoutGenerator";
 import { Logger } from "../utils/Logger";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 import Control from "sap/ui/core/Control";
 import Model from "sap/ui/model/Model";
 import Text from "sap/m/Text";
@@ -179,7 +180,7 @@ export class Engine {
                 // on the template plugin existing; the warning strip still reports the broken column.
                 this.reportGenerationFailure(
                     bindingPath,
-                    `Field '${bindingPath}' failed to render, so its value could not be validated.`
+                    I18n.getText(TEXT_KEY.fieldRenderFailed, [bindingPath])
                 );
             }
             return new Text({ text: `[Error generating field ${bindingPath}]` });
