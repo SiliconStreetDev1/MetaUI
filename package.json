@@ -60,7 +60,7 @@
     "@stryker-mutator/mocha-runner": "10.0.0",
     "@types/mocha": "10.0.10",
     "@types/node": "^26.6.5",
-    "@types/openui5": "^1.120.0",
+    "@types/openui5": "^1.153.0",
     "@ui5/cli": "^3.0.0",
     "axe-core": "4.14.0",
     "fast-check": "4.10.2",
