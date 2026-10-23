@@ -7,139 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
-
-### Removed — BREAKING
-
-- **The `scanner` widget and `BarcodeScannerPlugin` are withdrawn.** `(type, widget)` mappings
-  go from 52 to 51. A schema that still sets `ui.widget: "scanner"` on a `string` falls back to
-  the default string plugin and renders a plain `sap.m.Input`; the value is unaffected.
-
-  It was the library's only consumer of `sap.ndc`, which ships with SAPUI5 but **not** with
-  OpenUI5. Removing it means MetaUI now has no SAPUI5-only dependency at all: every declared
-  dependency — eager `sap.ui.core`, `sap.m`, `sap.ui.layout`, lazy `sap.ui.unified` and
-  `sap.ui.codeeditor` — ships with both distributions.
-
-### Fixed — a field that failed to generate reported the form valid
-
-A field whose plugin could not be resolved rendered an `[Error generating field <path>]`
-placeholder and raised the partial-render banner, and then the form reported `isValid: true`
-and `triggerSubmit()` returned `true`. A **required** field that had visibly failed to draw was
-submitted with no value, with no error anywhere. Measured in a browser across all three routes
-— module 404, a module exporting no constructor, and a `render()` that throws before
-`initialize()` — all three now report invalid and block submission, while per-field degradation
-is unchanged: the placeholder, the banner and the sibling fields all still behave as before.
-
-`Engine` now records a structural failure from its `catch` and `ValidationLedger` consults it.
-The record is deliberately not a three-tier ledger entry: a data hot-swap does not repair a
-plugin module that would not load, so it survives `clear()` and is discarded only when the form
-is regenerated. `BasePlugin.validate()` was separately asymmetric — it failed closed for a
-missing control but open for missing metadata, contradicting its own JSDoc — and now fails
-closed on both arms.
-
-### Fixed — catastrophic backtracking in `pattern`
-
-Two further classes of ReDoS are now refused before execution, both found by measurement rather
-than inspection:
-
-- **Redundant grouping** smuggled exponential patterns past the screen. `^((a+))+$` (3015 ms),
-  `^(?:(a+))+$` (2594 ms), `^(((a+)))+$` (3804 ms) and `^((a*))*$` (5320 ms) were all accepted.
-- **Sequential overlapping quantifiers** were polynomial and uncapped: `^.*.*.*.*.*x$` took
-  **13.9 s** on a 200-character value, and because the quarantine is keyed per pattern, changing
-  one character bought a fresh stall. Now 0.10 ms, refused.
-
-The screen counts the search space of an overlapping run rather than counting quantifiers, and
-decides token disjointness with the regex engine itself over an alphabet derived per pattern —
-which closed a further hole where two Cyrillic ranges overlapped outside ASCII (90.6 ms,
-accepted, now refused). Checked against a 97-pattern corpus drawn from this repository: 7 newly
-refused, all of them the bypass shapes above, and **no legitimate pattern lost**.
-
-### Fixed — large tables truncated silently, then painted slowly
-
-A generated table bound only the first 100 rows of its collection and said nothing; rows past
-that were in the payload, submitted, and invisible. The sandbox model now sizes its list binding
-to the data, and the generated table pages with an explicit `More (100/1000)` trigger rather
-than drawing everything at once. Measured at 1000 rows × 15 columns: **6359 ms → 487 ms** first
-paint with all 1000 reachable. Add Row grew the table to cover a row appended past the current
-page, and is incidentally faster than before this change at every size.
-
-### Fixed — an inlined `$ref` discarded the referencing node's own `ui` block
-
-`{ "$ref": "#/definitions/X", "ui": { "readOnly": true } }` lost `readOnly`, `enabled`,
-`dialogButtonText` and `layoutBudget` when the reference was inlined. For an object `$ref` the
-read-only cascade happened to restore `readOnly` afterwards, which is why it went unnoticed; for
-an **array** `$ref` there is no `properties` for the cascade to walk, so a collection the schema
-declares read-only rendered fully add/edit/delete-able. `readOnly` is now a union of the node's
-and the definition's, in both directions.
-
-### Added — structural gates (`npm run lint`)
-
-Nine machine-checked gates in `scripts/run-tests.js`, each proven to fire against the exact
-divergence it exists to catch by `scripts/prove-structural-gates.js` (19 injected divergences,
-19 caught, tree restored green):
-
-- `[PRODUCER_COMPLETENESS]` — every member of `IPropertyMetadata` and `IUIDirective` must be
-  written by each known producer or named in that producer's commented `DECLINED_SCHEMA_FIELDS`
-  set with a justification. Adding a field to `ISchema.ts` now fails the build until all three
-  producers take a position on it.
-- `[DEPTH_CONSTANT]` — no numeric literal in a depth comparison, no `MAX_*_DEPTH` declared
-  outside `constants/MetaUIConstants.ts`, and `MAX_SCHEMA_DEPTH` may not drop below
-  `MAX_LAYOUT_DEPTH`. A test may read the cap but never restate it.
-- `[REF_RESOLVER]` — no hand-rolled `$ref` parsing outside `OpenApiRefResolver`.
-- `[LAYOUT_STRATEGY_DEFAULT]` — the array-to-table / object-to-form default lives only in
-  `DefaultLayoutGenerator.resolveLayoutStrategy`.
-- `[SCHEMA_CONSTANT]` — a string compared against `ui.renderMode`, `layoutStrategy` or
-  `ui.widget` must come from `MetaUIConstants`, including when the field is hoisted into a local.
-- `[DATA_WRITER]` — the committed `data` / `dataJson` pair is written only by
-  `DataSyncDelegate.commitDataPair` / `invalidateStaleDataJson`.
-- `[CATCH_SIGNAL]` — a caught failure must log, rethrow or fire; otherwise it needs a counted
-  `// CATCH_EXEMPT:` justification. 13 exemptions are recorded and reported in the tally.
-- `[DEPTH_SIGNAL]` — a depth guard must name the limit and what it discarded.
-- `[RENDER_DEGRADATION]` — a layout catch must set `engine.hasPartialRenderingErrors` so the
-  partial-render banner appears.
-
-### Changed
-
-- **One recursion cap.** `MAX_SCHEMA_DEPTH` already existed but only `LayoutScorer` used it;
-  twelve other walkers kept private caps for the same concept (`8, 8, 8, 8, 8, 10, 10, 10, 10,
-  10, 16, 16`). All twelve now import it. The value stays at **30**, matching `MAX_LAYOUT_DEPTH`:
-  a schema walker capped below the layout tree that renders it would truncate fields the layout
-  could still draw. `MAX_LAYOUT_DEPTH` and `MAX_CLONE_DEPTH` moved into the same file and remain
-  deliberately separate concepts.
-- Ten depth guards that truncated in silence now log the limit and what was lost — including
-  `PayloadValidator.validateTree` (which reported `isValid: true` for subtrees it had not
-  validated), `PayloadValidator.assertsContainerConstraint` (which silently skipped enforcement
-  of a whole subtree), `SchemaNormalizer.stripWriteOnlyNode` (which left `writeOnly` fields in
-  the outbound payload) and `deepClone` (which replaced the consumer's payload with `{}`).
-- Five layout-level catches now raise `engine.hasPartialRenderingErrors`, so a field that fails
-  to render no longer leaves the form reporting itself complete.
-- The two recursion-limit unit tests now read `MAX_SCHEMA_DEPTH` instead of restating it.
-
-### Fixed
-
-- `OpenApiPropertyMapper` dropped a `uiLayout` block authored inside an OpenAPI property schema,
-  so the layout vanished for OpenAPI sources while surviving for JSON Schema.
-- `DataSyncDelegate.injectSchemaDefaults` (×2) and `ReferencePlugin` (×2) parsed `$ref` pointers
-  with `split("/").pop()`, which mis-reads RFC 6901 escapes (`#/definitions/Order~1Item`) and
-  resolves a foreign document's pointer against the local definitions dictionary. All four now
-  call `OpenApiRefResolver.extractRefName`.
-- `SchemaResolutionDelegate` carried a third, divergent copy of the `data`/`dataJson` write rule
-  that bypassed the `invalidateStaleDataJson` helper extracted to prevent exactly that; it now
-  calls `DataSyncDelegate.commitDataPair`.
-- `PluginRegistry.getPathsToLoad` re-derived the layout-strategy default inline, so the
-  lazy-loader could preload one strategy's module while `Engine` rendered another.
-- `LayoutElementWalker` compared `ui.renderMode` against the literal `"dialog"` while fourteen
-  other sites used `RENDER_MODE.DIALOG`.
-- `EmailValidatorPlugin` compared a widget against the literal `"email"` instead of
-  `WIDGET_TYPE.EMAIL`, so renaming the constant would have silently stopped the email validator
-  from activating.
-
----
-
 ## [2.0.0] — 2026-10-23
 
-A correctness and quality release. Three behavioural changes require action when
-upgrading — please read **Breaking Changes** before updating.
+A correctness and quality release, and the first published 2.x. Twelve changes
+require action when upgrading — please read **Breaking Changes** before updating.
+
+Highlights: MetaUI now runs on OpenUI5 as well as SAPUI5; validation fails closed
+rather than letting a broken field submit; and large tables page instead of
+silently dropping rows past the first hundred.
 
 ### ⚠️ Breaking Changes
 
@@ -315,11 +190,136 @@ nested payloads unreachable. Mutating actions (submit, clear) remain disabled.
 `codeEditor` also now renders a read-only editor in display mode instead of
 collapsing multi-line code into a single `sap.m.Text` line.
 
-#### 6. `ILayoutWalkerSink.onHorizontalControls` receives resolved controls
+#### 11. `ILayoutWalkerSink.onHorizontalControls` receives resolved controls
 
 The callback now takes `IResolvedLayoutControl[]` instead of `ILayoutElement[]`,
 matching its sibling callbacks. Only affects a custom layout implementing this
 sink; the alternative resolved every scope twice and logged every error twice.
+
+#### 12. The `scanner` widget is withdrawn
+
+- **The `scanner` widget and `BarcodeScannerPlugin` are withdrawn.** `(type, widget)` mappings
+  go from 52 to 51. A schema that still sets `ui.widget: "scanner"` on a `string` falls back to
+  the default string plugin and renders a plain `sap.m.Input`; the value is unaffected.
+
+  It was the library's only consumer of `sap.ndc`, which ships with SAPUI5 but **not** with
+  OpenUI5. Removing it means MetaUI now has no SAPUI5-only dependency at all: every declared
+  dependency — eager `sap.ui.core`, `sap.m`, `sap.ui.layout`, lazy `sap.ui.unified` and
+  `sap.ui.codeeditor` — ships with both distributions.
+
+### Fixed — a field that failed to generate reported the form valid
+
+A field whose plugin could not be resolved rendered an `[Error generating field <path>]`
+placeholder and raised the partial-render banner, and then the form reported `isValid: true`
+and `triggerSubmit()` returned `true`. A **required** field that had visibly failed to draw was
+submitted with no value, with no error anywhere. Measured in a browser across all three routes
+— module 404, a module exporting no constructor, and a `render()` that throws before
+`initialize()` — all three now report invalid and block submission, while per-field degradation
+is unchanged: the placeholder, the banner and the sibling fields all still behave as before.
+
+`Engine` now records a structural failure from its `catch` and `ValidationLedger` consults it.
+The record is deliberately not a three-tier ledger entry: a data hot-swap does not repair a
+plugin module that would not load, so it survives `clear()` and is discarded only when the form
+is regenerated. `BasePlugin.validate()` was separately asymmetric — it failed closed for a
+missing control but open for missing metadata, contradicting its own JSDoc — and now fails
+closed on both arms.
+
+### Fixed — catastrophic backtracking in `pattern`
+
+Two further classes of ReDoS are now refused before execution, both found by measurement rather
+than inspection:
+
+- **Redundant grouping** smuggled exponential patterns past the screen. `^((a+))+$` (3015 ms),
+  `^(?:(a+))+$` (2594 ms), `^(((a+)))+$` (3804 ms) and `^((a*))*$` (5320 ms) were all accepted.
+- **Sequential overlapping quantifiers** were polynomial and uncapped: `^.*.*.*.*.*x$` took
+  **13.9 s** on a 200-character value, and because the quarantine is keyed per pattern, changing
+  one character bought a fresh stall. Now 0.10 ms, refused.
+
+The screen counts the search space of an overlapping run rather than counting quantifiers, and
+decides token disjointness with the regex engine itself over an alphabet derived per pattern —
+which closed a further hole where two Cyrillic ranges overlapped outside ASCII (90.6 ms,
+accepted, now refused). Checked against a 97-pattern corpus drawn from this repository: 7 newly
+refused, all of them the bypass shapes above, and **no legitimate pattern lost**.
+
+### Fixed — large tables truncated silently, then painted slowly
+
+A generated table bound only the first 100 rows of its collection and said nothing; rows past
+that were in the payload, submitted, and invisible. The sandbox model now sizes its list binding
+to the data, and the generated table pages with an explicit `More (100/1000)` trigger rather
+than drawing everything at once. Measured at 1000 rows × 15 columns: **6359 ms → 487 ms** first
+paint with all 1000 reachable. Add Row grew the table to cover a row appended past the current
+page, and is incidentally faster than before this change at every size.
+
+### Fixed — an inlined `$ref` discarded the referencing node's own `ui` block
+
+`{ "$ref": "#/definitions/X", "ui": { "readOnly": true } }` lost `readOnly`, `enabled`,
+`dialogButtonText` and `layoutBudget` when the reference was inlined. For an object `$ref` the
+read-only cascade happened to restore `readOnly` afterwards, which is why it went unnoticed; for
+an **array** `$ref` there is no `properties` for the cascade to walk, so a collection the schema
+declares read-only rendered fully add/edit/delete-able. `readOnly` is now a union of the node's
+and the definition's, in both directions.
+
+### Added — structural gates (`npm run lint`)
+
+Nine machine-checked gates in `scripts/run-tests.js`, each proven to fire against the exact
+divergence it exists to catch by `scripts/prove-structural-gates.js` (19 injected divergences,
+19 caught, tree restored green):
+
+- `[PRODUCER_COMPLETENESS]` — every member of `IPropertyMetadata` and `IUIDirective` must be
+  written by each known producer or named in that producer's commented `DECLINED_SCHEMA_FIELDS`
+  set with a justification. Adding a field to `ISchema.ts` now fails the build until all three
+  producers take a position on it.
+- `[DEPTH_CONSTANT]` — no numeric literal in a depth comparison, no `MAX_*_DEPTH` declared
+  outside `constants/MetaUIConstants.ts`, and `MAX_SCHEMA_DEPTH` may not drop below
+  `MAX_LAYOUT_DEPTH`. A test may read the cap but never restate it.
+- `[REF_RESOLVER]` — no hand-rolled `$ref` parsing outside `OpenApiRefResolver`.
+- `[LAYOUT_STRATEGY_DEFAULT]` — the array-to-table / object-to-form default lives only in
+  `DefaultLayoutGenerator.resolveLayoutStrategy`.
+- `[SCHEMA_CONSTANT]` — a string compared against `ui.renderMode`, `layoutStrategy` or
+  `ui.widget` must come from `MetaUIConstants`, including when the field is hoisted into a local.
+- `[DATA_WRITER]` — the committed `data` / `dataJson` pair is written only by
+  `DataSyncDelegate.commitDataPair` / `invalidateStaleDataJson`.
+- `[CATCH_SIGNAL]` — a caught failure must log, rethrow or fire; otherwise it needs a counted
+  `// CATCH_EXEMPT:` justification. 13 exemptions are recorded and reported in the tally.
+- `[DEPTH_SIGNAL]` — a depth guard must name the limit and what it discarded.
+- `[RENDER_DEGRADATION]` — a layout catch must set `engine.hasPartialRenderingErrors` so the
+  partial-render banner appears.
+
+### Changed — one recursion cap, and no silent truncation
+
+- **One recursion cap.** `MAX_SCHEMA_DEPTH` already existed but only `LayoutScorer` used it;
+  twelve other walkers kept private caps for the same concept (`8, 8, 8, 8, 8, 10, 10, 10, 10,
+  10, 16, 16`). All twelve now import it. The value stays at **30**, matching `MAX_LAYOUT_DEPTH`:
+  a schema walker capped below the layout tree that renders it would truncate fields the layout
+  could still draw. `MAX_LAYOUT_DEPTH` and `MAX_CLONE_DEPTH` moved into the same file and remain
+  deliberately separate concepts.
+- Ten depth guards that truncated in silence now log the limit and what was lost — including
+  `PayloadValidator.validateTree` (which reported `isValid: true` for subtrees it had not
+  validated), `PayloadValidator.assertsContainerConstraint` (which silently skipped enforcement
+  of a whole subtree), `SchemaNormalizer.stripWriteOnlyNode` (which left `writeOnly` fields in
+  the outbound payload) and `deepClone` (which replaced the consumer's payload with `{}`).
+- Five layout-level catches now raise `engine.hasPartialRenderingErrors`, so a field that fails
+  to render no longer leaves the form reporting itself complete.
+- The two recursion-limit unit tests now read `MAX_SCHEMA_DEPTH` instead of restating it.
+
+### Fixed — divergent copies of shared rules
+
+- `OpenApiPropertyMapper` dropped a `uiLayout` block authored inside an OpenAPI property schema,
+  so the layout vanished for OpenAPI sources while surviving for JSON Schema.
+- `DataSyncDelegate.injectSchemaDefaults` (×2) and `ReferencePlugin` (×2) parsed `$ref` pointers
+  with `split("/").pop()`, which mis-reads RFC 6901 escapes (`#/definitions/Order~1Item`) and
+  resolves a foreign document's pointer against the local definitions dictionary. All four now
+  call `OpenApiRefResolver.extractRefName`.
+- `SchemaResolutionDelegate` carried a third, divergent copy of the `data`/`dataJson` write rule
+  that bypassed the `invalidateStaleDataJson` helper extracted to prevent exactly that; it now
+  calls `DataSyncDelegate.commitDataPair`.
+- `PluginRegistry.getPathsToLoad` re-derived the layout-strategy default inline, so the
+  lazy-loader could preload one strategy's module while `Engine` rendered another.
+- `LayoutElementWalker` compared `ui.renderMode` against the literal `"dialog"` while fourteen
+  other sites used `RENDER_MODE.DIALOG`.
+- `EmailValidatorPlugin` compared a widget against the literal `"email"` instead of
+  `WIDGET_TYPE.EMAIL`, so renaming the constant would have silently stopped the email validator
+  from activating.
 
 ### Added
 
