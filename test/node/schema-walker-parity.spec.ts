@@ -617,7 +617,15 @@ function resolveRefLegacy(
     activeRefs: Set<string> = new Set()
 ): unknown {
     if (!refUrl || !refUrl.startsWith("#/")) {
-        Logger.debug(`[MetaUI OpenApiBuilder] Ignoring non-local or empty $ref: ${refUrl}`, "OpenApiBuilder");
+        // Mirrors the deliberate promotion of this branch from Logger.debug to Logger.warn in
+        // OpenApiRefResolver: parity pins the refactor against the original, not against a level
+        // that was itself the defect (an external $ref vanishing with no visible signal).
+        Logger.warn(
+            `[MetaUI OpenApiBuilder] Unsupported $ref dropped, so any fields it declares are missing from the form: `
+            + `${refUrl || "(empty)"}. Only local pointers of the form '#/...' are resolved; `
+            + `pre-flatten the specification or inline the definition.`,
+            "OpenApiBuilder"
+        );
         return null;
     }
     if (depth > MAX_SCHEMA_DEPTH || activeRefs.has(refUrl)) {

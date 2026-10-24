@@ -21,18 +21,21 @@ export class OpenApiTypeMapper {
      * @returns {FieldType} The mapped MetaUI FieldType strictly understood by the core engine.
      */
     public static mapType(openApiType: string): FieldType {
-        const typeMap: Record<string, FieldType> = {
-            string: "string",
-            file: "string",
-            number: "number",
-            integer: "integer",
-            boolean: "boolean",
-            array: "array",
-            object: "object",
-            date: "date"
-        };
+        // A Map, not an object literal: the spec being mapped is untrusted input, and a plain
+        // object resolves "toString", "constructor" and every other Object.prototype member to an
+        // inherited function, which is truthy and would be returned in place of a FieldType.
+        const typeMap = new Map<string, FieldType>([
+            ["string", "string"],
+            ["file", "string"],
+            ["number", "number"],
+            ["integer", "integer"],
+            ["boolean", "boolean"],
+            ["array", "array"],
+            ["object", "object"],
+            ["date", "date"]
+        ]);
 
         // Default to "string" if the type is unknown or omitted by the API specification (aligned with SchemaNormalizer).
-        return typeMap[openApiType] || "string";
+        return typeMap.get(openApiType) ?? "string";
     }
 }

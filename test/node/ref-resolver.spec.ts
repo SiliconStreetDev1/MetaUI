@@ -112,20 +112,19 @@ describe("OpenApiRefResolver — unresolvable and circular pointers", () => {
         );
     });
 
-    it("F10 (known defect): a non-local or empty $ref is dropped with a debug-only message", () => {
-        // `Logger.debug` is gated behind `Logger.setDebugMode(true)`, which production never sets,
-        // so a spec that splits its definitions across files loses them with no visible signal and
-        // renders an empty field — the "plausible-looking empty result" AGENTS.md rule 2 forbids.
-        // Delete this test when the branch is promoted to `Logger.warn`.
+    it("a non-local or empty $ref is dropped loudly, above debug level", () => {
+        // Was finding F10: this reported through `Logger.debug`, which is gated behind
+        // `Logger.setDebugMode(true)` and so is invisible in production. A spec splitting its
+        // definitions across files lost them with no signal and rendered an empty field — the
+        // "plausible-looking empty result" AGENTS.md rule 2 forbids.
         for (const pointer of ["", "Pet", "http://example.com/x.json#/Pet", "./other.yaml#/Pet"]) {
             const { value, entries } = withLogCapture(() =>
                 OpenApiRefResolver.resolve(pointer, { definitions: { Known: { type: "string" } } })
             );
             assert.strictEqual(value, null, `'${pointer}' unexpectedly resolved`);
-            assert.strictEqual(
+            assert.ok(
                 entries.some((entry) => entry.level === "warning" || entry.level === "error"),
-                false,
-                `F10 appears fixed for '${pointer}' — it is now reported above debug level`
+                `'${pointer}' was dropped without a visible signal`
             );
         }
     });
@@ -165,7 +164,7 @@ describe("OpenApiRefResolver — unresolvable and circular pointers", () => {
 describe("OpenApiTypeMapper", () => {
     const FIELD_TYPES = ["string", "number", "integer", "boolean", "array", "object", "date"];
 
-    /** Keys inherited from `Object.prototype`, which the lookup table resolves instead of missing. */
+    /** Keys inherited from `Object.prototype`, which a plain lookup object would resolve instead of missing. */
     const INHERITED_KEYS = [
         "constructor",
         "toString",
@@ -189,9 +188,6 @@ describe("OpenApiTypeMapper", () => {
                     fc.string({ maxLength: 8 })
                 ),
                 (rawType) => {
-                    if (INHERITED_KEYS.includes(rawType)) {
-                        return; // finding F9, pinned below
-                    }
                     const mapped = OpenApiTypeMapper.mapType(rawType);
                     assert.ok(FIELD_TYPES.includes(mapped), `'${rawType}' mapped to '${String(mapped)}'`);
                 }
@@ -205,19 +201,15 @@ describe("OpenApiTypeMapper", () => {
         assert.strictEqual(OpenApiTypeMapper.mapType("integer"), "integer");
     });
 
-    it("F9 (known defect): an inherited Object.prototype key is returned as the field type", () => {
-        // `typeMap[openApiType] || "string"` reads through the prototype chain of an object
-        // literal, so `type: "constructor"` yields the `Object` constructor — a value whose
-        // declared type is `FieldType`. `OpenApiTypeMapper` is on the committed public API
-        // surface (.github/api-surface.txt), though nothing inside src/ calls it today.
-        // Delete this test when the table becomes a `Map` or gains an own-property check.
+    it("an inherited Object.prototype key falls back to string rather than resolving a function", () => {
+        // Was finding F9: `typeMap[openApiType] || "string"` read through the prototype chain of
+        // an object literal, so `type: "constructor"` yielded the `Object` constructor — a
+        // function whose declared type was `FieldType`. The table is a `Map` now. The spec being
+        // mapped is untrusted input, so this stays as an explicit regression test.
         for (const key of INHERITED_KEYS) {
             const mapped = OpenApiTypeMapper.mapType(key);
-            assert.ok(
-                !FIELD_TYPES.includes(mapped),
-                `F9 appears fixed for '${key}' — remove it from INHERITED_KEYS`
-            );
+            assert.strictEqual(typeof mapped, "string", `'${key}' mapped to a ${typeof mapped}`);
+            assert.strictEqual(mapped, "string", `'${key}' did not fall back to string`);
         }
-        assert.strictEqual(typeof OpenApiTypeMapper.mapType("constructor"), "function");
     });
 });

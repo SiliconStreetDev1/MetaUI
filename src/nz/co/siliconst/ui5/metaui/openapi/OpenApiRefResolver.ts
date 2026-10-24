@@ -91,7 +91,15 @@ export class OpenApiRefResolver {
 
         while (true) {
             if (!currentRefUrl || !currentRefUrl.startsWith("#/")) {
-                Logger.debug(`[MetaUI OpenApiBuilder] Ignoring non-local or empty $ref: ${currentRefUrl}`, "OpenApiBuilder");
+                // Warning, not debug: multi-file specs are the norm in enterprise OpenAPI, and
+                // dropping an external $ref silently renders a form missing its fields with no
+                // indication why - the plausible-looking empty result AGENTS.md rule 2 forbids.
+                Logger.warn(
+                    `[MetaUI OpenApiBuilder] Unsupported $ref dropped, so any fields it declares are missing from the form: `
+                    + `${currentRefUrl || "(empty)"}. Only local pointers of the form '#/...' are resolved; `
+                    + `pre-flatten the specification or inline the definition.`,
+                    "OpenApiBuilder"
+                );
                 return null;
             }
 
