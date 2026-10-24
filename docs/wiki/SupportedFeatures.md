@@ -16,9 +16,9 @@
 
 ---
 
-## 2. Widget Registry (`DefaultPluginBootstrapper` — 51 `(type, widget)` Mappings: 30 Concrete Control Plugins + 7 Abstract Bases, 4 Actions, 4 Datasources)
+## 2. Widget Registry (`DefaultPluginBootstrapper` — <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` Mappings: <!-- DOC_COUNT:concreteControlPlugins -->30 Concrete Control Plugins + <!-- DOC_COUNT:abstractControlPluginBases -->7 Abstract Bases, <!-- DOC_COUNT:concreteActionPlugins -->3 Concrete Actions + <!-- DOC_COUNT:abstractActionPluginBases -->1 Abstract Base, <!-- DOC_COUNT:datasourcePlugins -->4 Datasources)
 
-All 51 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core/DefaultPluginBootstrapper.ts`:
+All <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` pairs registered in `src/nz/co/siliconst/ui5/metaui/core/DefaultPluginBootstrapper.ts` (backed by <!-- DOC_COUNT:concreteWidgetPlugins -->37 concrete plugin classes, the <!-- DOC_COUNT:abstractControlPluginBases -->7 control abstract bases `BasePlugin`, `OptionListPlugin`, `SingleBoundWidgetPlugin`, `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin`, `HardwareControlPlugin`, the action abstract base `ActionButtonPlugin`, and the hardware control base `BaseHardwareControl` / `BaseHardwareControlRenderer`):
 
 | # | Schema `type` | `ui.widget` | Plugin Class | Edit Mode UI5 Control | Display Mode UI5 Control (`editable: false`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |

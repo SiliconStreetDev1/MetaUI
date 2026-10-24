@@ -62,15 +62,15 @@ const BENIGN_CONSOLE = [
     // MetaUI logging the refusal via BaseHardwareControl.reportCapabilityFailure is rule 2 ("fail loudly")
     // working as designed, so it is counted and shown in benign console output rather than failing the engine.
     {
-        re: /\[MetaUI CameraControl\].*(Failed to access camera:|Camera (could not be used|is not available in this browser|access was blocked|did not respond in time)\.)/,
+        re: /(Failed to access camera:|Camera (could not be used|is not available in this browser|access was blocked|did not respond in time)\.).*CameraControl/,
         why: "Expected: hardware probe exercises CameraControl with no permission or hardware granted; BaseHardwareControl.reportCapabilityFailure logs and stays alive."
     },
     {
-        re: /\[MetaUI GeolocationControl\].*(Failed to acquire geolocation:|Location (could not be used|is not available in this browser|access was blocked|did not respond in time)\.)/,
+        re: /(Failed to acquire geolocation:|Location (could not be used|is not available in this browser|access was blocked|did not respond in time)\.).*GeolocationControl/,
         why: "Expected: hardware probe presses locate with no permission granted; BaseHardwareControl.reportCapabilityFailure logs and stays alive."
     },
     {
-        re: /\[MetaUI VoiceInputControl\].*(Speech recognition (could not be used|is not available in this browser|access was blocked|did not respond in time)\.)/,
+        re: /(Speech recognition (could not be used|is not available in this browser|access was blocked|did not respond in time)\.).*VoiceInputControl/,
         why: "Expected: hardware probe exercises VoiceInputControl on engines without Web Speech API; BaseHardwareControl.reportCapabilityFailure logs and stays alive."
     }
 ];

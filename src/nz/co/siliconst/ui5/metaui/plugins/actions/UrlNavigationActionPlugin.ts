@@ -46,11 +46,7 @@ export class UrlNavigationActionPlugin extends ActionButtonPlugin {
             URLHelper.redirect(rawUrl.trim(), true);
             return;
         }
-        Logger.warn(
-            "[MetaUI UrlNavigationActionPlugin]",
-            `Blocked navigation to unsafe or empty URL: '${String(rawUrl)}'`,
-            "UrlNavigationActionPlugin"
-        );
+        Logger.warn(`Blocked navigation to unsafe or empty URL: '${String(rawUrl)}'`, undefined, "UrlNavigationActionPlugin");
     }
 
     /**

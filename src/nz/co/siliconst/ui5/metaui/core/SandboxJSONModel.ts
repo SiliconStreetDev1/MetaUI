@@ -168,11 +168,11 @@ export default class SandboxJSONModel extends JSONModel {
         }
         if (required > MAX_LIST_BINDING_CAPACITY) {
             Logger.error(
-                "[MetaUI SandboxJSONModel]",
                 `The collection at '${path}' holds ${required} entries. The sandbox binds at most ` +
-                    `${MAX_LIST_BINDING_CAPACITY} of them, so ${required - MAX_LIST_BINDING_CAPACITY} entries ` +
-                    "cannot be displayed. They remain in the payload and are still submitted. Page or filter " +
-                    "the collection before handing it to MetaUI.",
+                `${MAX_LIST_BINDING_CAPACITY} of them, so ${required - MAX_LIST_BINDING_CAPACITY} entries ` +
+                "cannot be displayed. They remain in the payload and are still submitted. Page or filter " +
+                "the collection before handing it to MetaUI.",
+                undefined,
                 "SandboxJSONModel"
             );
         }

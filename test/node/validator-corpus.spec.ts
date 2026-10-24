@@ -39,6 +39,8 @@ import {
     ObjectPropertiesValidatorPlugin
 } from "../../src/nz/co/siliconst/ui5/metaui/plugins/validators/ObjectPropertiesValidatorPlugin";
 import { UrlValidatorPlugin } from "../../src/nz/co/siliconst/ui5/metaui/plugins/validators/UrlValidatorPlugin";
+import { RangeValidatorPlugin } from "../../src/nz/co/siliconst/ui5/metaui/plugins/validators/RangeValidatorPlugin";
+import { RequiredValidatorPlugin, isEmptyValue } from "../../src/nz/co/siliconst/ui5/metaui/plugins/validators/RequiredValidatorPlugin";
 import { TextCaseFormatterPlugin } from "../../src/nz/co/siliconst/ui5/metaui/plugins/formatters/TextCaseFormatterPlugin";
 import { I18n, TEXT_KEY } from "../../src/nz/co/siliconst/ui5/metaui/utils/I18n";
 
@@ -871,5 +873,196 @@ describe("TextCaseFormatterPlugin — every documented mode", () => {
                 assert.strictEqual(textCase.format(once, "title"), once);
             })
         );
+    });
+});
+
+// ---------------------------------------------------------------------------------------------
+// RangeValidatorPlugin ? JSON Schema minimum, maximum, exclusiveMinimum, exclusiveMaximum
+// ---------------------------------------------------------------------------------------------
+
+describe("RangeValidatorPlugin ? numeric bounds and dialect parity", () => {
+    const validator = new RangeValidatorPlugin();
+
+    it("extractRule activates when any of minimum, maximum, numeric exclusiveMinimum, or numeric exclusiveMaximum is present", () => {
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "number" })), { active: false });
+        assert.deepStrictEqual(
+            validator.extractRule(asMeta({ type: "number", exclusiveMinimum: true, exclusiveMaximum: true })),
+            { active: false },
+            "draft-4 boolean exclusive flags without a bound do not activate range validation"
+        );
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "number", minimum: 0 })), {
+            active: true,
+            args: { min: 0, max: undefined, exclusiveMinimum: undefined, exclusiveMaximum: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "number", maximum: 10 })), {
+            active: true,
+            args: { min: undefined, max: 10, exclusiveMinimum: undefined, exclusiveMaximum: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "number", exclusiveMinimum: 5 })), {
+            active: true,
+            args: { min: undefined, max: undefined, exclusiveMinimum: 5, exclusiveMaximum: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "number", exclusiveMaximum: 20 })), {
+            active: true,
+            args: { min: undefined, max: undefined, exclusiveMinimum: undefined, exclusiveMaximum: 20 }
+        });
+    });
+
+    it("non-numeric values, NaN, and missing args are deferred, while non-finite numbers are rejected", () => {
+        expectValid(validator.validate("0", { min: 5 }), "numeric string is not coerced by RangeValidator");
+        expectValid(validator.validate(null, { min: 5 }), "null is deferred");
+        expectValid(validator.validate(undefined, { min: 5 }), "undefined is deferred");
+        expectValid(validator.validate(Number.NaN, { min: 5 }), "NaN is deferred");
+        expectValid(validator.validate(3, undefined), "missing args");
+        expectValid(validator.validate(3, "not-an-object"), "non-record args");
+
+        expectRejectedWith(validator.validate(Number.POSITIVE_INFINITY, { min: 0 }), TEXT_KEY.finiteNumber, "+Infinity");
+        expectRejectedWith(validator.validate(Number.NEGATIVE_INFINITY, { max: 0 }), TEXT_KEY.finiteNumber, "-Infinity");
+    });
+
+    it("enforces inclusive minimum and maximum under both { min, max } and { minimum, maximum } spellings", () => {
+        assert.deepStrictEqual(validator.validate(4, { min: 5 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeMinimum, [5])
+        });
+        expectValid(validator.validate(5, { min: 5 }), "at inclusive min");
+        assert.deepStrictEqual(validator.validate(4, { minimum: 5 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeMinimum, [5])
+        });
+        expectValid(validator.validate(5, { minimum: 5 }), "at inclusive minimum");
+
+        assert.deepStrictEqual(validator.validate(11, { max: 10 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeMaximum, [10])
+        });
+        expectValid(validator.validate(10, { max: 10 }), "at inclusive max");
+        assert.deepStrictEqual(validator.validate(11, { maximum: 10 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeMaximum, [10])
+        });
+        expectValid(validator.validate(10, { maximum: 10 }), "at inclusive maximum");
+    });
+
+    it("enforces draft-4 boolean and draft-6+ numeric exclusiveMinimum and exclusiveMaximum", () => {
+        // Draft-4 boolean exclusiveMinimum
+        assert.deepStrictEqual(validator.validate(5, { min: 5, exclusiveMinimum: true }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMinimum, [5])
+        });
+        expectValid(validator.validate(5.001, { min: 5, exclusiveMinimum: true }), "above draft-4 exclusiveMinimum");
+        expectValid(validator.validate(5, { min: 5, exclusiveMinimum: false }), "at min with exclusiveMinimum: false");
+
+        // Draft-6+ numeric exclusiveMinimum
+        assert.deepStrictEqual(validator.validate(5, { exclusiveMinimum: 5 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMinimum, [5])
+        });
+        assert.deepStrictEqual(validator.validate(4, { exclusiveMinimum: 5 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMinimum, [5])
+        });
+        expectValid(validator.validate(5.001, { exclusiveMinimum: 5 }), "above draft-6 exclusiveMinimum");
+
+        // Draft-4 boolean exclusiveMaximum
+        assert.deepStrictEqual(validator.validate(10, { max: 10, exclusiveMaximum: true }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [10])
+        });
+        assert.deepStrictEqual(validator.validate(11, { max: 10, exclusiveMaximum: true }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [10])
+        });
+        expectValid(validator.validate(9.999, { max: 10, exclusiveMaximum: true }), "below draft-4 exclusiveMaximum");
+        expectValid(validator.validate(10, { max: 10, exclusiveMaximum: false }), "at max with exclusiveMaximum: false");
+
+        // Draft-6+ numeric exclusiveMaximum
+        assert.deepStrictEqual(validator.validate(10, { exclusiveMaximum: 10 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [10])
+        });
+        assert.deepStrictEqual(validator.validate(11, { exclusiveMaximum: 10 }), {
+            isValid: false,
+            errorMessage: I18n.getText(TEXT_KEY.rangeExclusiveMaximum, [10])
+        });
+        expectValid(validator.validate(9.999, { exclusiveMaximum: 10 }), "below draft-6 exclusiveMaximum");
+    });
+});
+
+// ---------------------------------------------------------------------------------------------
+// RequiredValidatorPlugin ? required, nullable: false, and required + nullable: true
+// ---------------------------------------------------------------------------------------------
+
+describe("RequiredValidatorPlugin ? mandatory fields and nullability matrix", () => {
+    const validator = new RequiredValidatorPlugin();
+
+    it("isEmptyValue classifies null, undefined, blank strings, NaN, and empty arrays as empty, and keeps 0 and false", () => {
+        for (const empty of [null, undefined, "", "   ", "\t\n", Number.NaN, []]) {
+            assert.strictEqual(isEmptyValue(empty), true, `expected empty for ${String(empty)}`);
+        }
+        for (const present of [0, false, "a", " 0 ", [1], {}, () => {}]) {
+            assert.strictEqual(isEmptyValue(present), false, `expected non-empty for ${String(present)}`);
+        }
+    });
+
+    it("extractRule honours static required, dynamic override, and nullable: false", () => {
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string" })), {
+            active: false,
+            args: { required: false, nullable: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string", required: true })), {
+            active: true,
+            args: { required: true, nullable: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string", required: true }), false), {
+            active: false,
+            args: { required: false, nullable: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string", required: false }), true), {
+            active: true,
+            args: { required: true, nullable: undefined }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string", nullable: false })), {
+            active: true,
+            args: { required: false, nullable: false }
+        });
+        assert.deepStrictEqual(validator.extractRule(asMeta({ type: "string", required: true, nullable: true })), {
+            active: true,
+            args: { required: true, nullable: true }
+        });
+    });
+
+    it("optional non-nullable fields (required: false, nullable: false) reject null with requiredNull and accept other empties", () => {
+        const args = { required: false, nullable: false };
+        expectRejectedWith(validator.validate(null, args), TEXT_KEY.requiredNull, "null on nullable: false");
+        expectValid(validator.validate(undefined, args), "undefined is allowed on optional non-nullable");
+        expectValid(validator.validate("", args), "empty string is allowed on optional non-nullable");
+        expectValid(validator.validate("   ", args), "whitespace string is allowed on optional non-nullable");
+        expectValid(validator.validate([], args), "empty array is allowed on optional non-nullable");
+        expectValid(validator.validate("value", args), "non-empty string on optional non-nullable");
+    });
+
+    it("required nullable fields (required: true, nullable: true) accept null and reject all other empty values", () => {
+        const args = { required: true, nullable: true };
+        expectValid(validator.validate(null, args), "null is allowed when required: true and nullable: true");
+        expectRejectedWith(validator.validate(undefined, args), TEXT_KEY.required, "undefined on required nullable");
+        expectRejectedWith(validator.validate("", args), TEXT_KEY.required, "empty string on required nullable");
+        expectRejectedWith(validator.validate("   ", args), TEXT_KEY.required, "whitespace on required nullable");
+        expectRejectedWith(validator.validate(Number.NaN, args), TEXT_KEY.required, "NaN on required nullable");
+        expectRejectedWith(validator.validate([], args), TEXT_KEY.required, "empty array on required nullable");
+        expectValid(validator.validate("ok", args), "non-empty string on required nullable");
+        expectRejectedWith(validator.validate(null, { required: false, nullable: true }), TEXT_KEY.required, "null when required:false, nullable:true called directly");
+        expectRejectedWith(validator.validate("", { required: false, nullable: true }), TEXT_KEY.required, "empty string when required:false, nullable:true called directly");
+    });
+
+    it("required non-nullable fields reject every empty value including null", () => {
+        for (const args of [{ required: true }, { required: true, nullable: false }, undefined]) {
+            expectRejectedWith(validator.validate(null, args), TEXT_KEY.required, "null on required");
+            expectRejectedWith(validator.validate(undefined, args), TEXT_KEY.required, "undefined on required");
+            expectRejectedWith(validator.validate("", args), TEXT_KEY.required, "empty string on required");
+            expectValid(validator.validate(0, args), "0 on required");
+            expectValid(validator.validate(false, args), "false on required");
+            expectValid(validator.validate("x", args), "non-empty string on required");
+        }
     });
 });

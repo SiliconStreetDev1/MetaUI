@@ -155,6 +155,39 @@ sap.ui.define([
         assert.strictEqual(reg.items.size, 1, "ReadonlyMap exposes registered items");
         reg.clear();
         assert.strictEqual(reg.has("alpha"), false, "Cleared registry removes entries");
+
+        var pluginReg = PluginRegistry.getInstance();
+        assert.strictEqual(
+            typeof pluginReg.hasPluginPath === "function" && pluginReg.hasPluginPath("string"),
+            true,
+            "PluginRegistry.hasPluginPath('string') returns true for built-in default string plugin"
+        );
+        assert.strictEqual(
+            typeof pluginReg.hasPluginPath === "function" && pluginReg.hasPluginPath("string", "textArea"),
+            true,
+            "PluginRegistry.hasPluginPath('string', 'textArea') returns true for registered widget"
+        );
+        assert.strictEqual(
+            typeof pluginReg.hasPluginPath === "function" ? pluginReg.hasPluginPath("string", "nonexistentWidget") : true,
+            false,
+            "PluginRegistry.hasPluginPath('string', 'nonexistentWidget') returns false for unregistered widget"
+        );
+        var stringWidgets = typeof pluginReg.getRegisteredWidgets === "function" ? pluginReg.getRegisteredWidgets("string") : [];
+        assert.strictEqual(
+            Array.isArray(stringWidgets) && stringWidgets.indexOf("textArea") !== -1 && stringWidgets.indexOf("password") !== -1,
+            true,
+            "PluginRegistry.getRegisteredWidgets('string') lists registered widget names for the given type"
+        );
+        assert.strictEqual(
+            typeof pluginReg.hasLayoutPath === "function" && pluginReg.hasLayoutPath("form") && !pluginReg.hasLayoutPath("nonexistentLayout"),
+            true,
+            "PluginRegistry.hasLayoutPath checks whether a layout strategy is registered"
+        );
+        assert.deepEqual(
+            typeof pluginReg.getRegisteredLayouts === "function" ? pluginReg.getRegisteredLayouts() : [],
+            ["form", "table", "wizard", "compact"],
+            "PluginRegistry.getRegisteredLayouts lists all registered layout strategy keys"
+        );
     });
 
     QUnit.test("Double-Entry Rule: PluginRegistry 100% matches TestOracle.PLUGIN_MAP, LAYOUT_MAP, and POLICY_MAPs", function (assert) {
@@ -1229,9 +1262,11 @@ sap.ui.define([
                 "Row 4: '{\"path\":\"/foo\"}' resolves as a UI5 binding descriptor to '/foo'"
             );
             assert.strictEqual(
-                warnMessages.some(function (w) { return String(w.details).indexOf('{"path":"/foo"}') !== -1; }),
+                warnMessages.some(function (w) {
+                    return String(w.msg).indexOf('{"path":"/foo"}') !== -1 && w.details === undefined && w.comp === "HostControlMetadata";
+                }),
                 true,
-                "Row 4: Ambiguous constructor string '{\"path\":\"/foo\"}' emits a non-silent Logger.warn diagnostic"
+                "Row 4: Ambiguous constructor string '{\"path\":\"/foo\"}' emits a non-silent Logger.warn diagnostic in the message slot with component 'HostControlMetadata'"
             );
             h4.destroy();
         } finally {
@@ -5373,6 +5408,85 @@ sap.ui.define([
                 Logger.warn = origWarn;
                 done();
             }
+        });
+    });
+
+    QUnit.test("ValidationDelegate.normalizeFieldPath and event fieldPath contract emit leading-slash JSON Pointer or empty string", function (assert) {
+        var done = assert.async();
+        sap.ui.require([
+            "nz/co/siliconst/ui5/metaui/controls/host/delegates/ValidationDelegate",
+            "nz/co/siliconst/ui5/metaui/controls/host/delegates/DialogDelegate"
+        ], function (ValidationDelegateMod, DialogDelegateMod) {
+            var ValidationDelegate = ValidationDelegateMod.ValidationDelegate;
+            var DialogDelegate = DialogDelegateMod.DialogDelegate;
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath(undefined), "", "Undefined fieldKey normalizes to empty string");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath(""), "", "Empty fieldKey normalizes to empty string");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath("/"), "", "Bare slash normalizes to empty string");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath("Email"), "/Email", "Bare field key receives leading slash");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath("/Email"), "/Email", "Leading-slash field key is idempotent");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath("Address/City"), "/Address/City", "Nested path receives leading slash");
+            assert.strictEqual(ValidationDelegate.normalizeFieldPath("//Address/City"), "/Address/City", "Redundant leading slashes collapse to one");
+
+            // 1. ValidationDelegate (field-level and whole-form validationError / validationSuccess)
+            var fired = [];
+            var mockHost = {
+                getStateManager: function () { return undefined; },
+                getValidationLedger: function () { return { isFormValid: function () { return false; } }; },
+                getEngine: function () { return undefined; },
+                getProperty: function (name) { return name === "isValid" ? false : false; },
+                setProperty: function () {},
+                fireEvent: function (name, params) { if (name !== "validationStateChanged") { fired.push({ name: name, params: params }); } }
+            };
+            var delegate = new ValidationDelegate(mockHost);
+            delegate.notifyFieldValidation(false, "Email", "Invalid email");
+            delegate.notifyFieldValidation(true, "Email", undefined);
+            delegate.notifyFieldValidation(false, undefined, "Whole-form failure");
+            assert.strictEqual(fired[0].params.fieldPath, "/Email", "validationError normalizes bare fieldKey to '/Email'");
+            assert.strictEqual(fired[1].params.fieldPath, "/Email", "validationSuccess normalizes bare fieldKey to '/Email'");
+            assert.strictEqual(fired[2].params.fieldPath, "", "whole-form validationError normalizes missing fieldKey to ''");
+
+            // 2. GeneratorHost (fieldChange)
+            var genHost = new GeneratorHost();
+            var fieldChanges = [];
+            genHost.attachEvent("fieldChange", function (e) { fieldChanges.push(e.getParameters()); });
+            genHost.onInternalFieldChange(true, "Address/City", undefined);
+            assert.strictEqual(fieldChanges[0].fieldPath, "/Address/City", "fieldChange emits leading-slash JSON Pointer '/Address/City'");
+            genHost.destroy();
+
+            // 3. DialogDelegate (catastrophic dialog-level validationError) & 4. ODataDelegate (error)
+            var origError = Logger.error;
+            Logger.error = function () {};
+            var dialogEvents = [];
+            var dialogHost = new GeneratorHost();
+            dialogHost.generate = function () { return Promise.resolve(); };
+            dialogHost.triggerSubmit = function () { throw new Error("submit pipeline exploded"); };
+            dialogHost.attachEvent("validationError", function (e) { dialogEvents.push(e.getParameters()); });
+            var dialogDel = new DialogDelegate(dialogHost);
+            dialogDel.openInDialog("Test", "Save");
+
+            var odataErrors = [];
+            var odataHost = new DynamicHost();
+            odataHost.attachEvent("error", function (e) { odataErrors.push(e.getParameters()); });
+            var odataDel = new ODataDelegate(odataHost, makeV4Context({ FirstName: "Alice" }, {}, { rejectWrite: true }));
+            odataDel.handleFieldChange("/FirstName", "Bob");
+
+            Promise.resolve().then(function () {
+                return Promise.resolve();
+            }).then(function () {
+                try {
+                    var activeDialog = dialogDel.activeDialog;
+                    activeDialog.getBeginButton().firePress();
+                    assert.strictEqual(dialogEvents[0].fieldPath, "", "DialogDelegate catastrophic validationError emits empty-string fieldPath ''");
+                    assert.strictEqual(odataErrors[0].fieldPath, "/FirstName", "ODataDelegate error event emits leading-slash JSON Pointer '/FirstName'");
+                } finally {
+                    Logger.error = origError;
+                    dialogDel.destroy();
+                    dialogHost.destroy();
+                    odataDel.destroy();
+                    odataHost.destroy();
+                    done();
+                }
+            });
         });
     });
 });

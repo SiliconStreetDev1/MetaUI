@@ -10,6 +10,7 @@ import Control from "sap/ui/core/Control";
 import ManagedObject from "sap/ui/base/ManagedObject";
 import BusyDialog from "sap/m/BusyDialog";
 import { Logger } from "../../../utils/Logger";
+import { I18n, TEXT_KEY } from "../../../utils/I18n";
 import { ISchema } from "../../../interfaces/ISchema";
 import { SchemaWalker } from "../../../core/SchemaWalker";
 import { WIDGET_TYPE, SCHEMA_TYPE } from "../../../constants/MetaUIConstants";
@@ -157,10 +158,10 @@ export class DialogDelegate {
      * @returns {Promise<void>} Resolves once the dialog has closed, or immediately if superseded.
      */
     public async openInDialog(
-        title: string = "Form",
-        submitButtonText: string = "OK",
+        title: string = I18n.getText(TEXT_KEY.dialogDefaultTitle),
+        submitButtonText: string = I18n.getText(TEXT_KEY.dialogSubmit),
         _isGenerated: boolean = false,
-        cancelButtonText: string = "Cancel",
+        cancelButtonText: string = I18n.getText(TEXT_KEY.dialogCancel),
         dialogWidth: string = "auto",
         parentView?: Control
     ): Promise<void> {
@@ -169,7 +170,7 @@ export class DialogDelegate {
         this.requestedWidth = dialogWidth;
         this.calculatedOptimalWidth = dialogWidth;
 
-        const busyDialog = new BusyDialog({ text: "Building Form..." });
+        const busyDialog = new BusyDialog({ text: I18n.getText(TEXT_KEY.dialogBuilding) });
         busyDialog.open();
 
         try {
@@ -189,8 +190,8 @@ export class DialogDelegate {
 
         if (requestId !== this.openRequestId) {
             Logger.warn(
-                "[MetaUI]",
                 `openInDialog('${title}') was superseded by a later call while generating; no dialog was opened.`,
+                undefined,
                 "DialogDelegate"
             );
             return;
@@ -203,6 +204,9 @@ export class DialogDelegate {
         const origin = this.captureOriginLocation();
         this.pendingOrigin = origin;
         const isReadOnlyHost = this.host.getProperty("editable") === false;
+        const isCloseOnly =
+            isReadOnlyHost &&
+            (submitButtonText === "Close" || submitButtonText === I18n.getText(TEXT_KEY.editorClose));
 
         return new Promise<void>((resolve) => {
             this.pendingResolve = resolve;
@@ -216,7 +220,7 @@ export class DialogDelegate {
                     text: submitButtonText,
                     type: ButtonType.Emphasized,
                     press: () => {
-                        if (isReadOnlyHost && submitButtonText === "Close") {
+                        if (isCloseOnly) {
                             submittedOrCancelled = true;
                             this.host.fireEvent("cancel");
                             dialog.close();
@@ -236,12 +240,12 @@ export class DialogDelegate {
                                 errMsg,
                                 "DialogDelegate"
                             );
-                            this.host.fireEvent("validationError", { fieldPath: "root", message: errMsg });
+                            this.host.fireEvent("validationError", { fieldPath: "", message: errMsg });
                         }
                     }
                 }),
                 endButton:
-                    isReadOnlyHost && submitButtonText === "Close"
+                    isCloseOnly
                         ? undefined
                         : new Button({
                               text: cancelButtonText,

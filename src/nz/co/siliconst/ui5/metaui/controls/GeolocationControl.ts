@@ -12,6 +12,7 @@ import Button from "sap/m/Button";
 import FlexItemData from "sap/m/FlexItemData";
 import { ButtonType, FlexAlignItems } from "sap/m/library";
 import { isRecord } from "../utils/TypeGuards";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Custom UI5 control that captures `{ lat, lng }` coordinates using `navigator.geolocation.getCurrentPosition`.
@@ -72,13 +73,13 @@ export default class GeolocationControl extends BaseHardwareControl {
 
         this.coordInput = new Input({
             editable: false,
-            placeholder: "Latitude, Longitude",
+            placeholder: I18n.getText(TEXT_KEY.geolocationPlaceholder),
             width: "100%",
             layoutData: new FlexItemData({ growFactor: 1 })
         }).addStyleClass("sapUiTinyMarginEnd");
 
         this.locateBtn = new Button({
-            text: "Get Location",
+            text: I18n.getText(TEXT_KEY.geolocationGetLocation),
             icon: "sap-icon://locate-me",
             type: ButtonType.Emphasized,
             press: () => {

@@ -723,11 +723,7 @@ function resolveVerdict(source: string): IPatternVerdict {
     }
     const verdict = analyzeBacktracking(source);
     if (verdict.reason) {
-        Logger.warn(
-            "[MetaUI PatternValidatorPlugin]",
-            `REFUSED 'pattern' as a denial-of-service risk (${verdict.reason}): '${source}'.`,
-            "PatternValidatorPlugin"
-        );
+        Logger.warn(`REFUSED 'pattern' as a denial-of-service risk (${verdict.reason}): '${source}'.`, undefined, "PatternValidatorPlugin");
     }
     if (analysisCache.size >= MAX_CACHE_ENTRIES) {
         analysisCache.clear();
@@ -770,16 +766,19 @@ export class PatternValidatorPlugin implements IValidator {
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof parsedValue !== "string" || parsedValue === "") return { isValid: true };
         if (typeof args !== "string") {
-            return { isValid: false, errorMessage: "Schema configuration error: 'pattern' must be a string." };
+            return {
+                isValid: false,
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigMustBeString, ["pattern"])
+            };
         }
         if (args.length > MAX_PATTERN_LENGTH) {
             return {
                 isValid: false,
-                errorMessage: `Schema configuration error: 'pattern' is unsafe (longer than ${MAX_PATTERN_LENGTH} characters).`
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigPatternTooLong, [MAX_PATTERN_LENGTH])
             };
         }
         if (quarantinedPatterns.has(args)) {
-            return { isValid: false, errorMessage: "Schema configuration error: 'pattern' is unsafe (exceeded its time budget)." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.schemaConfigPatternTimeout) };
         }
 
         let regex: RegExp;
@@ -790,19 +789,20 @@ export class PatternValidatorPlugin implements IValidator {
             // field red and surfaces the malformed pattern in the message and the MessagePopover.
             // validate() runs on every keystroke, so a Logger call here would be per-keystroke noise.
             void e;
-            return { isValid: false, errorMessage: `Schema configuration error: invalid regex pattern '${args}'.` };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.schemaConfigInvalidRegex, [args]) };
         }
 
         const verdict = resolveVerdict(args);
         if (verdict.reason) {
-            return { isValid: false, errorMessage: `Schema configuration error: 'pattern' is unsafe (${verdict.reason}).` };
+            return {
+                isValid: false,
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigPatternUnsafe, [verdict.reason])
+            };
         }
         if (verdict.unproven && parsedValue.length > MAX_UNPROVEN_INPUT_LENGTH) {
             return {
                 isValid: false,
-                errorMessage:
-                    "Schema configuration error: 'pattern' is unsafe (its running time is unproven and the value is " +
-                    `longer than ${MAX_UNPROVEN_INPUT_LENGTH} characters).`
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigPatternUnproven, [MAX_UNPROVEN_INPUT_LENGTH])
             };
         }
 
@@ -815,11 +815,11 @@ export class PatternValidatorPlugin implements IValidator {
             }
             quarantinedPatterns.add(args);
             Logger.warn(
-                "[MetaUI PatternValidatorPlugin]",
                 `Quarantined 'pattern' after a ${Math.round(elapsed)}ms evaluation: '${args}'.`,
+                undefined,
                 "PatternValidatorPlugin"
             );
-            return { isValid: false, errorMessage: "Schema configuration error: 'pattern' is unsafe (exceeded its time budget)." };
+            return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.schemaConfigPatternTimeout) };
         }
 
         if (!matched) {

@@ -78,14 +78,14 @@ fails otherwise — and if it fails, the gate is usually right.
 
 | Path | Purpose |
 | :--- | :--- |
-| `src/.../core/` | `Engine`, `ValidationLedger`, `PayloadValidator`, `StateManager`, `SandboxJSONModel`, `PolicyEngine`, `PipelineManager`, `SchemaNormalizer`, `DataInferenceBuilder`, `PluginRegistry`, `DefaultPluginBootstrapper`, `LayoutScorer`, `LayoutMutator` |
-| `src/.../controls/` | `DynamicHost.ts` (public facade) and the custom hardware controls |
+| `src/.../core/` | `Engine`, `ValidationLedger`, `PayloadValidator`, `SchemaWalker`, `SchemaValidator`, `SchemaDirectiveNormalizer`, `SafeConvert`, `StateManager`, `SandboxJSONModel`, `PolicyEngine`, `PipelineManager`, `SchemaNormalizer`, `DataInferenceBuilder`, `PluginRegistry`, `DefaultPluginBootstrapper`, `LayoutScorer`, `LayoutMutator` |
+| `src/.../controls/` | `DynamicHost.ts` (public facade) plus `BaseHardwareControl`, `BaseHardwareControlRenderer` and the custom hardware controls |
 | `src/.../controls/host/` | `GeneratorHost`, `HostControlMetadata`, and the `delegates/` that own generation, validation, policy, dialogs, data sync and OData |
-| `src/.../plugins/controls/` | `BasePlugin` plus the `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin` and `HardwareControlPlugin` bases, and the concrete field plugins |
-| `src/.../plugins/{actions,datasources,validators,formatters,policies}/` | The remaining plugin categories |
+| `src/.../plugins/controls/` | `BasePlugin` plus the `OptionListPlugin`, `SingleBoundWidgetPlugin`, `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin` and `HardwareControlPlugin` bases, and the concrete field plugins |
+| `src/.../plugins/{actions,datasources,validators,formatters,policies}/` | `ActionButtonPlugin` and the remaining action, datasource, validator, formatter and policy plugin categories |
 | `src/.../layouts/` | The four layout strategies plus the shared `LayoutElementWalker` |
-| `src/.../openapi/` & `swagger/` | OpenAPI 2.0/3.0 ingestion and target extraction |
-| `src/.../utils/` | `TypeGuards`, `Logger`, `ExpressionBuilder`, `ControlDirectiveUtil`, `UrlValidator` |
+| `src/.../openapi/` & `swagger/` | OpenAPI 2.0/3.0 ingestion (`OpenApiBuilder`, `OpenApiParserFactory`, `OpenApi2Parser`, `OpenApi3Parser`, `OpenApiPropertyMapper`, `OpenApiConstraintMapper`, `OpenApiTypeMapper`, `OpenApiUIMapper`, `OpenApiRefResolver`, `OpenApiHeuristicEngine`) and target extraction (`OpenApiExtractor`) |
+| `src/.../utils/` | `TypeGuards`, `Logger`, `I18n`, `ExpressionBuilder`, `ControlDirectiveUtil`, `AccessibilityUtil`, `ControlCapabilities`, `UrlValidator`, `ODataPayloadUtils`, `DictionaryMapUtil`, `PolymorphicUtil`, `PolicyConditionUtil` |
 | `test/webapp/test/` | `TestOracle.js`, the unit suite and the E2E suite |
 | `scripts/run-tests.js` | Lint gate, metrics and the headless Puppeteer runner |
 

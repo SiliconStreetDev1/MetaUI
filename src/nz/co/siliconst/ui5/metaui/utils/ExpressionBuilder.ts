@@ -337,8 +337,8 @@ export class ExpressionBuilder {
      */
     private static reportRefusedRule(rule: string): void {
         Logger.warn(
-            "[MetaUI ExpressionBuilder]",
             `REFUSED condition rule: raw UI5 binding syntax is not accepted from a schema ('${rule}').`,
+            undefined,
             "ExpressionBuilder"
         );
     }

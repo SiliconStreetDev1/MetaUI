@@ -25,7 +25,7 @@ export class SchemaProvider {
     ): Promise<Record<string, unknown>> {
         if (!UrlValidator.isSafeDataSourceUrl(url)) {
             const refusal = new Error(`Refused schema URL '${url}': blocked by the data source URL policy.`);
-            Logger.warn("[MetaUI SchemaProvider]", refusal.message, "SchemaProvider");
+            Logger.warn(refusal.message, undefined, "SchemaProvider");
             throw refusal;
         }
         const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -41,7 +41,7 @@ export class SchemaProvider {
             }
             return await response.json();
         } catch (e) {
-            Logger.warn("[MetaUI SchemaProvider]", "Failed to fetch remote schema: " + e, "SchemaProvider");
+            Logger.warn("Failed to fetch remote schema: " + e, undefined, "SchemaProvider");
             throw e;
         } finally {
             if (timerId !== null) {

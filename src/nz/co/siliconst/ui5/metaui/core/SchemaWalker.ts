@@ -616,8 +616,9 @@ export class SchemaWalker {
             }
             if (pathNodes.has(meta) || activeNodes?.has(meta)) {
                 Logger.warn(
-                    "[MetaUI SchemaNormalizer]",
-                    `Circular schema reference detected while resolving scope '${scope}'; stopping recursion.`
+                    `Circular schema reference detected while resolving scope '${scope}'; stopping recursion.`,
+                    undefined,
+                    "SchemaNormalizer"
                 );
                 return { meta: undefined, bindingPath, propKey };
             }
@@ -627,8 +628,9 @@ export class SchemaWalker {
             if (meta.$ref) {
                 if (pathRefs.has(meta.$ref) || activeRefs?.has(meta.$ref)) {
                     Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
-                        `Circular $ref detected (${meta.$ref}) while resolving scope '${scope}'; stopping recursion.`
+                        `Circular $ref detected (${meta.$ref}) while resolving scope '${scope}'; stopping recursion.`,
+                        undefined,
+                        "SchemaNormalizer"
                     );
                     return { meta: undefined, bindingPath, propKey };
                 }
@@ -640,7 +642,7 @@ export class SchemaWalker {
             current = meta.properties || resolvedDef?.properties;
         }
         if (!meta) {
-            Logger.warn("[MetaUI SchemaNormalizer]", `Scope '${scope}' does not resolve to a schema property.`);
+            Logger.warn(`Scope '${scope}' does not resolve to a schema property.`, undefined, "SchemaNormalizer");
         }
         return { meta, bindingPath, propKey };
     }
@@ -818,8 +820,9 @@ export class SchemaWalker {
             if (depth > MAX_SCHEMA_DEPTH || depth > state.maxDepth) {
                 if (!state.options?.silentTruncationLog) {
                     Logger.warn(
-                        "[MetaUI SchemaWalker]",
-                        `Schema traversal exceeded maxDepth (${state.maxDepth}) at '${scope}'; subtree was truncated.`
+                        `Schema traversal exceeded maxDepth (${state.maxDepth}) at '${scope}'; subtree was truncated.`,
+                        undefined,
+                        "SchemaWalker"
                     );
                 }
                 state.options?.onTruncate?.(scope, "depth", rawNode, other);
@@ -1025,7 +1028,7 @@ export class SchemaWalker {
         other?: TOther
     ): void {
         if (!options?.silentTruncationLog) {
-            Logger.warn("[MetaUI SchemaWalker]", `Circular schema reference detected at '${scope}'; stopping recursion.`);
+            Logger.warn(`Circular schema reference detected at '${scope}'; stopping recursion.`, undefined, "SchemaWalker");
         }
         options?.onTruncate?.(scope, "cycle", rawNode, other);
     }

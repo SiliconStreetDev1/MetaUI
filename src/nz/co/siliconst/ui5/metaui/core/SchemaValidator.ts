@@ -136,9 +136,10 @@ export class SchemaValidator {
                 onTruncate: (_scope, reason) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI SchemaValidator]",
                             `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
-                                `structurally valid without being checked.`
+                            `structurally valid without being checked.`,
+                            undefined,
+                            "SchemaValidator"
                         );
                     }
                 }

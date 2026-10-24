@@ -52,37 +52,45 @@ If the user selects "South African" in the example above, the condition (`String
 
 ## Supported Conditions (`IPolicyCondition`)
 
-You can evaluate the state of the payload using standard operators. The operator parses the active JSON data via a `JSON Pointer`.
+You can evaluate the state of the payload using the <!-- DOC_COUNT:policyConditions -->6 built-in condition operators (implemented by `NumericGreaterThanConditionPlugin`, `NumericLessThanConditionPlugin`, `StringEqualsConditionPlugin`, `DateLessThanConditionPlugin`, `IsNullConditionPlugin`, and `IsNotNullConditionPlugin`, with shared pointer/entry helpers in `PolicyConditionUtil`). Each operator resolves the active JSON data via a `JSON Pointer`.
 
-### NumericGreaterThan / NumericLessThan
+### NumericGreaterThan / NumericLessThan (`NumericGreaterThanConditionPlugin`, `NumericLessThanConditionPlugin`)
 Coerces the value to a number.
 ```json
-"condition": {
-  "NumericGreaterThan": { "/TotalGuests": 6 }
+{
+  "condition": {
+    "NumericGreaterThan": { "/TotalGuests": 6 }
+  }
 }
 ```
 
-### StringEquals
+### StringEquals (`StringEqualsConditionPlugin`)
 Strictly matches string variants.
 ```json
-"condition": {
-  "StringEquals": { "/AccommodationType": "Campsite" }
+{
+  "condition": {
+    "StringEquals": { "/AccommodationType": "Campsite" }
+  }
 }
 ```
 
-### DateLessThan
+### DateLessThan (`DateLessThanConditionPlugin`)
 Compares an ISO date string or `Date` value against a threshold date string (`"YYYY-MM-DD"` or `"$today"`).
 ```json
-"condition": {
-  "DateLessThan": { "/CheckInDate": "$today" }
+{
+  "condition": {
+    "DateLessThan": { "/CheckInDate": "$today" }
+  }
 }
 ```
 
-### IsNull / IsNotNull
+### IsNull / IsNotNull (`IsNullConditionPlugin`, `IsNotNullConditionPlugin`)
 Evaluates structural existence (undefined, null, or empty string).
 ```json
-"condition": {
-  "IsNull": ["/Vehicle/RegistrationNumber"]
+{
+  "condition": {
+    "IsNull": ["/Vehicle/RegistrationNumber"]
+  }
 }
 ```
 
@@ -118,17 +126,18 @@ Let's build a plugin that checks if a string contains a specific substring.
 import { IPolicyConditionPlugin } from "nz/co/siliconst/ui5/metaui/interfaces/IPolicyPlugin";
 
 export class StringContainsConditionPlugin implements IPolicyConditionPlugin {
-    public canHandle(conditionKey: string): boolean {
-        return conditionKey === "StringContains";
-    }
-
     public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean {
-        const payload = conditionPayload as Record<string, string>;
-        if (!payload) return true;
+        if (!conditionPayload || typeof conditionPayload !== "object" || Array.isArray(conditionPayload)) {
+            return false;
+        }
+        const entries = Object.entries(conditionPayload as Record<string, unknown>);
+        if (entries.length === 0) {
+            return false;
+        }
 
-        for (const [path, targetStr] of Object.entries(payload)) {
+        for (const [path, targetStr] of entries) {
             const val = resolvePointer(data, path);
-            if (typeof val !== "string" || !val.includes(targetStr)) {
+            if (typeof val !== "string" || typeof targetStr !== "string" || !val.includes(targetStr)) {
                 return false;
             }
         }

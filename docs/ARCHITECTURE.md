@@ -54,7 +54,7 @@ Declared once in `HostControlMetadata.ts` and shared by `DynamicHost` and `Gener
 
 **Properties:** `schemaDefinition`, `schemaDefinitions`, `schemaTarget`, `pluginRegistry`, `schemaBuilderRegistry`, `data`, `dataJson`, `liveUpdate`, `isValid`, `useMessageManager`, `modelName`, `debugMode`, `editable`, `layoutBudget`, `engineScopeId`, `width`, `height`.
 
-**Events:** `beforeSubmit`, `submit`, `cancel`, `fieldChange`, `validationStateChanged`, `validationError`, `validationSuccess`, `error`, `beforeLayoutSectionChange`.
+**Events:** `beforeSubmit`, `submit`, `cancel`, `fieldChange`, `validationStateChanged`, `validationError`, `validationSuccess`, `error`, `beforeLayoutSectionChange`. Event `fieldPath` parameters are normalized by `ValidationDelegate.normalizeFieldPath` to a leading-slash JSON Pointer (`"/..."`) for field-level events or `""` for whole-form / root events.
 
 **`outputData` is not a declared property.** It is resolved by an intercepting `getProperty()` override on both hosts, reading the live `StateManager` on demand. It therefore works programmatically but cannot be used as an XML binding target.
 
@@ -135,7 +135,7 @@ It resolves these into one visual state per field, suppresses errors on hidden f
 
 `addCustomError()` and `clearCustomError()` are a consumer-managed pair, intended for asynchronous backend checks during `fieldChange`. A custom error persists until explicitly cleared.
 
-> **Known issue:** the `addError()` callbacks on `beforeSubmit` and `beforeLayoutSectionChange` route into this same permanent channel while giving the handler no way to clear it, which permanently blocks submit and wizard navigation. Tracked as Phase 13.2.1.
+> **Known issue:** `ValidationDelegate.confirmBeforeSubmit()` clears prior `beforeSubmit` errors at the start of each submit attempt, whereas the `addError()` callback on `beforeLayoutSectionChange` routes into the consumer custom-error channel and persists until `clearCustomError(fieldPath)` is called. Tracked as Phase 13.2.1.
 
 ---
 
@@ -143,8 +143,8 @@ It resolves these into one visual state per field, suppresses errors on hidden f
 
 `uiPolicies` are declarative cross-field rules: `{ effect, targets, condition, message }`.
 
-- **6 condition operators:** `NumericGreaterThan`, `NumericLessThan`, `StringEquals`, `DateLessThan`, `IsNull`, `IsNotNull`.
-- **8 effects** served by 1 plugin file (`BinaryEffectPlugin.ts`; see `npm run metrics`): `Show`/`Hide` (visibility), `Validate`/`Invalidate` (validity), `Require`/`Optional` (required), `Enable`/`Disable` (editable).
+- **<!-- DOC_COUNT:policyConditions -->6 condition operators** (`NumericGreaterThanConditionPlugin`, `NumericLessThanConditionPlugin`, `StringEqualsConditionPlugin`, `DateLessThanConditionPlugin`, `IsNullConditionPlugin`, `IsNotNullConditionPlugin`, sharing pointer/entry helpers in `PolicyConditionUtil`): `NumericGreaterThan`, `NumericLessThan`, `StringEquals`, `DateLessThan`, `IsNull`, `IsNotNull`.
+- **<!-- DOC_COUNT:policyEffects -->8 effects** served by <!-- DOC_COUNT:policyEffectFiles -->1 plugin file (`BinaryEffectPlugin.ts`; see `npm run metrics`): `Show`/`Hide` (visibility), `Validate`/`Invalidate` (validity), `Require`/`Optional` (required), `Enable`/`Disable` (editable).
 
 `$row` tokens in targets and conditions expand per physical table row. The engine keeps a differential state matrix and emits only deltas, including cleanup deltas for targets that disappear (deleted rows).
 
@@ -154,9 +154,9 @@ It resolves these into one visual state per field, suppresses errors on hidden f
 
 `PluginRegistry` is a singleton mapping keys to **module path strings**, loaded lazily through `sap.ui.require`. Registration is cheap; nothing is loaded until a schema needs it.
 
-Registered by `DefaultPluginBootstrapper` (canonical counts reported from AST by `npm run metrics`): **51** `(type, widget)` control/action/datasource mappings, **4** layout strategies, **6** policy conditions, **8** policy effects.
+Registered by `DefaultPluginBootstrapper` (canonical counts reported from AST by `npm run metrics`): **<!-- DOC_COUNT:pluginMappings -->51** `(type, widget)` control/action/datasource mappings (backed by **<!-- DOC_COUNT:concreteWidgetPlugins -->37** concrete plugin classes and **<!-- DOC_COUNT:abstractControlPluginBases -->7** control abstract bases — `BasePlugin`, `OptionListPlugin`, `SingleBoundWidgetPlugin`, `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin`, `HardwareControlPlugin` — plus `ActionButtonPlugin` in `plugins/actions/`), **<!-- DOC_COUNT:layouts -->4** layout strategies, **<!-- DOC_COUNT:policyConditions -->6** policy conditions, **<!-- DOC_COUNT:policyEffects -->8** policy effects.
 
-Separately, `PipelineManager` is an eagerly-constructed singleton holding **14 validators**, **4 formatters**, and **3 parsers** as static imports (reported from AST by `npm run metrics`). These two mechanisms coexist; the difference is historical rather than principled.
+Separately, `PipelineManager` is an eagerly-constructed singleton holding **<!-- DOC_COUNT:validators -->14 validators**, **<!-- DOC_COUNT:formatters -->4 formatters**, and **<!-- DOC_COUNT:parsers -->3 parsers** as static imports (reported from AST by `npm run metrics`). These two mechanisms coexist; the difference is historical rather than principled.
 
 ### Presentational vs transforming formatters
 
@@ -169,7 +169,7 @@ Because attaching a UI5 `formatter` function to a property binding forces `Bindi
 
 **Directory purity:** everything under `plugins/` is a true plugin (`BasePlugin` subclass or a concrete `*Plugin` implementing a plugin interface). Shared helpers live in `utils/` or `core/`.
 
-**Bundling caveat:** the default UI5 library build puts all compiled library modules (see `npm run metrics` for the current `src/` module count) into one `library-preload.js` (~306 KB), so lazy registration currently yields no download saving. `builder.libraryPreload.excludes` in `ui5.yaml` is the supported lever for changing that.
+**Bundling caveat:** the default UI5 library build puts all compiled library modules (see `npm run metrics` for the current `src/` module count) into one `library-preload.js` (~<!-- DOC_MEASURE:bundlePreloadKB tolerance=5% source=npm-run-build -->408 KB raw), so lazy registration yields execution deferral rather than download saving. `builder.bundles` / `builder.libraryPreload.excludes` in `ui5.yaml` is the lever for changing that.
 
 ---
 
@@ -188,11 +188,21 @@ The wizard is a custom composable rather than `sap.m.Wizard`, because that contr
 
 ---
 
+## 9a. Shared utilities, accessibility and internationalization
+
+- **`utils/AccessibilityUtil.ts`** owns WAI-ARIA association and screen-reader plumbing across generated controls and layouts (`applyAriaLabelledBy`, `applyAriaDescribedBy`, `applyTooltipAndDescription`, `ensureControlLabelled`, `ensureFieldLabelledByText`, `syncValidationStateDescription`, `syncRequiredAriaDescription`, `applyDialogLandmark`, `applyTableAccessibility`, `applyGroupAccessibility`, `destroyAssociatedInvisibleTexts`, `IAccessibilityContext`, `IAriaLabelSupport`, `IAriaDescriptionSupport`, `isAriaLabelSupport`, `isAriaDescriptionSupport`). Extracted from `ControlDirectiveUtil.ts` so directive binding (`ControlDirectiveUtil.ts`) and ARIA/screen-reader association (`AccessibilityUtil.ts`) have separate single-purpose owners.
+- **`utils/I18n.ts`** owns localized runtime text resolution via `TEXT_KEY` (<!-- DOC_COUNT:i18nTextKeys -->111 keys) backed by `messagebundle.properties`, `messagebundle_en.properties` and `messagebundle_de.properties`.
+- **`utils/ControlCapabilities.ts`** owns `vetControlProperty`, `writeControlProperty`, capability type guards, remote data-source list extraction, and nested modal dialog launching.
+- **`utils/DictionaryMapUtil.ts`** and **`utils/PolymorphicUtil.ts`** own the row serialization and variant-resolution helpers for `DictionaryMapPlugin` and `PolymorphicPlugin`.
+- **`controls/BaseHardwareControl.ts`** and **`controls/BaseHardwareControlRenderer.ts`** provide the shared UI5 control lifecycle and renderer for `CameraControl`, `SignatureControl`, `GeolocationControl` and `VoiceInputControl`.
+
+---
+
 ## 10. Schema ingestion
 
-`SchemaNormalizer` deep-clones its input, resolves `$defs`/`definitions` and nullable type arrays, and merges inferred properties when `additionalProperties: true` (hybrid inference) or when no schema is supplied (full inference, via `DataInferenceBuilder`).
+`SchemaNormalizer` deep-clones its input, resolves `$defs`/`definitions` and nullable type arrays, delegates directive normalization to `SchemaDirectiveNormalizer`, and merges inferred properties when `additionalProperties: true` (hybrid inference) or when no schema is supplied (full inference, via `DataInferenceBuilder`). `SchemaNormalizer.stripWriteOnlyValues` strips `writeOnly` properties from inbound payloads before seeding `StateManager`, `ODataDelegate.sanitizeODataPayload` flattens OData V2 `Date` instances and strips OData system keys, `SafeConvert` (`safeToString`, `safeToNumber`) provides null-safe primitive coercion, and `PatternValidatorPlugin` (`analyzeBacktracking`) screens `pattern` regular expressions for super-linear backtracking before compilation.
 
-`SchemaBuilderRegistry` dispatches non-JSON-Schema inputs to a builder; `OpenApiBuilder` handles OpenAPI 2.0/3.0 through version-specific parsers.
+`SchemaBuilderRegistry` dispatches non-JSON-Schema inputs to a builder; `OpenApiBuilder` handles OpenAPI 2.0/3.0 through `OpenApiParserFactory`, `OpenApi2Parser`, `OpenApi3Parser`, `BaseOpenApiParser`, `OpenApiPropertyMapper`, `OpenApiConstraintMapper`, `OpenApiTypeMapper`, `OpenApiUIMapper`, `OpenApiRefResolver`, `OpenApiHeuristicEngine` (`ProtobufVariantHeuristic`), and `OpenApiExtractor`.
 
 **Input immutability is a hard invariant:** passing a `schemaDefinition` or `data` object into `DynamicHost` must never mutate the caller's object. This is enforced at two independent points (`GenerationDelegate` deep-clones both; `OpenApiBuilder` clones the spec) and is covered by test.
 
@@ -224,10 +234,17 @@ Three pieces of evidence that this is self-perpetuating rather than historical:
 
 ### `core/SchemaWalker.ts`
 
-The single canonical traversal of the schema tree. It owns depth capping (from
-`MAX_SCHEMA_DEPTH`), path-scoped cycle detection, `$ref` resolution via `OpenApiRefResolver`,
-`ui.visible: false` skipping, and JSON-Pointer scope construction. Read-only traversals delegate to
-it and supply a visitor.
+The single canonical traversal engine for schema, layout, raw-record and paired `(schema, payload)` trees (`SchemaWalker.walk`, `SchemaWalker.walkPaired`, `SchemaWalker.toBindingPath`, `SchemaWalker.resolveScope`). It owns depth capping (from `MAX_SCHEMA_DEPTH`), path-scoped cycle detection, `$ref` resolution via `OpenApiRefResolver`, `ui.visible: false` skipping, and JSON-Pointer scope and binding-path construction (`ITreeChild`, `ChildKind`, `ISchemaVisitContext`, `IPairedVisitContext`, `IPairCursor`, `ISchemaWalkOptions`, `ISchemaWalkPairedOptions`, `SchemaVisitor`, `PairedSchemaVisitor`, `SchemaVisitorResult`).
+
+1. **Shape-parameterised single-tree traversal (`SchemaWalker.walk<TNode>(root, visitor, options)`)**:
+   Parameterised by `ITreeShape<TNode>`, with four built-in shapes:
+   - `SchemaShape` (`ISchema` / `IPropertyMetadata`: `properties`, `items`, `additionalProperties`, `oneOf`/`anyOf`/`allOf`, `$ref` resolution)
+   - `LayoutElementShape` (`ILayoutElement`: `elements[]` children in `uiLayout` trees, used by `LayoutElementWalker`)
+   - `RawRecordShape` (`Record<string, unknown>`: raw unnormalized JSON Schema / OpenAPI object trees, used by `SchemaNormalizer`, `OpenApiPropertyMapper`, `OpenApiConstraintMapper`, and `DataInferenceBuilder`)
+   - `JsonPayloadShape` (arbitrary JSON object/array payloads)
+   Supports both pre-order `visitor(ctx)` and post-order `options.onLeave(ctx)` callbacks so bottom-up producers and aggregators share the same depth and cycle machinery as top-down readers.
+2. **Lockstep paired traversal (`SchemaWalker.walkPaired(rootSchema, rootData, visitor, options)`)**:
+   Co-traverses a normalized `ISchema` tree and a runtime payload (`unknown`) in lockstep, sharing `MAX_SCHEMA_DEPTH`, path-scoped cycle detection on both schema nodes and payload object references, `$ref` resolution, and array-element fan-out (`PayloadValidator`, `DataSyncDelegate.injectSchemaDefaults`, `SchemaNormalizer.stripWriteOnlyValues`, `ODataDelegate.sanitizeODataPayload`).
 
 Cycle detection is **path-scoped** — a node is added on entry and removed on exit. A flat `visited`
 set is wrong: it breaks legitimate diamonds, where the same `$ref` is reached by two sibling
@@ -238,40 +255,33 @@ Scope and binding path are both carried because they are not interchangeable: th
 not injective for array items (`#/items` versus a property literally named `items`), which is why
 `LayoutScorer`'s decision table is keyed on scope.
 
-### Why some walkers are legitimately exempt
+### Why only <!-- DOC_COUNT:singleWalkerExemptions -->4 `WALKER_EXEMPT` sites remain
 
-A `WALKER_EXEMPT:` comment, audited by the `[SINGLE_WALKER]` gate, marks a traversal that cannot
-use `SchemaWalker`. There are exactly two valid reasons, and neither is "it was inconvenient":
+A `WALKER_EXEMPT:` comment, audited by the `[SINGLE_WALKER]` gate, marks a recursive function that cannot delegate to `SchemaWalker.walk` or `SchemaWalker.walkPaired`. Since the generalisation onto `ITreeShape<TNode>`, `onLeave` and `walkPaired`, both co-inductive payload walkers and bottom-up schema producers run on `SchemaWalker`, leaving only **<!-- DOC_COUNT:singleWalkerExemptions -->4** exempt sites in `src/`:
 
-- **Co-inductive walkers** traverse a schema *and* a runtime payload in lockstep — `PayloadValidator.validateTree`,
-  `DataSyncDelegate.injectSchemaDefaults`, `SchemaNormalizer.stripWriteOnlyNode`,
-  `ODataDelegate.sanitizeODataPayload`, `TypeGuards.cloneInternal`. A single-tree walker cannot
-  serve a two-tree traversal.
-- **Bottom-up producers** build `IPropertyMetadata` from raw, unnormalized input —
-  `SchemaNormalizer.normalizeProperties`, `OpenApiPropertyMapper.mapProperties`,
-  `OpenApiConstraintMapper.resolveAllOf`, `DataInferenceBuilder`. There is no schema to walk yet;
-  they are creating one.
-
-If a new traversal fits neither description, it belongs on `SchemaWalker`.
+1. `LayoutScorer.scoreNode` — coupled top-down inherited `layoutBudget` and bottom-up `(score, renderMode, resolvedMeta, subTable)` tuple synthesis.
+2. `LayoutScorer.scoreRefNode` — `$ref` memoization in `refMemo` keyed by `(refPath, effectiveBudget)`.
+3. `LayoutScorer.scoreArrayNode` — entered from `LayoutScorer.scoreNode` at the same scope and depth without advancing depth.
+4. `TypeGuards.cloneInternal` (backing `deepClone`) — a pure value cloner with no schema and its own `MAX_CLONE_DEPTH` cap.
 
 ### The pattern worth copying
 
 `PipelineManager` *asks* each validator for its rule — `extractRule(meta)` — rather than pushing
-metadata into it. All fourteen validators implement it, and it is **the only mapping in this
+metadata into it. All <!-- DOC_COUNT:validators -->14 validators implement it, and it is **the only mapping in this
 framework that has never produced a twin.** Every push-model mapping has. Prefer a pull model when
 adding a new mapping.
 
 ---
 
-## 10b. Structural gates
+## 10b. Structural and documentation gates
 
-`npm run lint` runs ten machine-checked architectural gates alongside the AST lint. They are not
+`npm run lint` runs **<!-- DOC_COUNT:structuralGates -->10** machine-checked source architectural gates plus the documentation integrity gates alongside the AST lint. They are not
 style rules; each one exists because the divergence it catches has already happened here at least
 once.
 
 | Gate | Enforces |
 |---|---|
-| `[PRODUCER_COMPLETENESS]` | Every `IPropertyMetadata` / `IUIDirective` member is written by each known producer, or named in that producer's `DECLINED_SCHEMA_FIELDS` with a justification. Adding a field to `ISchema.ts` fails the build until all producers take a position on it. |
+| `[PRODUCER_COMPLETENESS]` | Every `IPropertyMetadata` / `IUIDirective` member (`PropertySchemaMemberKey`) is written by each known producer (`IPropertyProducerContract`), or named in that producer's `DECLINED_SCHEMA_FIELDS` (`DeclinedSchemaFieldsMap`) with a justification. Adding a field to `ISchema.ts` fails the build until all producers take a position on it. |
 | `[DEPTH_CONSTANT]` | No numeric literal in a depth comparison; no `MAX_*_DEPTH` declared outside `constants/MetaUIConstants.ts`; `MAX_SCHEMA_DEPTH` may not fall below `MAX_LAYOUT_DEPTH`. Tests may read a cap, never restate it. |
 | `[SINGLE_WALKER]` | No recursive schema-tree traversal outside `SchemaWalker`, unless carrying a `WALKER_EXEMPT:` justification. |
 | `[REF_RESOLVER]` | No hand-rolled `$ref` parsing outside `OpenApiRefResolver`. |
@@ -281,9 +291,13 @@ once.
 | `[CATCH_SIGNAL]` | A caught failure logs, rethrows or fires; otherwise it needs a counted `// CATCH_EXEMPT:` justification. |
 | `[DEPTH_SIGNAL]` | A depth guard names its limit and what it discarded. No silent truncation. |
 | `[RENDER_DEGRADATION]` | A layout `catch` sets `engine.hasPartialRenderingErrors`, so the partial-render banner appears. |
+| `[DOC_SYMBOL]` | Two-way symbol parity between `src/` and `docs/`: every backticked symbol cited in prose must exist in `src/` (or `DOC_SYMBOL_ALLOWLIST`), and every exported module / public or extension API member must be documented in `docs/` (or `UNDOCUMENTED_SYMBOL_ALLOWLIST`). |
+| `[DOC_COUNT]` | Every `<!-- DOC_COUNT:key -->` figure in Markdown must match the live AST-derived metric from `npm run metrics`. |
+| `[DOC_CODE]` | Every fenced `typescript` block in Markdown must compile under `tsc`, and every fenced `json` / `jsonc` block must parse. |
+| `[DOC_MEASURE]` | Every `<!-- DOC_MEASURE:key ... -->` figure in Markdown must either fall within its declared `tolerance` against the live build artefact or carry a `measured=YYYY-MM-DD` timestamp within its `maxAgeDays` staleness window, with an explicit `source=<cmd>`. |
 
-**`scripts/prove-structural-gates.js` is the executable explanation.** It injects one divergence
-per gate into `src/`, asserts the gate catches it *by name*, and restores the tree. If a gate's
+**`scripts/prove-structural-gates.js` is the executable explanation** (<!-- DOC_COUNT:gateProofCases -->26 injected divergences caught across the source and documentation gates). It injects a divergence
+per gate, asserts the gate catches it *by name*, and restores the tree. If a gate's
 purpose is unclear, read its proof case — that is the specification.
 
 Before concluding a gate is wrong and exempting past it: every exemption is counted and reported in

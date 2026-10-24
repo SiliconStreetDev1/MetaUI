@@ -16,6 +16,15 @@ export interface IFormatter {
      * @returns The formatted string for the UI control.
      */
     format(rawValue: unknown, args?: unknown): string;
+
+    /**
+     * Optional reverse parser that converts UI-formatted strings back into raw model values.
+     * When implemented, `PipelineManager` treats the formatter as presentational (reversible).
+     * @param uiValue The value extracted from the UI control.
+     * @param args Optional arguments provided in the schema.
+     * @returns The raw typed value for the JSON payload.
+     */
+    parse?(uiValue: unknown, args?: unknown): unknown;
 }
 
 /**

@@ -27,6 +27,9 @@ export type DataSourceOriginMode = "any" | "same-origin" | "allowlist";
 /**
  * Validates URL strings against safe navigation and media protocols to prevent XSS via unsafe URI schemes,
  * and enforces the outbound-fetch policy for schema-supplied data source endpoints.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.utils
+ * @public
  */
 export class UrlValidator {
     private static dataSourceOriginMode: DataSourceOriginMode = "any";
@@ -141,7 +144,7 @@ export class UrlValidator {
             try {
                 normalized.add(new URL(origin).origin);
             } catch {
-                Logger.warn("[MetaUI UrlValidator]", `Ignoring unparseable allowlist origin '${origin}'.`, "UrlValidator");
+                Logger.warn(`Ignoring unparseable allowlist origin '${origin}'.`, undefined, "UrlValidator");
             }
         }
         this.dataSourceAllowedOrigins = normalized;
@@ -210,9 +213,9 @@ export class UrlValidator {
         }
         this.reportedCrossOrigins.add(origin);
         Logger.warn(
-            "[MetaUI UrlValidator]",
             `Schema-supplied data source targets cross-origin '${origin}'. ` +
-                "Call UrlValidator.setDataSourceOriginPolicy('same-origin'|'allowlist', …) when schemas are untrusted.",
+            "Call UrlValidator.setDataSourceOriginPolicy('same-origin'|'allowlist', …) when schemas are untrusted.",
+            undefined,
             "UrlValidator"
         );
     }

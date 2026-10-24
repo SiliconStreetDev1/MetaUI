@@ -30,9 +30,9 @@ export class DateLessThanConditionPlugin implements IPolicyConditionPlugin {
     ): boolean {
         if (!isRecord(conditionPayload) || Object.keys(conditionPayload).length === 0) {
             Logger.warn(
-                "[MetaUI PolicyEngine]",
                 `Malformed condition payload for operator 'DateLessThan': ` +
-                    `expected non-empty object, got ${typeof conditionPayload}. Failing closed (false).`,
+                `expected non-empty object, got ${typeof conditionPayload}. Failing closed (false).`,
+                undefined,
                 "DateLessThanConditionPlugin"
             );
             return false;

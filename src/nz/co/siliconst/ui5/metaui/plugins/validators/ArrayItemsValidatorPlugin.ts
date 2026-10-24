@@ -73,7 +73,7 @@ export class ArrayItemsValidatorPlugin implements IValidator {
         if (!isRecord(args)) {
             return {
                 isValid: false,
-                errorMessage: "Schema configuration error: 'arrayItems' requires a minItems/maxItems/uniqueItems object."
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigArrayItemsObject)
             };
         }
         if (!Array.isArray(parsedValue)) return { isValid: true };

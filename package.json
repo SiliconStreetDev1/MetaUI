@@ -50,6 +50,7 @@
     "api:check": "node .github/scripts/api-surface.js dist --check .github/api-surface.txt",
     "verify:package": "node .github/scripts/verify-package.js dist",
     "gen:accessors": "node scripts/generate-control-accessors.js",
+    "gen:cheatsheet": "node scripts/generate-ai-cheatsheet.js",
     "api:tiers": "node .github/scripts/api-surface.js dist --tier-report"
   },
   "engines": {

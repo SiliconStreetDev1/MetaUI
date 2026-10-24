@@ -11,6 +11,7 @@ import Input from "sap/m/Input";
 import Button from "sap/m/Button";
 import FlexItemData from "sap/m/FlexItemData";
 import { ButtonType, FlexAlignItems } from "sap/m/library";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Minimal structural typing for the browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`).
@@ -75,7 +76,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
 
         this.textInput = new Input({
             width: "100%",
-            placeholder: "Speak or type here...",
+            placeholder: I18n.getText(TEXT_KEY.voiceInputPlaceholder),
             layoutData: new FlexItemData({ growFactor: 1 }),
             change: () => {
                 const newVal = this.textInput.getValue();
@@ -86,7 +87,7 @@ export default class VoiceInputControl extends BaseHardwareControl {
 
         this.recordBtn = new Button({
             icon: "sap-icon://microphone",
-            tooltip: "Start Voice Input",
+            tooltip: I18n.getText(TEXT_KEY.voiceInputStart),
             type: ButtonType.Default,
             press: () => {
                 this.toggleRecording();

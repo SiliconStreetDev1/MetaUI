@@ -28,6 +28,7 @@ import {
     CurrencyFormatterPlugin
 } from "../../src/nz/co/siliconst/ui5/metaui/plugins/formatters/CurrencyFormatterPlugin";
 import { DateFormatterPlugin } from "../../src/nz/co/siliconst/ui5/metaui/plugins/formatters/DateFormatterPlugin";
+import { safeToString, safeToNumber } from "../../src/nz/co/siliconst/ui5/metaui/core/SafeConvert";
 
 describe("PhoneFormatterPlugin — format", () => {
     const phone = new PhoneFormatterPlugin();
@@ -366,5 +367,75 @@ describe("DateFormatterPlugin — parse", () => {
                 assert.deepStrictEqual(dateFormatter.parse(once), once);
             })
         );
+    });
+});
+
+describe("SafeConvert ? total primitive conversions", () => {
+    it("safeToString matches String(value) for ordinary values and falls back cleanly when ToPrimitive throws", () => {
+        assert.strictEqual(safeToString("hello"), "hello");
+        assert.strictEqual(safeToString(42), "42");
+        assert.strictEqual(safeToString(null), "null");
+        assert.strictEqual(safeToString(undefined), "undefined");
+
+        // Object whose ToPrimitive throws TypeError, falling back to JSON.stringify
+        const hostileJson = { a: 1, toString: 0, valueOf: 0 };
+        assert.strictEqual(safeToString(hostileJson), JSON.stringify(hostileJson));
+
+        // Object whose ToPrimitive throws AND whose JSON.stringify returns undefined, falling back to Object.prototype.toString
+        const hostileUndefinedJson = { toString: 0, valueOf: 0, toJSON: () => undefined };
+        assert.strictEqual(safeToString(hostileUndefinedJson), "[object Object]");
+
+        // Circular object whose ToPrimitive throws AND whose JSON.stringify throws, falling back to Object.prototype.toString
+        const hostileCircular: Record<string, unknown> = { toString: 0, valueOf: 0 };
+        hostileCircular.self = hostileCircular;
+        assert.strictEqual(safeToString(hostileCircular), "[object Object]");
+    });
+
+    it("safeToNumber matches Number(value) for ordinary values and returns NaN when ToPrimitive throws", () => {
+        assert.strictEqual(safeToNumber(42), 42);
+        assert.strictEqual(safeToNumber("12.5"), 12.5);
+        assert.ok(Number.isNaN(safeToNumber("not-a-number")));
+        assert.ok(Number.isNaN(safeToNumber({ toString: 0, valueOf: 0 })));
+    });
+});
+
+describe("CurrencyFormatterPlugin & DateFormatterPlugin ? edge-case coverage", () => {
+    const currency = new CurrencyFormatterPlugin();
+    const dateFormatter = new DateFormatterPlugin();
+
+    it("CurrencyFormatterPlugin handles trimmed symbols, sign placement before/after symbol, scientific notation, and malformed strings", () => {
+        assert.strictEqual(currency.format("123.45"), "$123.45");
+        assert.strictEqual(currency.parse("1e3"), 1000);
+        assert.strictEqual(currency.parse(".5"), 0.5);
+        assert.strictEqual(currency.parse("? 12.50", "  ?  "), 12.5);
+        assert.strictEqual(currency.parse("$12.50", "   "), 12.5);
+        assert.strictEqual(currency.parse("$ -12.50"), -12.5);
+        assert.strictEqual(currency.parse("- $12.50"), -12.5);
+        assert.strictEqual(currency.parse("$ - 12.50"), -12.5);
+        assert.strictEqual(currency.parse("+ $12.50"), 12.5);
+        assert.strictEqual(currency.parse("$ +12.50"), 12.5);
+        assert.strictEqual(currency.parse("-$ +12.50"), -12.5);
+        assert.strictEqual(currency.parse("$ 12.50-"), "$ 12.50-");
+        assert.strictEqual(currency.parse("$123"), 123);
+        assert.strictEqual(currency.parse("$123.45"), 123.45);
+        assert.strictEqual(currency.parse("$12.34.56"), "$12.34.56");
+        assert.strictEqual(currency.parse("$abc.12"), "$abc.12");
+        assert.strictEqual(currency.parse("$12.ab"), "$12.ab");
+    });
+
+    it("DateFormatterPlugin handles non-ISO parseable dates, anchored ISO strings, and 3-digit years", () => {
+        assert.strictEqual(dateFormatter.format("October 15, 2026"), "Oct 15, 2026");
+        assert.strictEqual(dateFormatter.format("99:99 2026-10-15"), "99:99 2026-10-15");
+        assert.strictEqual(dateFormatter.format("2026-10-15 99:99"), "2026-10-15 99:99");
+        assert.strictEqual(dateFormatter.parse("prefix 2026-10-15"), "prefix 2026-10-15");
+        assert.strictEqual(dateFormatter.parse("2026-10-15 suffix"), "2026-10-15 suffix");
+        assert.strictEqual(dateFormatter.parse("Jan 2, 500"), "0500-01-02");
+        assert.strictEqual(dateFormatter.format("  2023-02-29  "), "2023-02-29");
+        assert.strictEqual(dateFormatter.format("0050-05-10"), "0050-05-10");
+        assert.strictEqual(dateFormatter.parse("  2023-02-29  "), "  2023-02-29  ");
+        assert.strictEqual(dateFormatter.parse("  2026-13-01  "), "  2026-13-01  ");
+        assert.strictEqual(dateFormatter.parse("  0050-05-10  "), "  0050-05-10  ");
+        assert.strictEqual(dateFormatter.parse("  99:99 2026-10-15  "), "  99:99 2026-10-15  ");
+        assert.strictEqual(dateFormatter.parse("  2026-10-15 99:99  "), "  2026-10-15 99:99  ");
     });
 });

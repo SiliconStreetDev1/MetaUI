@@ -23,9 +23,9 @@ export class NumericGreaterThanConditionPlugin implements IPolicyConditionPlugin
     public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean {
         if (!isRecord(conditionPayload) || Object.keys(conditionPayload).length === 0) {
             Logger.warn(
-                "[MetaUI PolicyEngine]",
                 `Malformed condition payload for operator 'NumericGreaterThan': ` +
-                    `expected non-empty object, got ${typeof conditionPayload}. Failing closed (false).`,
+                `expected non-empty object, got ${typeof conditionPayload}. Failing closed (false).`,
+                undefined,
                 "NumericGreaterThanConditionPlugin"
             );
             return false;

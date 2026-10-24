@@ -48,7 +48,7 @@ export class SchemaBuilderRegistry {
             }
         }
 
-        Logger.warn("[SchemaBuilderRegistry]", "No suitable Schema Builder plugin found for the provided payload.");
+        Logger.warn("No suitable Schema Builder plugin found for the provided payload.", undefined, "SchemaBuilderRegistry");
         return null;
     }
 }

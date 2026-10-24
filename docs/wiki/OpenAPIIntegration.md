@@ -16,7 +16,7 @@ The primary entry point for converting OpenAPI to a MetaUI Schema is the `OpenAp
 
 ## Type and Constraint Mapping
 
-The `OpenApiPropertyMapper` and its related utilities rigorously translate OpenAPI constraints to native MetaUI validation.
+`OpenApiParserFactory` dispatches OpenAPI 2.0 documents to `OpenApi2Parser` and OpenAPI 3.0 documents to `OpenApi3Parser` (both extending `BaseOpenApiParser`). `OpenApiPropertyMapper`, `OpenApiConstraintMapper`, `OpenApiTypeMapper`, `OpenApiUIMapper`, `OpenApiRefResolver`, and `OpenApiHeuristicEngine` (`ProtobufVariantHeuristic`) translate OpenAPI types, formats, and constraints into normalized `ISchema` metadata.
 
 ### Type Translation
 
@@ -45,7 +45,7 @@ MetaUI respects OpenAPI constraints by directly mapping them onto `IPropertyMeta
 Operational flags from OpenAPI map onto the normalized `IPropertyMetadata`:
 
 - **`readOnly`**: Makes the Fiori widget non-editable (`sap.m.InputBase#editable = false`).
-- **`writeOnly`**: Preserved on `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime).
+- **`writeOnly`**: Preserved on `IPropertyMetadata` and enforced at runtime by `SchemaNormalizer.stripWriteOnlyValues()`, which strips `writeOnly` fields from the inbound data payload before seeding `StateManager`.
 - **`nullable`**: Enforced by `RequiredValidatorPlugin` (`nullable: false` rejects `null`; `nullable: true` permits `null` even when `required: true`). Also normalized from OpenAPI 2.0 `x-nullable` and Draft 2020-12 `type: [..., "null"]`.
 
 ---

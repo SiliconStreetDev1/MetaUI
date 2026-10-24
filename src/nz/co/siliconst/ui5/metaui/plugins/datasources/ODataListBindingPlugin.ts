@@ -76,15 +76,11 @@ export class ODataListBindingPlugin extends BasePlugin {
         });
 
         if (!ds || !ds.url || !ds.keyField || !ds.textField) {
-            Logger.warn(
-                "[MetaUI ODataListBindingPlugin]",
-                "Incomplete dataSource configuration for odataSelect widget.",
-                "ODataListBindingPlugin"
-            );
+            Logger.warn("Incomplete dataSource configuration for odataSelect widget.", undefined, "ODataListBindingPlugin");
         } else if (!ODataListBindingPlugin.isEntitySetPath(ds.url)) {
             Logger.warn(
-                "[MetaUI ODataListBindingPlugin]",
                 `REFUSED dataSource.url '${ds.url}': odataSelect expects a model entity set path, not an absolute URL.`,
+                undefined,
                 "ODataListBindingPlugin"
             );
         } else {

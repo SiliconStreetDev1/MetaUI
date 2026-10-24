@@ -13,7 +13,7 @@ MetaUI is an engine that dynamically generates SAPUI5 Fiori layouts based on JSO
 ### A. Declarative Usage (XML Views)
 You can embed it directly into any Fiori view via the `DynamicHost` wrapper.
 ```xml
-<mvc:View xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+<mvc:View xmlns:mvc="sap.ui.core.mvc" xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
     <meta:DynamicHost
         id="myHost"
         width="100%"                        <!-- sap.ui.core.CSSSize (default "100%") -->
@@ -23,7 +23,7 @@ You can embed it directly into any Fiori view via the `DynamicHost` wrapper.
         liveUpdate="false"                  <!-- false: Transactional Mode (protects parent model). true: Continuous Two-Way Binding -->
         useMessageManager="true"            <!-- Routes errors to global MessagePopover -->
         submit=".onFormSubmit"              <!-- Fired when validation passes -->
-        fieldChange=".onFieldChange"        <!-- Fired instantly on every keystroke -->
+        fieldChange=".onFieldChange"        <!-- Fired when a field's change event commits -->
     />
 </mvc:View>
 ```
@@ -65,7 +65,7 @@ The framework accepts data through three paths:
 When generating or editing a MetaUI JSON Schema (`schemaDefinition`), you must **only** use the properties defined below. 
 
 ### A. Root Schema Level (`ISchema`)
-```json
+```jsonc
 {
     "title": "My Form",
     "type": "object", // or "array"
@@ -107,9 +107,9 @@ Every field inside `properties` supports standard JSON-Schema validation and Met
 - `multipleOf`: number
 - `pattern`: string (regex). **Hard limits:** max 512 characters, and a repetition shape that is provably ambiguous — a quantifier over a group built only from variable-length elements (`(a+)+`, `(a?)*`, `(\w+\s?)*`) or over an alternation whose branches can start with the same token (`(a|a)+`, `(a|)+`) — is refused as a denial-of-service risk and reported as a schema configuration error on the field. Anchor repeated groups with at least one fixed atom (`([a-z]+\.)+`, `(\d{4})+`) and they are accepted.
 - `valueHelp`: Array of `{"key": "id", "text": "Label"}` or `{ "url": "/api", "keyPath": "id", "textPath": "name" }`
-- `enum`: string[] | number[]
-- `readOnly`, `writeOnly`, `nullable`: boolean
-- `default`, `example`: unknown
+- `enum`: (string | number | boolean | null)[]
+- `readOnly`, `writeOnly`, `nullable`: boolean (`writeOnly` properties are stripped from the inbound payload by `SchemaNormalizer.stripWriteOnlyValues` before seeding `StateManager`)
+- `default`, `example`: unknown (scalar `example` values serve as the control placeholder fallback when `ui.placeholder` is omitted)
 
 **Array & Object Validations:**
 - `maxItems`, `minItems`, `uniqueItems` (Arrays)
@@ -122,10 +122,11 @@ Every field inside `properties` supports standard JSON-Schema validation and Met
 
 ### C. The `ui` Directive (`IUIDirective`)
 The `ui` block dictates exactly how the field renders visually.
-```json
-"fieldName": {
-    "type": "string",
-    "ui": {
+```jsonc
+{
+    "fieldName": {
+        "type": "string",
+        "ui": {
         "label": "My Label",
         "placeholder": "Enter text...",
         "widget": "textArea",     // The explicit UI control (See Section 2D)
@@ -159,6 +160,7 @@ The `ui` block dictates exactly how the field renders visually.
         "labelSpan": 4,           // Root-level SimpleForm label span override (1-12 for label-beside-field, or 0 to hide labels)
         "controlProps": {
             "placeholder": "Enter text..."
+        }
         }
     }
 }
@@ -194,22 +196,24 @@ By default, the engine generates fields sequentially. To orchestrate complex Fio
 **Supported Element Types:** `Group`, `Control`, `HorizontalLayout`, `VerticalLayout`, `WizardStep`
 
 ```json
-"uiLayout": [
-    {
-        "type": "Group",
-        "label": "Personal Info",
-        "elements": [
-            { "type": "Control", "scope": "#/properties/FirstName" },
-            { 
-                "type": "HorizontalLayout", 
-                "elements": [
-                    { "type": "Control", "scope": "#/properties/Age" },
-                    { "type": "Control", "scope": "#/properties/Gender" }
-                ]
-            }
-        ]
-    }
-]
+{
+    "uiLayout": [
+        {
+            "type": "Group",
+            "label": "Personal Info",
+            "elements": [
+                { "type": "Control", "scope": "#/properties/FirstName" },
+                { 
+                    "type": "HorizontalLayout", 
+                    "elements": [
+                        { "type": "Control", "scope": "#/properties/Age" },
+                        { "type": "Control", "scope": "#/properties/Gender" }
+                    ]
+                }
+            ]
+        }
+    ]
+}
 ```
 
 ---
@@ -222,19 +226,21 @@ The root-level `uiPolicies` array dynamically toggles field states natively with
 - **Operators**: `NumericGreaterThan`, `NumericLessThan`, `StringEquals`, `DateLessThan`, `IsNull`, `IsNotNull` (via `IPolicyConditionPlugin`).
 
 ```json
-"uiPolicies": [
-    {
-        "effect": "Hide",
-        "targets": ["/SpouseName"],
-        "condition": { "StringEquals": { "/MaritalStatus": "Single" } }
-    },
-    {
-        "effect": "Invalidate",
-        "targets": ["/Age"],
-        "message": "Must be 18 or older",
-        "condition": { "NumericLessThan": { "/Age": 18 } }
-    }
-]
+{
+    "uiPolicies": [
+        {
+            "effect": "Hide",
+            "targets": ["/SpouseName"],
+            "condition": { "StringEquals": { "/MaritalStatus": "Single" } }
+        },
+        {
+            "effect": "Invalidate",
+            "targets": ["/Age"],
+            "message": "Must be 18 or older",
+            "condition": { "NumericLessThan": { "/Age": 18 } }
+        }
+    ]
+}
 ```
 
 ---
@@ -248,15 +254,23 @@ Create a class extending `BasePlugin`. You must implement `render()`, `getValue(
 
 ```typescript
 import { BasePlugin } from "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin";
+import { IPropertyMetadata } from "nz/co/siliconst/ui5/metaui/interfaces/ISchema";
+import Control from "sap/ui/core/Control";
 import Input from "sap/m/Input";
 
 export class MyCustomPlugin extends BasePlugin {
-    public render(fieldMetadata, bindingPath, modelName, engineScopeId, onChange) {
+    public render(
+        fieldMetadata: IPropertyMetadata,
+        bindingPath: string,
+        modelName: string = "meta",
+        engineScopeId?: string,
+        onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void
+    ): Control {
         this.initialize(fieldMetadata, bindingPath, modelName, onChange);
         
         this.control = new Input({
             id: this.generateStableId(engineScopeId, bindingPath),
-            value: `{${modelName}>${bindingPath}}`,
+            value: this.generateBindingInfo(bindingPath, modelName),
             change: () => {
                 this.notifyChange();
             }
@@ -267,19 +281,21 @@ export class MyCustomPlugin extends BasePlugin {
         return this.control;
     }
 
-    protected getValue() { return (this.control as Input).getValue(); }
-    protected applyState() { /* Handle ReadOnly / Editable toggling natively */ }
+    protected getValue(): unknown { return (this.control as Input).getValue(); }
+    protected applyState(): void { /* Handle ReadOnly / Editable toggling natively */ }
 }
 ```
 
 ### B. Registering the Plugin
 Map it in `PluginRegistry.ts` so the engine knows how to resolve the `ui.widget` hint:
 ```typescript
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
+
 PluginRegistry.getInstance().registerPluginPath("string", "myCustomWidget", "my/custom/app/plugins/MyCustomPlugin");
 ```
 
 ### C. Built-in & Custom Validation / Formatting Rules
-`PipelineManager` registers 14 built-in validators (`required`, `minLength`, `maxLength`, `pattern`, `range`, `multipleOf`, `arrayItems`, `email`, `url`, `iban`, `enum`, `const`, `integer`, `objectProperties`), 4 built-in formatters (`date`, `phone`, `textCase`, `currency`), and 3 built-in presentational parsers (`date`, `phone`, `currency`).
+`PipelineManager` registers <!-- DOC_COUNT:validators -->14 built-in validators (`required`, `minLength`, `maxLength`, `pattern`, `range`, `multipleOf`, `arrayItems`, `email`, `url`, `iban`, `enum`, `const`, `integer`, `objectProperties`), <!-- DOC_COUNT:formatters -->4 built-in formatters (`date`, `phone`, `textCase`, `currency`), and <!-- DOC_COUNT:parsers -->3 built-in presentational parsers (`date`, `phone`, `currency`).
 
 - **Presentational vs Transforming Formatters**:
   - `phone`, `currency`, and `date` implement `IParser.parse()` (`PipelineManager.parsers`) and are **presentational** (reversible display masks). On user edits, `BasePlugin.notifyChange()` runs `GlobalPipeline.runParsers()` (in reverse order when `ui.formatters` is an array) so the model stores the raw unformatted value and validators evaluate the raw value.
@@ -293,20 +309,26 @@ PluginRegistry.getInstance().registerPluginPath("string", "myCustomWidget", "my/
     5. Any other string is returned unchanged by both `format()` and `parse()`.
   - **No Built-in Phone Validator**: `ui.format: "phone"` (and `ui.formatter: "phone"`) performs **no validation**. Only `"email"`, `"url"` / `"uri"`, and `"iban"` map to built-in format validators. Validate phone numbers with a schema `pattern` (e.g., `"pattern": "^\\+?\\d{10,15}$"` or `"pattern": "^\\d{10}$"`), which runs against the parsed raw value in the model.
 
-You can also register custom programmatic validation rules into `GlobalPipeline`:
+You can also register custom synchronous validation rules into `GlobalPipeline`:
 ```typescript
 import { GlobalPipeline } from "nz/co/siliconst/ui5/metaui/core/PipelineManager";
+import { IValidationResult } from "nz/co/siliconst/ui5/metaui/interfaces/IPipeline";
 
-GlobalPipeline.validators.register("customAsyncRule", {
-    validate: function(value, args) { return { isValid: value === args.expected }; }
+GlobalPipeline.validators.register("customMatchRule", {
+    validate: function(value: unknown, args?: unknown): IValidationResult {
+        const expected = (args as { expected?: unknown } | undefined)?.expected;
+        return { isValid: value === expected };
+    }
 });
 ```
 Usage in schema:
 ```json
-"ui": {
-    "validators": [
-        { "name": "customAsyncRule", "args": { "expected": "Hello" } }
-    ]
+{
+    "ui": {
+        "validators": [
+            { "name": "customMatchRule", "args": { "expected": "Hello" } }
+        ]
+    }
 }
 ```
 
@@ -318,10 +340,13 @@ import { IPolicyConditionPlugin } from "nz/co/siliconst/ui5/metaui/interfaces/IP
 import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
 
 export class CustomConditionPlugin implements IPolicyConditionPlugin {
-    public canHandle(conditionKey: string): boolean { return conditionKey === "MyCustomCheck"; }
     public evaluate(conditionPayload: unknown, data: unknown, resolvePointer: (d: unknown, p: string) => unknown): boolean {
-        // Logic goes here
-        return true; 
+        if (!conditionPayload || typeof conditionPayload !== "object" || Array.isArray(conditionPayload)) {
+            return false;
+        }
+        void data;
+        void resolvePointer;
+        return true;
     }
 }
 

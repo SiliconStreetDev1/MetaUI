@@ -401,6 +401,55 @@ sap.ui.define([
         );
         pm.parsers.items.delete("_testChainA");
         pm.parsers.items.delete("_testChainB");
+
+        // Stage B: Presentational formatter registered in formatters alone (with optional parse on IFormatter)
+        pm.formatters.register("_testSku", {
+            format: function (rawValue) {
+                var digits = String(rawValue == null ? "" : rawValue).replace(/[^0-9]/g, "");
+                return digits.length === 8 ? digits.slice(0, 4) + "-" + digits.slice(4) : String(rawValue == null ? "" : rawValue);
+            },
+            parse: function (uiValue) {
+                return String(uiValue == null ? "" : uiValue).replace(/[^0-9]/g, "");
+            }
+        });
+        assert.strictEqual(
+            pm.hasPresentationalParser("_testSku"),
+            true,
+            "A formatter carrying parse() in formatters is recognized as presentational without a duplicate parsers registration"
+        );
+        assert.strictEqual(
+            runParsersSafe(pm.runFormatters("12345678", ["_testSku"]), ["_testSku"]),
+            "12345678",
+            "A single-registration presentational formatter round-trips format() -> parse()"
+        );
+        pm.formatters.items.delete("_testSku");
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", sap.ui.require.toUrl("nz/co/siliconst/ui5/metaui/interfaces/IPipeline.d.ts"), false);
+        xhr.send(null);
+        assert.strictEqual(
+            xhr.status === 200 && /interface IFormatter\s*\{[\s\S]*?parse\?\(uiValue:\s*unknown,\s*args\?:\s*unknown\):\s*unknown;/.test(xhr.responseText),
+            true,
+            "IFormatter in shipped IPipeline.d.ts declares optional parse?(uiValue: unknown, args?: unknown): unknown"
+        );
+
+        var lsXhr = new XMLHttpRequest();
+        lsXhr.open("GET", sap.ui.require.toUrl("nz/co/siliconst/ui5/metaui/plugins/datasources/LiveSearchPlugin.d.ts"), false);
+        lsXhr.send(null);
+        assert.strictEqual(
+            lsXhr.status === 200 && /protected scheduleSearch\(/.test(lsXhr.responseText),
+            true,
+            "LiveSearchPlugin.d.ts declares protected scheduleSearch so TypeScript subclasses can override it without TS2415"
+        );
+
+        var vhXhr = new XMLHttpRequest();
+        vhXhr.open("GET", sap.ui.require.toUrl("nz/co/siliconst/ui5/metaui/plugins/datasources/RemoteValueHelpPlugin.d.ts"), false);
+        vhXhr.send(null);
+        assert.strictEqual(
+            vhXhr.status === 200 && /protected openValueHelpDialog\(/.test(vhXhr.responseText),
+            true,
+            "RemoteValueHelpPlugin.d.ts declares protected openValueHelpDialog so TypeScript subclasses can override it without TS2415"
+        );
     });
 
     QUnit.module("Security Hardening: schema-supplied directives are untrusted input");
@@ -1081,8 +1130,8 @@ sap.ui.define([
         );
         assert.strictEqual(
             I18n.getDeclaredKeys().length,
-            73,
-            "TEXT_KEY declares 73 end-user texts (bump this number and the bundles together when adding one)"
+            111,
+            "TEXT_KEY declares 111 end-user texts (bump this number and the bundles together when adding one)"
         );
         assert.deepEqual(
             unresolved,
@@ -1287,8 +1336,8 @@ sap.ui.define([
             );
             assert.deepEqual(
                 deUntranslated,
-                ["metaui.validation.field", "metaui.nested.object.label"],
-                "the only texts identical in German are the bare placeholder frame and the word 'Details', " +
+                ["metaui.validation.field", "metaui.nested.object.label", "metaui.dialog.submit"],
+                "the only texts identical in German are the bare placeholder frame and the words 'Details' and 'OK', " +
                     "which German spells the same way; every other text is actually translated"
             );
             assert.deepEqual(
@@ -1369,7 +1418,29 @@ sap.ui.define([
         "plugins/controls/BasePlugin.ts": [
             "failed to initialize, so its value could not be validated.",
             "failed to render, so its value could not be validated."
-        ]
+        ],
+        "core/PipelineManager.ts": ["Schema configuration error:"],
+        "plugins/validators/ArrayItemsValidatorPlugin.ts": ["Schema configuration error:"],
+        "plugins/validators/MaxLengthValidatorPlugin.ts": ["Schema configuration error:"],
+        "plugins/validators/MinLengthValidatorPlugin.ts": ["Schema configuration error:"],
+        "plugins/validators/MultipleOfValidatorPlugin.ts": ["Schema configuration error:"],
+        "plugins/validators/PatternValidatorPlugin.ts": ["Schema configuration error:"],
+        "controls/CameraControl.ts": ["\"Start Camera / Capture\"", "\"Take Snapshot\"", "\"Clear / Retake\""],
+        "controls/GeolocationControl.ts": ["\"Latitude, Longitude\"", "\"Get Location\""],
+        "controls/SignatureControl.ts": ["\"Clear Signature\""],
+        "controls/VoiceInputControl.ts": ["\"Speak or type here...\"", "\"Start Voice Input\""],
+        "controls/host/delegates/DialogDelegate.ts": ["= \"Form\"", "= \"OK\"", "= \"Cancel\"", "\"Building Form...\""],
+        "controls/host/GeneratorHost.ts": ["= \"Form\"", "= \"OK\"", "= \"Cancel\""],
+        "utils/ControlCapabilities.ts": ["\"Save\""],
+        "utils/DictionaryMapUtil.ts": [
+            "\"Key cannot be empty.\"",
+            "\"Duplicate key is not allowed.\"",
+            "\"Dictionary entry key\"",
+            "\"Dictionary entry value\"",
+            "\"Remove entry\""
+        ],
+        "layouts/TableLayout.ts": ["\"Add Row\""],
+        "layouts/WizardLayout.ts": ["\"Previous\"", "\"Next Step\"", "\"Complete\""]
     };
 
     /**
@@ -1453,7 +1524,87 @@ sap.ui.define([
                 TEXT_KEY.fieldInitFailed,
                 "Field '/Street' failed to initialize, so its value could not be validated.",
                 ["/Street"]
-            ]
+            ],
+            [
+                TEXT_KEY.schemaConfigUnregisteredValidator,
+                "Schema configuration error: Requested validator 'bogus' is not registered.",
+                ["bogus"]
+            ],
+            [
+                TEXT_KEY.schemaConfigArrayItemsObject,
+                "Schema configuration error: 'arrayItems' requires a minItems/maxItems/uniqueItems object."
+            ],
+            [
+                TEXT_KEY.schemaConfigMustBeNumber,
+                "Schema configuration error: 'maxLength' must be a number.",
+                ["maxLength"]
+            ],
+            [
+                TEXT_KEY.schemaConfigMustBePositiveNumber,
+                "Schema configuration error: 'multipleOf' must be a positive number.",
+                ["multipleOf"]
+            ],
+            [
+                TEXT_KEY.schemaConfigMustBeString,
+                "Schema configuration error: 'pattern' must be a string.",
+                ["pattern"]
+            ],
+            [
+                TEXT_KEY.schemaConfigPatternTooLong,
+                "Schema configuration error: 'pattern' is unsafe (longer than 512 characters).",
+                [512]
+            ],
+            [
+                TEXT_KEY.schemaConfigPatternTimeout,
+                "Schema configuration error: 'pattern' is unsafe (exceeded its time budget)."
+            ],
+            [
+                TEXT_KEY.schemaConfigInvalidRegex,
+                "Schema configuration error: invalid regex pattern '['.",
+                ["["]
+            ],
+            [
+                TEXT_KEY.schemaConfigPatternUnsafe,
+                "Schema configuration error: 'pattern' is unsafe (a repeating quantifier is applied to an ambiguous alternation).",
+                ["a repeating quantifier is applied to an ambiguous alternation"]
+            ],
+            [
+                TEXT_KEY.schemaConfigPatternUnproven,
+                "Schema configuration error: 'pattern' is unsafe (its running time is unproven and the value is longer than 256 characters).",
+                [256]
+            ],
+            [TEXT_KEY.cameraStartCapture, "Start Camera / Capture"],
+            [TEXT_KEY.cameraTakeSnapshot, "Take Snapshot"],
+            [TEXT_KEY.cameraClearRetake, "Clear / Retake"],
+            [TEXT_KEY.geolocationPlaceholder, "Latitude, Longitude"],
+            [TEXT_KEY.geolocationGetLocation, "Get Location"],
+            [TEXT_KEY.signatureClear, "Clear Signature"],
+            [TEXT_KEY.voiceInputPlaceholder, "Speak or type here..."],
+            [TEXT_KEY.voiceInputStart, "Start Voice Input"],
+            [TEXT_KEY.dialogDefaultTitle, "Form"],
+            [TEXT_KEY.dialogSubmit, "OK"],
+            [TEXT_KEY.dialogCancel, "Cancel"],
+            [TEXT_KEY.dialogBuilding, "Building Form..."],
+            [TEXT_KEY.dialogSave, "Save"],
+            [TEXT_KEY.dictionaryKeyEmpty, "Key cannot be empty."],
+            [
+                TEXT_KEY.dictionaryKeyReserved,
+                "Key '__proto__' is reserved as a static property.",
+                ["__proto__"]
+            ],
+            [TEXT_KEY.dictionaryKeyDuplicate, "Duplicate key is not allowed."],
+            [TEXT_KEY.dictionaryKeyPlaceholder, "Key"],
+            [TEXT_KEY.dictionaryKeyLabel, "Dictionary entry key"],
+            [TEXT_KEY.dictionaryValueLabel, "Dictionary entry value"],
+            [TEXT_KEY.dictionaryRemoveEntry, "Remove entry"],
+            [TEXT_KEY.tableDefaultTitle, "Table"],
+            [TEXT_KEY.tableAddRow, "Add Row"],
+            [TEXT_KEY.tableValueColumn, "Value"],
+            [TEXT_KEY.wizardStepTitle, "Step 1", [1]],
+            [TEXT_KEY.wizardStepCounter, "Step 2 of 4", [2, 4]],
+            [TEXT_KEY.wizardPrevious, "Previous"],
+            [TEXT_KEY.wizardNextStep, "Next Step"],
+            [TEXT_KEY.wizardComplete, "Complete"]
         ].forEach(function (testCase) {
             assert.strictEqual(I18n.hasText(testCase[0]), true, "'" + testCase[0] + "' resolves in the shipped bundle");
             assert.strictEqual(
@@ -1614,7 +1765,87 @@ sap.ui.define([
                     TEXT_KEY.fieldInitFailed,
                     "Das Feld '/Street' konnte nicht initialisiert werden, daher konnte sein Wert nicht validiert werden.",
                     ["/Street"]
-                ]
+                ],
+                [
+                    TEXT_KEY.schemaConfigUnregisteredValidator,
+                    "Schemakonfigurationsfehler: Der angeforderte Validator 'bogus' ist nicht registriert.",
+                    ["bogus"]
+                ],
+                [
+                    TEXT_KEY.schemaConfigArrayItemsObject,
+                    "Schemakonfigurationsfehler: 'arrayItems' erfordert ein Objekt mit minItems/maxItems/uniqueItems."
+                ],
+                [
+                    TEXT_KEY.schemaConfigMustBeNumber,
+                    "Schemakonfigurationsfehler: 'maxLength' muss eine Zahl sein.",
+                    ["maxLength"]
+                ],
+                [
+                    TEXT_KEY.schemaConfigMustBePositiveNumber,
+                    "Schemakonfigurationsfehler: 'multipleOf' muss eine positive Zahl sein.",
+                    ["multipleOf"]
+                ],
+                [
+                    TEXT_KEY.schemaConfigMustBeString,
+                    "Schemakonfigurationsfehler: 'pattern' muss eine Zeichenfolge sein.",
+                    ["pattern"]
+                ],
+                [
+                    TEXT_KEY.schemaConfigPatternTooLong,
+                    "Schemakonfigurationsfehler: 'pattern' ist unsicher (l\u00e4nger als 512 Zeichen).",
+                    [512]
+                ],
+                [
+                    TEXT_KEY.schemaConfigPatternTimeout,
+                    "Schemakonfigurationsfehler: 'pattern' ist unsicher (Zeitbudget \u00fcberschritten)."
+                ],
+                [
+                    TEXT_KEY.schemaConfigInvalidRegex,
+                    "Schemakonfigurationsfehler: ung\u00fcltiges regul\u00e4res Ausdrucksmuster '['.",
+                    ["["]
+                ],
+                [
+                    TEXT_KEY.schemaConfigPatternUnsafe,
+                    "Schemakonfigurationsfehler: 'pattern' ist unsicher (reason).",
+                    ["reason"]
+                ],
+                [
+                    TEXT_KEY.schemaConfigPatternUnproven,
+                    "Schemakonfigurationsfehler: 'pattern' ist unsicher (die Laufzeit ist nicht belegt und der Wert ist l\u00e4nger als 256 Zeichen).",
+                    [256]
+                ],
+                [TEXT_KEY.cameraStartCapture, "Kamera starten / Aufnehmen"],
+                [TEXT_KEY.cameraTakeSnapshot, "Aufnahme machen"],
+                [TEXT_KEY.cameraClearRetake, "L\u00f6schen / Neu aufnehmen"],
+                [TEXT_KEY.geolocationPlaceholder, "Breitengrad, L\u00e4ngengrad"],
+                [TEXT_KEY.geolocationGetLocation, "Standort ermitteln"],
+                [TEXT_KEY.signatureClear, "Unterschrift l\u00f6schen"],
+                [TEXT_KEY.voiceInputPlaceholder, "Sprechen oder hier eingeben ..."],
+                [TEXT_KEY.voiceInputStart, "Spracheingabe starten"],
+                [TEXT_KEY.dialogDefaultTitle, "Formular"],
+                [TEXT_KEY.dialogSubmit, "OK"],
+                [TEXT_KEY.dialogCancel, "Abbrechen"],
+                [TEXT_KEY.dialogBuilding, "Formular wird erstellt ..."],
+                [TEXT_KEY.dialogSave, "Sichern"],
+                [TEXT_KEY.dictionaryKeyEmpty, "Der Schl\u00fcssel darf nicht leer sein."],
+                [
+                    TEXT_KEY.dictionaryKeyReserved,
+                    "Der Schl\u00fcssel '__proto__' ist als statische Eigenschaft reserviert.",
+                    ["__proto__"]
+                ],
+                [TEXT_KEY.dictionaryKeyDuplicate, "Doppelte Schl\u00fcssel sind nicht zul\u00e4ssig."],
+                [TEXT_KEY.dictionaryKeyPlaceholder, "Schl\u00fcssel"],
+                [TEXT_KEY.dictionaryKeyLabel, "Schl\u00fcssel des Zuordnungseintrags"],
+                [TEXT_KEY.dictionaryValueLabel, "Wert des Zuordnungseintrags"],
+                [TEXT_KEY.dictionaryRemoveEntry, "Eintrag entfernen"],
+                [TEXT_KEY.tableDefaultTitle, "Tabelle"],
+                [TEXT_KEY.tableAddRow, "Zeile hinzuf\u00fcgen"],
+                [TEXT_KEY.tableValueColumn, "Wert"],
+                [TEXT_KEY.wizardStepTitle, "Schritt 1", [1]],
+                [TEXT_KEY.wizardStepCounter, "Schritt 2 von 4", [2, 4]],
+                [TEXT_KEY.wizardPrevious, "Zur\u00fcck"],
+                [TEXT_KEY.wizardNextStep, "N\u00e4chster Schritt"],
+                [TEXT_KEY.wizardComplete, "Abschlie\u00dfen"]
             ].forEach(function (testCase) {
                 assert.strictEqual(
                     I18n.getText(testCase[0], testCase[2]),

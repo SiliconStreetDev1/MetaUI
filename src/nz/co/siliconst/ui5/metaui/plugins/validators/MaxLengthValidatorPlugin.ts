@@ -35,7 +35,10 @@ export class MaxLengthValidatorPlugin implements IValidator {
      */
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof args !== "number") {
-            return { isValid: false, errorMessage: "Schema configuration error: 'maxLength' must be a number." };
+            return {
+                isValid: false,
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigMustBeNumber, ["maxLength"])
+            };
         }
         if (typeof parsedValue !== "string") return { isValid: true };
         if (Array.from(parsedValue).length > args) {

@@ -13,6 +13,7 @@ import Image from "sap/m/Image";
 import HTML from "sap/ui/core/HTML";
 import { ButtonType } from "sap/m/library";
 import { UrlValidator } from "../utils/UrlValidator";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Custom UI5 control that streams video from the user's camera and captures Base64 PNG snapshots.
@@ -64,7 +65,7 @@ export default class CameraControl extends BaseHardwareControl {
         }).addStyleClass("sapUiTinyMarginBottom");
 
         this.captureBtn = new Button({
-            text: "Start Camera / Capture",
+            text: I18n.getText(TEXT_KEY.cameraStartCapture),
             icon: "sap-icon://camera",
             type: ButtonType.Emphasized,
             press: () => {
@@ -73,7 +74,7 @@ export default class CameraControl extends BaseHardwareControl {
         }).addStyleClass("sapUiTinyMarginEnd");
 
         this.clearBtn = new Button({
-            text: "Clear / Retake",
+            text: I18n.getText(TEXT_KEY.cameraClearRetake),
             icon: "sap-icon://delete",
             type: ButtonType.Transparent,
             visible: false,
@@ -136,7 +137,7 @@ export default class CameraControl extends BaseHardwareControl {
                     this.mediaStream = stream;
                     if (this.videoElement) {
                         this.videoElement.srcObject = this.mediaStream;
-                        this.captureBtn.setText("Take Snapshot");
+                        this.captureBtn.setText(I18n.getText(TEXT_KEY.cameraTakeSnapshot));
                     }
                 } else {
                     // WebKit on Windows exposes no `navigator.mediaDevices`. Logging and falling through
@@ -199,7 +200,7 @@ export default class CameraControl extends BaseHardwareControl {
         this.stopStream();
         this.setProperty("value", null, true);
         this.syncPreviewWithValue(null);
-        this.captureBtn.setText("Start Camera / Capture");
+        this.captureBtn.setText(I18n.getText(TEXT_KEY.cameraStartCapture));
         this.fireEvent("capture", { value: null });
     }
 

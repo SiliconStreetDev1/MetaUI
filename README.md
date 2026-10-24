@@ -2,8 +2,15 @@
 
 **MetaUI** is an extensible, metadata-driven UI engine built on top of SAP UI5. Instead of relying on static XML views, it parses standard JSON Schema definitions at runtime to dynamically generate SAP Fiori component trees. This enables server-driven architectures where the UI structure and data bindings are determined entirely by the incoming payload.
 
+[![CI](https://github.com/SiliconStreetDev1/MetaUI/actions/workflows/ci.yml/badge.svg)](https://github.com/SiliconStreetDev1/MetaUI/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/SiliconStreetDev1/MetaUI/actions/workflows/codeql.yml/badge.svg)](https://github.com/SiliconStreetDev1/MetaUI/actions/workflows/codeql.yml)
 [![Live Demo](https://img.shields.io/badge/demo-live-blue)](https://SiliconStreetDev1.github.io/MetaUI/index.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> Verified by unit, integration and property-based tests, mutation testing, an accessibility
+> scan, and architectural gates that are each proven to fail against the divergence they guard.
+> The published package is installed into a real UI5 application and driven in a browser before
+> release — see [`test/consumer/`](test/consumer/). No runtime dependencies.
 
 ![MetaUI rendering a Kitchen Sink form from a JSON Schema](docs/images/metaui_preview.png)
 
@@ -55,7 +62,9 @@ dependency anywhere in the library.
 Inside a UI5 Tooling application, the equivalent is a `manifest.json` entry:
 
 ```json
-"sap.ui5": { "dependencies": { "libs": { "nz.co.siliconst.ui5.metaui": {} } } }
+{
+  "sap.ui5": { "dependencies": { "libs": { "nz.co.siliconst.ui5.metaui": {} } } }
+}
 ```
 
 MetaUI does not load its own library at runtime to paper over a missing
@@ -72,11 +81,16 @@ npm install @siliconst/metaui
 
 **2. Add to your XML View**
 ```xml
-<meta:DynamicHost
-    schemaDefinition="{yourModel>/schema}"
-    data="{yourModel>/payload}"
-    submit=".onFormSubmitted"
-/>
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+
+    <meta:DynamicHost
+        schemaDefinition="{yourModel>/schema}"
+        data="{yourModel>/payload}"
+        submit=".onFormSubmitted" />
+
+</mvc:View>
 ```
 
 **3. Define a schema** (or let MetaUI infer one from your data)
@@ -86,8 +100,8 @@ npm install @siliconst/metaui
   "type": "object",
   "properties": {
     "FullName":   { "type": "string", "maxLength": 100 },
-    "Email":      { "type": "string", "ui": { "format": "email" } },
-    "CheckIn":    { "type": "date" },
+    "Email":      { "type": "string", "format": "email" },
+    "CheckIn":    { "type": "string", "format": "date" },
     "VIP":        { "type": "boolean", "ui": { "widget": "switch" } }
   },
   "required": ["FullName", "Email"]
@@ -98,8 +112,8 @@ That's it. MetaUI handles the `sap.m.Input`, `sap.m.DatePicker`, `sap.m.Switch`,
 
 ## Key Features
 
-- **51 `(type, widget)` plugin mappings** (canonical counts via `npm run metrics`) — Strings, numbers, dates, polymorphic `oneOf`/`anyOf` selectors, dictionary maps, cameras, signatures, code editors, OData/REST value helps, and more
-- **4 layout strategies** — Form, Table, Wizard (step-by-step), Compact
+- **<!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` plugin mappings** (canonical counts via `npm run metrics`) — Strings, numbers, dates, polymorphic `oneOf`/`anyOf` selectors, dictionary maps, cameras, signatures, code editors, OData/REST value helps, and more
+- **<!-- DOC_COUNT:layouts -->4 layout strategies** — Form, Table, Wizard (step-by-step), Compact
 - **Policy-Based Rules Engine** — Declarative cross-field logic (Show/Hide/Require/Disable) with automatic symmetrical reversals
 - **Tri-Binding Engine** — Feed data as an object, JSON string, or OData context
 - **Full Inference Mode** — Pass raw data with no schema; MetaUI generates the UI automatically

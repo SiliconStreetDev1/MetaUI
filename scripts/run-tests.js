@@ -1857,6 +1857,622 @@ function runSingleWalkerGate(violations, tsFiles) {
     return exemptCount;
 }
 
+
+// ---------------------------------------------------------------------------
+// REVERSE [DOC_SYMBOL] ALLOWLIST
+//
+// Every implementation .ts module in src/ and every top-level exported symbol in
+// the public or extension API tiers MUST be documented in README.md,
+// CONTRIBUTING.md, docs/ARCHITECTURE.md, or docs/wiki/*.md. Internal helper
+// types and functions that are exported only for intra-library imports must
+// either be documented in docs/ARCHITECTURE.md or listed below with a >= 30-char
+// justification. Stale entries (deleted or subsequently documented) fail the gate.
+// ---------------------------------------------------------------------------
+const MIN_UNDOCUMENTED_REASON_CHARS = 30;
+const UNDOCUMENTED_SYMBOL_ALLOWLIST = new Map([
+    ["constants/MetaUIConstants.ts#UI5_EVENT", "Internal UI5 control event name constants consumed only by plugins and delegates."],
+    ["constants/MetaUIConstants.ts#UI5_AGGREGATION", "Internal UI5 control aggregation name constants consumed only by layouts and hosts."],
+    ["constants/MetaUIConstants.ts#OPENAPI_PREFIX", "Internal OpenAPI $ref prefix constants consumed only by OpenApiRefResolver and mappers."],
+    ["controls/BaseHardwareControl.ts#$BaseHardwareControlSettings", "Generated UI5 constructor settings interface for internal BaseHardwareControl."],
+    ["controls/BaseHardwareControl.ts#HardwareFailureReason", "Internal union type of capability failure codes for BaseHardwareControl subclasses."],
+    ["controls/BaseHardwareControl.ts#BaseHardwareControl$CaptureEventParameters", "Internal UI5 event parameter shape for BaseHardwareControl capture event."],
+    ["controls/host/delegates/DataSyncDelegate.ts#IHostDataSync", "Internal structural host interface decoupling DataSyncDelegate from GeneratorHost."],
+    ["controls/host/delegates/DataSyncDelegate.ts#IDataJsonInvalidationTarget", "Internal target contract for DataSyncDelegate.invalidateStaleDataJson."],
+    ["controls/host/delegates/DataSyncDelegate.ts#IDataPairCommitTarget", "Internal target contract for DataSyncDelegate.commitDataPair."],
+    ["controls/host/delegates/DialogDelegate.ts#IHostDialog", "Internal structural host interface decoupling DialogDelegate from GeneratorHost."],
+    ["controls/host/delegates/GenerationDelegate.ts#IPreparedGenerationInput", "Internal return record for GenerationDelegate.prepareGenerationInput."],
+    ["controls/host/delegates/ValidationDelegate.ts#IHostValidation", "Internal structural host interface decoupling ValidationDelegate from GeneratorHost."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$BeforeSubmitEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$SubmitEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$CancelEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$FieldChangeEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$ValidationStateChangedEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$ErrorEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/GeneratorHost.ts#GeneratorHost$BeforeLayoutSectionChangeEventParameters", "Internal UI5 event parameter interface on inner GeneratorHost (DynamicHost is public)."],
+    ["controls/host/HostControlMetadata.ts#isJsonLiteralString", "Internal constructor helper detecting inline JSON strings in UI5 XML/JS settings."],
+    ["controls/host/HostControlMetadata.ts#IExtractedHostSettings", "Internal return type for extractJsonLiteralSettings in HostControlMetadata."],
+    ["core/LayoutScorer.ts#ILayoutDecision", "Internal per-scope layout scoring decision entry produced by LayoutScorer."],
+    ["core/LayoutScorer.ts#LayoutDecisionTable", "Internal ReadonlyMap alias mapping JSON-Pointer scopes to ILayoutDecision records."],
+    ["core/SandboxJSONModel.ts#PropertyChangeHook", "Internal callback signature invoked by SandboxJSONModel on setProperty mutations."],
+    ["core/ValidationLedger.ts#IValidationLedgerEntry", "Internal per-path validation error record stored inside ValidationLedger."],
+    ["layouts/LayoutElementWalker.ts#ILabelledFieldResult", "Internal label-and-control pair returned to layouts by LayoutElementWalker."],
+    ["layouts/LayoutElementWalker.ts#IResolvedLayoutControl", "Internal resolved control descriptor passed to ILayoutWalkerSink callbacks."],
+    ["layouts/LayoutElementWalker.ts#ILayoutWalkerSink", "Internal sink interface implemented by FormLayout, WizardLayout, and FlexibleColumnLayout."],
+    ["layouts/LayoutElementWalker.ts#LayoutFieldFactory", "Internal callback type for rendering a single field inside LayoutElementWalker."],
+    ["layouts/LayoutElementWalker.ts#ArraySubSchemaFactory", "Internal callback type for rendering an inline array sub-schema in LayoutElementWalker."],
+    ["plugins/actions/ActionButtonPlugin.ts#IActionButtonConfig", "Internal configuration struct passed by SubmitActionPlugin and ClearFormActionPlugin."],
+    ["plugins/controls/NestedDialogPlugin.ts#INestedDialogDescriptor", "Internal descriptor struct passed by NestedFormPlugin and NestedArrayPlugin."],
+    ["plugins/controls/OptionListPlugin.ts#IOptionItem", "Internal normalized key/text option item shared by Select, Radio, ComboBox, and Segmented."],
+    ["plugins/controls/OptionListPlugin.ts#IOptionListControl", "Internal duck-typed UI5 item-list control contract for OptionListPlugin."],
+    ["plugins/controls/PickerPlugin.ts#PickerControlInstance", "Internal union of UI5 DatePicker, TimePicker,DateTimePicker, and ColorPicker instances."],
+    ["plugins/controls/PickerPlugin.ts#PickerSettings", "Internal UI5 constructor settings record for PickerPlugin subclasses."],
+    ["plugins/controls/PickerPlugin.ts#IPickerPluginConfig", "Internal configuration contract for PickerPlugin subclasses."],
+    ["plugins/controls/SingleBoundWidgetPlugin.ts#SingleBoundWidgetInstance", "Internal union of UI5 single-value bound controls for SingleBoundWidgetPlugin."],
+    ["plugins/controls/SingleBoundWidgetPlugin.ts#SingleBoundWidgetSettings", "Internal UI5 constructor settings record for SingleBoundWidgetPlugin subclasses."],
+    ["plugins/controls/SingleBoundWidgetPlugin.ts#ISingleBoundWidgetConfig", "Internal configuration contract for SingleBoundWidgetPlugin subclasses."],
+    ["plugins/controls/TextLikeInputPlugin.ts#ITextLikeControl", "Internal duck-typed UI5 Input/TextArea interface for TextLikeInputPlugin."],
+    ["plugins/validators/ArrayItemsValidatorPlugin.ts#IArrayItemsArgs", "Internal rule arguments shape extracted by ArrayItemsValidatorPlugin."],
+    ["plugins/validators/ArrayItemsValidatorPlugin.ts#canonicalSerialize", "Internal deterministic JSON serializer used for uniqueItems structural equality."],
+    ["plugins/validators/PatternValidatorPlugin.ts#resetPatternSafetyState", "Internal test hook resetting memoized regex safety verdicts between unit tests."],
+    ["plugins/validators/RangeValidatorPlugin.ts#IRangeArgs", "Internal numeric bounds argument struct extracted by RangeValidatorPlugin."],
+    ["plugins/validators/RequiredValidatorPlugin.ts#isEmptyValue", "Internal emptiness predicate shared by RequiredValidatorPlugin and PayloadValidator."],
+    ["utils/ControlCapabilities.ts#IBoundInspectable", "Internal duck-typed UI5 ManagedObject binding inspection interface."],
+    ["utils/ControlCapabilities.ts#IControlPropVerdict", "Internal return record for vetControlProperty capability checks."],
+    ["utils/ControlCapabilities.ts#IValueStateSupport", "Internal duck-typed UI5 interface for controls supporting setValueState."],
+    ["utils/ControlCapabilities.ts#IEditableSupport", "Internal duck-typed UI5 interface for controls supporting setEditable."],
+    ["utils/ControlCapabilities.ts#IEnabledSupport", "Internal duck-typed UI5 interface for controls supporting setEnabled."],
+    ["utils/ControlCapabilities.ts#IRequiredSupport", "Internal duck-typed UI5 interface for controls supporting setRequired."],
+    ["utils/ControlCapabilities.ts#isValueStateSupport", "Internal type guard narrowing a UI5 Control to IValueStateSupport."],
+    ["utils/ControlCapabilities.ts#isEditableSupport", "Internal type guard narrowing a UI5 Control to IEditableSupport."],
+    ["utils/ControlCapabilities.ts#isEnabledSupport", "Internal type guard narrowing a UI5 Control to IEnabledSupport."],
+    ["utils/ControlCapabilities.ts#isRequiredSupport", "Internal type guard narrowing a UI5 Control to IRequiredSupport."],
+    ["utils/ControlCapabilities.ts#resolveContextualPath", "Internal path concatenation helper for relative vs absolute binding paths."],
+    ["utils/ControlCapabilities.ts#resolveDataSourceDescriptor", "Internal helper resolving IDataSourceConfig from metadata and binding path."],
+    ["utils/ControlCapabilities.ts#extractDataSourceList", "Internal helper extracting an array payload from a remote JSON response."],
+    ["utils/ControlCapabilities.ts#openNestedHostDialog", "Internal dialog launcher backing BasePlugin.openNestedEditorDialog."],
+    ["utils/ControlCapabilities.ts#forEachBoundControl", "Internal control-tree walker invoking a callback on every field-bound UI5 control."],
+    ["utils/DictionaryMapUtil.ts#IDictionaryEntry", "Internal key/value row model entry for DictionaryMapPlugin."],
+    ["utils/DictionaryMapUtil.ts#IDictionarySerializationResult", "Internal serialization result with duplicate-key tracking for DictionaryMapPlugin."],
+    ["utils/DictionaryMapUtil.ts#IDictionaryRowBuildOptions", "Internal row construction options for DictionaryMapUtil.buildRow."],
+    ["utils/I18n.ts#METAUI_LIBRARY_NAME", "Internal constant holding the UI5 library namespace string for resource bundle lookup."],
+    ["utils/I18n.ts#MetaUITextKey", "Internal union type of valid i18n bundle keys derived from TEXT_KEY."],
+    ["utils/PolymorphicUtil.ts#IPolymorphicVariant", "Internal normalized oneOf/anyOf variant descriptor for PolymorphicPlugin."],
+    ["utils/TypeGuards.ts#JsonRecord", "Internal convenience alias for Record<string, unknown> used across normalizers."],
+    ["utils/TypeGuards.ts#isRecord", "Internal type guard checking that an unknown value is a non-null plain object."],
+    ["utils/TypeGuards.ts#readString", "Internal safe property reader returning string or undefined from a JsonRecord."],
+    ["utils/TypeGuards.ts#readNumber", "Internal safe property reader returning finite number or undefined from a JsonRecord."],
+    ["utils/TypeGuards.ts#readBoolean", "Internal safe property reader returning boolean or undefined from a JsonRecord."],
+    ["utils/TypeGuards.ts#readRecord", "Internal safe property reader returning a nested JsonRecord or undefined."],
+    ["utils/TypeGuards.ts#readStringArray", "Internal safe property reader returning a string[] or undefined from a JsonRecord."]
+]);
+
+/**
+ * Collects all git-tracked / repository Markdown files under audit for [DOC_COUNT] and [DOC_CODE].
+ */
+function collectAllTrackedMarkdownFiles(mdFilesToAudit) {
+    const extraCandidates = ["CHANGELOG.md", "docs/ROADMAP.md", "benchmark/BASELINE.md"];
+    const set = new Set(mdFilesToAudit);
+    for (const rel of extraCandidates) {
+        const full = path.join(ROOT_DIR, rel);
+        if (fs.existsSync(full)) set.add(full);
+    }
+    return Array.from(set);
+}
+
+/**
+ * GATE K -- [DOC_SYMBOL] reverse direction (src/ -> docs/).
+ *
+ * Ensures every implementation .ts module in src/ and every top-level exported declaration in src/
+ * is either cited in the audited documentation (README.md, CONTRIBUTING.md, AGENTS.md,
+ * docs/ARCHITECTURE.md, docs/wiki/*.md) or explicitly justified in UNDOCUMENTED_SYMBOL_ALLOWLIST.
+ * Also fails when an allowlist entry is stale (deleted from src/ or now documented in docs/).
+ */
+function runReverseDocSymbolGate(violations, tsFiles, symbolAuditFiles) {
+    for (const [key, reason] of UNDOCUMENTED_SYMBOL_ALLOWLIST.entries()) {
+        if (typeof reason !== "string" || reason.trim().length < MIN_UNDOCUMENTED_REASON_CHARS) {
+            violations.push(
+                `[DOC_SYMBOL] UNDOCUMENTED_SYMBOL_ALLOWLIST['${key}'] must carry a justification of at least ${MIN_UNDOCUMENTED_REASON_CHARS} characters.`
+            );
+        }
+    }
+
+    const allDocText = symbolAuditFiles.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+    const docIdentifiers = new Set();
+    for (const m of allDocText.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
+        docIdentifiers.add(m[0]);
+    }
+
+    const matchedAllowlistKeys = new Set();
+
+    for (const file of tsFiles) {
+        const relFromSrc = path.relative(SRC_DIR, file).replace(/\\/g, "/");
+        const relFromRoot = path.relative(ROOT_DIR, file).replace(/\\/g, "/");
+        const moduleStem = path.basename(file, ".ts");
+
+        if (moduleStem !== "library" && !docIdentifiers.has(moduleStem)) {
+            const moduleKey = `${relFromSrc}#<module>`;
+            if (UNDOCUMENTED_SYMBOL_ALLOWLIST.has(moduleKey)) {
+                matchedAllowlistKeys.add(moduleKey);
+            } else {
+                violations.push(
+                    `[DOC_SYMBOL] ${relFromRoot} module '${moduleStem}' is not mentioned in any audited documentation file (docs/ARCHITECTURE.md, CONTRIBUTING.md, or docs/wiki/*.md).`
+                );
+            }
+        }
+
+        const content = fs.readFileSync(file, "utf8");
+        const sf = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+        for (const stmt of sf.statements) {
+            const isExported =
+                stmt.modifiers && stmt.modifiers.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword);
+            if (!isExported) continue;
+
+            const exportedNames = [];
+            if (
+                (ts.isClassDeclaration(stmt) ||
+                    ts.isInterfaceDeclaration(stmt) ||
+                    ts.isTypeAliasDeclaration(stmt) ||
+                    ts.isFunctionDeclaration(stmt) ||
+                    ts.isEnumDeclaration(stmt)) &&
+                stmt.name
+            ) {
+                exportedNames.push({ name: stmt.name.text, node: stmt.name });
+            } else if (ts.isVariableStatement(stmt)) {
+                for (const decl of stmt.declarationList.declarations) {
+                    if (ts.isIdentifier(decl.name)) {
+                        exportedNames.push({ name: decl.name.text, node: decl.name });
+                    }
+                }
+            }
+
+            for (const { name, node } of exportedNames) {
+                const allowKey = `${relFromSrc}#${name}`;
+                if (docIdentifiers.has(name)) {
+                    if (UNDOCUMENTED_SYMBOL_ALLOWLIST.has(allowKey)) {
+                        violations.push(
+                            `[DOC_SYMBOL] Stale UNDOCUMENTED_SYMBOL_ALLOWLIST entry '${allowKey}': symbol '${name}' is now documented in docs/ and must be removed from the allowlist.`
+                        );
+                    }
+                    continue;
+                }
+                if (UNDOCUMENTED_SYMBOL_ALLOWLIST.has(allowKey)) {
+                    matchedAllowlistKeys.add(allowKey);
+                } else {
+                    const pos = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+                    violations.push(
+                        `[DOC_SYMBOL] ${relFromRoot}:${pos.line + 1} exports '${name}' which is neither documented in docs/ nor justified in UNDOCUMENTED_SYMBOL_ALLOWLIST.`
+                    );
+                }
+            }
+        }
+    }
+
+    for (const key of UNDOCUMENTED_SYMBOL_ALLOWLIST.keys()) {
+        if (!matchedAllowlistKeys.has(key)) {
+            violations.push(
+                `[DOC_SYMBOL] Stale UNDOCUMENTED_SYMBOL_ALLOWLIST entry '${key}' matched no undocumented export in src/.`
+            );
+        }
+    }
+}
+
+/**
+ * GATE L -- [DOC_COUNT] markdown metric parity.
+ *
+ * Re-derives project counts from the live source AST and verifies every
+ * `<!-- DOC_COUNT:<key> --><number>` marker across all tracked Markdown files.
+ */
+function runDocCountGate(violations, tsFiles, singleWalkerExemptions, catchExemptions) {
+    function countConcreteAndAbstract(dir) {
+        let concrete = 0;
+        let abstractBases = 0;
+        for (const f of collectTsFiles(dir)) {
+            const text = fs.readFileSync(f, "utf8");
+            const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
+            let isAbstract = false;
+            sf.forEachChild((node) => {
+                if (
+                    ts.isClassDeclaration(node) &&
+                    node.modifiers &&
+                    node.modifiers.some((m) => m.kind === ts.SyntaxKind.AbstractKeyword)
+                ) {
+                    isAbstract = true;
+                }
+            });
+            if (isAbstract) abstractBases++;
+            else concrete++;
+        }
+        return { concrete, abstractBases };
+    }
+    const bootCounts = parseBootstrapperSource(path.join(SRC_DIR, "core", "DefaultPluginBootstrapper.ts"));
+    const pipeCounts = parsePipelineManagerSource(path.join(SRC_DIR, "core", "PipelineManager.ts"));
+    const ctrlSplit = countConcreteAndAbstract(path.join(SRC_DIR, "plugins", "controls"));
+    const actSplit = countConcreteAndAbstract(path.join(SRC_DIR, "plugins", "actions"));
+    const dsCount = collectTsFiles(path.join(SRC_DIR, "plugins", "datasources")).length;
+    const condFiles = collectTsFiles(path.join(SRC_DIR, "plugins", "policies", "conditions")).length;
+    const effFiles = collectTsFiles(path.join(SRC_DIR, "plugins", "policies", "effects")).length;
+    const metrics = {
+        registered: {
+            ...bootCounts,
+            ...pipeCounts,
+            concreteControlPlugins: ctrlSplit.concrete,
+            abstractControlPluginBases: ctrlSplit.abstractBases,
+            concreteActionPlugins: actSplit.concrete,
+            abstractActionPluginBases: actSplit.abstractBases,
+            datasourcePluginFiles: dsCount,
+            policyConditionFiles: condFiles,
+            policyEffectFiles: effFiles,
+            concreteWidgetPlugins: ctrlSplit.concrete + actSplit.concrete + dsCount
+        }
+    };
+
+    // Derive i18nTextKeys from utils/I18n.ts TEXT_KEY object literal
+    let i18nTextKeys = 0;
+    const i18nFile = path.join(SRC_DIR, "utils", "I18n.ts");
+    if (fs.existsSync(i18nFile)) {
+        const sf = ts.createSourceFile(i18nFile, fs.readFileSync(i18nFile, "utf8"), ts.ScriptTarget.Latest, true);
+        sf.forEachChild((node) => {
+            if (ts.isVariableStatement(node)) {
+                for (const decl of node.declarationList.declarations) {
+                    if (ts.isIdentifier(decl.name) && decl.name.text === "TEXT_KEY" && decl.initializer) {
+                        let init = decl.initializer;
+                        while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init)) init = init.expression;
+                        if (ts.isObjectLiteralExpression(init)) {
+                            i18nTextKeys = init.properties.length;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Derive maxSchemaDepth from constants/MetaUIConstants.ts MAX_SCHEMA_DEPTH
+    let maxSchemaDepth = 0;
+    const constFile = path.join(SRC_DIR, "constants", "MetaUIConstants.ts");
+    if (fs.existsSync(constFile)) {
+        const sf = ts.createSourceFile(constFile, fs.readFileSync(constFile, "utf8"), ts.ScriptTarget.Latest, true);
+        sf.forEachChild((node) => {
+            if (ts.isVariableStatement(node)) {
+                for (const decl of node.declarationList.declarations) {
+                    if (
+                        ts.isIdentifier(decl.name) &&
+                        decl.name.text === "MAX_SCHEMA_DEPTH" &&
+                        decl.initializer &&
+                        ts.isNumericLiteral(decl.initializer)
+                    ) {
+                        maxSchemaDepth = Number(decl.initializer.text);
+                    }
+                }
+            }
+        });
+    }
+
+    // Derive gateProofCases from scripts/prove-structural-gates.js CASES array length
+    let gateProofCases = 0;
+    const proveFile = path.join(SCRIPTS_DIR, "prove-structural-gates.js");
+    if (fs.existsSync(proveFile)) {
+        const sf = ts.createSourceFile(
+            proveFile,
+            fs.readFileSync(proveFile, "utf8"),
+            ts.ScriptTarget.Latest,
+            true,
+            ts.ScriptKind.JS
+        );
+        sf.forEachChild((node) => {
+            if (ts.isVariableStatement(node)) {
+                for (const decl of node.declarationList.declarations) {
+                    if (
+                        ts.isIdentifier(decl.name) &&
+                        decl.name.text === "CASES" &&
+                        decl.initializer &&
+                        ts.isArrayLiteralExpression(decl.initializer)
+                    ) {
+                        gateProofCases = decl.initializer.elements.length;
+                    }
+                }
+            }
+        });
+    }
+
+    // Derive publicTierModules and publicTierDeclarations from .github/api-surface.txt header
+    let publicTierModules = 0;
+    let publicTierDeclarations = 0;
+    const apiSurfaceFile = path.join(ROOT_DIR, ".github", "api-surface.txt");
+    if (fs.existsSync(apiSurfaceFile)) {
+        const apiText = fs.readFileSync(apiSurfaceFile, "utf8");
+        const modMatch = apiText.match(/^# modules:\s*\d+\s*\(public\s+(\d+),/m);
+        const declMatch = apiText.match(/^# declarations:\s*\d+\s*\(public\s+(\d+),/m);
+        if (modMatch) publicTierModules = Number(modMatch[1]);
+        if (declMatch) publicTierDeclarations = Number(declMatch[1]);
+    }
+
+    const derivedCounts = new Map([
+        ["pluginMappings", metrics.registered.pluginMappings],
+        ["layouts", metrics.registered.layouts],
+        ["policyConditions", metrics.registered.policyConditions],
+        ["policyEffects", metrics.registered.policyEffects],
+        ["policyConditionFiles", metrics.registered.policyConditionFiles],
+        ["policyEffectFiles", metrics.registered.policyEffectFiles],
+        ["concreteControlPlugins", metrics.registered.concreteControlPlugins],
+        ["abstractControlPluginBases", metrics.registered.abstractControlPluginBases],
+        ["concreteActionPlugins", metrics.registered.concreteActionPlugins],
+        ["abstractActionPluginBases", metrics.registered.abstractActionPluginBases],
+        ["datasourcePlugins", metrics.registered.datasourcePluginFiles],
+        ["concreteWidgetPlugins", metrics.registered.concreteWidgetPlugins],
+        ["validators", metrics.registered.validators],
+        ["formatters", metrics.registered.formatters],
+        ["parsers", metrics.registered.parsers],
+        ["i18nTextKeys", i18nTextKeys],
+        ["maxSchemaDepth", maxSchemaDepth],
+        ["singleWalkerExemptions", singleWalkerExemptions],
+        ["catchExemptions", catchExemptions],
+        ["structuralGates", 10],
+        ["gateProofCases", gateProofCases],
+        ["publicTierModules", publicTierModules],
+        ["publicTierDeclarations", publicTierDeclarations]
+    ]);
+
+    const mdFiles = collectAllTrackedMarkdownFiles(collectAuditedMarkdownFiles([]));
+    let markerCount = 0;
+
+    for (const full of mdFiles) {
+        const relMd = path.relative(ROOT_DIR, full).replace(/\\/g, "/");
+        const lines = fs.readFileSync(full, "utf8").split(/\r?\n/);
+        lines.forEach((line, idx) => {
+            const lineNo = idx + 1;
+            const scanLine = line.replace(/`[^`]*`/g, (m) => " ".repeat(m.length));
+            const rawMarkers = scanLine.matchAll(/<!--\s*DOC_COUNT:([^>]*?)-->/g);
+            for (const rm of rawMarkers) {
+                const key = rm[1].trim();
+                if (!derivedCounts.has(key)) {
+                    violations.push(`[DOC_COUNT] ${relMd}:${lineNo} references unknown DOC_COUNT metric key '${key}'.`);
+                    continue;
+                }
+                const afterIdx = rm.index + rm[0].length;
+                const tail = line.slice(afterIdx);
+                const numMatch = tail.match(/^[\`*]*(\d+)/);
+                if (!numMatch) {
+                    violations.push(
+                        `[DOC_COUNT] ${relMd}:${lineNo} marker 'DOC_COUNT:${key}' is not immediately followed by an integer.`
+                    );
+                    continue;
+                }
+                markerCount++;
+                const claimed = Number(numMatch[1]);
+                const actual = derivedCounts.get(key);
+                if (claimed !== actual) {
+                    violations.push(
+                        `[DOC_COUNT] ${relMd}:${lineNo} claims ${key}=${claimed} but source AST derives ${actual}.`
+                    );
+                }
+            }
+        });
+    }
+
+    if (markerCount < 50) {
+        violations.push(
+            `[DOC_COUNT] Expected at least 50 DOC_COUNT markers across documentation, but found only ${markerCount}. Do not strip DOC_COUNT markers.`
+        );
+    }
+}
+
+/**
+ * Strips // line comments and /* block comments * / outside JSON string literals for JSONC blocks.
+ */
+function stripJsoncComments(str) {
+    let out = "";
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        const next = str[i + 1];
+        if (inString) {
+            out += ch;
+            if (escape) escape = false;
+            else if (ch === "\\") escape = true;
+            else if (ch === '"') inString = false;
+        } else if (ch === '"') {
+            inString = true;
+            out += ch;
+        } else if (ch === "/" && next === "/") {
+            while (i < str.length && str[i] !== "\n") i++;
+            out += "\n";
+        } else if (ch === "/" && next === "*") {
+            i += 2;
+            while (i < str.length && !(str[i] === "*" && str[i + 1] === "/")) i++;
+            i++;
+        } else {
+            out += ch;
+        }
+    }
+    return out;
+}
+
+/**
+ * GATE M -- [DOC_CODE] fenced code block compilation & JSON parsing gate.
+ *
+ * Extracts every fenced `typescript`/`ts`, `json`, and `jsonc` code block across all tracked
+ * Markdown files:
+ *  - `json` blocks must parse with JSON.parse() and must not use withdrawn 2.0.0 keywords.
+ *  - `jsonc` blocks must parse with JSON.parse() after stripping comments.
+ *  - `typescript`/`ts` blocks must compile cleanly against tsconfig.json via ts.createProgram.
+ */
+function runDocCodeGate(violations, tsFiles) {
+    const mdFiles = collectAllTrackedMarkdownFiles(collectAuditedMarkdownFiles([]));
+    const tsBlocks = [];
+    const jsonBlocks = [];
+    const jsoncBlocks = [];
+
+    for (const full of mdFiles) {
+        const relMd = path.relative(ROOT_DIR, full).replace(/\\/g, "/");
+        const lines = fs.readFileSync(full, "utf8").split(/\r?\n/);
+        let inFence = false;
+        let fenceLang = "";
+        let fenceStart = 0;
+        let fenceLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!inFence) {
+                const m = line.match(/^\s*```(\S*)\s*$/);
+                if (m) {
+                    inFence = true;
+                    fenceLang = (m[1] || "").toLowerCase();
+                    fenceStart = i + 1;
+                    fenceLines = [];
+                }
+            } else if (/^\s*```\s*$/.test(line)) {
+                const code = fenceLines.join("\n");
+                if (fenceLang === "typescript" || fenceLang === "ts") {
+                    tsBlocks.push({ relMd, fenceStart, code });
+                } else if (fenceLang === "json") {
+                    jsonBlocks.push({ relMd, fenceStart, code });
+                } else if (fenceLang === "jsonc") {
+                    jsoncBlocks.push({ relMd, fenceStart, code });
+                }
+                inFence = false;
+            } else {
+                fenceLines.push(line);
+            }
+        }
+    }
+
+    for (const b of jsonBlocks) {
+        try {
+            const parsed = JSON.parse(b.code);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                const checkProps = (propsObj) => {
+                    if (!propsObj || typeof propsObj !== "object") return;
+                    for (const [propName, propDef] of Object.entries(propsObj)) {
+                        if (!propDef || typeof propDef !== "object") continue;
+                        for (const withdrawn of ["scale", "precision", "deprecated"]) {
+                            if (Object.prototype.hasOwnProperty.call(propDef, withdrawn)) {
+                                violations.push(
+                                    `[DOC_CODE] ${b.relMd}:${b.fenceStart} JSON schema property '${propName}' uses withdrawn 2.0.0 keyword '${withdrawn}'.`
+                                );
+                            }
+                        }
+                        if (propDef.ui && propDef.ui.widget === "scanner") {
+                            violations.push(
+                                `[DOC_CODE] ${b.relMd}:${b.fenceStart} JSON schema property '${propName}' uses withdrawn 2.0.0 widget 'scanner'.`
+                            );
+                        }
+                        if (propDef.properties) checkProps(propDef.properties);
+                        if (propDef.items && propDef.items.properties) checkProps(propDef.items.properties);
+                    }
+                };
+                if (parsed.properties) checkProps(parsed.properties);
+                if (parsed.items && parsed.items.properties) checkProps(parsed.items.properties);
+            }
+        } catch (err) {
+            violations.push(`[DOC_CODE] ${b.relMd}:${b.fenceStart} invalid JSON code block: ${err.message}`);
+        }
+    }
+
+    for (const b of jsoncBlocks) {
+        try {
+            JSON.parse(stripJsoncComments(b.code));
+        } catch (err) {
+            violations.push(`[DOC_CODE] ${b.relMd}:${b.fenceStart} invalid JSONC code block: ${err.message}`);
+        }
+    }
+
+    if (tsBlocks.length > 0) {
+        const crypto = require("crypto");
+        const hash = crypto.createHash("sha256");
+        for (const b of tsBlocks) {
+            hash.update(`${b.relMd}:${b.fenceStart}:\n${b.code}\n`);
+        }
+        const digest = hash.digest("hex");
+        const cacheFile = path.join(os.tmpdir(), "metaui_doc_code_ts_cache.json");
+        let cachedDiags = null;
+        if (fs.existsSync(cacheFile)) {
+            try {
+                const parsedCache = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+                if (parsedCache && parsedCache.digest === digest && Array.isArray(parsedCache.violations)) {
+                    cachedDiags = parsedCache.violations;
+                }
+            } catch (cacheErr) {
+                void cacheErr;
+            }
+        }
+
+        if (cachedDiags !== null) {
+            for (const v of cachedDiags) violations.push(v);
+        } else {
+            const configPath = path.join(ROOT_DIR, "tsconfig.json");
+            const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+            const parsedConfig = ts.parseJsonConfigFileContent(configFile.config, ts.sys, ROOT_DIR);
+
+            const virtualFiles = new Map();
+            const virtualToBlock = new Map();
+            const vDir = path.join(SRC_DIR).replace(/\\/g, "/");
+
+            tsBlocks.forEach((b, idx) => {
+                const vPath = `${vDir}/__doc_block_${idx}.ts`;
+                const rewritten = b.code.replace(
+                    /from\s+["']nz\/co\/siliconst\/ui5\/metaui\/([^"']+)["']/g,
+                    'from "./$1"'
+                );
+                virtualFiles.set(vPath, rewritten + "\nexport {};\n");
+                virtualToBlock.set(vPath, b);
+            });
+
+            const defaultHost = ts.createCompilerHost(parsedConfig.options);
+            const customHost = {
+                ...defaultHost,
+                fileExists: (fileName) => {
+                    const norm = fileName.replace(/\\/g, "/");
+                    return virtualFiles.has(norm) || defaultHost.fileExists(fileName);
+                },
+                readFile: (fileName) => {
+                    const norm = fileName.replace(/\\/g, "/");
+                    if (virtualFiles.has(norm)) return virtualFiles.get(norm);
+                    return defaultHost.readFile(fileName);
+                },
+                getSourceFile: (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
+                    const norm = fileName.replace(/\\/g, "/");
+                    if (virtualFiles.has(norm)) {
+                        return ts.createSourceFile(fileName, virtualFiles.get(norm), languageVersion, true);
+                    }
+                    return defaultHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+                }
+            };
+
+            const compilerOpts = {
+                ...parsedConfig.options,
+                noEmit: true,
+                noUnusedLocals: false,
+                noUnusedParameters: false
+            };
+            const ambientFiles = parsedConfig.fileNames.filter((f) => f.endsWith(".d.ts"));
+            const rootNames = [...ambientFiles, ...virtualFiles.keys()];
+            const program = ts.createProgram(rootNames, compilerOpts, customHost);
+
+            const tsViolations = [];
+            for (const [vPath, b] of virtualToBlock.entries()) {
+                const sf = program.getSourceFile(vPath);
+                if (!sf) continue;
+                const diags = [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)];
+                for (const d of diags) {
+                    const msg = ts.flattenDiagnosticMessageText(d.messageText, " ");
+                    tsViolations.push(
+                        `[DOC_CODE] ${b.relMd}:${b.fenceStart} TypeScript code block failed compilation (TS${d.code}): ${msg}`
+                    );
+                }
+            }
+
+            try {
+                fs.writeFileSync(cacheFile, JSON.stringify({ digest, violations: tsViolations }), "utf8");
+            } catch (writeErr) {
+                void writeErr;
+            }
+            for (const v of tsViolations) violations.push(v);
+        }
+    }
+}
+
 /** Runs all ten structural gates, returning the counted CATCH_SIGNAL and SINGLE_WALKER exemptions. */
 function runStructuralGates(violations, tsFiles) {
     runProducerCompletenessGate(violations);
@@ -1870,6 +2486,203 @@ function runStructuralGates(violations, tsFiles) {
     runRenderDegradationGate(violations, tsFiles);
     const singleWalkerExemptions = runSingleWalkerGate(violations, tsFiles);
     return { catchExemptions, singleWalkerExemptions };
+}
+
+/**
+ * Parses key=value and key="quoted value" attributes inside a DOC_MEASURE HTML comment.
+ */
+function parseDocMeasureAttrs(attrText) {
+    const attrs = {};
+    const re = /([a-zA-Z0-9_]+)=(?:"((?:[^"\\]|\\.)*)"|(\S+))/g;
+    for (const m of attrText.matchAll(re)) {
+        const key = m[1];
+        const val = m[2] !== undefined ? m[2].replace(/\\"/g, '"').replace(/\\\\/g, "\\") : m[3];
+        attrs[key] = val;
+    }
+    return attrs;
+}
+
+/**
+ * GATE N -- [DOC_MEASURE] measured-figure parity & staleness gate.
+ *
+ * Verifies every `<!-- DOC_MEASURE:<key> ... --><number>` marker across all tracked Markdown files:
+ *  1. Fast in-process measurements (`tolerance=<N%|N> source=<cmd>`) are measured live and checked
+ *     against `|claimed - actual| <= tolerance`.
+ *  2. Expensive measurements (`measured=YYYY-MM-DD maxAgeDays=<N> source=<cmd>`) are checked for a
+ *     valid non-future ISO date within `maxAgeDays` and a non-empty `source=` command.
+ */
+function runDocMeasureGate(violations) {
+    const liveMeasurements = new Map([
+        [
+            "bundlePreloadKB",
+            () => {
+                const buildPath = path.join(
+                    ROOT_DIR,
+                    "dist",
+                    "resources",
+                    "nz",
+                    "co",
+                    "siliconst",
+                    "ui5",
+                    "metaui",
+                    "library-preload.js"
+                );
+                const prepPath = path.join(
+                    ROOT_DIR,
+                    "dist",
+                    "src",
+                    "nz",
+                    "co",
+                    "siliconst",
+                    "ui5",
+                    "metaui",
+                    "library-preload.js"
+                );
+                const preloadPath = fs.existsSync(buildPath)
+                    ? buildPath
+                    : fs.existsSync(prepPath)
+                      ? prepPath
+                      : null;
+                if (!preloadPath) {
+                    return null;
+                }
+                return fs.statSync(preloadPath).size / 1024;
+            }
+        ]
+    ]);
+
+    const mdFiles = collectAllTrackedMarkdownFiles(collectAuditedMarkdownFiles([]));
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    let liveCount = 0;
+    let timestampedCount = 0;
+    let deferredCount = 0;
+    let oldestDays = 0;
+
+    for (const full of mdFiles) {
+        const relMd = path.relative(ROOT_DIR, full).replace(/\\/g, "/");
+        const lines = fs.readFileSync(full, "utf8").split(/\r?\n/);
+        lines.forEach((line, idx) => {
+            const lineNo = idx + 1;
+            const scanLine = line.replace(/`[^`]*`/g, (m) => " ".repeat(m.length));
+            const rawMarkers = scanLine.matchAll(/<!--\s*DOC_MEASURE:([\s\S]*?)-->/g);
+            for (const rm of rawMarkers) {
+                const inner = rm[1].trim();
+                const firstSpace = inner.search(/\s/);
+                if (firstSpace === -1) {
+                    violations.push(
+                        `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${inner}' is missing attributes.`
+                    );
+                    continue;
+                }
+                const key = inner.slice(0, firstSpace).trim();
+                const attrText = inner.slice(firstSpace + 1).trim();
+                const attrs = parseDocMeasureAttrs(attrText);
+
+                const afterIdx = rm.index + rm[0].length;
+                const tail = line.slice(afterIdx);
+                const numMatch = tail.match(/^[`*]*(\d+(?:\.\d+)?)/);
+                if (!numMatch) {
+                    violations.push(
+                        `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${key}' is not immediately followed by a number.`
+                    );
+                    continue;
+                }
+                const claimed = Number(numMatch[1]);
+
+                if (!attrs.source || !attrs.source.trim()) {
+                    violations.push(
+                        `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${key}' is missing a 'source=' attribute.`
+                    );
+                    continue;
+                }
+
+                if (attrs.tolerance !== undefined) {
+                    if (!liveMeasurements.has(key)) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} references unknown live DOC_MEASURE key '${key}'.`
+                        );
+                        continue;
+                    }
+                    const actual = liveMeasurements.get(key)();
+                    if (actual === null) {
+                        // The marker is present and well-formed; only the artifact it measures is absent.
+                        // `npm run lint` deliberately runs ahead of `npm run build` so that static failures
+                        // are cheap, so failing here would break a lint on a fresh checkout and in CI.
+                        // Count it and report the deferral out loud - verify.yml re-runs lint after the
+                        // build, where the measurement is enforced for real.
+                        liveCount++;
+                        deferredCount++;
+                        continue;
+                    }
+                    const pctMatch = attrs.tolerance.match(/^(\d+(?:\.\d+)?)%$/);
+                    const absMatch = attrs.tolerance.match(/^(\d+(?:\.\d+)?)$/);
+                    if (!pctMatch && !absMatch) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} has invalid tolerance '${attrs.tolerance}' on 'DOC_MEASURE:${key}'.`
+                        );
+                        continue;
+                    }
+                    const maxDelta = pctMatch ? (Number(pctMatch[1]) / 100) * actual : Number(absMatch[1]);
+                    liveCount++;
+                    if (Math.abs(claimed - actual) > maxDelta) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} claims ${key}=${claimed} but live measurement is ${actual.toFixed(2)} (outside tolerance ${attrs.tolerance}).`
+                        );
+                    }
+                } else if (attrs.measured !== undefined && attrs.maxAgeDays !== undefined) {
+                    const dateMatch = attrs.measured.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                    const maxAgeMatch = attrs.maxAgeDays.match(/^\d+$/);
+                    if (!dateMatch || !maxAgeMatch) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${key}' has malformed 'measured=' or 'maxAgeDays=' attribute.`
+                        );
+                        continue;
+                    }
+                    const year = Number(dateMatch[1]);
+                    const month = Number(dateMatch[2]);
+                    const day = Number(dateMatch[3]);
+                    const measuredDate = new Date(year, month - 1, day);
+                    if (
+                        measuredDate.getFullYear() !== year ||
+                        measuredDate.getMonth() !== month - 1 ||
+                        measuredDate.getDate() !== day
+                    ) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${key}' has invalid calendar date '${attrs.measured}'.`
+                        );
+                        continue;
+                    }
+                    const ageDays = Math.floor((todayMidnight - measuredDate.getTime()) / 86400000);
+                    const maxAgeDays = Number(attrs.maxAgeDays);
+                    timestampedCount++;
+                    if (ageDays < 0) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} measurement '${key}' carries a future date (${attrs.measured}).`
+                        );
+                    } else if (ageDays > maxAgeDays) {
+                        violations.push(
+                            `[DOC_MEASURE] ${relMd}:${lineNo} measurement '${key}' is ${ageDays} days old (measured ${attrs.measured}, maxAgeDays=${maxAgeDays}). Re-run '${attrs.source}' and update.`
+                        );
+                    } else if (ageDays > oldestDays) {
+                        oldestDays = ageDays;
+                    }
+                } else {
+                    violations.push(
+                        `[DOC_MEASURE] ${relMd}:${lineNo} marker 'DOC_MEASURE:${key}' must specify either 'tolerance=' or both 'measured=YYYY-MM-DD' and 'maxAgeDays=N'.`
+                    );
+                }
+            }
+        });
+    }
+
+    if (liveCount < 2 || timestampedCount < 1) {
+        violations.push(
+            `[DOC_MEASURE] Expected at least 2 live and 1 timestamped DOC_MEASURE markers across documentation, but found ${liveCount} live and ${timestampedCount} timestamped.`
+        );
+    }
+
+    return { liveCount, timestampedCount, oldestDays, deferredCount };
 }
 
 function runStaticQualityGate() {
@@ -2197,6 +3010,31 @@ function runStaticQualityGate() {
         violations.push(`[GENERATED_ACCESSORS] ${detail.trim() || "generate-control-accessors.js --check failed."}`);
     }
 
+    // 6e. Generated AI schema cheat sheet must match ISchema.ts + MetaUIConstants.ts + DefaultPluginBootstrapper.ts.
+    const cheatSheetGen = spawnSync(
+        process.execPath,
+        [path.join(ROOT_DIR, "scripts", "generate-ai-cheatsheet.js"), "--check"],
+        { cwd: ROOT_DIR, encoding: "utf8" }
+    );
+    if (cheatSheetGen.status !== 0) {
+        const detail = `${cheatSheetGen.stdout || ""}${cheatSheetGen.stderr || ""}`
+            .split(/\r?\n/)
+            .filter((l) => l.trim() && !l.trim().startsWith("- "))
+            .join(" ");
+        violations.push(`[GENERATED_CHEATSHEET] ${detail.trim() || "generate-ai-cheatsheet.js --check failed."}`);
+    }
+
+    // 6f. ScenarioRunner.controller.js must derive scenario lists from index.json without a hardcoded whitelist.
+    const runnerCtrlPath = path.join(ROOT_DIR, "test", "webapp", "controller", "ScenarioRunner.controller.js");
+    if (fs.existsSync(runnerCtrlPath)) {
+        const runnerSrc = fs.readFileSync(runnerCtrlPath, "utf8");
+        if (/\bwhitelist\b/.test(runnerSrc) || /hybrid_inference|full_inference|deep_structure|ultra_complex_structure|pbre_scenario/.test(runnerSrc)) {
+            violations.push(
+                "[SCENARIO_WHITELIST] test/webapp/controller/ScenarioRunner.controller.js contains a hardcoded scenario whitelist; derive the list from test/webapp/mockData/scenarios/index.json instead."
+            );
+        }
+    }
+
     // 7. AST Symbol-Existence Gate over docs/wiki/*.md, README.md, and docs/ARCHITECTURE.md (Phase 16.1).
     //    A `Class.method()` citation is resolved against THAT class (and its resolvable bases),
     //    not against the flat set of every identifier in src/.
@@ -2341,6 +3179,12 @@ function runStaticQualityGate() {
     // exists to catch, and each is proven to fire by scripts/prove-structural-gates.js.
     const { catchExemptions, singleWalkerExemptions } = runStructuralGates(violations, tsFiles);
 
+    // Documentation gates: two-way [DOC_SYMBOL] (src/ -> docs/), [DOC_COUNT], [DOC_CODE], and [DOC_MEASURE].
+    runReverseDocSymbolGate(violations, tsFiles, symbolAuditFiles);
+    runDocCountGate(violations, tsFiles, singleWalkerExemptions, catchExemptions);
+    runDocCodeGate(violations, tsFiles);
+    const docMeasureSummary = runDocMeasureGate(violations);
+
     if (violations.length > 0) {
         console.error(`  [FAIL] Static Quality Gate found ${violations.length} violation(s):`);
         for (const v of violations) {
@@ -2360,6 +3204,9 @@ function runStaticQualityGate() {
         `  [PASS] Audited ${tsFiles.length} src/ .ts files (0 violations, <=140 chars/line, full JSDoc, 0 any, 0 console, 0 empty catch) and ${scriptFiles.length + testFiles.length} scripts/ + test/ .js files (AST lint).`
     );
     console.log(`  [PASS] Gate exemptions: ${exemptions.describe()}`);
+    console.log(
+        `  [PASS] DOC_MEASURE: ${docMeasureSummary.liveCount} live checks${docMeasureSummary.deferredCount > 0 ? ` (${docMeasureSummary.deferredCount} deferred - no dist/, run 'npm run build' then lint again)` : ""}, ${docMeasureSummary.timestampedCount} timestamped measurements (oldest: ${docMeasureSummary.oldestDays} days)`
+    );
 }
 
 function parseBootstrapperSource(bootstrapperFile) {
@@ -2421,7 +3268,7 @@ function parseBootstrapperSource(bootstrapperFile) {
 function parsePipelineManagerSource(pipelineFile) {
     const text = fs.readFileSync(pipelineFile, "utf8");
     const sf = ts.createSourceFile(pipelineFile, text, ts.ScriptTarget.Latest, true);
-    const counts = { validators: 0, formatters: 0 };
+    const counts = { validators: 0, formatters: 0, parsers: 0 };
     function visit(node) {
         if (
             ts.isCallExpression(node) &&
@@ -2432,6 +3279,7 @@ function parsePipelineManagerSource(pipelineFile) {
             const targetProp = node.expression.expression.name.text;
             if (targetProp === "validators") counts.validators++;
             else if (targetProp === "formatters") counts.formatters++;
+            else if (targetProp === "parsers") counts.parsers++;
         }
         ts.forEachChild(node, visit);
     }
@@ -3381,25 +4229,33 @@ function computeProjectMetrics() {
         }
     }
 
-    const controlsPluginDir = path.join(SRC_DIR, "plugins", "controls");
-    let concreteControlPlugins = 0;
-    let abstractControlPluginBases = 0;
-    for (const f of collectTsFiles(controlsPluginDir)) {
-        const text = fs.readFileSync(f, "utf8");
-        const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
-        let isAbstract = false;
-        sf.forEachChild((node) => {
-            if (
-                ts.isClassDeclaration(node) &&
-                node.modifiers &&
-                node.modifiers.some((m) => m.kind === ts.SyntaxKind.AbstractKeyword)
-            ) {
-                isAbstract = true;
-            }
-        });
-        if (isAbstract) abstractControlPluginBases++;
-        else concreteControlPlugins++;
+    function countConcreteAndAbstractPlugins(dir) {
+        let concrete = 0;
+        let abstractBases = 0;
+        for (const f of collectTsFiles(dir)) {
+            const text = fs.readFileSync(f, "utf8");
+            const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
+            let isAbstract = false;
+            sf.forEachChild((node) => {
+                if (
+                    ts.isClassDeclaration(node) &&
+                    node.modifiers &&
+                    node.modifiers.some((m) => m.kind === ts.SyntaxKind.AbstractKeyword)
+                ) {
+                    isAbstract = true;
+                }
+            });
+            if (isAbstract) abstractBases++;
+            else concrete++;
+        }
+        return { concrete, abstractBases };
     }
+    const controlSplit = countConcreteAndAbstractPlugins(path.join(SRC_DIR, "plugins", "controls"));
+    const actionSplit = countConcreteAndAbstractPlugins(path.join(SRC_DIR, "plugins", "actions"));
+    const concreteControlPlugins = controlSplit.concrete;
+    const abstractControlPluginBases = controlSplit.abstractBases;
+    const concreteActionPlugins = actionSplit.concrete;
+    const abstractActionPluginBases = actionSplit.abstractBases;
 
     const bootstrapperCounts = parseBootstrapperSource(path.join(SRC_DIR, "core", "DefaultPluginBootstrapper.ts"));
     const pipelineCounts = parsePipelineManagerSource(path.join(SRC_DIR, "core", "PipelineManager.ts"));
@@ -3428,8 +4284,14 @@ function computeProjectMetrics() {
             ...pipelineCounts,
             concreteControlPlugins,
             abstractControlPluginBases,
+            concreteActionPlugins,
+            abstractActionPluginBases,
             actionPluginFiles: collectTsFiles(path.join(SRC_DIR, "plugins", "actions")).length,
             datasourcePluginFiles: collectTsFiles(path.join(SRC_DIR, "plugins", "datasources")).length,
+            concreteWidgetPlugins:
+                concreteControlPlugins +
+                concreteActionPlugins +
+                collectTsFiles(path.join(SRC_DIR, "plugins", "datasources")).length,
             policyConditionFiles: collectTsFiles(path.join(SRC_DIR, "plugins", "policies", "conditions")).length,
             policyEffectFiles: collectTsFiles(path.join(SRC_DIR, "plugins", "policies", "effects")).length
         }
@@ -3484,6 +4346,7 @@ function printProjectMetrics() {
     );
     console.log(`  - Validators:                ${m.registered.validators}`);
     console.log(`  - Formatters:                ${m.registered.formatters}`);
+    console.log(`  - Parsers:                   ${m.registered.parsers}`);
     console.log(`============================================================`);
 }
 
@@ -3889,17 +4752,17 @@ const INTENTIONAL_CONSOLE_ERROR_PATTERNS = [
     // same five conditions directly - the ValueState, the aria-invalid, the inline error line and
     // the log level. Each pattern is anchored to its full sentence, so any OTHER hardware error
     // still fails the suite.
-    /\[MetaUI VoiceInputControl\].*Speech recognition is not available in this browser\./,
-    /\[MetaUI CameraControl\].*Camera is not available in this browser\./,
-    /\[MetaUI CameraControl\].*Camera access was blocked\. Allow it in the browser's site permissions and try again\./,
-    /\[MetaUI GeolocationControl\].*Location access was blocked\. Allow it in the browser's site permissions and try again\./,
-    /\[MetaUI GeolocationControl\].*Location did not respond in time\. Please try again\./,
+    /Speech recognition is not available in this browser\..*VoiceInputControl/,
+    /Camera is not available in this browser\..*CameraControl/,
+    /Camera access was blocked\. Allow it in the browser's site permissions and try again\..*CameraControl/,
+    /Location access was blocked\. Allow it in the browser's site permissions and try again\..*GeolocationControl/,
+    /Location did not respond in time\. Please try again\..*GeolocationControl/,
     // ValidationLedger logs each plugin validation failure when validateAll() runs on invalid test inputs
     /\[MetaUI Validation\] Plugin failed validation:/,
     // SchemaNormalizer / GenerationDelegate negative tests that pass malformed JSON strings
     /Failed to parse (schema|inputData|inputDataJson) string:/,
     // OpenApiBuilder negative test passing an invalid/unsupported spec object
-    /\[MetaUI OpenApiBuilder\].*Unsupported or invalid OpenAPI/,
+    /Unsupported or invalid OpenAPI.*OpenApiBuilder/,
     // 13.2.2 negative test asserting unresolvable uiLayout scope (#/properties/MissingScopeField) sets hasPartialRenderingErrors
     /Property 'MissingScopeField' not found in schema/,
     // Two negative tests assert that a V4 service rejecting a PATCH reaches the application as a
@@ -3924,8 +4787,8 @@ const INTENTIONAL_CONSOLE_ERROR_PATTERNS = [
     // it. Both messages are matched in full so any other PolicyDelegate error still fails.
     // (UI5's Log prints Logger.error(message, details) as "<message> - <details>", so the
     // separator between the prefix and the sentence is matched loosely.)
-    /\[MetaUI PolicyDelegate\]\s*-?\s*Policy evaluation pass failed and emitted no deltas:/,
-    /\[MetaUI PolicyDelegate\]\s*-?\s*Failed to apply '[^']*' policy delta to '[^']*':/
+    /Policy evaluation pass failed and emitted no deltas:.*PolicyDelegate/,
+    /Failed to apply '[^']*' policy delta to '[^']*':.*PolicyDelegate/
 ];
 
 function isAllowlistedConsoleError(text) {

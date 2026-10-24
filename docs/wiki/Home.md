@@ -50,5 +50,5 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
 9. [Testing Routines & Automated Verification](09_Testing_Routines_and_Automation.md)
    - `TestOracle.js`, QUnit Physical DOM Unit Tests, E2E Matrix, Sandbox Smoke Tests, and Standalone Consumer Verification
 10. [Supported Features & Known Limitations](SupportedFeatures.md)
-   - Complete Source-Derived Capability Inventory (`52` Widget Mappings, `14` Validators, `4` Formatters, `3` Parsers, `6` Policy Conditions, `8` Policy Effects) and Honest Known Limitations
+   - Complete Source-Derived Capability Inventory (<!-- DOC_COUNT:pluginMappings -->`51` Widget Mappings, <!-- DOC_COUNT:validators -->`14` Validators, <!-- DOC_COUNT:formatters -->`4` Formatters, <!-- DOC_COUNT:parsers -->`3` Parsers, <!-- DOC_COUNT:policyConditions -->`6` Policy Conditions, <!-- DOC_COUNT:policyEffects -->`8` Policy Effects) and Honest Known Limitations
    - **Security Posture & Trust Model** — what an untrusted schema may and may not do, and the residual exposure that remains

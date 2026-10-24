@@ -26,15 +26,15 @@ npm test
 
 ## 2. Architecture of the Automated Test Suite
 
-The MetaUI test architecture is organized into four distinct verification layers:
+The MetaUI test architecture is organized into six verification layers (plus Node property tests via `npm run test:prop` and published-package verification in `test/consumer/`):
 
 | Layer | Location | Runner / Entry Point | Purpose |
 | :--- | :--- | :--- | :--- |
-| **0. Ground-Truth Oracle** | `test/webapp/test/TestOracle.js` | Loaded by QUnit Unit & E2E suites | Single source of truth for all 52 `(type, widget)` plugin mappings, 4 layouts, 6 policy conditions, 8 policy effects, 14 validators, 4 formatters, and 3 parsers (enforces Rule 7 parity in `AGENTS.md`). |
-| **1. QUnit Unit Tests (Physical DOM)** | `test/webapp/test/unit/` | `test/webapp/test/unit/unitTests.qunit.html` | Tests core architecture (`Registry`, `PluginRegistry`, `SchemaNormalizer`, `DataInferenceBuilder`, `SchemaValidator`, `PayloadValidator`, `StateManager`, `LayoutScorer`, `LayoutMutator`, `DefaultLayoutGenerator`, `PolicyEngine`, `ExpressionBuilder`, `OpenApiBuilder`, `OpenApiExtractor`), all 18 pipeline plugins (14 validators + 4 formatters, including 3 presentational parsers), and physically mounts all 52 control/action/datasource plugin mappings in a real DOM sandbox. |
-| **2. QUnit Integration & E2E Matrix** | `test/webapp/test/integration/` | `test/webapp/test/integration/opaTests.qunit.html` | Tests `DynamicHost` and `GeneratorHost` across all binding modes (`string`, `object`, `programmatic`, `odata`), all render targets (`embedded`, `dialog`, `js_scratch`, `js_dialog`), all 4 layout strategies (`form`, `table`, `wizard`, `compact`), all 11 scenario JSON files in `test/webapp/mockData/scenarios/index.json` + all selectable OpenAPI `schemaTarget` entries, host lifecycle events (`beforeSubmit`, `validationError`, `validationSuccess`, `validationStateChanged`, `cancel`), cloned table cell live validation, root array dialogs, and runtime live property toggles. |
+| **0. Ground-Truth Oracle** | `test/webapp/test/TestOracle.js` | Loaded by QUnit Unit & E2E suites | Single source of truth for all <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` plugin mappings, <!-- DOC_COUNT:layouts -->4 layouts, <!-- DOC_COUNT:policyConditions -->6 policy conditions, <!-- DOC_COUNT:policyEffects -->8 policy effects, <!-- DOC_COUNT:validators -->14 validators, <!-- DOC_COUNT:formatters -->4 formatters, and <!-- DOC_COUNT:parsers -->3 parsers (enforces Rule 7 parity in `AGENTS.md`). |
+| **1. QUnit Unit Tests (Physical DOM)** | `test/webapp/test/unit/` | `test/webapp/test/unit/unitTests.qunit.html` | Tests core architecture (`Registry`, `PluginRegistry`, `SchemaNormalizer`, `DataInferenceBuilder`, `SchemaValidator`, `PayloadValidator`, `StateManager`, `LayoutScorer`, `LayoutMutator`, `DefaultLayoutGenerator`, `PolicyEngine`, `ExpressionBuilder`, `OpenApiBuilder`, `OpenApiExtractor`), all 18 pipeline plugins (<!-- DOC_COUNT:validators -->14 validators + <!-- DOC_COUNT:formatters -->4 formatters, including <!-- DOC_COUNT:parsers -->3 presentational parsers), and physically mounts all <!-- DOC_COUNT:pluginMappings -->51 control/action/datasource plugin mappings in a real DOM sandbox. |
+| **2. QUnit Integration & E2E Matrix** | `test/webapp/test/integration/` | `test/webapp/test/integration/opaTests.qunit.html` | Tests `DynamicHost` and `GeneratorHost` across all binding modes (`string`, `object`, `programmatic`, `odata`), all render targets (`embedded`, `dialog`, `js_scratch`, `js_dialog`), all <!-- DOC_COUNT:layouts -->4 layout strategies (`form`, `table`, `wizard`, `compact`), all 11 scenario JSON files in `test/webapp/mockData/scenarios/index.json` + all selectable OpenAPI `schemaTarget` entries, host lifecycle events (`beforeSubmit`, `validationError`, `validationSuccess`, `validationStateChanged`, `cancel`), cloned table cell live validation, root array dialogs, and runtime live property toggles. |
 | **3. Fiori Sandbox App Verification** | `test/webapp/index.html` | `scripts/run-tests.js` | Boots the full SAP Fiori Sandbox application in headless Chromium and navigates across routes (`#/`, `#/scenario/kitchen_sink`, `#/scenario/openapi`, `#/playpen`, `#/playground`, `#/odata`), verifying zero uncaught console or page errors. |
-| **4. Standalone Consumer Page Verification** | `/standalone-consumer.html` | `scripts/run-tests.js` | Boots a clean standalone SAPUI5 consumer page outside `ScenarioRunner`, physically renders all 38 widget/action/datasource plugins and verifies non-zero `getBoundingClientRect()` DOM geometry, hardware inner elements (`<canvas>`, `<video>`, `FlexItemData` inputs), all 4 layout strategies + display mode, dependent dialog isolation, single-authority `Messaging` cleanup, and optimal model synchronization. |
+| **4. Standalone Consumer Page Verification** | `/standalone-consumer.html` | `scripts/run-tests.js` | Boots a clean standalone SAPUI5 consumer page outside `ScenarioRunner`, physically renders all <!-- DOC_COUNT:concreteWidgetPlugins -->37 widget/action/datasource plugins (across the <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` mappings) and verifies non-zero `getBoundingClientRect()` DOM geometry, hardware inner elements (`<canvas>`, `<video>`, `FlexItemData` inputs), all <!-- DOC_COUNT:layouts -->4 layout strategies + display mode, dependent dialog isolation, single-authority `Messaging` cleanup, and optimal model synchronization. |
 | **5. OpenAPI Stress Test** (opt-in) | `test/swagger_schemas/test_runner.ts` | `npm run stress:fetch` then `npm run stress` | Crawls the real Kubernetes OpenAPI 2.0 (~4MB) and GitHub REST OpenAPI 3.0 (~12MB) descriptions — 1,827 definitions, ~4,300 constraint assertions — verifying `OpenApiBuilder.build()` maps every declared constraint. The two specifications are ~17MB and are **not committed**; `stress:fetch` downloads them and the runner reports a skip if they are absent. Not part of `npm test`: it needs a network fetch and takes minutes. It found the schema-depth accounting defect fixed in 2.0.0. |
 
 ---
@@ -45,7 +45,7 @@ Per **Rule 7** in `AGENTS.md`, whenever a plugin, layout, policy condition, poli
 
 `TestOracle.js` exports seven dictionaries/lists:
 
-1. **`PLUGIN_MAP`** (`52` entries): Maps every `"<type>:<widget>"` key (e.g., `"string:default"`, `"object:dictionaryMap"`, `"object:polymorphic"`, `"string:camera"`) to:
+1. **`PLUGIN_MAP`** (<!-- DOC_COUNT:pluginMappings -->`51` entries): Maps every `"<type>:<widget>"` key (e.g., `"string:default"`, `"object:dictionaryMap"`, `"object:polymorphic"`, `"string:camera"`) to:
    - `modulePath`: Exact AMD path registered in `DefaultPluginBootstrapper.ts`.
    - `controlClass`: Exact UI5 control metadata name returned by `plugin.render(...).getMetadata().getName()`.
    - `sampleMeta`: Valid `IPropertyMetadata` used to instantiate the plugin in physical DOM tests.
@@ -66,7 +66,7 @@ The unit test `"Double-Entry Rule: PluginRegistry 100% matches TestOracle.PLUGIN
 
 ### A. `test/webapp/test/unit/core/CoreArchitecture.qunit.js`
 - **Generic `Registry<T>` Contract**: Verifies `register`, `get`, `getStrict`, `has`, `getKeys`, `clear`, and `items`.
-- **Double-Entry Verification**: Verifies 1:1 parity between `PluginRegistry` and `TestOracle` across all 52 `(type, widget)` control/action/datasource mappings, 4 layouts, 6 policy conditions, and 8 policy effects, and asynchronously resolves every registered module.
+- **Double-Entry Verification**: Verifies 1:1 parity between `PluginRegistry` and `TestOracle` across all <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` control/action/datasource mappings, <!-- DOC_COUNT:layouts -->4 layouts, <!-- DOC_COUNT:policyConditions -->6 policy conditions, and <!-- DOC_COUNT:policyEffects -->8 policy effects, and asynchronously resolves every registered module.
 - **`SchemaNormalizer` & `DataInferenceBuilder`**: Verifies immutability (input schema is never mutated), idempotency (`normalize(normalize(s)) === normalize(s)`), Full Inference (strings, numbers, booleans, ISO dates, arrays), and Hybrid Inference (`additionalProperties: true`).
 - **`SchemaValidator`, `PayloadValidator`, `StateManager`, `ExpressionBuilder`, `LayoutScorer`, `LayoutMutator`, `DefaultLayoutGenerator`**: Verifies structural schema validation, recursive payload validation, state sandboxing, UI5 expression binding compilation (`$root.` and relative paths), and inline-vs-dialog layout budget mutation.
 - **`PolicyEngine`**: Evaluates all 6 condition operators (`StringEquals`, `NumericGreaterThan`, `NumericLessThan`, `DateLessThan`, `IsNull`, `IsNotNull`) and verifies the exact `IDeltaState` mutations emitted for `visibility`, `required`, `validity`, `errorMessage`, and `editable`.
@@ -77,8 +77,8 @@ The unit test `"Double-Entry Rule: PluginRegistry 100% matches TestOracle.PLUGIN
 - **All 4 `IFormatter` and 3 `IParser` Implementations**: Verifies every formatter plugin in `TestOracle.FORMATTER_LIST` (`date`, `phone`, `textCase`, `currency`) via `PipelineManager.runFormatters()` and every presentational parser in `TestOracle.PARSER_LIST` (`date`, `phone`, `currency`) via `PipelineManager.runParsers()`.
 
 ### C. `test/webapp/test/unit/plugins/ControlPlugins.qunit.js`
-- **Physical DOM Sandbox for All 52 Control, Action & Datasource Plugin Mappings**:
-  - Loops over all 52 entries in `TestOracle.PLUGIN_MAP`.
+- **Physical DOM Sandbox for All <!-- DOC_COUNT:pluginMappings -->51 Control, Action & Datasource Plugin Mappings**:
+  - Loops over all <!-- DOC_COUNT:pluginMappings -->51 entries in `TestOracle.PLUGIN_MAP`.
   - Instantiates a fresh `JSONModel` with `sampleValue` and physically renders each plugin into a real DOM container (`#qunit-fixture`) alongside a companion `sap.m.Label` (`setAssociatedLabel`) using `plugin.render(...)` and `sap.ui.getCore().applyChanges()`.
   - Asserts that the rendered control exists in the physical DOM (`control.getDomRef()`) and matches `entry.controlClass`.
   - Mutates the model to `entry.mutatedValue` and verifies live data binding reactivity and validation.
@@ -114,5 +114,5 @@ The unit test `"Double-Entry Rule: PluginRegistry 100% matches TestOracle.PLUGIN
 4. Navigates to `/test/unit/unitTests.qunit.html`, waits for QUnit completion, streams every `[PASS]` / `[FAIL]` test assertion to stdout, and fails on any QUnit failure or uncaught page error.
 5. Navigates to `/test/integration/opaTests.qunit.html`, waits for QUnit completion, and asserts 0 failures and 0 page errors.
 6. Navigates to `/index.html` and verifies the Fiori Sandbox routes (`#/`, `#/scenario/kitchen_sink`, `#/scenario/openapi`, `#/playpen`, `#/playground`, `#/odata`).
-7. Navigates to `/standalone-consumer.html` and verifies standalone library consumption across all 38 widgets, 4 layouts, dependent dialogs, and optimal model sync.
+7. Navigates to `/standalone-consumer.html` and verifies standalone library consumption across all <!-- DOC_COUNT:concreteWidgetPlugins -->37 concrete widget/action/datasource plugins (<!-- DOC_COUNT:pluginMappings -->51 mappings), <!-- DOC_COUNT:layouts -->4 layouts, dependent dialogs, and optimal model sync.
 8. Closes the browser and HTTP server and exits with code `0` (all passed) or `1` (any failure).

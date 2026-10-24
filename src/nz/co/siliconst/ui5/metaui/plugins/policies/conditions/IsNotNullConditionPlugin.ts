@@ -29,9 +29,9 @@ export class IsNotNullConditionPlugin implements IPolicyConditionPlugin {
                   : null;
         if (!payload) {
             Logger.warn(
-                "[MetaUI PolicyEngine]",
                 `Malformed condition payload for operator 'IsNotNull': ` +
-                    `expected non-empty string or string[], got ${typeof conditionPayload}. Failing closed (false).`,
+                `expected non-empty string or string[], got ${typeof conditionPayload}. Failing closed (false).`,
+                undefined,
                 "IsNotNullConditionPlugin"
             );
             return false;

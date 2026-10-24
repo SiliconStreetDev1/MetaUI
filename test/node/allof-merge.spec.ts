@@ -490,3 +490,173 @@ describe("allOf merge — property maps are not keyword maps", () => {
         );
     });
 });
+
+describe("allOf merge ? boundary, regex group, and LCM edge cases", () => {
+    it("resolveAllOf handles non-array allOf, initial depth overflow, nested depth truncation, non-record branches, and cyclic activeRefs", () => {
+        const plain = { type: "string" };
+        assert.strictEqual(OpenApiConstraintMapper.resolveAllOf(plain, {}), plain);
+
+        const overDepth = { allOf: [{ type: "string", minLength: 3 }] };
+        const overRes = withLogCapture(() => OpenApiConstraintMapper.resolveAllOf(overDepth, {}, 31));
+        assert.strictEqual(overRes.value, overDepth);
+        assert.ok(overRes.entries.some((e) => e.level === "warning"));
+
+        const nestedOver = { allOf: [{ allOf: [{ type: "string", minLength: 5 }] }] };
+        const nestedRes = withLogCapture(() => OpenApiConstraintMapper.resolveAllOf(nestedOver, {}, 30));
+        assert.ok(nestedRes.entries.some((e) => e.level === "warning"));
+
+        const withNonRecordAndCycle = {
+            allOf: [
+                null as unknown as JsonRecord,
+                "skip" as unknown as JsonRecord,
+                { $ref: "#/definitions/Loop" },
+                { type: "string", maxLength: 8 }
+            ]
+        };
+        const cycleRes = OpenApiConstraintMapper.resolveAllOf(
+            withNonRecordAndCycle,
+            { definitions: { Loop: { type: "string", minLength: 2 } } },
+            0,
+            new Set(["#/definitions/Loop"])
+        );
+        assert.strictEqual(cycleRes.maxLength, 8);
+        assert.strictEqual(cycleRes.minLength, undefined);
+    });
+
+    it("multipleOf falls back to Math.max and warns on non-positive, non-finite, exponential, or unsafe-integer LCMs", () => {
+        assert.strictEqual(
+            mergeBranches({ type: "number", multipleOf: 5 }, { type: "number", multipleOf: 5 }).merged.multipleOf,
+            5
+        );
+        for (const [a, b, expected] of [
+            [0, 5, 5],
+            [5, 0, 5],
+            [-2, 4, 4],
+            [4, -2, 4],
+            [Number.POSITIVE_INFINITY, 3, Number.POSITIVE_INFINITY],
+            [3, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY],
+            [1e-7, 2, 2],
+            [2, 1e-7, 2],
+            [Number.MAX_SAFE_INTEGER, 2, Number.MAX_SAFE_INTEGER],
+            [Number.MAX_SAFE_INTEGER * 2, 2, Number.MAX_SAFE_INTEGER * 2]
+        ] as Array<[number, number, number]>) {
+            const res = withLogCapture(() =>
+                OpenApiConstraintMapper.deepMergeSchemas({ type: "number", multipleOf: a }, { type: "number", multipleOf: b })
+            );
+            assert.strictEqual((res.value as JsonRecord).multipleOf, expected);
+            assert.ok(res.entries.some((e) => e.level === "warning"));
+        }
+    });
+
+    it("composePatterns composes escaped parens, char-class parens, non-capturing groups, and lookbehinds, while rejecting named capture groups", () => {
+        // Safe patterns without capturing groups should compose
+        for (const [p1, p2] of [
+            ["^\\(a\\)$", "^\\(a\\)$"],
+            ["^\\(a\\)", "b$"],
+            ["^[a(b)z]+$", "^a"],
+            ["^(?:abc)+$", "abc$"],
+            ["^(?<=a)b$", "^ab$"],
+            ["^(?<!x)b$", "^ab$"]
+        ]) {
+            const res = withLogCapture(() =>
+                OpenApiConstraintMapper.deepMergeSchemas({ type: "string", pattern: p1 }, { type: "string", pattern: p2 })
+            );
+            if (p1 === p2) {
+                assert.strictEqual((res.value as JsonRecord).pattern, p1);
+            } else {
+                assert.ok(String((res.value as JsonRecord).pattern).startsWith("^(?="));
+            }
+            assert.strictEqual(res.entries.length, 0, `unexpected warning for ${p1} + ${p2}`);
+        }
+
+        // Named capture group (?<name>...) must warn and keep targetVal
+        const named = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas(
+                { type: "string", pattern: "^(?<letters>[a-z]+)$" },
+                { type: "string", pattern: "^abc$" }
+            )
+        );
+        assert.strictEqual((named.value as JsonRecord).pattern, "^(?<letters>[a-z]+)$");
+        assert.ok(named.entries.some((e) => e.level === "warning"));
+        const afterClass = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas(
+                { type: "string", pattern: "^\\d[a-z](foo)$" },
+                { type: "string", pattern: "^afoo$" }
+            )
+        );
+        assert.strictEqual((afterClass.value as JsonRecord).pattern, "^\\d[a-z](foo)$");
+        assert.ok(afterClass.entries.some((e) => e.level === "warning"));
+    });
+
+    it("handles non-record source, conflicting types, composition keyword collisions, nested sub-schema additionalProperties, and structural const equality", () => {
+        assert.deepStrictEqual(OpenApiConstraintMapper.deepMergeSchemas({ type: "string" }, null), { type: "string" });
+        assert.deepStrictEqual(OpenApiConstraintMapper.deepMergeSchemas(null, { type: "string" }), { type: "string" });
+
+        const typeConflict = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas({ type: "string" }, { type: "number" })
+        );
+        assert.strictEqual((typeConflict.value as JsonRecord).type, "string");
+        assert.ok(typeConflict.entries.some((e) => e.level === "error"));
+
+        const oneOfCollision = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas(
+                { oneOf: [{ type: "string" }] },
+                { oneOf: [{ type: "number" }] }
+            )
+        );
+        assert.deepStrictEqual((oneOfCollision.value as JsonRecord).oneOf, [{ type: "string" }]);
+        assert.ok(oneOfCollision.entries.some((e) => e.level === "warning"));
+        for (const kw of ["allOf", "anyOf"] as const) {
+            const col = withLogCapture(() =>
+                OpenApiConstraintMapper.deepMergeSchemas({ [kw]: [{ type: "string" }] }, { [kw]: [{ type: "number" }] })
+            );
+            assert.deepStrictEqual((col.value as JsonRecord)[kw], [{ type: "string" }]);
+            assert.ok(col.entries.some((e) => e.level === "warning"));
+        }
+        for (const mapKw of ["patternProperties", "definitions", "$defs", "dependentSchemas"] as const) {
+            const mergedMap = withLogCapture(() =>
+                OpenApiConstraintMapper.deepMergeSchemas(
+                    { [mapKw]: { const: { type: "string", minLength: 2 }, keepLeft: { type: "boolean" } } },
+                    { [mapKw]: { const: { type: "string", maxLength: 6 }, keepRight: { type: "integer" } } }
+                )
+            );
+            assert.strictEqual(mergedMap.entries.length, 0);
+            assert.deepStrictEqual(((mergedMap.value as JsonRecord)[mapKw] as JsonRecord).const, {
+                type: "string",
+                minLength: 2,
+                maxLength: 6
+            });
+        }
+        const enumEmpty = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas({ enum: ["a", "b"] }, { enum: ["c"] })
+        );
+        assert.deepStrictEqual((enumEmpty.value as JsonRecord).enum, []);
+        assert.ok(enumEmpty.entries.some((e) => e.level === "error"));
+        const enumNonEmpty = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas({ enum: ["a", "b"] }, { enum: ["b", "c"] })
+        );
+        assert.deepStrictEqual((enumNonEmpty.value as JsonRecord).enum, ["b"]);
+        assert.strictEqual(enumNonEmpty.entries.length, 0);
+
+        const mergedAddProps = OpenApiConstraintMapper.deepMergeSchemas(
+            { type: "object", additionalProperties: { type: "string", minLength: 2 } },
+            { type: "object", additionalProperties: { type: "string", maxLength: 5 } }
+        ) as JsonRecord;
+        assert.deepStrictEqual(mergedAddProps.additionalProperties, { type: "string", minLength: 2, maxLength: 5 });
+
+        const bothTrueAddProps = OpenApiConstraintMapper.deepMergeSchemas(
+            { type: "object", additionalProperties: true },
+            { type: "object", additionalProperties: true }
+        ) as JsonRecord;
+        assert.strictEqual(bothTrueAddProps.additionalProperties, true);
+
+        const sameConstObj = withLogCapture(() =>
+            OpenApiConstraintMapper.deepMergeSchemas(
+                { const: { b: [1, 2], a: "x" } },
+                { const: { a: "x", b: [1, 2] } }
+            )
+        );
+        assert.strictEqual(sameConstObj.entries.length, 0);
+        assert.strictEqual((sameConstObj.value as JsonRecord).enum, undefined);
+    });
+});

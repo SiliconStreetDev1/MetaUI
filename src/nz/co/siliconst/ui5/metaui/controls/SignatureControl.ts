@@ -12,6 +12,7 @@ import Button from "sap/m/Button";
 import HTML from "sap/ui/core/HTML";
 import { ButtonType } from "sap/m/library";
 import { UrlValidator } from "../utils/UrlValidator";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Custom UI5 control that renders an interactive HTML5 `<canvas>` for capturing handwritten signatures as Base64 PNGs.
@@ -53,7 +54,7 @@ export default class SignatureControl extends BaseHardwareControl {
         });
 
         this.clearButton = new Button({
-            text: "Clear Signature",
+            text: I18n.getText(TEXT_KEY.signatureClear),
             icon: "sap-icon://eraser",
             type: ButtonType.Transparent,
             press: () => {

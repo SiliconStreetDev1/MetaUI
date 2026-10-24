@@ -70,22 +70,14 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
      * @param input The owning `sap.m.Input` control.
      * @param metadata The property metadata containing `ui.dataSource`.
      */
-    private async openValueHelpDialog(input: Input, metadata: IPropertyMetadata): Promise<void> {
+    protected async openValueHelpDialog(input: Input, metadata: IPropertyMetadata): Promise<void> {
         const ds = ControlDirectiveUtil.resolveDataSourceConfig(metadata);
         if (!ds || !ds.url) {
-            Logger.warn(
-                "[MetaUI RemoteValueHelpPlugin]",
-                "Missing dataSource.url for valueHelp widget.",
-                "RemoteValueHelpPlugin"
-            );
+            Logger.warn("Missing dataSource.url for valueHelp widget.", undefined, "RemoteValueHelpPlugin");
             return;
         }
         if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
-            Logger.warn(
-                "[MetaUI RemoteValueHelpPlugin]",
-                `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`,
-                "RemoteValueHelpPlugin"
-            );
+            Logger.warn(`REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`, undefined, "RemoteValueHelpPlugin");
             return;
         }
 
@@ -163,11 +155,7 @@ export class RemoteValueHelpPlugin extends TextLikeInputPlugin {
             });
             this.dialogModel?.setProperty("/items", list);
         } catch (err) {
-            Logger.error(
-                "[MetaUI RemoteValueHelpPlugin]",
-                `Failed to load ValueHelp data: ${(err as Error).message}`,
-                "RemoteValueHelpPlugin"
-            );
+            Logger.error(`Failed to load ValueHelp data: ${(err as Error).message}`, undefined, "RemoteValueHelpPlugin");
             if (!this.selectDialog || this.selectDialog.isDestroyed() || input.isDestroyed()) {
                 return;
             }

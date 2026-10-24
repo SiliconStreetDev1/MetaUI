@@ -22,6 +22,7 @@ import { TableRowHelper } from "./TableRowHelper";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
 import { AccessibilityUtil } from "../utils/AccessibilityUtil";
 import { Logger } from "../utils/Logger";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 import { SCHEMA_TYPE } from "../constants/MetaUIConstants";
 import { isRecord } from "../utils/TypeGuards";
 import { LayoutElementWalker, LayoutFieldFactory } from "./LayoutElementWalker";
@@ -86,7 +87,7 @@ export class TableLayout implements ILayoutManager {
         }
 
         const resolvedItemsSchema: IPropertyMetadata = itemsSchema;
-        const tableTitle = schema.title || schema.ui?.label || "Table";
+        const tableTitle = schema.title || schema.ui?.label || I18n.getText(TEXT_KEY.tableDefaultTitle);
         const canEditTable =
             engine.isEditable && !schema.readOnly && !schema.ui?.readOnly && schema.ui?.enabled !== false;
 
@@ -100,7 +101,7 @@ export class TableLayout implements ILayoutManager {
         }
 
         const addRowBtn = new Button({
-            text: "Add Row",
+            text: I18n.getText(TEXT_KEY.tableAddRow),
             icon: "sap-icon://add",
             visible: canEditTable,
             press: (oEvent: Event) => {
@@ -199,13 +200,14 @@ export class TableLayout implements ILayoutManager {
         };
 
         if (isPrimitive) {
+            const valueHeader = I18n.getText(TEXT_KEY.tableValueColumn);
             table.addColumn(
                 new Column({
-                    header: new Label({ text: "Value", required: resolvedItemsSchema.required === true && canEditTable })
+                    header: new Label({ text: valueHeader, required: resolvedItemsSchema.required === true && canEditTable })
                 })
             );
             const primitiveCell = engine.generateField(withTableReadOnly(resolvedItemsSchema), "", effectiveModel, true);
-            AccessibilityUtil.nameCellByColumnHeader(primitiveCell, "Value");
+            AccessibilityUtil.nameCellByColumnHeader(primitiveCell, valueHeader);
             templateCells.push(primitiveCell);
             return templateCells;
         }

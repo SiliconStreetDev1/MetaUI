@@ -164,8 +164,8 @@ export class PolicyEngine {
     private evaluateCondition(condition: IPolicyCondition, data: unknown): IConditionOutcome {
         if (!isRecord(condition) || Object.keys(condition).length === 0) {
             Logger.error(
-                "[MetaUI PolicyEngine]",
                 "Malformed or empty policy condition block. The policy is treated as broken and applies no state.",
+                undefined,
                 "PolicyEngine"
             );
             return { met: false, degraded: true };
@@ -178,8 +178,8 @@ export class PolicyEngine {
             const plugin = registry.getPolicyConditionPlugin(key);
             if (!plugin) {
                 Logger.error(
-                    "[MetaUI PolicyEngine]",
                     `Unrecognized condition operator: ${key}. The policy is treated as broken and applies no state.`,
+                    undefined,
                     "PolicyEngine"
                 );
                 result = false;
@@ -192,9 +192,9 @@ export class PolicyEngine {
                 }
             } catch (e) {
                 Logger.error(
-                    "[MetaUI PolicyEngine]",
                     `Condition operator '${key}' threw and could not be evaluated: ` +
-                        (e instanceof Error ? e.message : String(e)),
+                    (e instanceof Error ? e.message : String(e)),
+                    undefined,
                     "PolicyEngine"
                 );
                 result = false;
@@ -413,9 +413,9 @@ export class PolicyEngine {
                 this.accumulatePolicy(policy, data, initTargetInLedger);
             } catch (e) {
                 Logger.error(
-                    "[MetaUI PolicyEngine]",
                     `Policy '${policy.effect}' on [${(policy.targets || []).join(", ")}] failed and applies no state: ` +
-                        (e instanceof Error ? e.message : String(e)),
+                    (e instanceof Error ? e.message : String(e)),
+                    undefined,
                     "PolicyEngine"
                 );
                 this.markPolicyDegraded(policy, initTargetInLedger);

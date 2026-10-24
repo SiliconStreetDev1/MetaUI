@@ -40,7 +40,10 @@ export class MinLengthValidatorPlugin implements IValidator {
      */
     public validate(parsedValue: unknown, args?: unknown): IValidationResult {
         if (typeof args !== "number") {
-            return { isValid: false, errorMessage: "Schema configuration error: 'minLength' must be a number." };
+            return {
+                isValid: false,
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigMustBeNumber, ["minLength"])
+            };
         }
         if (isEmptyValue(parsedValue)) return { isValid: true }; // Let RequiredValidator handle empty
 

@@ -23,8 +23,8 @@ Everything this page documents, and nothing else:
 | Module | What it is |
 | :--- | :--- |
 | `nz/co/siliconst/ui5/metaui/library` | The UI5 library entry point. The name an application lists in its `manifest.json` dependencies. |
-| `nz/co/siliconst/ui5/metaui/controls/DynamicHost` | The control, its properties, its events and their parameter types. |
-| `nz/co/siliconst/ui5/metaui/interfaces/ISchema` | The TypeScript shape of the schema you author and hand to `schemaDefinition` — `ISchema`, `IPropertyMetadata`, `IUIDirective`, `IValidationRule`, `IDataSourceConfig`, `IValueHelp`, `IPolicy` and the rest of that module. Documented in full in [AI_Schema_CheatSheet.md](AI_Schema_CheatSheet.md) and [SchemasAndInference.md](SchemasAndInference.md). |
+| `nz/co/siliconst/ui5/metaui/controls/DynamicHost` | The control (`DynamicHost`), its constructor settings (`$DynamicHostSettings`), its properties, and its events and event parameter types (`DynamicHost$BeforeSubmitEventParameters`, `DynamicHost$SubmitEventParameters`, `DynamicHost$CancelEventParameters`, `DynamicHost$FieldChangeEventParameters`, `DynamicHost$ValidationStateChangedEventParameters`, `DynamicHost$ErrorEventParameters`, `DynamicHost$BeforeLayoutSectionChangeEventParameters`). |
+| `nz/co/siliconst/ui5/metaui/interfaces/ISchema` | The TypeScript shape of the schema you author and hand to `schemaDefinition` — `ISchema`, `IPropertyMetadata`, `IUIDirective`, `IValidationRule`, `IDataSourceConfig`, `IRemoteValueHelpConfig`, `IValueHelp`, `IValueHelpOption`, `ILayoutElement`, `IPolicy`, `IPolicyCondition`, `PolicyEffectType`, and `FieldType`. Documented in full in [AI_Schema_CheatSheet.md](AI_Schema_CheatSheet.md) and [SchemasAndInference.md](SchemasAndInference.md). |
 | `nz/co/siliconst/ui5/metaui/utils/UrlValidator` | The data-source origin policy, documented below. |
 | `nz/co/siliconst/ui5/metaui/utils/Logger` | Debug mode, documented below. |
 | `nz/co/siliconst/ui5/metaui/constants/MetaUIConstants` | `SCHEMA_TYPE` and `RENDER_MODE` only, with their derived types `SchemaTypeType` and `RenderModeType`. These are closed sets that `ISchema` is defined in terms of. `WIDGET_TYPE` and `LAYOUT_STRATEGY` are **not** public: they grow with every new widget and layout, and the vocabulary you actually author against is the string values, which are documented and covered by the test oracle. |
@@ -37,7 +37,7 @@ The contract for code that plugs into MetaUI. [CreatingPlugins.md](CreatingPlugi
 | :--- | :--- |
 | `nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin` | The class a custom control plugin extends. |
 | `nz/co/siliconst/ui5/metaui/core/PluginStateBase` | Its base class, whose protected members `CreatingPlugins.md` documents by name. |
-| `nz/co/siliconst/ui5/metaui/core/PluginRegistry` | `registerPluginPath()`, `registerLayoutPath()`, `registerActionPath()`, `registerPolicyConditionPath()`, `registerPolicyEffectPath()`. |
+| `nz/co/siliconst/ui5/metaui/core/PluginRegistry` | `registerPluginPath()`, `hasPluginPath()`, `getRegisteredWidgets()`, `registerLayoutPath()`, `hasLayoutPath()`, `getRegisteredLayouts()`, `registerActionPath()`, `getActionPath()`, `getActionPlugin()`, `registerPolicyConditionPath()`, `registerPolicyEffectPath()`. |
 | `nz/co/siliconst/ui5/metaui/core/PipelineManager` | `GlobalPipeline`, and the `PipelineManager` type it is declared as. |
 | `nz/co/siliconst/ui5/metaui/core/Registry` | `GlobalPipeline.validators` is a `Registry`; `register()` lives on it. |
 | `nz/co/siliconst/ui5/metaui/core/Engine` | Handed to every custom layout by `ILayoutManager`. |
@@ -54,13 +54,13 @@ The contract for code that plugs into MetaUI. [CreatingPlugins.md](CreatingPlugi
 
 ### Internal tier
 
-Everything else: the engine's collaborators (`StateManager`, `ValidationLedger`, `SchemaDirectiveNormalizer`, `LayoutMutator`, …), the host delegates (`DataSyncDelegate`, `ODataDelegate`, …), the layouts, the OpenAPI ingestion classes, the utility modules, the hardware controls, `GeneratorHost` and `InferredGeneratorHost`, and **all 51 concrete plugin classes**.
+Everything else: the engine's collaborators (`StateManager`, `ValidationLedger`, `SchemaDirectiveNormalizer`, `LayoutMutator`, …), the host delegates (`DataSyncDelegate`, `ODataDelegate`, …), the layouts, the OpenAPI ingestion classes, the utility modules, the hardware controls, `GeneratorHost` and `InferredGeneratorHost`, and **all <!-- DOC_COUNT:concreteWidgetPlugins -->37 concrete widget/action/datasource plugin classes** (which serve the <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` mappings, alongside the validator, formatter and policy plugins).
 
 These are exported, loadable and subclassable, and they are not promised. Their names, signatures, protected members and behaviour may change in any release, including a patch. If you depend on one, pin an exact version.
 
 Two consequences worth stating plainly:
 
-- **The 51 concrete plugin classes stay exported and are internal.** `PluginRegistry` resolves them by AMD module path, so they cannot stop being exported; what the documented contract covers is the `(type, widget)` registration and the widget names, not the classes. Subclassing `LiveSearchPlugin` to override a protected method — as `test/webapp/plugins/MockLiveSearchPlugin.js` does — works, and is unsupported. Extend `BasePlugin` instead. `HardwareControlPlugin`, `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin` and `BaseOpenApiParser` are abstract bases that exist for the built-in plugins to share code; they are promotion candidates for a release that documents them, and until then they are internal too.
+- **The <!-- DOC_COUNT:concreteWidgetPlugins -->37 concrete field/action/datasource plugin classes (serving all <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` mappings) stay exported and are internal.** `PluginRegistry` resolves them by AMD module path, so they cannot stop being exported; what the documented contract covers is the `(type, widget)` registration and the widget names, not the classes. Subclassing `LiveSearchPlugin` to override a protected method — as `test/webapp/plugins/MockLiveSearchPlugin.js` does — works, and is unsupported. Extend `BasePlugin` instead. `OptionListPlugin`, `SingleBoundWidgetPlugin`, `HardwareControlPlugin`, `PickerPlugin`, `TextLikeInputPlugin`, `NestedDialogPlugin`, `ActionButtonPlugin` and `BaseOpenApiParser` are abstract bases that exist for the built-in plugins to share code; they are promotion candidates for a release that documents them, and until then they are internal too.
 - **`DynamicHost.getStateManager()` is public, but `StateManager` is not.** The accessor will keep existing and keep returning that object; the object's own members are internal and may change in a patch. The same holds for `getDebugDomMetadata()`, which is typed `unknown` for the same reason.
 
 ### How the tiers are enforced
@@ -122,7 +122,7 @@ Fired when a user explicitly cancels a form via the `sap.m.Dialog` (via the `ope
 ### `fieldChange`
 Fired every time an individual field value is mutated by the user, regardless of whether `liveUpdate` is active or not.
 - **Parameters**:
-  - `fieldPath` (string): The schema path of the modified field (e.g., `CustomerName` or `General/CustomerName`).
+  - `fieldPath` (string): Normalized by `ValidationDelegate.normalizeFieldPath`: a leading-slash JSON Pointer path when tied to a specific field (e.g., `"/CustomerName"` or `"/General/CustomerName"`), or `""` (empty string) when the notification is whole-form / root and not tied to a specific field.
   - `value` (any): The newly typed value of the field.
   - `payload` (object): The complete copy of the sandbox data state.
   - `isValid` (boolean): Whether the specific field currently passes its local schema validation rules.
@@ -133,21 +133,22 @@ Fired when the global validity of the entire form changes.
   - `isValid` (boolean): The current overarching state of the form layout.
 
 ### `validationError`
-Fired discretely when a specific field fails validation.
+Fired discretely when a specific field or form submission fails validation.
 - **Parameters**:
-  - `fieldPath` (string): The schema path of the invalid field.
+  - `fieldPath` (string): Normalized by `ValidationDelegate.normalizeFieldPath`: a leading-slash JSON Pointer path for a specific field (e.g., `"/CustomerName"`), or `""` (empty string) when the error is whole-form / root (such as a catastrophic dialog submit failure or a host-level validation check without a `fieldKey`).
   - `message` (string): The error string describing the violation.
 
 ### `validationSuccess`
 Fired discretely when a specific field passes validation.
 - **Parameters**:
-  - `fieldPath` (string): The schema path of the valid field.
+  - `fieldPath` (string): Normalized by `ValidationDelegate.normalizeFieldPath`: a leading-slash JSON Pointer path for a specific field (e.g., `"/CustomerName"`), or `""` (empty string) when not tied to a specific field.
 
 ### `error`
-Fired when a catastrophic failure occurs during layout generation (e.g., duplicate IDs, unparseable schemas, unregistered plugin types, or remote fetch failures).
+Fired when a catastrophic failure occurs during layout generation (e.g., duplicate IDs, unparseable schemas, unregistered plugin types, or remote fetch failures) or when an OData property patch fails in `ODataDelegate`.
 - **Parameters**:
   - `message` (string): Human-readable error description.
-  - `exception` (object): The raw JavaScript Error object.
+  - `exception` (object, optional): The raw JavaScript Error object (present on generation failures).
+  - `fieldPath` (string, optional): Present on rejected OData property writes; normalized by `ValidationDelegate.normalizeFieldPath` to a leading-slash JSON Pointer (`"/..."`) or `""`.
 
 ### `beforeLayoutSectionChange`
 Fired by `WizardLayout` immediately when the user presses the "Next Step" button, **before** the layout physically transitions to the next step. Provides a structured hook for consumers to perform per-step validation — including asynchronous backend checks — and optionally block or resume the navigation.
@@ -219,7 +220,11 @@ The signatures for registering custom plugins, layouts, validators, formatters a
 | :--- | :--- | :--- |
 | `PluginRegistry.getInstance()` | `PluginRegistry` | The process-wide singleton. A `DynamicHost` can be given its own isolated instance through the `pluginRegistry` property instead. |
 | `registerPluginPath(type: FieldType, widgetName: string \| undefined, path: string)` | `void` | Maps a `(type, widget)` pair to a control plugin's UI5 AMD module path. Passing `undefined` for `widgetName` replaces the default plugin for that schema type. |
+| `hasPluginPath(type: FieldType, widgetName?: string)` | `boolean` | Returns `true` when a module path is registered for the exact `(type, widgetName ?? "default")` pair (without falling back to the type default). |
+| `getRegisteredWidgets(type: FieldType)` | `string[]` | Returns the widget keys registered for `type` (including `"default"`). |
 | `registerLayoutPath(strategy: string, path: string)` | `void` | Maps a `layoutStrategy` value to a layout module path. The built-in names are `form`, `table`, `wizard` and `compact`. |
+| `hasLayoutPath(strategy: string)` | `boolean` | Returns `true` when `strategy` is registered in the layout index. |
+| `getRegisteredLayouts()` | `string[]` | Returns all registered layout strategy keys. |
 | `registerActionPath(actionName: string, path: string)` | `void` | Maps a type-agnostic action widget name (`ui.widget` or `uiLayout[].widget`) to an action plugin module path, resolved via `getActionPath()` / `getActionPlugin()` when no type-specific `(type, widget)` mapping is registered. |
 | `registerPolicyConditionPath(conditionKey: string, path: string)` | `void` | Maps a `uiPolicies` condition operator to a module path. |
 | `registerPolicyEffectPath(effectName: string, path: string)` | `void` | Maps a `uiPolicies` effect to a module path. |
@@ -229,7 +234,7 @@ The signatures for registering custom plugins, layouts, validators, formatters a
 
 The `path` arguments are **UI5 AMD module paths** — slash-separated, no file extension, resolved by `sap.ui.require` against the application's resource roots — not filesystem paths.
 
-Replacing an existing key is permitted and emits one log entry at level `WARNING` (`[MetaUI] FieldPluginIndex: Overwriting existing key 'boolean'.`), which UI5's default log level of `ERROR` discards. `PluginRegistry` exposes no `has()` and no key listing, so a key cannot be tested for availability beforehand.
+Replacing an existing key is permitted and emits one log entry at level `ERROR` (`FieldPluginIndex: Overwriting existing key 'boolean'.`), so the replacement is visible under UI5's default log level of `ERROR`. Use `hasPluginPath(type, widgetName?)`, `getRegisteredWidgets(type)`, `hasLayoutPath(strategy)`, and `getRegisteredLayouts()` to inspect registered keys beforehand.
 
 #### TypeScript consumers
 

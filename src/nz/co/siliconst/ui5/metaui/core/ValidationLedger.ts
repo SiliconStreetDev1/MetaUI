@@ -234,8 +234,8 @@ export class ValidationLedger {
             this.resolveVisualState(fieldKey);
         } catch (visualError) {
             Logger.error(
-                "[MetaUI ValidationLedger]",
                 `Could not paint the validation crash on '${fieldKey}': ` + (visualError as Error).message,
+                undefined,
                 "ValidationLedger"
             );
         }
@@ -563,9 +563,10 @@ export class ValidationLedger {
         const meta = this.resolveMetaForDataPath(cleanPath);
         if (!meta || !stateManager) {
             Logger.debug(
-                "[MetaUI ValidationLedger]",
                 `Cannot re-validate '${cleanPath}' after relaxing 'required'; its stored schema error is kept ` +
-                    `and will be recomputed by the next validateAll().`
+                `and will be recomputed by the next validateAll().`,
+                undefined,
+                "ValidationLedger"
             );
             return;
         }

@@ -46,6 +46,22 @@ export class ValidationDelegate {
     }
 
     /**
+     * Normalizes an optional field key into the canonical event `fieldPath` contract:
+     * `""` when the event is whole-form / root (not tied to a specific field), or a
+     * leading-slash JSON Pointer (`"/..."`) when tied to a specific field.
+     *
+     * @param fieldKey Optional raw field key or JSON Pointer.
+     * @returns {string} Normalized `"/..."` pointer or `""`.
+     */
+    public static normalizeFieldPath(fieldKey?: string): string {
+        if (!fieldKey) {
+            return "";
+        }
+        const clean = fieldKey.replace(/^\/+/, "");
+        return clean ? `/${clean}` : "";
+    }
+
+    /**
      * Removes non-custom validation messages owned by the host's StateManager from the global MessageManager.
      * Custom errors (`code === "CustomError"`) are preserved until explicitly cleared via `clearCustomError`.
      */
@@ -70,7 +86,7 @@ export class ValidationDelegate {
      * @param label The human-readable label of the field (optional).
      */
     public pushMessage(path: string, text: string, label?: string): void {
-        const targetPath = path ? `/${path.replace(/^\//, "")}` : "";
+        const targetPath = ValidationDelegate.normalizeFieldPath(path);
         const displayLabel = label || path;
         const displayText = path ? `Field '${displayLabel}': ${text}` : text;
 
@@ -213,7 +229,7 @@ export class ValidationDelegate {
             this.host.fireEvent("validationStateChanged", { isValid: effectiveFormValid });
         }
         this.host.fireEvent(isValid ? "validationSuccess" : "validationError", {
-            fieldPath: fieldKey || "",
+            fieldPath: ValidationDelegate.normalizeFieldPath(fieldKey),
             ...(isValid ? {} : { message: errorMessage || "Invalid input" })
         });
     }

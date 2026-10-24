@@ -207,6 +207,17 @@ sink; the alternative resolved every scope twice and logged every error twice.
   dependency — eager `sap.ui.core`, `sap.m`, `sap.ui.layout`, lazy `sap.ui.unified` and
   `sap.ui.codeeditor` — ships with both distributions.
 
+#### 13. The `inferenceStrategy` property and experimental `ai/` proxies are withdrawn
+
+- **`DynamicHost`'s `inferenceStrategy` property (formerly defaulting to `"RuleBased"`) and the `ai/` module tree (`AIConfig`, `BaseAIGenerator`, `MockLLMProxy`, `RestLLMProxy`) are removed.**
+  Schema inference when `schemaDefinition` is omitted remains unchanged and is always performed deterministically by `DataInferenceBuilder`. Consumers passing `inferenceStrategy` in XML views or constructor settings must remove the attribute.
+
+#### 14. Extension-tier method signatures changed since 1.4.51
+
+- **`PluginRegistry.getPathsToLoad(schema)` is removed**; pre-render module path collection is owned internally by `GenerationDelegate`.
+- **`LiveSearchPlugin`'s protected override hook is `scheduleSearch(input, metadata, query)`** (replacing `1.4.51`'s `fetchSuggestions(input, query)`).
+- **`RemoteValueHelpPlugin`'s protected override hook is `openValueHelpDialog(input, metadata)`** (replacing `1.4.51`'s `fetchData(comboBox)`).
+
 ### Fixed — a field that failed to generate reported the form valid
 
 A field whose plugin could not be resolved rendered an `[Error generating field <path>]`
@@ -231,9 +242,27 @@ than inspection:
 
 - **Redundant grouping** smuggled exponential patterns past the screen. `^((a+))+$` (3015 ms),
   `^(?:(a+))+$` (2594 ms), `^(((a+)))+$` (3804 ms) and `^((a*))*$` (5320 ms) were all accepted.
-- **Sequential overlapping quantifiers** were polynomial and uncapped: `^.*.*.*.*.*x$` took
-  **13.9 s** on a 200-character value, and because the quarantine is keyed per pattern, changing
-  one character bought a fresh stall. Now 0.10 ms, refused.
+- **Sequential overlapping quantifiers** were $O(n^5)$ ($\binom{n+5}{5}$ backtrack states) and
+  uncapped: on `^.*.*.*.*.*x$`, <!-- DOC_MEASURE:redosPreFix100ColdSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(100))\"" -->100 `a`s
+  took <!-- DOC_MEASURE:redosPreFix100ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(100))\"" -->0.40 s cold (<!-- DOC_MEASURE:redosPreFix100WarmTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(100))\"" -->0.15 s after V8 `Irregexp` JIT tier-up),
+  <!-- DOC_MEASURE:redosPreFix150ColdSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(150))\"" -->150 took <!-- DOC_MEASURE:redosPreFix150ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(150))\"" -->2.82 s cold (<!-- DOC_MEASURE:redosPreFix150WarmTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(150))\"" -->0.83 s warm),
+  <!-- DOC_MEASURE:redosPreFix200ColdSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(200))\"" -->200 took **<!-- DOC_MEASURE:redosPreFix200ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(200))\"" -->12.67 s** cold (<!-- DOC_MEASURE:redosPreFix200WarmTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(200))\"" -->3.53 s warm),
+  <!-- DOC_MEASURE:redosPreFix256ColdSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(256))\"" -->256 took <!-- DOC_MEASURE:redosPreFix256ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^.*.*.*.*.*x$').test('a'.repeat(256))\"" -->43.47 s cold (<!-- DOC_MEASURE:redosPreFix256WarmTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(256))\"" -->12.17 s warm), and
+  <!-- DOC_MEASURE:redosPreFix300WarmSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(300))\"" -->300 took <!-- DOC_MEASURE:redosPreFix300WarmTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"const r=new RegExp('^.*.*.*.*.*x$');r.test('a'.repeat(50));r.test('a'.repeat(300))\"" -->25.60 s warm (not measured at $n = 600$ or $n = 1500$, where the $\binom{n+5}{5}$ state space reaches $6.67 \times 10^{11}$ and $6.40 \times 10^{14}$ backtrack states respectively), and because the quarantine is keyed per pattern, changing
+  one character bought a fresh stall. Now 0.10 ms, refused (plus an input-length cap of 10,000 characters in `PatternValidatorPlugin`).
+- **A repeat whose only fixed element its own variable element can eat** was accepted by the
+  carve-out that exists to let `^(?:[a-z]+\.)+[a-z]{2,}$` and IPv6 patterns run. In `^(a+a)+$` the
+  trailing `a` pins nothing, because `a+` consumes it, so the repeat is exponential after all —
+  the worst shape found in this release. On a failing input it took
+  <!-- DOC_MEASURE:redosCarveOut32ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^(a+a)+$').test('a'.repeat(32)+'b')\"" -->0.15 s cold at 32 characters,
+  <!-- DOC_MEASURE:redosCarveOut36ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^(a+a)+$').test('a'.repeat(36)+'b')\"" -->1.05 s at 36 and
+  <!-- DOC_MEASURE:redosCarveOut40ColdTimeSec measured=2026-10-24 maxAgeDays=180 source="node -e \"new RegExp('^(a+a)+$').test('a'.repeat(40)+'b')\"" -->8.08 s at 40. One run was carried to 64 characters and
+  completed in **27.8 hours** — a single long measurement rather than a repeatable one, recorded
+  here because it is the figure that decided the design. An input-length cap alone could not have
+  carried this: at 40 characters the pattern already costs seconds, so the cap would have had to
+  sit near 32, which breaks IPv6 addresses (39–45 characters) and ordinary domain fields. The
+  screen had to get sharper first, refusing the exponential carve-out members outright so the cap
+  only has to bound the polynomial residue. Now 0.10 ms, refused.
 
 The screen counts the search space of an overlapping run rather than counting quantifiers, and
 decides token disjointness with the regex engine itself over an alphabet derived per pattern —
@@ -261,9 +290,9 @@ and the definition's, in both directions.
 
 ### Added — structural gates (`npm run lint`)
 
-Nine machine-checked gates in `scripts/run-tests.js`, each proven to fire against the exact
-divergence it exists to catch by `scripts/prove-structural-gates.js` (19 injected divergences,
-19 caught, tree restored green):
+<!-- DOC_COUNT:structuralGates -->10 source structural gates plus four documentation gates (`[DOC_SYMBOL]`, `[DOC_COUNT]`, `[DOC_CODE]`, `[DOC_MEASURE]`) in `scripts/run-tests.js`, each proven to fire against the exact
+divergence it exists to catch by `scripts/prove-structural-gates.js` (<!-- DOC_COUNT:gateProofCases -->26 injected divergences,
+<!-- DOC_COUNT:gateProofCases -->26 caught, tree restored green):
 
 - `[PRODUCER_COMPLETENESS]` — every member of `IPropertyMetadata` and `IUIDirective` must be
   written by each known producer or named in that producer's commented `DECLINED_SCHEMA_FIELDS`
@@ -280,10 +309,11 @@ divergence it exists to catch by `scripts/prove-structural-gates.js` (19 injecte
 - `[DATA_WRITER]` — the committed `data` / `dataJson` pair is written only by
   `DataSyncDelegate.commitDataPair` / `invalidateStaleDataJson`.
 - `[CATCH_SIGNAL]` — a caught failure must log, rethrow or fire; otherwise it needs a counted
-  `// CATCH_EXEMPT:` justification. 13 exemptions are recorded and reported in the tally.
+  `// CATCH_EXEMPT:` justification. <!-- DOC_COUNT:catchExemptions -->13 exemptions are recorded and reported in the tally.
 - `[DEPTH_SIGNAL]` — a depth guard must name the limit and what it discarded.
 - `[RENDER_DEGRADATION]` — a layout catch must set `engine.hasPartialRenderingErrors` so the
   partial-render banner appears.
+- `[SINGLE_WALKER]` — every recursive schema property-tree walker lives in `SchemaWalker` (<!-- DOC_COUNT:singleWalkerExemptions -->4 justified AST exemptions for cycle-safe syntax normalizers and UI layout tree walkers).
 
 ### Changed — one recursion cap, and no silent truncation
 
@@ -335,9 +365,9 @@ divergence it exists to catch by `scripts/prove-structural-gates.js` (19 injecte
 - Parser stage: `IParser` with `runParsers()`, and registered parsers for `phone`,
   `currency` and `date`. Custom formatters may implement `parse()` to declare
   themselves presentational.
-- A **Requirements** section in the README: MetaUI depends on `sap.ndc` and so
-  requires SAPUI5, not OpenUI5. Bootstrapping against OpenUI5 fails while
-  resolving `sap/ndc/library.js`.
+- A **Requirements** section in the README: MetaUI runs on both OpenUI5 and
+  SAPUI5 (verified on OpenUI5 1.120.50 after withdrawing `BarcodeScannerPlugin`
+  and the `sap.ndc` dependency).
 - [`docs/wiki/SupportedFeatures.md`](docs/wiki/SupportedFeatures.md) — complete
   capability inventory, including a Known Limitations section.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture reference.

@@ -56,7 +56,7 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
     public static async fetchAndBuild(url: string, targetDefinition?: string): Promise<ISchema> {
         if (!UrlValidator.isSafeDataSourceUrl(url)) {
             const refusal = `Refused OpenAPI URL '${url}': blocked by the data source URL policy.`;
-            Logger.warn("[MetaUI OpenApiBuilder]", refusal);
+            Logger.warn(refusal, undefined, "OpenApiBuilder");
             throw new Error(refusal);
         }
         try {
@@ -68,7 +68,7 @@ export class OpenApiBuilder implements ISchemaBuilderPlugin {
             return this.build(openApiRoot, targetDefinition);
         } catch (error) {
             const msg = "Failed to fetch Swagger JSON from URL: " + (error as Error).message;
-            Logger.error("[MetaUI OpenApiBuilder]", msg);
+            Logger.error(msg, undefined, "OpenApiBuilder");
             throw new Error(msg);
         }
     }

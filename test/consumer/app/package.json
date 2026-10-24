@@ -5,7 +5,7 @@
   "description": "A real UI5 Tooling app that installs the packed @siliconst/metaui tarball the way a consumer would, so the published package can be driven in a browser rather than asserted.",
   "scripts": {
     "start": "ui5 serve --port 8123 -o index.html",
-    "install-lib": "rimraf node_modules/@siliconst package-lock.json && npm install ../../../dist/siliconst-metaui-2.0.0.tgz"
+    "install-lib": "node -e \"const fs=require('fs');fs.rmSync('node_modules/@siliconst',{recursive:true,force:true});fs.rmSync('package-lock.json',{force:true})\" && npm install ../../../dist/siliconst-metaui-2.0.0.tgz"
   },
   "dependencies": {
     "@siliconst/metaui": "file:../../../dist/siliconst-metaui-2.0.0.tgz"

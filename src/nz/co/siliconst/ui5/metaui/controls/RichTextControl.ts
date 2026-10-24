@@ -130,11 +130,7 @@ export default class RichTextControl extends BaseHardwareControl {
                 this.container.addItem(rte);
             },
             () => {
-                Logger.debug(
-                    "[MetaUI RichTextControl]",
-                    "sap.ui.richtexteditor not available; keeping sap.m.TextArea.",
-                    "RichTextControl"
-                );
+                Logger.debug("sap.ui.richtexteditor not available; keeping sap.m.TextArea.", undefined, "RichTextControl");
             }
         );
     }

@@ -8,6 +8,7 @@ import { IPropertyMetadata } from "../interfaces/ISchema";
 import { IPlugin, IPluginEngineContext } from "../interfaces/IPlugin";
 import { WIDGET_TYPE } from "../constants/MetaUIConstants";
 import { PluginRegistry } from "../core/PluginRegistry";
+import { I18n, TEXT_KEY } from "./I18n";
 import { DataInferenceBuilder } from "../core/DataInferenceBuilder";
 import { deepClone, isRecord } from "./TypeGuards";
 import Control from "sap/ui/core/Control";
@@ -239,17 +240,17 @@ export class DictionaryMapUtil {
         const staticKeySet = new Set<string>(staticProperties ? Object.keys(staticProperties) : []);
         const trimmed = typeof rawKey === "string" ? rawKey.trim() : "";
         if (!trimmed) {
-            return { isValid: false, message: "Key cannot be empty." };
+            return { isValid: false, message: I18n.getText(TEXT_KEY.dictionaryKeyEmpty) };
         }
         if (staticKeySet.has(trimmed)) {
-            return { isValid: false, message: `Key '${trimmed}' is reserved as a static property.` };
+            return { isValid: false, message: I18n.getText(TEXT_KEY.dictionaryKeyReserved, [trimmed]) };
         }
         const allEntries = localModel.getProperty("/entries") as IDictionaryEntry[] | undefined;
         const isDuplicate =
             Array.isArray(allEntries) &&
             allEntries.some((e, i) => i !== index && typeof e.key === "string" && e.key.trim() === trimmed);
         if (isDuplicate) {
-            return { isValid: false, message: "Duplicate key is not allowed." };
+            return { isValid: false, message: I18n.getText(TEXT_KEY.dictionaryKeyDuplicate) };
         }
         return { isValid: true, message: "" };
     }
@@ -271,8 +272,8 @@ export class DictionaryMapUtil {
         const keyControl: Control = options.canEdit
             ? new Input({
                   value: `{dict>${entryPath}/key}`,
-                  placeholder: "Key",
-                  tooltip: "Dictionary entry key",
+                  placeholder: I18n.getText(TEXT_KEY.dictionaryKeyPlaceholder),
+                  tooltip: I18n.getText(TEXT_KEY.dictionaryKeyLabel),
                   width: "12rem",
                   valueState: initialKeyStatus.isValid ? ValueState.None : ValueState.Error,
                   valueStateText: initialKeyStatus.message,
@@ -331,7 +332,7 @@ export class DictionaryMapUtil {
                 new Button({
                     icon: "sap-icon://decline",
                     type: ButtonType.Transparent,
-                    tooltip: "Remove entry",
+                    tooltip: I18n.getText(TEXT_KEY.dictionaryRemoveEntry),
                     press: () => options.onRemove(options.index)
                 }).addStyleClass("sapUiTinyMarginBegin")
             );
@@ -341,9 +342,9 @@ export class DictionaryMapUtil {
             "sapUiTinyMarginBottom"
         );
         if (options.canEdit) {
-            const keyLabel = new Label({ text: "Dictionary entry key", labelFor: keyControl });
+            const keyLabel = new Label({ text: I18n.getText(TEXT_KEY.dictionaryKeyLabel), labelFor: keyControl });
             const valLabel = new Label({
-                text: clonedValueMeta.ui?.label || "Dictionary entry value",
+                text: clonedValueMeta.ui?.label || I18n.getText(TEXT_KEY.dictionaryValueLabel),
                 required: Boolean(clonedValueMeta.required),
                 labelFor: valueControl
             });

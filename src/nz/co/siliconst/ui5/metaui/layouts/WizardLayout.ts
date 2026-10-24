@@ -30,6 +30,7 @@ import { Engine } from "../core/Engine";
 import { WizardStepRenderer } from "./WizardStepRenderer";
 import { AccessibilityUtil } from "../utils/AccessibilityUtil";
 import { Logger } from "../utils/Logger";
+import { I18n, TEXT_KEY } from "../utils/I18n";
 
 /**
  * Minimal structural contract for accessing the hosting GeneratorHost without importing
@@ -81,7 +82,7 @@ export class WizardLayout implements ILayoutManager {
                 if (pendingLooseElements.length > 0) {
                     stepElements.push({
                         type: "WizardStep",
-                        label: schema.title || `Step ${stepElements.length + 1}`,
+                        label: schema.title || I18n.getText(TEXT_KEY.wizardStepTitle, [stepElements.length + 1]),
                         elements: pendingLooseElements
                     });
                     pendingLooseElements = [];
@@ -94,7 +95,7 @@ export class WizardLayout implements ILayoutManager {
         if (pendingLooseElements.length > 0) {
             stepElements.push({
                 type: "WizardStep",
-                label: schema.title || `Step ${stepElements.length + 1}`,
+                label: schema.title || I18n.getText(TEXT_KEY.wizardStepTitle, [stepElements.length + 1]),
                 elements: pendingLooseElements
             });
         }
@@ -157,7 +158,7 @@ export class WizardLayout implements ILayoutManager {
         };
 
         const prevButton = new Button({
-            text: "Previous",
+            text: I18n.getText(TEXT_KEY.wizardPrevious),
             icon: "sap-icon://navigation-left-arrow",
             enabled: false,
             press: () => {
@@ -169,7 +170,7 @@ export class WizardLayout implements ILayoutManager {
 
         const nextButton = new Button({
             type: ButtonType.Emphasized,
-            text: totalSteps === 1 ? "Complete" : "Next Step",
+            text: I18n.getText(totalSteps === 1 ? TEXT_KEY.wizardComplete : TEXT_KEY.wizardNextStep),
             icon: "sap-icon://navigation-right-arrow",
             iconFirst: false,
             press: () => handleNextPress()
@@ -177,15 +178,19 @@ export class WizardLayout implements ILayoutManager {
 
         const navigateTo = (index: number): void => {
             if (index < 0 || index >= totalSteps) {
-                Logger.error("[MetaUI WizardLayout]", `Invalid navigation target: step ${index}`, "WizardLayout");
+                Logger.error(`Invalid navigation target: step ${index}`, undefined, "WizardLayout");
                 return;
             }
             currentStepIndex = index;
             const element = stepElements[currentStepIndex];
             const isLastStep = currentStepIndex === totalSteps - 1;
 
-            stepTitleControl.setText(element.label || `Step ${currentStepIndex + 1}`);
-            stepCounterLabel.setText(`Step ${currentStepIndex + 1} of ${totalSteps}`);
+            stepTitleControl.setText(
+                element.label || I18n.getText(TEXT_KEY.wizardStepTitle, [currentStepIndex + 1])
+            );
+            stepCounterLabel.setText(
+                I18n.getText(TEXT_KEY.wizardStepCounter, [currentStepIndex + 1, totalSteps])
+            );
             progressBar.setPercentValue(((currentStepIndex + 1) / totalSteps) * 100);
 
             const removedItems = contentArea.removeAllItems();
@@ -195,7 +200,7 @@ export class WizardLayout implements ILayoutManager {
             contentArea.addItem(stepForms[currentStepIndex]);
 
             prevButton.setEnabled(currentStepIndex > 0);
-            nextButton.setText(isLastStep ? "Complete" : "Next Step");
+            nextButton.setText(I18n.getText(isLastStep ? TEXT_KEY.wizardComplete : TEXT_KEY.wizardNextStep));
             nextButton.setIcon(isLastStep ? "sap-icon://accept" : "sap-icon://navigation-right-arrow");
         };
 
@@ -205,11 +210,7 @@ export class WizardLayout implements ILayoutManager {
             const targetStepIndex = originStepIndex + 1;
             clearSectionChangeErrors();
             if (!WizardStepRenderer.validateStep(stepFieldPaths[originStepIndex], engine, schema)) {
-                Logger.debug(
-                    "[MetaUI WizardLayout]",
-                    `Step ${originStepIndex} failed local validation. Blocking navigation.`,
-                    "WizardLayout"
-                );
+                Logger.debug(`Step ${originStepIndex} failed local validation. Blocking navigation.`, undefined, "WizardLayout");
                 return;
             }
 

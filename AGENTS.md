@@ -2,7 +2,7 @@
 
 ## How this file works
 
-Nine rules, plus two temporary reminders at the end. Each states **what** and **how it is enforced**.
+Nine rules. Each states **what** and **how it is enforced**.
 
 This file previously carried 31 rules. Measured compliance was near-binary: every rule with a machine behind it held at 100%, and every rule without one was substantially violated. The rules were not the problem — the absence of enforcement was. So:
 
@@ -93,20 +93,6 @@ npm run metrics          # read-only canonical counts
 `package.json` defines `"pretest": "npm run build"`, so `npm test` rebuilds `dist/` automatically. Never quote a count from memory or from a document — take it from `npm run metrics`.
 
 Report what you actually ran. If something was skipped, could not be reproduced, or you disagreed with the instruction, **state it plainly** rather than omitting it. An unreported gap is the one that reaches production.
-
----
-
-## Temporary reminders — delete these when automated
-
-These two are the only surviving "remember to update X when you change Y" rules. That shape is a design smell: the correct fix is to derive the data, not to remind a human. They stay only until that work lands.
-
-**T1. Scenario registration `[judgment]` — temporary.**
-When adding a scenario to `test/webapp/mockData/scenarios/index.json`, also add its key to the hardcoded whitelist in `test/webapp/controller/ScenarioRunner.controller.js` (~line 111), or it will silently not appear in the Playground.
-*Exit condition: read the list from `index.json` and delete this rule.*
-
-**T2. AI cheat sheet `[judgment]` — temporary.**
-When adding a widget, schema property or `ui` directive, update `docs/wiki/AI_Schema_CheatSheet.md`. It is the ground-truth reference other AI agents read, and a stale entry causes hallucinated schemas.
-*Exit condition: generate it from `ISchema.ts` + `MetaUIConstants.ts` and delete this rule.*
 
 ---
 

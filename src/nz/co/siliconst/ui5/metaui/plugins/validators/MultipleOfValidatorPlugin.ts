@@ -36,7 +36,10 @@ export class MultipleOfValidatorPlugin implements IValidator {
             return { isValid: false, errorMessage: I18n.getText(TEXT_KEY.finiteNumber) };
         }
         if (typeof args !== "number" || !Number.isFinite(args) || args <= 0) {
-            return { isValid: false, errorMessage: "Schema configuration error: 'multipleOf' must be a positive number." };
+            return {
+                isValid: false,
+                errorMessage: I18n.getText(TEXT_KEY.schemaConfigMustBePositiveNumber, ["multipleOf"])
+            };
         }
         const quotient = parsedValue / args;
         if (!Number.isFinite(quotient)) {

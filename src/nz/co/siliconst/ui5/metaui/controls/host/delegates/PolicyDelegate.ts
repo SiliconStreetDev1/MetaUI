@@ -114,9 +114,9 @@ export class PolicyDelegate {
         if (delta.property === "visibility" && delta.value === false) {
             if (delta.degraded) {
                 Logger.error(
-                    "[MetaUI PolicyDelegate]",
                     `Refusing to hide '${delta.target}' and prune its value: the policy governing it could not be ` +
-                        `evaluated. Fix the policy condition; the field stays visible and its value is preserved.`,
+                    `evaluated. Fix the policy condition; the field stays visible and its value is preserved.`,
+                    undefined,
                     "PolicyDelegate"
                 );
                 return false;
@@ -188,8 +188,8 @@ export class PolicyDelegate {
             deltas = this.policyEngine.evaluate(payload);
         } catch (e) {
             Logger.error(
-                "[MetaUI PolicyDelegate]",
                 `Policy evaluation pass failed and emitted no deltas: ${e instanceof Error ? e.message : String(e)}`,
+                undefined,
                 "PolicyDelegate"
             );
         }
@@ -202,9 +202,9 @@ export class PolicyDelegate {
                 }
             } catch (e) {
                 Logger.error(
-                    "[MetaUI PolicyDelegate]",
                     `Failed to apply '${delta.property}' policy delta to '${delta.target}': ` +
-                        (e instanceof Error ? e.message : String(e)),
+                    (e instanceof Error ? e.message : String(e)),
+                    undefined,
                     "PolicyDelegate"
                 );
             }

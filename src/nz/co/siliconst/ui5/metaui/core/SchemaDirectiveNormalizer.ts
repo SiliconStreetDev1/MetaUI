@@ -105,10 +105,7 @@ export class SchemaDirectiveNormalizer {
         const rawType = Array.isArray(prop.type) ? prop.type.find((t) => t !== "null") : prop.type;
         const mappedRawType = rawType === "file" ? SCHEMA_TYPE.STRING : rawType;
         if (mappedRawType !== undefined && !isFieldType(mappedRawType) && keyName) {
-            Logger.warn(
-                "[MetaUI SchemaNormalizer]",
-                `Unsupported type '${String(rawType)}' on '${keyName}'; falling back to 'string'.`
-            );
+            Logger.warn(`Unsupported type '${String(rawType)}' on '${keyName}'; falling back to 'string'.`, undefined, "SchemaNormalizer");
         }
         const inferredFallbackType: FieldType = isRecord(prop.items)
             ? SCHEMA_TYPE.ARRAY
@@ -291,7 +288,7 @@ export class SchemaDirectiveNormalizer {
             } else if (isRecord(entry) && typeof entry.name === "string") {
                 rules.push({ name: entry.name, args: entry.args === undefined ? undefined : deepClone(entry.args) });
             } else {
-                Logger.warn("[MetaUI SchemaNormalizer]", `Ignoring malformed validator entry: ${JSON.stringify(entry)}`);
+                Logger.warn(`Ignoring malformed validator entry: ${JSON.stringify(entry)}`, undefined, "SchemaNormalizer");
             }
         }
         return rules;
@@ -416,15 +413,16 @@ export class SchemaDirectiveNormalizer {
                     const msg =
                         `uiLayout element #${ctx.key} has unsupported type '${String(entry.type)}'. ` +
                         `Allowed: ${LAYOUT_ELEMENT_TYPES.join(", ")}.`;
-                    Logger.error("[MetaUI SchemaNormalizer]", msg);
+                    Logger.error(msg, undefined, "SchemaNormalizer");
                     throw new Error(msg);
                 }
                 if (Array.isArray(entry.elements)) {
                     childrenStack.push([]);
                     if (ctx.depth >= MAX_LAYOUT_DEPTH) {
                         Logger.warn(
-                            "[MetaUI SchemaNormalizer]",
-                            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
+                            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`,
+                            undefined,
+                            "SchemaNormalizer"
                         );
                         return "skip-subtree";
                     }
@@ -452,15 +450,16 @@ export class SchemaDirectiveNormalizer {
                     const msg =
                         `uiLayout element #${key} has unsupported type '${typeof rawValue}'. ` +
                         `Allowed: ${LAYOUT_ELEMENT_TYPES.join(", ")}.`;
-                    Logger.error("[MetaUI SchemaNormalizer]", msg);
+                    Logger.error(msg, undefined, "SchemaNormalizer");
                     throw new Error(msg);
                 },
                 onTruncate: (scope, reason) => {
                     if (reason === "cycle") {
                         const index = scope.split("/").pop() ?? "0";
                         Logger.warn(
-                            "[MetaUI SchemaNormalizer]",
-                            `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
+                            `Circular uiLayout element reference detected at index #${index}; stopping recursion.`,
+                            undefined,
+                            "SchemaNormalizer"
                         );
                     }
                 }
@@ -484,7 +483,7 @@ export class SchemaDirectiveNormalizer {
                 const msg =
                     `uiPolicies[${index}] has unsupported effect '${effectDesc}'. ` +
                     `Allowed: ${POLICY_EFFECTS.join(", ")}.`;
-                Logger.error("[MetaUI SchemaNormalizer]", msg);
+                Logger.error(msg, undefined, "SchemaNormalizer");
                 throw new Error(msg);
             }
             const condition: IPolicyCondition = {};

@@ -284,7 +284,7 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                             schemaObj = JSON.parse(schemaObj);
                         } catch (e) {
                             const msg = "Failed to parse schema string: " + (e as Error).message;
-                            Logger.error("[MetaUI SchemaNormalizer]", msg);
+                            Logger.error(msg, undefined, "SchemaNormalizer");
                             throw new Error(msg);
                         }
                     }
@@ -295,8 +295,9 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 }
                 if (activeDefs.has(schemaObj)) {
                     Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
-                        "Circular schema definition reference detected during normalization; stopping recursion."
+                        "Circular schema definition reference detected during normalization; stopping recursion.",
+                        undefined,
+                        "SchemaNormalizer"
                     );
                     task.result = { type: "object", properties: {} };
                     return "skip-subtree";
@@ -395,9 +396,10 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                         return;
                     }
                     Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
                         `Definition nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                            `truncating nested definition normalization.`
+                        `truncating nested definition normalization.`,
+                        undefined,
+                        "SchemaNormalizer"
                     );
                     rawNode.result = { type: "object", properties: {} };
                     this.finalizeDefinitionMetadata(rawNode, MAX_SCHEMA_DEPTH + 1);
@@ -656,10 +658,11 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 onTruncate: (_scope, reason) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI SchemaNormalizer]",
                             `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) ` +
-                                `while stripping writeOnly values; any writeOnly field below ` +
-                                `this level was left in the outbound payload.`
+                            `while stripping writeOnly values; any writeOnly field below ` +
+                            `this level was left in the outbound payload.`,
+                            undefined,
+                            "SchemaNormalizer"
                         );
                     }
                 }
@@ -700,9 +703,10 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
         const normalizedProps: Record<string, IPropertyMetadata> = {};
         if (depth > MAX_SCHEMA_DEPTH) {
             Logger.warn(
-                "[MetaUI SchemaNormalizer]",
                 `Nested schema exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                    `${Object.keys(properties).length} propert(ies) were dropped.`
+                `${Object.keys(properties).length} propert(ies) were dropped.`,
+                undefined,
+                "SchemaNormalizer"
             );
             return normalizedProps;
         }
@@ -732,8 +736,9 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                 silentTruncationLog: true,
                 onInvalidProperty: (propKey) => {
                     Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
-                        `Property '${propKey}' is not a schema object; treating it as a plain string field.`
+                        `Property '${propKey}' is not a schema object; treating it as a plain string field.`,
+                        undefined,
+                        "SchemaNormalizer"
                     );
                     const childData = isRecord(data) ? data[propKey] : undefined;
                     normalizedProps[propKey] = this.normalizePropertyMetadata(
@@ -893,9 +898,10 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                         task.hasRawProperties = true;
                         if (nextLevelExceedsDepth) {
                             Logger.warn(
-                                "[MetaUI SchemaNormalizer]",
                                 `Nested schema exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                                    `${Object.keys(rawProperties).length} propert(ies) were dropped.`
+                                `${Object.keys(rawProperties).length} propert(ies) were dropped.`,
+                                undefined,
+                                "SchemaNormalizer"
                             );
                             task.propChildren = [];
                         } else {
@@ -905,8 +911,9 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                                 const raw = propsDict[key];
                                 if (!isRecord(raw)) {
                                     Logger.warn(
-                                        "[MetaUI SchemaNormalizer]",
-                                        `Property '${key}' is not a schema object; treating it as a plain string field.`
+                                        `Property '${key}' is not a schema object; treating it as a plain string field.`,
+                                        undefined,
+                                        "SchemaNormalizer"
                                     );
                                 }
                                 const childData = isRecord(task.data) ? task.data[key] : undefined;
@@ -966,9 +973,10 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
                     // constraint on this property are discarded. Say so rather than letting the field silently
                     // degrade into an empty object.
                     Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
                         `Property '${rawNode.keyName}' exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                            `its type and constraints were not normalized.`
+                        `its type and constraints were not normalized.`,
+                        undefined,
+                        "SchemaNormalizer"
                     );
                     rawNode.result = {
                         type: SCHEMA_TYPE.OBJECT,
@@ -1023,9 +1031,10 @@ export class SchemaNormalizer implements ISchemaBuilderPlugin {
         }
         if (nextLevelExceedsDepth) {
             Logger.warn(
-                "[MetaUI SchemaNormalizer]",
                 `A polymorphic branch list exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                    `${raw.length} branch(es) were dropped.`
+                `${raw.length} branch(es) were dropped.`,
+                undefined,
+                "SchemaNormalizer"
             );
             return undefined;
         }

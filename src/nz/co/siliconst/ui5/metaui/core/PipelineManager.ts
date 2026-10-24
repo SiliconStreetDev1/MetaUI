@@ -156,7 +156,7 @@ export class PipelineManager {
     }
 
     private getFormatterAsParser(name: string): IParser | undefined {
-        const formatter = this.formatters.get(name) as Partial<IParser> | undefined;
+        const formatter = this.formatters.get(name);
         return formatter && typeof formatter.parse === "function" ? (formatter as IParser) : undefined;
     }
 
@@ -215,7 +215,10 @@ export class PipelineManager {
                 // field, and the two opposite contracts lived three lines apart in the same loop.
                 const detail = `Requested validator '${rule}' is not registered.`;
                 Logger.error(`[MetaUI] PipelineManager: ${detail}`);
-                return { isValid: false, errorMessage: `Schema configuration error: ${detail}` };
+                return {
+                    isValid: false,
+                    errorMessage: I18n.getText(TEXT_KEY.schemaConfigUnregisteredValidator, [rule])
+                };
             }
             const args = argsMap ? argsMap[rule] : undefined;
             try {

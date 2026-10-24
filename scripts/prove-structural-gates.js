@@ -239,6 +239,51 @@ const CASES = [
             "        }\n" +
             "    }",
         expect: /\[SINGLE_WALKER\].*SchemaValidator\.ts.*defines a recursive walker 'scanProps' outside core\/SchemaWalker\.ts/
+    },
+    {
+        id: "K-doc-count-mismatch",
+        gate: "DOC_COUNT",
+        file: path.join(ROOT_DIR, "README.md"),
+        from: "<!-- DOC_COUNT:pluginMappings -->51",
+        to: "<!-- DOC_COUNT:pluginMappings -->52",
+        expect: /\[DOC_COUNT\].*README\.md.*claims pluginMappings=52 but source AST derives 51/
+    },
+    {
+        id: "L-doc-code-uncompilable-block",
+        gate: "DOC_CODE",
+        file: path.join(ROOT_DIR, "docs", "wiki", "CreatingPlugins.md"),
+        from: 'import { BasePlugin } from "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin";',
+        to: 'import { NonExistentSymbol } from "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin";',
+        expect: /\[DOC_CODE\].*CreatingPlugins\.md.*TypeScript code block failed compilation \(TS2305\)/
+    },
+    {
+        id: "M-doc-symbol-undocumented-export",
+        gate: "DOC_SYMBOL",
+        file: srcFile("utils/AccessibilityUtil.ts"),
+        from: "export interface IAriaLabelSupport extends Control {",
+        to:
+            "/** Probe export for [DOC_SYMBOL] proof. */\n" +
+            "export interface IUndocumentedProbeContract {\n" +
+            "    readonly probe: boolean;\n" +
+            "}\n\n" +
+            "export interface IAriaLabelSupport extends Control {",
+        expect: /\[DOC_SYMBOL\].*AccessibilityUtil\.ts.*exports 'IUndocumentedProbeContract' which is neither documented in docs\/ nor justified in UNDOCUMENTED_SYMBOL_ALLOWLIST/
+    },
+    {
+        id: "N1-doc-measure-out-of-tolerance",
+        gate: "DOC_MEASURE",
+        file: path.join(ROOT_DIR, "docs", "ARCHITECTURE.md"),
+        from: "<!-- DOC_MEASURE:bundlePreloadKB tolerance=5% source=npm-run-build -->408 KB",
+        to: "<!-- DOC_MEASURE:bundlePreloadKB tolerance=5% source=npm-run-build -->900 KB",
+        expect: /\[DOC_MEASURE\].*ARCHITECTURE\.md.*claims bundlePreloadKB=900 but live measurement is .* \(outside tolerance 5%\)/
+    },
+    {
+        id: "N2-doc-measure-expired-timestamp",
+        gate: "DOC_MEASURE",
+        file: path.join(ROOT_DIR, "CHANGELOG.md"),
+        from: '<!-- DOC_MEASURE:redosPreFix200ColdSec measured=2026-10-24 maxAgeDays=180 source="node -e \\"new RegExp(\'^.*.*.*.*.*x$\').test(\'a\'.repeat(200))\\"" -->200',
+        to: '<!-- DOC_MEASURE:redosPreFix200ColdSec measured=2020-01-01 maxAgeDays=180 source="node -e \\"new RegExp(\'^.*.*.*.*.*x$\').test(\'a\'.repeat(200))\\"" -->200',
+        expect: /\[DOC_MEASURE\].*CHANGELOG\.md.*measurement 'redosPreFix200ColdSec' is \d+ days old \(measured 2020-01-01, maxAgeDays=180\)/
     }
 ];
 

@@ -169,7 +169,7 @@ export class ODataDelegate {
                     this.pushPayload(oData);
                 }).catch((err: Error) => {
                     if (!this.destroyed && !this.host.isDestroyed()) {
-                        Logger.error("[MetaUI]", "Failed to extract V4 Context payload: " + err.message, "ODataDelegate");
+                        Logger.error("Failed to extract V4 Context payload: " + err.message, undefined, "ODataDelegate");
                     }
                 });
             }
@@ -371,7 +371,7 @@ export class ODataDelegate {
      * @param cleanPath The relative OData property path that failed.
      */
     private reportWriteFailure(message: string, cleanPath: string): void {
-        Logger.error("[MetaUI]", message, "ODataDelegate");
+        Logger.error(message, undefined, "ODataDelegate");
         if (!this.destroyed && typeof this.host.fireEvent === "function") {
             this.host.fireEvent("error", { message, fieldPath: `/${cleanPath}` });
         }
@@ -427,11 +427,7 @@ export class ODataDelegate {
                 }
             }
             if (this.host.getProperty("debugMode")) {
-                Logger.debug(
-                    "[MetaUI]",
-                    `ODataDelegate Patched ${cleanPath} = ${String(outbound)} via ${this.odataType}`,
-                    "ODataDelegate"
-                );
+                Logger.debug(`ODataDelegate Patched ${cleanPath} = ${String(outbound)} via ${this.odataType}`, undefined, "ODataDelegate");
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

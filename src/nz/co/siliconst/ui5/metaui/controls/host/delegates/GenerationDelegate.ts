@@ -64,8 +64,9 @@ export class GenerationDelegate {
                 rawSchema = JSON.parse(rawSchema);
             } catch (e) {
                 Logger.debug(
-                    "[MetaUI GenerationDelegate]",
-                    `Deferring malformed JSON schema string to SchemaNormalizer: ${(e as Error).message}`
+                    `Deferring malformed JSON schema string to SchemaNormalizer: ${(e as Error).message}`,
+                    undefined,
+                    "GenerationDelegate"
                 );
             }
         }
@@ -108,7 +109,7 @@ export class GenerationDelegate {
 
         if (isDataEmpty && isSchemaEmpty) {
             const msg = "No payload provided and no explicit schema defined. Cannot infer UI.";
-            Logger.error("[MetaUI]", msg, "GeneratorHost");
+            Logger.error(msg, undefined, "GeneratorHost");
             this.host.fireEvent("error", { message: msg });
             throw new Error(msg);
         }
@@ -133,7 +134,7 @@ export class GenerationDelegate {
         const schemaErrors = SchemaValidator.validateSchemaStructure(normalizedSchema);
         if (schemaErrors.length > 0) {
             const errorMsg = "Schema Structural Errors Found:\n- " + schemaErrors.join("\n- ");
-            Logger.error("[MetaUI]", errorMsg, "GeneratorHost");
+            Logger.error(errorMsg, undefined, "GeneratorHost");
             if (this.host.getProperty("debugMode")) {
                 MessageBox.error(errorMsg, { title: "MetaUI Schema Error" });
                 return null;
@@ -287,7 +288,7 @@ export class GenerationDelegate {
                 inputData = JSON.parse(inputDataJson);
             } catch (e) {
                 dataParseError = "Failed to parse inputDataJson string: " + (e as Error).message;
-                Logger.error("[MetaUI]", dataParseError, "GeneratorHost");
+                Logger.error(dataParseError, undefined, "GeneratorHost");
                 this.host.fireEvent("error", { message: dataParseError, exception: e });
                 inputData = {};
             }
@@ -296,7 +297,7 @@ export class GenerationDelegate {
                 inputData = JSON.parse(inputData);
             } catch (e) {
                 dataParseError = "Failed to parse inputData string: " + (e as Error).message;
-                Logger.error("[MetaUI]", dataParseError, "GeneratorHost");
+                Logger.error(dataParseError, undefined, "GeneratorHost");
                 this.host.fireEvent("error", { message: dataParseError, exception: e });
                 inputData = {};
             }
@@ -325,9 +326,10 @@ export class GenerationDelegate {
                 onTruncate: (_scope, reason) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI GenerationDelegate]",
                             `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while scanning for ` +
-                                `'additionalProperties'; hybrid inference was not considered below this level.`
+                            `'additionalProperties'; hybrid inference was not considered below this level.`,
+                            undefined,
+                            "GenerationDelegate"
                         );
                     }
                 }

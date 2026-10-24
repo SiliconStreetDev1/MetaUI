@@ -228,8 +228,8 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
     ): Record<string, IPropertyMetadata> {
         if (depth >= MAX_SCHEMA_DEPTH) {
             Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
                 `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached while sampling array rows; truncating nested inference.`,
+                undefined,
                 "DataInferenceBuilder"
             );
             return {};
@@ -339,15 +339,15 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
                 onTruncate: (scope, reason, _rawNode, otherMap) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
                             `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; ` +
-                                "truncating recursive merge.",
+                            "truncating recursive merge.",
+                            undefined,
                             "DataInferenceBuilder"
                         );
                     } else if (reason === "cycle") {
                         Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
                             "Circular property map detected in mergeInferredProperties; truncating recursive merge.",
+                            undefined,
                             "DataInferenceBuilder"
                         );
                     }
@@ -512,8 +512,8 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
     ): Record<string, IPropertyMetadata> {
         if (depth >= MAX_SCHEMA_DEPTH) {
             Logger.warn(
-                "[MetaUI DataInferenceBuilder]",
                 `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached; truncating nested inference.`,
+                undefined,
                 "DataInferenceBuilder"
             );
             return {};
@@ -548,9 +548,9 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
                             if (seen.has(val) || ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
                                 if (ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
                                     Logger.warn(
-                                        "[MetaUI DataInferenceBuilder]",
                                         `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on array '${key}'; ` +
-                                            "truncating nested inference.",
+                                        "truncating nested inference.",
+                                        undefined,
                                         "DataInferenceBuilder"
                                     );
                                 }
@@ -600,9 +600,9 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
                                 type = SCHEMA_TYPE.STRING;
                             } else if (ctx.depth + 1 >= MAX_SCHEMA_DEPTH) {
                                 Logger.warn(
-                                    "[MetaUI DataInferenceBuilder]",
                                     `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on object '${key}'; ` +
-                                        "truncating nested inference.",
+                                    "truncating nested inference.",
+                                    undefined,
                                     "DataInferenceBuilder"
                                 );
                                 type = SCHEMA_TYPE.OBJECT;
@@ -683,15 +683,15 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
                 onTruncate: (scope, reason, rawNode, otherMap) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
                             `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; ` +
-                                "truncating recursive merge.",
+                            "truncating recursive merge.",
+                            undefined,
                             "DataInferenceBuilder"
                         );
                     } else if (reason === "cycle") {
                         Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
                             "Circular property map detected in mergeHybridProperties; truncating recursive merge.",
+                            undefined,
                             "DataInferenceBuilder"
                         );
                     }
@@ -801,9 +801,9 @@ export class DataInferenceBuilder implements ISchemaBuilderPlugin {
                 onTruncate: (scope, reason, rawNode, otherRec) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI DataInferenceBuilder]",
                             `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; ` +
-                                "truncating recursive merge.",
+                            "truncating recursive merge.",
+                            undefined,
                             "DataInferenceBuilder"
                         );
                     }

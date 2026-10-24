@@ -482,11 +482,8 @@ function deepCloneLegacy<T>(value: T, seen: WeakMap<object, unknown> = new WeakM
         return seen.get(value) as T;
     }
     if (depth >= MAX_CLONE_DEPTH) {
-        Logger.warn(
-            "[MetaUI TypeGuards]",
-            `deepClone exceeded MAX_CLONE_DEPTH (${MAX_CLONE_DEPTH}); the payload below this level was ` +
-                `replaced with an empty ${Array.isArray(value) ? "array" : "object"} and its data is lost.`
-        );
+        Logger.warn(`deepClone exceeded MAX_CLONE_DEPTH (${MAX_CLONE_DEPTH}); the payload below this level was ` +
+                `replaced with an empty ${Array.isArray(value) ? "array" : "object"} and its data is lost.`, undefined, "TypeGuards");
         return (Array.isArray(value) ? [] : {}) as unknown as T;
     }
     if (Array.isArray(value)) {
@@ -550,11 +547,8 @@ function validateSchemaStructureLegacy(schema: unknown, depth: number = 0): stri
         return ["Root schema must be an object."];
     }
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaValidator]",
-            `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
-                `structurally valid without being checked.`
-        );
+        Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
+                `structurally valid without being checked.`, undefined, "SchemaValidator");
         return errors;
     }
     const rootType = readString(schema, "type");
@@ -681,11 +675,8 @@ function resolveRefLegacy(
 /** Oracle 9: GenerationDelegate.containsAdditionalProperties legacy implementation. */
 function containsAdditionalPropertiesLegacy(node: unknown, depth: number = 0): boolean {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI GenerationDelegate]",
-            `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while scanning for ` +
-                `'additionalProperties'; hybrid inference was not considered below this level.`
-        );
+        Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while scanning for ` +
+                `'additionalProperties'; hybrid inference was not considered below this level.`, undefined, "GenerationDelegate");
         return false;
     }
     if (!isRecord(node)) return false;
@@ -752,12 +743,8 @@ function injectSchemaDefaultsLegacy(
 ): void {
     if (!schema || !rootData || typeof rootData !== "object") return;
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI]",
-            `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); schema defaults below this ` +
-                `level were not injected, so those fields start empty rather than at their declared default.`,
-            "DataSyncDelegate"
-        );
+        Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); schema defaults below this ` +
+                `level were not injected, so those fields start empty rather than at their declared default.`, undefined, "DataSyncDelegate");
         return;
     }
     let effectiveSchema = schema;
@@ -1266,10 +1253,7 @@ function resolveControlElementLegacy(
             break;
         }
         if (pathNodes.has(meta) || activeNodes?.has(meta)) {
-            Logger.warn(
-                "[MetaUI SchemaNormalizer]",
-                `Circular schema reference detected while resolving scope '${element.scope}'; stopping recursion.`
-            );
+            Logger.warn(`Circular schema reference detected while resolving scope '${element.scope}'; stopping recursion.`, undefined, "SchemaNormalizer");
             meta = undefined;
             break;
         }
@@ -1277,10 +1261,7 @@ function resolveControlElementLegacy(
         let resolvedDef: ISchema | null | undefined;
         if (meta.$ref) {
             if (pathRefs.has(meta.$ref) || activeRefs?.has(meta.$ref)) {
-                Logger.warn(
-                    "[MetaUI SchemaNormalizer]",
-                    `Circular $ref detected (${meta.$ref}) while resolving scope '${element.scope}'; stopping recursion.`
-                );
+                Logger.warn(`Circular $ref detected (${meta.$ref}) while resolving scope '${element.scope}'; stopping recursion.`, undefined, "SchemaNormalizer");
                 meta = undefined;
                 break;
             }
@@ -1289,10 +1270,7 @@ function resolveControlElementLegacy(
                 resolveDef?.(meta.$ref) ?? schema.definitions?.[OpenApiRefResolver.extractRefName(meta.$ref)];
             if (resolvedDef) {
                 if (pathNodes.has(resolvedDef) || activeNodes?.has(resolvedDef)) {
-                    Logger.warn(
-                        "[MetaUI SchemaNormalizer]",
-                        `Circular $ref definition detected (${meta.$ref}) while resolving scope '${element.scope}'; stopping recursion.`
-                    );
+                    Logger.warn(`Circular $ref definition detected (${meta.$ref}) while resolving scope '${element.scope}'; stopping recursion.`, undefined, "SchemaNormalizer");
                     meta = undefined;
                     break;
                 }
@@ -1304,7 +1282,7 @@ function resolveControlElementLegacy(
         }
     }
     if (!meta) {
-        Logger.warn("[MetaUI SchemaNormalizer]", `Scope '${element.scope}' does not resolve to a schema property.`);
+        Logger.warn(`Scope '${element.scope}' does not resolve to a schema property.`, undefined, "SchemaNormalizer");
         Logger.error(`[MetaUI] Property '${propKey}' not found in schema definitions.`, "", layoutName);
         engine.hasPartialRenderingErrors = true;
         return null;
@@ -1479,31 +1457,19 @@ function validateTreeLegacy(
     activeRefs: Set<string> = new Set<string>()
 ): { isValid: boolean; errorMessage?: string } {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI PayloadValidator]",
-            `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
-                `valid without being validated.`,
-            "PayloadValidator"
-        );
+        Logger.warn(`Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was reported ` +
+                `valid without being validated.`, undefined, "PayloadValidator");
         return { isValid: true };
     }
     if (metadata.ui?.visible === false) {
         return { isValid: true };
     }
     if (activeNodes.has(metadata)) {
-        Logger.warn(
-            "[MetaUI PayloadValidator]",
-            "Circular schema reference detected; stopping recursion to prevent infinite loop.",
-            "PayloadValidator"
-        );
+        Logger.warn("Circular schema reference detected; stopping recursion to prevent infinite loop.", undefined, "PayloadValidator");
         return { isValid: true };
     }
     if (metadata.$ref && activeRefs.has(metadata.$ref)) {
-        Logger.warn(
-            "[MetaUI PayloadValidator]",
-            `Circular $ref detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`,
-            "PayloadValidator"
-        );
+        Logger.warn(`Circular $ref detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`, undefined, "PayloadValidator");
         return { isValid: true };
     }
 
@@ -1514,11 +1480,7 @@ function validateTreeLegacy(
         resolved = resolveDefinition(metadata.$ref);
         if (resolved) {
             if (activeNodes.has(resolved)) {
-                Logger.warn(
-                    "[MetaUI PayloadValidator]",
-                    `Circular $ref definition detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`,
-                    "PayloadValidator"
-                );
+                Logger.warn(`Circular $ref definition detected (${metadata.$ref}); stopping recursion to prevent infinite loop.`, undefined, "PayloadValidator");
                 return { isValid: true };
             }
             effectiveMeta = mergeResolvedDefinitionLegacy(resolved as IPropertyMetadata, metadata);
@@ -1549,13 +1511,10 @@ function validateTreeLegacy(
         }
         if (effectiveMeta.not) {
             if (!PayloadValidator.isEvaluableNot(effectiveMeta.not)) {
-                Logger.warn(
-                    "[MetaUI PayloadValidator]",
-                    "A 'not' sub-schema declares no constraint this engine can evaluate; it is not enforced. " +
+                Logger.warn("A 'not' sub-schema declares no constraint this engine can evaluate; it is not enforced. " +
                         "Give it one of: const, enum, pattern, format, maxLength, minLength, minimum, maximum, " +
                         "exclusiveMinimum, exclusiveMaximum, multipleOf, maxItems, minItems, uniqueItems, " +
-                        "maxProperties, minProperties, properties, items, not."
-                );
+                        "maxProperties, minProperties, properties, items, not.", undefined, "PayloadValidator");
             } else {
                 const matches = validateTreeLegacy(
                     effectiveMeta.not,
@@ -1691,12 +1650,8 @@ function validatePayloadArraysLegacy(
 ): IPluginValidationResult[] {
     const errors: IPluginValidationResult[] = [];
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI PayloadValidator]",
-            `Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                `subtree '${currentPath || "/"}' was not validated.`,
-            "PayloadValidator"
-        );
+        Logger.warn(`Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                `subtree '${currentPath || "/"}' was not validated.`, undefined, "PayloadValidator");
         return errors;
     }
     if (!schema || payload === null || payload === undefined || typeof payload !== "object") return errors;
@@ -1705,11 +1660,7 @@ function validatePayloadArraysLegacy(
 
     const schemaRef = "$ref" in schema ? (schema as IPropertyMetadata).$ref : undefined;
     if (activeNodes.has(schema) || (schemaRef && activeRefs.has(schemaRef))) {
-        Logger.warn(
-            "[MetaUI PayloadValidator]",
-            "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
-            "PayloadValidator"
-        );
+        Logger.warn("Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.", undefined, "PayloadValidator");
         return errors;
     }
     let effectiveSchema: ISchema = schema;
@@ -1718,11 +1669,7 @@ function validatePayloadArraysLegacy(
         resolved = resolveDefinition(schemaRef);
         if (resolved) {
             if (activeNodes.has(resolved)) {
-                Logger.warn(
-                    "[MetaUI PayloadValidator]",
-                    `Circular $ref definition detected (${schemaRef}) in validatePayloadArrays; stopping recursion.`,
-                    "PayloadValidator"
-                );
+                Logger.warn(`Circular $ref definition detected (${schemaRef}) in validatePayloadArrays; stopping recursion.`, undefined, "PayloadValidator");
                 return errors;
             }
             effectiveSchema = mergeResolvedDefinitionLegacy(resolved as ISchema, schema);
@@ -1748,22 +1695,14 @@ function validatePayloadArraysLegacy(
                 let propSchema: IPropertyMetadata = rawPropSchema;
                 if (rawPropSchema.$ref && resolveDefinition) {
                     if (activeRefs.has(rawPropSchema.$ref)) {
-                        Logger.warn(
-                            "[MetaUI PayloadValidator]",
-                            `Circular $ref detected (${rawPropSchema.$ref}) in validatePayloadArrays; stopping recursion.`,
-                            "PayloadValidator"
-                        );
+                        Logger.warn(`Circular $ref detected (${rawPropSchema.$ref}) in validatePayloadArrays; stopping recursion.`, undefined, "PayloadValidator");
                         continue;
                     }
                     const resolvedProp = resolveDefinition(rawPropSchema.$ref);
                     if (resolvedProp) {
                         if (activeNodes.has(resolvedProp)) {
-                            Logger.warn(
-                                "[MetaUI PayloadValidator]",
-                                `Circular $ref definition detected (${rawPropSchema.$ref}) ` +
-                                    "in validatePayloadArrays; stopping recursion.",
-                                "PayloadValidator"
-                            );
+                            Logger.warn(`Circular $ref definition detected (${rawPropSchema.$ref}) ` +
+                                    "in validatePayloadArrays; stopping recursion.", undefined, "PayloadValidator");
                             continue;
                         }
                         propSchema = mergeResolvedDefinitionLegacy(
@@ -1955,19 +1894,11 @@ function mergeInferredPropertiesLegacy(
     activeMaps: WeakSet<object> = new WeakSet<object>()
 ): Record<string, IPropertyMetadata> {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; truncating recursive merge.`,
-            "DataInferenceBuilder"
-        );
+        Logger.warn(`Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeInferredProperties; truncating recursive merge.`, undefined, "DataInferenceBuilder");
         return { ...base };
     }
     if (activeMaps.has(base) || activeMaps.has(next)) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            "Circular property map detected in mergeInferredProperties; truncating recursive merge.",
-            "DataInferenceBuilder"
-        );
+        Logger.warn("Circular property map detected in mergeInferredProperties; truncating recursive merge.", undefined, "DataInferenceBuilder");
         return { ...base };
     }
     activeMaps.add(base);
@@ -2063,11 +1994,7 @@ function deepMergeRecordsLegacy(
     activeRecords: WeakSet<object> = new WeakSet<object>()
 ): JsonRecord {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; truncating recursive merge.`,
-            "DataInferenceBuilder"
-        );
+        Logger.warn(`Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in deepMergeRecords; truncating recursive merge.`, undefined, "DataInferenceBuilder");
         return { ...base, ...override };
     }
     if (activeRecords.has(base) || activeRecords.has(override)) {
@@ -2099,19 +2026,11 @@ function mergeHybridPropertiesLegacy(
     activeMaps: WeakSet<object> = new WeakSet<object>()
 ): JsonRecord {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            `Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; truncating recursive merge.`,
-            "DataInferenceBuilder"
-        );
+        Logger.warn(`Maximum schema depth (${MAX_SCHEMA_DEPTH}) reached in mergeHybridProperties; truncating recursive merge.`, undefined, "DataInferenceBuilder");
         return { ...inferredProps, ...explicitProps };
     }
     if (activeMaps.has(inferredProps) || activeMaps.has(explicitProps)) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            "Circular property map detected in mergeHybridProperties; truncating recursive merge.",
-            "DataInferenceBuilder"
-        );
+        Logger.warn("Circular property map detected in mergeHybridProperties; truncating recursive merge.", undefined, "DataInferenceBuilder");
         return { ...inferredProps, ...explicitProps };
     }
     activeMaps.add(inferredProps);
@@ -2168,11 +2087,7 @@ function inferPropertiesFromRowsLegacy(
     seen: WeakSet<object> = new WeakSet()
 ): Record<string, IPropertyMetadata> {
     if (depth >= MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached while sampling array rows; truncating nested inference.`,
-            "DataInferenceBuilder"
-        );
+        Logger.warn(`Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached while sampling array rows; truncating nested inference.`, undefined, "DataInferenceBuilder");
         return {};
     }
     let merged: Record<string, IPropertyMetadata> = {};
@@ -2192,11 +2107,7 @@ function inferPropertiesFromObjectLegacy(
     seen: WeakSet<object> = new WeakSet()
 ): Record<string, IPropertyMetadata> {
     if (depth >= MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI DataInferenceBuilder]",
-            `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached; truncating nested inference.`,
-            "DataInferenceBuilder"
-        );
+        Logger.warn(`Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached; truncating nested inference.`, undefined, "DataInferenceBuilder");
         return {};
     }
     seen.add(obj);
@@ -2210,11 +2121,7 @@ function inferPropertiesFromObjectLegacy(
             type = SCHEMA_TYPE.ARRAY;
             if (seen.has(val) || depth + 1 >= MAX_SCHEMA_DEPTH) {
                 if (depth + 1 >= MAX_SCHEMA_DEPTH) {
-                    Logger.warn(
-                        "[MetaUI DataInferenceBuilder]",
-                        `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on array '${key}'; truncating nested inference.`,
-                        "DataInferenceBuilder"
-                    );
+                    Logger.warn(`Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on array '${key}'; truncating nested inference.`, undefined, "DataInferenceBuilder");
                 }
                 items = { type: SCHEMA_TYPE.STRING };
             } else {
@@ -2244,11 +2151,7 @@ function inferPropertiesFromObjectLegacy(
             if (seen.has(val)) {
                 type = SCHEMA_TYPE.STRING;
             } else if (depth + 1 >= MAX_SCHEMA_DEPTH) {
-                Logger.warn(
-                    "[MetaUI DataInferenceBuilder]",
-                    `Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on object '${key}'; truncating nested inference.`,
-                    "DataInferenceBuilder"
-                );
+                Logger.warn(`Maximum inference depth (${MAX_SCHEMA_DEPTH}) reached on object '${key}'; truncating nested inference.`, undefined, "DataInferenceBuilder");
                 type = SCHEMA_TYPE.OBJECT;
                 nestedProps = {};
             } else {
@@ -2527,11 +2430,8 @@ function stripWriteOnlyValuesLegacy(
     depth: number = 0
 ): void {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaNormalizer]",
-            `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while stripping writeOnly values; ` +
-                `any writeOnly field below this level was left in the outbound payload.`
-        );
+        Logger.warn(`Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) while stripping writeOnly values; ` +
+                `any writeOnly field below this level was left in the outbound payload.`, undefined, "SchemaNormalizer");
         return;
     }
     if (!meta || data === null || typeof data !== "object") {
@@ -2585,11 +2485,8 @@ function normalizeSchemaListLegacy(
         return undefined;
     }
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaNormalizer]",
-            `A polymorphic branch list exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                `${raw.length} branch(es) were dropped.`
-        );
+        Logger.warn(`A polymorphic branch list exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                `${raw.length} branch(es) were dropped.`, undefined, "SchemaNormalizer");
         return undefined;
     }
     return raw.filter(isRecord).map((entry) => {
@@ -2649,11 +2546,8 @@ function normalizePropertyMetadataLegacy(
     activeRefs: Set<string> = new Set()
 ): IPropertyMetadata {
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaNormalizer]",
-            `Property '${keyName}' exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                `its type and constraints were not normalized.`
-        );
+        Logger.warn(`Property '${keyName}' exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                `its type and constraints were not normalized.`, undefined, "SchemaNormalizer");
         return { type: SCHEMA_TYPE.OBJECT, ui: { label: DataInferenceBuilder.generateLabel(keyName) } };
     }
     const rawAllOf = rawProp.allOf;
@@ -2781,20 +2675,14 @@ function normalizePropertiesLegacy(
 ): Record<string, IPropertyMetadata> {
     const normalizedProps: Record<string, IPropertyMetadata> = {};
     if (depth > MAX_SCHEMA_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaNormalizer]",
-            `Nested schema exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                `${Object.keys(properties).length} propert(ies) were dropped.`
-        );
+        Logger.warn(`Nested schema exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
+                `${Object.keys(properties).length} propert(ies) were dropped.`, undefined, "SchemaNormalizer");
         return normalizedProps;
     }
     for (const key of Object.keys(properties)) {
         const raw = properties[key];
         if (!isRecord(raw)) {
-            Logger.warn(
-                "[MetaUI SchemaNormalizer]",
-                `Property '${key}' is not a schema object; treating it as a plain string field.`
-            );
+            Logger.warn(`Property '${key}' is not a schema object; treating it as a plain string field.`, undefined, "SchemaNormalizer");
         }
         const childData = isRecord(data) ? data[key] : undefined;
         normalizedProps[key] = normalizePropertyMetadataLegacy(
@@ -4050,18 +3938,12 @@ function getPathsToLoadLegacy(
     ): void => {
         if (!prop || typeof prop !== "object") return;
         if (activeNodes.has(prop)) {
-            Logger.warn(
-                "[MetaUI PluginRegistry]",
-                `Circular schema reference detected at '${scope}'; stopping plugin preload recursion.`
-            );
+            Logger.warn(`Circular schema reference detected at '${scope}'; stopping plugin preload recursion.`, undefined, "PluginRegistry");
             return;
         }
         if (depth > MAX_SCHEMA_DEPTH) {
-            Logger.warn(
-                "[MetaUI PluginRegistry]",
-                `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${scope}'; ` +
-                    `plugins below this level were not preloaded.`
-            );
+            Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${scope}'; ` +
+                    `plugins below this level were not preloaded.`, undefined, "PluginRegistry");
             return;
         }
         activeNodes.add(prop);
@@ -4079,16 +3961,10 @@ function getPathsToLoadLegacy(
             if (prop.items && typeof prop.items === "object" && !Array.isArray(prop.items)) {
                 const itemScope = `${scope}/items`;
                 if (activeNodes.has(prop.items)) {
-                    Logger.warn(
-                        "[MetaUI PluginRegistry]",
-                        `Circular schema reference detected at '${itemScope}'; stopping plugin preload recursion.`
-                    );
+                    Logger.warn(`Circular schema reference detected at '${itemScope}'; stopping plugin preload recursion.`, undefined, "PluginRegistry");
                 } else if (depth + 1 > MAX_SCHEMA_DEPTH) {
-                    Logger.warn(
-                        "[MetaUI PluginRegistry]",
-                        `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${itemScope}'; ` +
-                            `plugins below this level were not preloaded.`
-                    );
+                    Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${itemScope}'; ` +
+                            `plugins below this level were not preloaded.`, undefined, "PluginRegistry");
                 } else {
                     activeNodes.add(prop.items);
                     try {
@@ -4153,16 +4029,10 @@ function getPathsToLoadLegacy(
                 const addProp = prop.additionalProperties as IPropertyMetadata;
                 const addScope = `${scope}/additionalProperties`;
                 if (activeNodes.has(addProp)) {
-                    Logger.warn(
-                        "[MetaUI PluginRegistry]",
-                        `Circular schema reference detected at '${addScope}'; stopping plugin preload recursion.`
-                    );
+                    Logger.warn(`Circular schema reference detected at '${addScope}'; stopping plugin preload recursion.`, undefined, "PluginRegistry");
                 } else if (depth + 1 > MAX_SCHEMA_DEPTH) {
-                    Logger.warn(
-                        "[MetaUI PluginRegistry]",
-                        `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${addScope}'; ` +
-                            `plugins below this level were not preloaded.`
-                    );
+                    Logger.warn(`Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${addScope}'; ` +
+                            `plugins below this level were not preloaded.`, undefined, "PluginRegistry");
                 } else {
                     activeNodes.add(addProp);
                     try {
@@ -4276,10 +4146,7 @@ function normalizeLayoutLegacy(
     const validTypes = new Set(["Control", "Group", "WizardStep", "HorizontalLayout", "VerticalLayout"]);
     if (!Array.isArray(raw)) return undefined;
     if (depth > MAX_LAYOUT_DEPTH) {
-        Logger.warn(
-            "[MetaUI SchemaNormalizer]",
-            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`
-        );
+        Logger.warn(`uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}); truncating deeper layout elements.`, undefined, "SchemaNormalizer");
         return [];
     }
     const normalized: ILayoutElement[] = [];
@@ -4290,14 +4157,11 @@ function normalizeLayoutLegacy(
             const msg =
                 `uiLayout element #${index} has unsupported type '${entryType}'. ` +
                 `Allowed: Control, Group, WizardStep, HorizontalLayout, VerticalLayout.`;
-            Logger.error("[MetaUI SchemaNormalizer]", msg);
+            Logger.error(msg, undefined, "SchemaNormalizer");
             throw new Error(msg);
         }
         if (activeElements.has(entry)) {
-            Logger.warn(
-                "[MetaUI SchemaNormalizer]",
-                `Circular uiLayout element reference detected at index #${index}; stopping recursion.`
-            );
+            Logger.warn(`Circular uiLayout element reference detected at index #${index}; stopping recursion.`, undefined, "SchemaNormalizer");
             continue;
         }
         activeElements.add(entry);
@@ -4327,10 +4191,7 @@ function expandElementsLegacy(
     activeElements: WeakSet<object> = new WeakSet<object>()
 ): ILayoutElement[] {
     if (depth > MAX_LAYOUT_DEPTH) {
-        Logger.warn(
-            "[MetaUI LayoutMutator]",
-            `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) during layout expansion; truncating deeper elements.`
-        );
+        Logger.warn(`uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) during layout expansion; truncating deeper elements.`, undefined, "LayoutMutator");
         return [];
     }
     const expanded: ILayoutElement[] = [];
@@ -4349,10 +4210,7 @@ function expandElementsLegacy(
             continue;
         }
         if (activeElements.has(element)) {
-            Logger.warn(
-                "[MetaUI LayoutMutator]",
-                "Circular uiLayout element reference detected during layout expansion; stopping recursion."
-            );
+            Logger.warn("Circular uiLayout element reference detected during layout expansion; stopping recursion.", undefined, "LayoutMutator");
             continue;
         }
         activeElements.add(element);
@@ -4409,10 +4267,7 @@ function expandElementsLegacy(
 
                     if (isInlineObject && meta.properties) {
                         if (activeElements.has(meta)) {
-                            Logger.warn(
-                                "[MetaUI LayoutMutator]",
-                                `Circular inline object detected at '${element.scope}'; stopping recursive expansion.`
-                            );
+                            Logger.warn(`Circular inline object detected at '${element.scope}'; stopping recursive expansion.`, undefined, "LayoutMutator");
                             expanded.push(element);
                             continue;
                         }
@@ -4450,10 +4305,7 @@ function expandElementsLegacy(
                         expanded.push(element);
                     }
                 } catch (err) {
-                    Logger.debug(
-                        "[MetaUI LayoutMutator]",
-                        `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`
-                    );
+                    Logger.debug(`Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`, "LayoutMutator");
                     expanded.push(element);
                 }
             } else {

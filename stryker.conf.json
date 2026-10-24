@@ -3,7 +3,9 @@
   "_comment": "Mutation testing over the pure-logic ingestion and validation core, driven by the fast-check suite in test/node/. Scope is deliberately the files those properties target: every surviving mutant has to be triaged, so a mutate set wider than the suite's reach would produce survivors nobody can honestly account for. UI orchestration (layouts, policies, plugins that build controls) stays with the browser QUnit suite. Run it with `npm run mutate`, which pins the fast-check seed and run count so the score is reproducible.",
   "packageManager": "npm",
   "testRunner": "mocha",
-  "plugins": ["@stryker-mutator/mocha-runner"],
+  "plugins": [
+    "@stryker-mutator/mocha-runner"
+  ],
   "mochaOptions_comment": "spec, require, extension and timeout all come from the rc file, so `npm run test:prop` and `npm run mutate` drive exactly the same suite.",
   "mochaOptions": {
     "config": "test/node/.mocharc.json"
@@ -15,6 +17,7 @@
     "src/nz/co/siliconst/ui5/metaui/core/DataInferenceBuilder.ts",
     "src/nz/co/siliconst/ui5/metaui/core/PayloadValidator.ts",
     "src/nz/co/siliconst/ui5/metaui/core/PipelineManager.ts",
+    "src/nz/co/siliconst/ui5/metaui/core/SafeConvert.ts",
     "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiRefResolver.ts",
     "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiParserFactory.ts",
     "src/nz/co/siliconst/ui5/metaui/openapi/OpenApiTypeMapper.ts",
@@ -37,11 +40,27 @@
   ],
   "coverageAnalysis": "perTest",
   "disableTypeChecks": true,
-  "reporters": ["html", "clear-text", "progress", "json"],
-  "htmlReporter": { "fileName": "test/node/.mutation-report/index.html" },
-  "jsonReporter": { "fileName": "test/node/.mutation-report/mutation.json" },
-  "clearTextReporter": { "maxTestsToLog": 2, "allowEmojis": false },
+  "reporters": [
+    "html",
+    "clear-text",
+    "progress",
+    "json"
+  ],
+  "htmlReporter": {
+    "fileName": "test/node/.mutation-report/index.html"
+  },
+  "jsonReporter": {
+    "fileName": "test/node/.mutation-report/mutation.json"
+  },
+  "clearTextReporter": {
+    "maxTestsToLog": 2,
+    "allowEmojis": false
+  },
   "timeoutMS": 30000,
   "timeoutFactor": 3,
-  "thresholds": { "high": 85, "low": 70, "break": null }
+  "thresholds": {
+    "high": 85,
+    "low": 70,
+    "break": null
+  }
 }

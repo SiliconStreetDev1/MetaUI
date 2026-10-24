@@ -581,7 +581,7 @@ Two deliberate caps are visible in the data and both work:
   100, 0.550 ms at 500, 0.400 ms at 1000, 0.567 ms at 5000. Rows beyond the 50th are never
   sampled. This is the single best performance decision in the codebase — inference of a
   5000-row payload costs the same as a 50-row one.
-- **`MAX_INFERENCE_DEPTH = 10`** (`core/DataInferenceBuilder.ts:17`). Depth cost rises linearly
+- **`MAX_INFERENCE_DEPTH = 10`** (`core/DataInferenceBuilder.ts:17` at the time of this baseline run; **subsequently unified onto `MAX_SCHEMA_DEPTH = 30` in 2.0.0**). Depth cost rises linearly
   to 0.148 ms at depth 10 and then stops: depth 12 measures 0.134 ms, statistically identical.
 
 The apparent explosion in the nested-array sweep (0.016 ms at depth 2 to 2.46 ms at depth 6) is
@@ -783,7 +783,7 @@ What to do instead, in order of value:
 
 Reported, not fixed, per the brief. Each reproduces from the harness in this directory.
 
-### Defect 1 — a generated table silently renders only the first 100 rows (correctness, high)
+### Defect 1 — a generated table silently renders only the first 100 rows (correctness, high; **resolved in 2.0.0** via `StateManager` model size limit + `TableLayout` `growing: true`)
 
 `StateManager` (`core/StateManager.ts:42`) constructs `SandboxJSONModel` and sets only the
 binding mode. `setSizeLimit` is never called anywhere in `src/` (`grep -rn "setSizeLimit" src/`
@@ -813,7 +813,7 @@ without `growing` means a 5000-row payload renders 5000 rows at ~0.28 ms per cel
 seconds for 3 columns. `growing: true` with a `growingThreshold` is almost certainly the right
 answer, and it needs a schema-level or host-level opt-out.
 
-### Defect 2 — `library-preload.js` is never requested by the documented integration (load, high)
+### Defect 2 — `library-preload.js` is never requested by the documented integration (load, high; **resolved in 2.0.0** by documenting `data-sap-ui-libs` in `README.md` and `GettingStarted.md`)
 
 The standalone consumer page in `scripts/run-tests.js`, the pages in this harness, and the
 integration shown in the README all declare the library through `data-sap-ui-resourceroots`
@@ -918,7 +918,7 @@ Fix direction: append in place rather than replacing the array identity, and mak
 `onArrayMutated` re-evaluate *without* resetting the differential matrix — a row insertion
 invalidates the state of rows at and after the insertion point, not of every rule in the form.
 
-### Non-defect worth recording — `PolicyEngine` used outside a host is 16x slower and says nothing
+### Non-defect worth recording — `PolicyEngine` used outside a host is 16x slower and says nothing (**resolved in 2.0.0** via `PluginRegistry.warnedUnpreloadedPolicyKeys` one-time warning)
 
 `PluginRegistry.getPolicyConditionPlugin` / `getPolicyEffectPlugin` (lines 417, 424) resolve
 through `requireAndConstruct` (line 369), which does a **synchronous** `sap.ui.require(path)`.
@@ -938,7 +938,7 @@ the engine runs, so a host-driven form is always in the fast state. It is record
 anything else constructing one directly will hit it. A guard that logs the missing module once
 per path rather than once per rule per pass would make it diagnosable.
 
-## The single highest-value optimisation
+## The single highest-value optimisation (**implemented in 2.0.0** via `PluginRegistry.policyConditionCache` and `policyEffectCache`)
 
 **Hoist the policy condition and effect plugin resolution out of `PolicyEngine`'s per-rule loop.**
 

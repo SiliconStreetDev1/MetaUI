@@ -123,11 +123,7 @@ export default class DynamicHost extends Control {
         }
 
         if (hasRequestObject || typeof candidate.getObject === "function") {
-            Logger.debug(
-                "[MetaUI DynamicHost]",
-                `Instantiating ODataDelegate for context ${oContext.getPath()}`,
-                "DynamicHost"
-            );
+            Logger.debug(`Instantiating ODataDelegate for context ${oContext.getPath()}`, undefined, "DynamicHost");
             this.odataDelegate = new ODataDelegate(this, oContext as ODataV4Context);
             this.odataDelegate.syncToEngine();
         }
@@ -195,11 +191,7 @@ export default class DynamicHost extends Control {
      */
     private discardDestroyedInnerHost(): void {
         if (this._innerHost && this._innerHost.isDestroyed()) {
-            Logger.warn(
-                "[MetaUI DynamicHost]",
-                "Inner GeneratorHost was destroyed externally; respawning it on the next render.",
-                "DynamicHost"
-            );
+            Logger.warn("Inner GeneratorHost was destroyed externally; respawning it on the next render.", undefined, "DynamicHost");
             this._innerHost = null;
             this._initializedInner = false;
         }

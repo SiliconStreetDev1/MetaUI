@@ -95,6 +95,51 @@ export class PluginRegistry {
         this.fieldIndex.register(key, path);
     }
 
+    /**
+     * Checks whether a plugin module path is registered for the given `(type, widgetName)` pair.
+     *
+     * @param type The schema field type.
+     * @param widgetName Optional widget name; when omitted, checks the default mapping for `type`.
+     * @returns {boolean} True if a mapping exists in the field plugin index.
+     */
+    public hasPluginPath(type: FieldType, widgetName?: string): boolean {
+        const key = widgetName ? `${type}:${widgetName}` : type;
+        return this.fieldIndex.has(key);
+    }
+
+    /**
+     * Returns all widget names registered under the given `type` (excluding the bare default `type` entry).
+     *
+     * @param type The schema field type to inspect.
+     * @returns {string[]} Registered widget names for `type`.
+     */
+    public getRegisteredWidgets(type: FieldType): string[] {
+        const prefix = `${type}:`;
+        return this.fieldIndex
+            .getKeys()
+            .filter((k) => k.startsWith(prefix))
+            .map((k) => k.slice(prefix.length));
+    }
+
+    /**
+     * Checks whether a layout strategy module path is registered.
+     *
+     * @param strategy The layout strategy name (e.g. `"form"`, `"table"`).
+     * @returns {boolean} True if `strategy` is registered in the layout index.
+     */
+    public hasLayoutPath(strategy: string): boolean {
+        return this.layoutIndex.has(strategy);
+    }
+
+    /**
+     * Returns all registered layout strategy names.
+     *
+     * @returns {string[]} Registered layout strategy keys.
+     */
+    public getRegisteredLayouts(): string[] {
+        return this.layoutIndex.getKeys();
+    }
+
     /** Registers a custom action plugin path, resolvable through {@link PluginRegistry.getActionPlugin}. */
     public registerActionPath(actionName: string, path: string): void {
         this.actionIndex.register(actionName, path);
@@ -345,14 +390,16 @@ export class PluginRegistry {
             onTruncate: (scope, reason) => {
                 if (reason === "depth") {
                     Logger.warn(
-                        "[MetaUI PluginRegistry]",
                         `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}) at '${scope}'; ` +
-                            `plugins below this level were not preloaded.`
+                        `plugins below this level were not preloaded.`,
+                        undefined,
+                        "PluginRegistry"
                     );
                 } else {
                     Logger.warn(
-                        "[MetaUI PluginRegistry]",
-                        `Circular schema reference detected at '${scope}'; stopping plugin preload recursion.`
+                        `Circular schema reference detected at '${scope}'; stopping plugin preload recursion.`,
+                        undefined,
+                        "PluginRegistry"
                     );
                 }
             }

@@ -78,4 +78,10 @@ declare global {
     }
 }
 
+/**
+ * Default export exposing the initialized `nz.co.siliconst.ui5.metaui` UI5 library namespace.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui
+ * @public
+ */
 export default window.nz.co.siliconst.ui5.metaui;

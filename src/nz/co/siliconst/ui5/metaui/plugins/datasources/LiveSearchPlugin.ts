@@ -81,7 +81,7 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
      * @param term The user's search term.
      * @param ds The configured `IDataSourceConfig` block.
      */
-    private scheduleSearch(input: Input, term: string, ds?: IDataSourceConfig): void {
+    protected scheduleSearch(input: Input, term: string, ds?: IDataSourceConfig): void {
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
@@ -90,8 +90,8 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
         }
         if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
             Logger.warn(
-                "[MetaUI LiveSearchPlugin]",
                 `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy, no search term was sent.`,
+                undefined,
                 "LiveSearchPlugin"
             );
             return;
@@ -158,11 +158,7 @@ export class LiveSearchPlugin extends TextLikeInputPlugin {
                 }
             }
         } catch (err) {
-            Logger.warn(
-                "[MetaUI LiveSearchPlugin]",
-                `Live search request failed: ${(err as Error).message}`,
-                "LiveSearchPlugin"
-            );
+            Logger.warn(`Live search request failed: ${(err as Error).message}`, undefined, "LiveSearchPlugin");
         }
     }
 

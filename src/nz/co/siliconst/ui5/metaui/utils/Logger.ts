@@ -14,6 +14,9 @@ const DEFAULT_COMPONENT = "MetaUI";
  * - `debug` and `info` are gated behind {@link Logger.setDebugMode} to keep production consoles clean.
  * - `warn` and `error` are **always** emitted so schema misconfigurations, unregistered widgets and
  *   runtime failures never fail silently.
+ *
+ * @namespace nz.co.siliconst.ui5.metaui.utils
+ * @public
  */
 export class Logger {
     private static debugMode: boolean = false;

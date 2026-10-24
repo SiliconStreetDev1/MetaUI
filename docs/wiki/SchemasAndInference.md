@@ -59,12 +59,12 @@ Every field within `properties` or `items` supports the following absolute schem
 | `pattern` | `string` | Regular expression validation. Capped at 512 characters, and shapes whose repetition is provably ambiguous are refused as a denial-of-service risk rather than executed — see [Supported Features](SupportedFeatures.md). |
 | `multipleOf` | `number` | Numeric step/divisor constraint. |
 | `valueHelp` | `IValueHelp[] \| IRemoteValueHelpConfig` | Array of static Key/Text pairs OR remote endpoint configuration object. |
-| `enum` | `string[] \| number[]` | Array of allowed primitive values. |
+| `enum` | `(string \| number \| boolean \| null)[]` | Array of allowed primitive values. |
 | `default` | `unknown` | The default value assigned if the payload is empty. |
 | `nullable` | `boolean` | Indicates if the property allows null values (`RequiredValidatorPlugin` rejects `null` when `nullable: false` and permits `null` when `nullable: true`). |
-| `writeOnly` | `boolean` | Preserved on normalized `IPropertyMetadata` for consumer inspection (not automatically hidden or stripped at runtime). |
+| `writeOnly` | `boolean` | Preserved on normalized `IPropertyMetadata` and enforced at runtime by `SchemaNormalizer.stripWriteOnlyValues()`, which strips `writeOnly` fields from the inbound data payload before seeding `StateManager`. |
 | `readOnly` | `boolean` | Indicates the property is read-only. |
-| `example` | `unknown` | A sample value for documentation/mocking. |
+| `example` | `unknown` | A sample value for documentation/mocking; scalar values also serve as the control placeholder fallback when `ui.placeholder` is omitted. |
 | `exclusiveMinimum` | `boolean \| number` | Strict boundary constraint (greater than but not equal). |
 | `exclusiveMaximum` | `boolean \| number` | Strict boundary constraint (less than but not equal). |
 | `maxItems` | `number` | Maximum items for an array. |
@@ -75,7 +75,7 @@ Every field within `properties` or `items` supports the following absolute schem
 | `oneOf` | `IPropertyMetadata[]` | Must match exactly one of the provided schemas (renders `PolymorphicPlugin`). |
 | `anyOf` | `IPropertyMetadata[]` | Must match one or more of the provided schemas (renders `PolymorphicPlugin`). |
 | `allOf` | `IPropertyMetadata[]` | Merged during schema normalization / OpenAPI parsing into a combined schema. |
-| `not` | `IPropertyMetadata` | Preserved on normalized `IPropertyMetadata` (not evaluated by a built-in validator plugin). |
+| `not` | `IPropertyMetadata` | Enforced at runtime by `PayloadValidator` across form fields and table cells (and checked by `SchemaValidator` so an empty or unparseable `not` sub-schema fails closed). |
 | `discriminator` | `{ propertyName: string, mapping?: Record<string, string> }` | Used for polymorphic object mapping in OpenAPI. |
 | `properties` | `Record<string, IPropertyMetadata>` | Nested recursion for objects. |
 | `items` | `IPropertyMetadata` | Nested recursion for arrays. |
@@ -115,6 +115,7 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 | `dialogButtonText` | `string` | Explicit text for the modal trigger button on nested objects/arrays. |
 | `layoutBudget` | `number` | Maximum control footprint budget before nested objects/arrays overflow into modal dialogs. |
 | `renderMode` | `"inline" \| "dialog"` | Explicit rendering mode for nested objects, arrays, or `$ref` properties. |
+| `labelSpan` | `number` | Root-level `SimpleForm` label column span override (`1`–`12` for label-beside-field rows, or `0` to suppress labels). |
 
 ---
 
@@ -145,12 +146,14 @@ In MetaUI, "Actions" are simply custom plugins mapped via the `ui.widget` proper
 Action plugins often require parameters. You can pass these via the `ui.args` property:
 
 ```json
-"openWebsite": {
-    "type": "string",
-    "ui": {
-        "widget": "urlButton",
-        "label": "Visit SAP",
-        "args": "https://sap.com"
+{
+    "openWebsite": {
+        "type": "string",
+        "ui": {
+            "widget": "urlButton",
+            "label": "Visit SAP",
+            "args": "https://sap.com"
+        }
     }
 }
 ```
@@ -174,7 +177,7 @@ You can then trigger it in your schema simply by setting `"widget": "myCustomAct
 
 ## Out-of-the-Box Widget Mappings (`PluginRegistry`)
 
-The MetaUI Engine translates schemas into SAPUI5 instances using 52 `(type, widget)` plugin mappings registered in `DefaultPluginBootstrapper.ts`. You must use these exact `type` and `ui.widget` combinations to trigger them.
+The MetaUI Engine translates schemas into SAPUI5 instances using <!-- DOC_COUNT:pluginMappings -->51 `(type, widget)` plugin mappings registered in `DefaultPluginBootstrapper.ts`. You must use these exact `type` and `ui.widget` combinations to trigger them.
 
 | Base `type` | `ui.widget` (Override) | Rendered UI5 Control | Plugin Class |
 | :--- | :--- | :--- | :--- |
@@ -407,7 +410,7 @@ This example renders a Fiori Table. Notice how we use `multipleOf` to constrain 
       },
       "unitPrice": {
         "type": "number",
-        "scale": 2,
+        "multipleOf": 0.01,
         "ui": { "label": "Unit Price ($)" }
       }
     }

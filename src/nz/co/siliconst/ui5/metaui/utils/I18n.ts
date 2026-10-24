@@ -109,7 +109,45 @@ export const TEXT_KEY = {
     hardwareTimeout: "metaui.hardware.failure.timeout",
     hardwareFailed: "metaui.hardware.failure.failed",
     fieldRenderFailed: "metaui.validation.fieldRenderFailed",
-    fieldInitFailed: "metaui.validation.fieldInitFailed"
+    fieldInitFailed: "metaui.validation.fieldInitFailed",
+    schemaConfigUnregisteredValidator: "metaui.validation.config.unregisteredValidator",
+    schemaConfigArrayItemsObject: "metaui.validation.config.arrayItemsObject",
+    schemaConfigMustBeNumber: "metaui.validation.config.mustBeNumber",
+    schemaConfigMustBePositiveNumber: "metaui.validation.config.mustBePositiveNumber",
+    schemaConfigMustBeString: "metaui.validation.config.mustBeString",
+    schemaConfigPatternTooLong: "metaui.validation.config.patternTooLong",
+    schemaConfigPatternTimeout: "metaui.validation.config.patternTimeout",
+    schemaConfigInvalidRegex: "metaui.validation.config.invalidRegex",
+    schemaConfigPatternUnsafe: "metaui.validation.config.patternUnsafe",
+    schemaConfigPatternUnproven: "metaui.validation.config.patternUnproven",
+    cameraStartCapture: "metaui.camera.startCapture",
+    cameraTakeSnapshot: "metaui.camera.takeSnapshot",
+    cameraClearRetake: "metaui.camera.clearRetake",
+    geolocationPlaceholder: "metaui.geolocation.placeholder",
+    geolocationGetLocation: "metaui.geolocation.getLocation",
+    signatureClear: "metaui.signature.clear",
+    voiceInputPlaceholder: "metaui.voiceInput.placeholder",
+    voiceInputStart: "metaui.voiceInput.start",
+    dialogDefaultTitle: "metaui.dialog.defaultTitle",
+    dialogSubmit: "metaui.dialog.submit",
+    dialogCancel: "metaui.dialog.cancel",
+    dialogBuilding: "metaui.dialog.building",
+    dialogSave: "metaui.dialog.save",
+    dictionaryKeyEmpty: "metaui.dictionary.keyEmpty",
+    dictionaryKeyReserved: "metaui.dictionary.keyReserved",
+    dictionaryKeyDuplicate: "metaui.dictionary.keyDuplicate",
+    dictionaryKeyPlaceholder: "metaui.dictionary.keyPlaceholder",
+    dictionaryKeyLabel: "metaui.dictionary.keyLabel",
+    dictionaryValueLabel: "metaui.dictionary.valueLabel",
+    dictionaryRemoveEntry: "metaui.dictionary.removeEntry",
+    tableDefaultTitle: "metaui.table.defaultTitle",
+    tableAddRow: "metaui.table.addRow",
+    tableValueColumn: "metaui.table.valueColumn",
+    wizardStepTitle: "metaui.wizard.stepTitle",
+    wizardStepCounter: "metaui.wizard.stepCounter",
+    wizardPrevious: "metaui.wizard.previous",
+    wizardNextStep: "metaui.wizard.nextStep",
+    wizardComplete: "metaui.wizard.complete"
 } as const;
 
 /** Union of the text keys declared in {@link TEXT_KEY}. */
@@ -136,8 +174,8 @@ export class I18n {
             return Lib.getResourceBundleFor(METAUI_LIBRARY_NAME);
         } catch (error) {
             Logger.error(
-                "[MetaUI I18n]",
                 `Could not load the resource bundle for library '${METAUI_LIBRARY_NAME}': ${(error as Error).message}`,
+                undefined,
                 "I18n"
             );
             return undefined;
@@ -168,9 +206,9 @@ export class I18n {
         if (!reportedMissingKeys.has(key)) {
             reportedMissingKeys.add(key);
             Logger.error(
-                "[MetaUI I18n]",
                 `No text for key '${key}' in messagebundle.properties of '${METAUI_LIBRARY_NAME}'. ` +
-                    "The key is being rendered verbatim; the bundle is missing from the deployment or the key was removed.",
+                "The key is being rendered verbatim; the bundle is missing from the deployment or the key was removed.",
+                undefined,
                 "I18n"
             );
         }

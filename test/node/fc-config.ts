@@ -50,9 +50,7 @@ const stub = require("./ui5-stub.js") as { logSink: ILogSink };
 export const logSink: ILogSink = stub.logSink;
 
 /**
- * Message and details joined. 87 of the 127 `Logger.warn`/`Logger.error` call sites in `src/`
- * pass the component tag as `message` and the real diagnostic as `details`, so a property that
- * asserts "the engine said so" has to look in both slots.
+ * Message and details joined (preserving optional extra error details when attached).
  *
  * @param entry The captured log entry.
  * @returns {string} The full text of the entry.

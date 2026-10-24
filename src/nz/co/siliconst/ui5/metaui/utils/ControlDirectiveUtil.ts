@@ -241,8 +241,8 @@ export class ControlDirectiveUtil {
             }
             if (!this.carriesNoResolvedReference(normalizedExpr, parsed)) {
                 Logger.warn(
-                    "[MetaUI ControlDirectiveUtil]",
                     `REFUSED condition rule ('${rule}'): the parsed binding resolved a named global reference.`,
+                    undefined,
                     "ControlDirectiveUtil"
                 );
                 return undefined;
@@ -250,8 +250,8 @@ export class ControlDirectiveUtil {
             return parsed;
         } catch (e) {
             Logger.warn(
-                "[MetaUI ControlDirectiveUtil]",
                 `Unparseable binding expression from schema ('${rule}'): ${(e as Error).message}`,
+                undefined,
                 "ControlDirectiveUtil"
             );
             return undefined;
@@ -310,11 +310,7 @@ export class ControlDirectiveUtil {
                   : undefined;
             const verdict = vetControlProperty(target, propName);
             if (!verdict.allowed || !target) {
-                Logger.warn(
-                    "[MetaUI ControlDirectiveUtil]",
-                    `REFUSED controlProps entry '${propName}': ${verdict.reason}.`,
-                    "ControlDirectiveUtil"
-                );
+                Logger.warn(`REFUSED controlProps entry '${propName}': ${verdict.reason}.`, undefined, "ControlDirectiveUtil");
                 continue;
             }
             if (typeof propVal === "string" && propVal.startsWith("{") && propVal.endsWith("}")) {
@@ -325,11 +321,7 @@ export class ControlDirectiveUtil {
                 continue;
             }
             if (verdict.isUri && !UrlValidator.isSafeUiResourceUri(propVal)) {
-                Logger.warn(
-                    "[MetaUI ControlDirectiveUtil]",
-                    `REFUSED controlProps entry '${propName}': unsafe URI scheme.`,
-                    "ControlDirectiveUtil"
-                );
+                Logger.warn(`REFUSED controlProps entry '${propName}': unsafe URI scheme.`, undefined, "ControlDirectiveUtil");
                 continue;
             }
             this.writeVettedProp(target, propName, propVal, false);
@@ -360,8 +352,8 @@ export class ControlDirectiveUtil {
             }
         } catch (e) {
             Logger.warn(
-                "[MetaUI ControlDirectiveUtil]",
                 `REFUSED controlProps entry '${propName}': UI5 rejected the value (${(e as Error).message}).`,
+                undefined,
                 "ControlDirectiveUtil"
             );
         }

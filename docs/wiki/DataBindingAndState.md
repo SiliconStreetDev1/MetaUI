@@ -79,14 +79,14 @@ As documented in [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) §6, plugins alway
 While the sandbox protects the overall model from unvalidated data, you still have granular access to user interactions as they happen.
 
 ### The `fieldChange` Event
-Every time a user alters an input, the `DynamicHost` instantly fires a `fieldChange` event. This is the **primary hook** for developers who need to react to user interactions without waiting for a full submission.
+Every time a user commits a field edit (via the UI5 control's `change` event, such as on blur, Enter, or selection change), the `DynamicHost` fires a `fieldChange` event. This is the **primary hook** for developers who need to react to user interactions without waiting for a full submission.
 
-Because the engine acts as a sandbox, the parent data model is *not* automatically updated as the user types (unless `liveUpdate` is true). The `fieldChange` event bridges this gap by passing the current state of the sandbox directly to you.
+Because the engine acts as a sandbox, the parent data model is *not* automatically updated on each field change (unless `liveUpdate` is true). The `fieldChange` event bridges this gap by passing the current state of the sandbox directly to you.
 
 **Event Parameters:**
-- `fieldPath` *(string)*: The JSON schema key of the field that was just edited (e.g., `firstName` or `address/city`).
-- `value` *(any)*: The newly typed value of the field.
-- `isValid` *(boolean)*: Whether the *new* value the user just typed passes the schema constraints.
+- `fieldPath` *(string)*: Normalized by `ValidationDelegate.normalizeFieldPath`: a leading-slash JSON Pointer path when a specific field was edited (e.g., `"/firstName"` or `"/address/city"`), or `""` (empty string) when the notification is whole-form / root and not tied to a specific field.
+- `value` *(any)*: The newly committed value of the field.
+- `isValid` *(boolean)*: Whether the *new* value passes the field's schema constraints.
 - `payload` *(object)*: A deep copy of the entire current dataset inside the sandbox, including the new edit.
 
 **Example Usage:**
@@ -98,14 +98,14 @@ oHost.attachFieldChange(function(oEvent) {
     var bIsValid = oEvent.getParameter("isValid");
     var oCurrentData = oEvent.getParameter("payload");
 
-    if (sPath === "country" && oCurrentData.country === "US") {
+    if (sPath === "/country" && oCurrentData.country === "US") {
         console.log("User selected US. State is valid: " + bIsValid);
         
         // Example: Inject a custom validation error if custom logic fails
         if (!oCurrentData.zipCode) {
-            oHost.addCustomError("zipCode", "Zip Code is required for US customers.");
+            oHost.addCustomError("/zipCode", "Zip Code is required for US customers.");
         } else {
-            oHost.clearCustomError("zipCode");
+            oHost.clearCustomError("/zipCode");
         }
     }
 });
@@ -168,16 +168,20 @@ A `controlProps` value that is a string starting with `{` and ending with `}` is
 **Binding to the Internal MetaUI Payload:**
 The MetaUI Engine intercepts both the host's configured `modelName` (default `meta>`) and the generic placeholder `metaui>` (rewriting `${metaui>` to `${<modelName>>` in `ControlDirectiveUtil.ts`). This shields you from sandbox model collisions and avoids conflicts with Fiori Elements metadata models.
 ```json
-"controlProps": {
-  "placeholder": "{= ${metaui>/AgreeTerms} ? 'Please leave a comment...' : 'You must agree to terms first!' }"
+{
+  "controlProps": {
+    "placeholder": "{= ${metaui>/AgreeTerms} ? 'Please leave a comment...' : 'You must agree to terms first!' }"
+  }
 }
 ```
 
 **Binding to External Parent Models:**
 Because the engine selectively routes the `metaui>` prefix, you can freely bind to any external models provided by your parent application (such as `i18n>`, `device>`, or `Student>`) without the MetaUI engine interfering or trying to sandbox them.
 ```json
-"controlProps": {
-  "placeholder": "{= ${settings>/liveUpdate} ? 'Live Data Mode' : 'Sandbox Mode' }"
+{
+  "controlProps": {
+    "placeholder": "{= ${settings>/liveUpdate} ? 'Live Data Mode' : 'Sandbox Mode' }"
+  }
 }
 ```
 

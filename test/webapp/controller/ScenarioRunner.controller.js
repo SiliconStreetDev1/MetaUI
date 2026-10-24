@@ -96,20 +96,29 @@ sap.ui.define([
 
             ScenarioManager.getIndex().then(function(aScenarios) {
                 var flatScenarios = [];
+                var openApiKeys = {};
                 aScenarios.forEach(function(cat) {
                     if (cat.scenarios) {
+                        if (cat.category === "OpenAPI") {
+                            cat.scenarios.forEach(function(s) {
+                                openApiKeys[s.key] = true;
+                            });
+                        }
                         flatScenarios = flatScenarios.concat(cat.scenarios);
                     } else {
+                        if (cat.key && cat.key.startsWith("openapi")) {
+                            openApiKeys[cat.key] = true;
+                        }
                         flatScenarios.push(cat);
                     }
                 });
 
                 var filtered = flatScenarios.filter(function(s) {
+                    var isOpenApi = Boolean(openApiKeys[s.key] || (s.key && s.key.startsWith("openapi")));
                     if (sMode === "openapi") {
-                        return s.key.startsWith("openapi");
+                        return isOpenApi;
                     } else if (sMode === "kitchen_sink") {
-                        var whitelist = ["kitchen_sink", "hybrid_inference", "full_inference", "wizard", "deep_structure", "ultra_complex_structure", "control_props", "pbre_scenario", "odata_v4"];
-                        return whitelist.indexOf(s.key) !== -1;
+                        return !isOpenApi;
                     }
                     return false;
                 });

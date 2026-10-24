@@ -207,7 +207,7 @@ export default class BaseHardwareControl extends Control {
         this.setValueState(ValueState.Error);
         this.setValueStateText(text);
         const shortName = this.getShortControlName();
-        Logger.error(`[MetaUI ${shortName}]`, detail ? `${text} (${reason}: ${detail})` : `${text} (${reason})`, shortName);
+        Logger.error(detail ? `${text} (${reason}: ${detail})` : `${text} (${reason})`, undefined, shortName);
     }
 
     /**

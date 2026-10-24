@@ -265,9 +265,10 @@ export class LayoutMutator {
                         childrenStack.push([]);
                         if (ctx.depth >= MAX_LAYOUT_DEPTH) {
                             Logger.warn(
-                                "[MetaUI LayoutMutator]",
                                 `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) ` +
-                                    `during layout expansion; truncating deeper elements.`
+                                `during layout expansion; truncating deeper elements.`,
+                                undefined,
+                                "LayoutMutator"
                             );
                             return "skip-subtree";
                         }
@@ -309,8 +310,9 @@ export class LayoutMutator {
                         if (isInlineObject && meta.properties) {
                             if (activeInlineMetas.has(meta)) {
                                 Logger.warn(
-                                    "[MetaUI LayoutMutator]",
-                                    `Circular inline object detected at '${element.scope}'; stopping recursive expansion.`
+                                    `Circular inline object detected at '${element.scope}'; stopping recursive expansion.`,
+                                    undefined,
+                                    "LayoutMutator"
                                 );
                                 childrenStack[childrenStack.length - 1].push(element);
                                 return "skip-subtree";
@@ -333,9 +335,10 @@ export class LayoutMutator {
                             childrenStack.push([]);
                             if (ctx.depth >= MAX_LAYOUT_DEPTH) {
                                 Logger.warn(
-                                    "[MetaUI LayoutMutator]",
                                     `uiLayout nesting exceeded MAX_LAYOUT_DEPTH (${MAX_LAYOUT_DEPTH}) ` +
-                                        `during layout expansion; truncating deeper elements.`
+                                    `during layout expansion; truncating deeper elements.`,
+                                    undefined,
+                                    "LayoutMutator"
                                 );
                                 return "skip-subtree";
                             }
@@ -345,8 +348,9 @@ export class LayoutMutator {
                         return "skip-subtree";
                     } catch (err) {
                         Logger.debug(
-                            "[MetaUI LayoutMutator]",
-                            `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`
+                            `Scope '${element.scope}' skipped during expansion: ${(err as Error).message}`,
+                            undefined,
+                            "LayoutMutator"
                         );
                         childrenStack[childrenStack.length - 1].push(element);
                         return "skip-subtree";
@@ -393,8 +397,9 @@ export class LayoutMutator {
                 onTruncate: (_scope, reason) => {
                     if (reason === "cycle") {
                         Logger.warn(
-                            "[MetaUI LayoutMutator]",
-                            "Circular uiLayout element reference detected during layout expansion; stopping recursion."
+                            "Circular uiLayout element reference detected during layout expansion; stopping recursion.",
+                            undefined,
+                            "LayoutMutator"
                         );
                     }
                 }

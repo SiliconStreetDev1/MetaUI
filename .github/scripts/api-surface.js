@@ -514,9 +514,24 @@ function extractExports(statements, sourceFile, moduleName) {
         const lines = renderDeclaration(stmt, sourceFile);
         if (!lines) continue;
         const names = declaredNames(stmt);
+        const tags = jsDocTagNames(stmt);
+        // TypeScript emits `export default <expr>` in .d.ts as `const _default: ...; export default _default;`
+        // and attaches the source JSDoc comment to `const _default` rather than the ExportAssignment.
+        if (ts.isExportAssignment(stmt) && ts.isIdentifier(stmt.expression)) {
+            const targetId = stmt.expression.text;
+            for (const sibling of statements) {
+                if (!ts.isVariableStatement(sibling)) continue;
+                const matches = sibling.declarationList.declarations.some(
+                    (d) => ts.isIdentifier(d.name) && d.name.text === targetId
+                );
+                if (matches) {
+                    for (const t of jsDocTagNames(sibling)) tags.add(t);
+                }
+            }
+        }
         blocks.push({
             module: moduleName,
-            tier: resolveTier(moduleName, names, jsDocTagNames(stmt)),
+            tier: resolveTier(moduleName, names, tags),
             names,
             lines: lines.map((line) => absolutize(line, moduleName))
         });

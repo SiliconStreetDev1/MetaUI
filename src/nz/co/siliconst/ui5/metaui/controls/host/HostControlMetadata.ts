@@ -44,16 +44,12 @@ export function isJsonLiteralString(val: unknown): val is string {
             const keys = Object.keys(parsed);
             if (keys.length > 0 && keys.every((k) => UI5_BINDING_DESCRIPTOR_KEYS.includes(k))) {
                 Logger.warn(
-                    "[MetaUI HostControlMetadata]",
                     `Constructor string '${trimmed}' matches UI5 binding-descriptor shape and was treated as a binding. ` +
-                        `For a literal JSON payload with only 'path', use setProperty('dataJson', ...) or 'data'.`,
+                    `For a literal JSON payload with only 'path', use setProperty('dataJson', ...) or 'data'.`,
+                    undefined,
                     "HostControlMetadata"
                 );
-                Logger.debug(
-                    "[MetaUI HostControlMetadata]",
-                    `Classified constructor string '${trimmed}' as a UI5 binding descriptor.`,
-                    "HostControlMetadata"
-                );
+                Logger.debug(`Classified constructor string '${trimmed}' as a UI5 binding descriptor.`, undefined, "HostControlMetadata");
                 return false;
             }
         }

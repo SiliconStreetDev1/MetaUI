@@ -529,10 +529,10 @@ describe("SchemaWalker — Stage 2 direct unit tests", () => {
             propKey: "#/items/0"
         });
 
-        const warnLogs: Array<{ tag: string; msg: string }> = [];
+        const warnLogs: Array<{ msg: string; details?: unknown; component?: string }> = [];
         const origWarn = Logger.warn;
-        Logger.warn = (tag: string, msg: string) => {
-            warnLogs.push({ tag, msg });
+        Logger.warn = (msg: string, details?: unknown, component?: string) => {
+            warnLogs.push({ msg, details, component });
         };
         try {
             // Root cycle: property points to root schema itself
@@ -540,7 +540,7 @@ describe("SchemaWalker — Stage 2 direct unit tests", () => {
             rootCycleSchema.properties!.selfRoot = rootCycleSchema as unknown as IPropertyMetadata;
             const resRootCycle = SchemaWalker.resolveScope(rootCycleSchema, "#/properties/selfRoot");
             assert.deepEqual(resRootCycle, { meta: undefined, bindingPath: "selfRoot", propKey: "selfRoot" });
-            assert.equal(warnLogs[warnLogs.length - 1].tag, "[MetaUI SchemaNormalizer]");
+            assert.equal(warnLogs[warnLogs.length - 1].component, "SchemaNormalizer");
 
             // External activeNodes hit
             const extNode: IPropertyMetadata = { type: "string" };
@@ -577,7 +577,7 @@ describe("SchemaWalker — Stage 2 direct unit tests", () => {
                 bindingPath: "first/again/again",
                 propKey: "first/properties/again/properties/again"
             });
-            assert.equal(warnLogs[warnLogs.length - 1].tag, "[MetaUI SchemaNormalizer]");
+            assert.equal(warnLogs[warnLogs.length - 1].component, "SchemaNormalizer");
 
             const resExtRef = SchemaWalker.resolveScope(
                 refCycleSchema,
@@ -839,7 +839,7 @@ describe("SchemaWalker — Stage 2 direct unit tests", () => {
             SchemaWalker.walk(bareCycle, () => {});
             assert.ok(
                 warnLogs.some(
-                    (w) => w.tag === "[MetaUI SchemaWalker]" && w.msg.includes("Circular schema reference detected")
+                    (w) => w.component === "SchemaWalker" && w.msg.includes("Circular schema reference detected")
                 )
             );
         } finally {

@@ -175,11 +175,7 @@ export class RemoteDropdownPlugin extends OptionListPlugin {
         }
 
         if (!UrlValidator.isSafeDataSourceUrl(ds.url)) {
-            Logger.warn(
-                "[MetaUI RemoteDropdownPlugin]",
-                `REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`,
-                "RemoteDropdownPlugin"
-            );
+            Logger.warn(`REFUSED dataSource.url '${ds.url}': blocked by the data source URL policy.`, undefined, "RemoteDropdownPlugin");
             this.ensureBoundValueItem(target);
             return;
         }
@@ -208,11 +204,7 @@ export class RemoteDropdownPlugin extends OptionListPlugin {
             this.ensureBoundValueItem(target);
         } catch (err) {
             this.ensureBoundValueItem(target);
-            Logger.error(
-                "[MetaUI RemoteDropdownPlugin]",
-                `Failed to fetch remote dropdown options: ${(err as Error).message}`,
-                "RemoteDropdownPlugin"
-            );
+            Logger.error(`Failed to fetch remote dropdown options: ${(err as Error).message}`, undefined, "RemoteDropdownPlugin");
         }
     }
 

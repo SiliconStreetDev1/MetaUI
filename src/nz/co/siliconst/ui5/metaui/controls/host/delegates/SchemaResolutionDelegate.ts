@@ -126,11 +126,7 @@ export class SchemaResolutionDelegate {
                 if (reqId !== this.fetchRequestId || this.facade.isDestroyed()) {
                     return;
                 }
-                Logger.error(
-                    "[MetaUI DynamicHost]",
-                    `Failed to fetch remote schema: ${(err as Error).message}`,
-                    "DynamicHost"
-                );
+                Logger.error(`Failed to fetch remote schema: ${(err as Error).message}`, undefined, "DynamicHost");
                 MessageToast.show("Failed to fetch remote schema");
                 this.facade.setBaseProperty("schemaDefinition", null, true);
                 this.facade.invalidate();
@@ -151,8 +147,9 @@ export class SchemaResolutionDelegate {
                 schema = JSON.parse(schema);
             } catch (e) {
                 Logger.warn(
-                    "[MetaUI DynamicHost]",
-                    `Failed to parse JSON schema string in DynamicHost; delegating to SchemaNormalizer: ${(e as Error).message}`
+                    `Failed to parse JSON schema string in DynamicHost; delegating to SchemaNormalizer: ${(e as Error).message}`,
+                    undefined,
+                    "DynamicHost"
                 );
             }
         }

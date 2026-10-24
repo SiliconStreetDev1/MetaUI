@@ -178,7 +178,7 @@ export class DataSyncDelegate {
     public handleInputDataHotSwap(propertyName: string, value: unknown, suppressInvalidate?: boolean): void {
         if (this._isSyncing) {
             if (this.host.getProperty("debugMode")) {
-                Logger.debug("[MetaUI]", `Dropped echo for ${propertyName} due to active sync lock`, "DataSyncDelegate");
+                Logger.debug(`Dropped echo for ${propertyName} due to active sync lock`, undefined, "DataSyncDelegate");
             }
             this.host.setBaseProperty(propertyName, value, suppressInvalidate);
             return;
@@ -194,9 +194,9 @@ export class DataSyncDelegate {
                     incomingObj = JSON.parse(value);
                 } catch (e) {
                     Logger.error(
-                        "[MetaUI]",
                         `Failed to parse ${propertyName} string: ${(e as Error).message}. ` +
-                            "Tearing down the generated layout rather than rendering stale content.",
+                        "Tearing down the generated layout rather than rendering stale content.",
+                        undefined,
                         "DataSyncDelegate"
                     );
                     this.host.setBaseProperty(propertyName, value, false);
@@ -240,7 +240,7 @@ export class DataSyncDelegate {
         }
 
         if (this.host.getProperty("debugMode")) {
-            Logger.debug("[MetaUI]", `Accepted external injection for ${propertyName}`, "DataSyncDelegate");
+            Logger.debug(`Accepted external injection for ${propertyName}`, undefined, "DataSyncDelegate");
         }
 
         if (!stateManager) {
@@ -292,7 +292,7 @@ export class DataSyncDelegate {
             }
         } catch (e) {
             const msg = `Failed to hot-swap ${propertyName}: ` + (e as Error).message;
-            Logger.error("[MetaUI]", msg, "DataSyncDelegate");
+            Logger.error(msg, undefined, "DataSyncDelegate");
             throw new Error(msg);
         }
     }
@@ -312,9 +312,9 @@ export class DataSyncDelegate {
                 committed = JSON.parse(rawJson);
             } catch (e) {
                 Logger.error(
-                    "[MetaUI]",
                     `Failed to parse dataJson string while reverting: ${(e as Error).message}. ` +
-                        "There is no readable committed baseline, so the form is reset to an empty payload.",
+                    "There is no readable committed baseline, so the form is reset to an empty payload.",
+                    undefined,
                     "DataSyncDelegate"
                 );
                 committed = {};
@@ -516,10 +516,10 @@ export class DataSyncDelegate {
                 onTruncate: (_scope, reason) => {
                     if (reason === "depth") {
                         Logger.warn(
-                            "[MetaUI]",
                             `Schema nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                                `schema defaults below this level were not injected, ` +
-                                `so those fields start empty rather than at their declared default.`,
+                            `schema defaults below this level were not injected, ` +
+                            `so those fields start empty rather than at their declared default.`,
+                            undefined,
                             "DataSyncDelegate"
                         );
                     }

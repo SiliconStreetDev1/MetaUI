@@ -141,15 +141,15 @@ export class PayloadValidator {
                         // 'isValid: true' from an unvalidated subtree is exactly the plausible-looking green
                         // that nobody investigates.
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             `Payload nesting exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                                "this subtree was reported valid without being validated.",
+                            "this subtree was reported valid without being validated.",
+                            undefined,
                             "PayloadValidator"
                         );
                     } else if (reason === "cycle") {
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             "Circular schema reference detected; stopping recursion to prevent infinite loop.",
+                            undefined,
                             "PayloadValidator"
                         );
                     }
@@ -162,8 +162,8 @@ export class PayloadValidator {
                     }
                     if (rawNode.$ref && activeRefs.has(rawNode.$ref)) {
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             `Circular $ref detected (${rawNode.$ref}); stopping recursion to prevent infinite loop.`,
+                            undefined,
                             "PayloadValidator"
                         );
                         lastVerdict = { isValid: true };
@@ -177,9 +177,9 @@ export class PayloadValidator {
                         if (resolved) {
                             if (activeNodes.has(resolved)) {
                                 Logger.warn(
-                                    "[MetaUI PayloadValidator]",
                                     `Circular $ref definition detected (${rawNode.$ref}); ` +
-                                        "stopping recursion to prevent infinite loop.",
+                                    "stopping recursion to prevent infinite loop.",
+                                    undefined,
                                     "PayloadValidator"
                                 );
                                 lastVerdict = { isValid: true };
@@ -229,11 +229,12 @@ export class PayloadValidator {
                         if (effectiveMeta.not) {
                             if (!PayloadValidator.isEvaluableNot(effectiveMeta.not)) {
                                 Logger.warn(
-                                    "[MetaUI PayloadValidator]",
                                     "A 'not' sub-schema declares no constraint this engine can evaluate; " +
-                                        "it is not enforced. Give it one of: " +
-                                        EVALUABLE_NOT_KEYWORDS.join(", ") +
-                                        "."
+                                    "it is not enforced. Give it one of: " +
+                                    EVALUABLE_NOT_KEYWORDS.join(", ") +
+                                    ".",
+                                    undefined,
+                                    "PayloadValidator"
                                 );
                             } else {
                                 lastVerdict = { isValid: true };
@@ -452,9 +453,9 @@ export class PayloadValidator {
                         // Returning false skips validation of the whole subtree, so a cap reached here is a
                         // silent loss of enforcement, not a neutral answer.
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             `Constraint scan exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); this subtree was treated as ` +
-                                `asserting nothing, so any constraint below this level is not enforced.`,
+                            `asserting nothing, so any constraint below this level is not enforced.`,
+                            undefined,
                             "PayloadValidator"
                         );
                     }
@@ -524,10 +525,10 @@ export class PayloadValidator {
             }
             if (activeRefs.has(ref)) {
                 Logger.warn(
-                    "[MetaUI PayloadValidator]",
                     isChildProp
-                        ? `Circular $ref detected (${ref}) in validatePayloadArrays; stopping recursion.`
-                        : "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+                    ? `Circular $ref detected (${ref}) in validatePayloadArrays; stopping recursion.`
+                    : "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+                    undefined,
                     "PayloadValidator"
                 );
                 return null;
@@ -538,8 +539,8 @@ export class PayloadValidator {
             }
             if (activeNodes.has(resolved)) {
                 Logger.warn(
-                    "[MetaUI PayloadValidator]",
                     `Circular $ref definition detected (${ref}) in validatePayloadArrays; stopping recursion.`,
+                    undefined,
                     "PayloadValidator"
                 );
                 return null;
@@ -570,15 +571,15 @@ export class PayloadValidator {
                     if (reason === "depth") {
                         const truncPath = SchemaWalker.toBindingPath(scope);
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             `Array payload walk exceeded MAX_SCHEMA_DEPTH (${MAX_SCHEMA_DEPTH}); ` +
-                                `subtree '${truncPath || "/"}' was not validated.`,
+                            `subtree '${truncPath || "/"}' was not validated.`,
+                            undefined,
                             "PayloadValidator"
                         );
                     } else if (reason === "cycle") {
                         Logger.warn(
-                            "[MetaUI PayloadValidator]",
                             "Circular schema or $ref reference detected in validatePayloadArrays; stopping recursion.",
+                            undefined,
                             "PayloadValidator"
                         );
                     }

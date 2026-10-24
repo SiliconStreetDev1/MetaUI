@@ -8,6 +8,7 @@ import { IDataSourceConfig, IPropertyMetadata, ISchema } from "../interfaces/ISc
 import { IEngineHost } from "../interfaces/IEngineHost";
 import { deepClone, isRecord } from "./TypeGuards";
 import { UrlValidator } from "./UrlValidator";
+import { I18n, TEXT_KEY } from "./I18n";
 import Control from "sap/ui/core/Control";
 import ManagedObject from "sap/ui/base/ManagedObject";
 import DataType from "sap/ui/base/DataType";
@@ -415,7 +416,10 @@ export function openNestedHostDialog(options: INestedEditorLaunchOptions): void 
                 options.onSave(result);
             });
 
-            void host.openInDialog(options.title, options.editable ? "Save" : "Close").finally(() => {
+            const submitCaption = options.editable
+                ? I18n.getText(TEXT_KEY.dialogSave)
+                : I18n.getText(TEXT_KEY.editorClose);
+            void host.openInDialog(options.title, submitCaption).finally(() => {
                 if (!host.isDestroyed()) {
                     host.destroy();
                 }

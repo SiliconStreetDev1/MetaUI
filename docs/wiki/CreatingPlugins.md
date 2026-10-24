@@ -144,7 +144,7 @@ Seven things in that file are load-bearing:
 
 - **`export default`** — see §1.2.
 - **`extends BasePlugin`** implies three abstract members. An empty subclass does not compile: `TS2654: Non-abstract class 'MyCustomPlugin' is missing implementations for the following members of 'BasePlugin': 'render', 'getValue', 'applyState'`.
-- **`initialize(...)` first.** It populates `metadata`, `bindingPath`, `fieldKey`, `modelName` and `onChange`. Until it runs, `validate()` sees no metadata and reports the field valid — including a field that then fails to render (see [§9](#9-what-happens-when-your-plugin-fails)).
+- **`initialize(...)` first.** It populates `metadata`, `bindingPath`, `fieldKey`, `modelName` and `onChange`, which every helper on `BasePlugin` reads (see [§9](#9-what-happens-when-your-plugin-fails)).
 - **`generateStableId(...)`** keeps control IDs deterministic and collision-free across multiple hosts on one page. Pass it the `engineScopeId` you were handed.
 - **`generateBindingInfo(...)`** rather than a hand-written `"{meta>/Path}"` string. It is what applies `ui.formatter` / `ui.formatters`; a raw binding string silently skips the formatter pipeline ([§7](#7-custom-formatters-and-parsers)).
 - **`notifyChange(controlId)`** runs validation, paints the value state and reports upward. Passing the event source's ID is what makes the plugin work inside a table row, where the live control is a clone of the template rather than `this.control`.
@@ -244,7 +244,7 @@ Measured consequence: a plugin that binds through `generateBindingInfo()` and re
 | `generateBindingInfo(bindingPath, modelName?, type?, additionalOptions?)` | Builds the binding and wires in the formatter chain. |
 | `applyCommonDirectives(control, metadata, modelName?)` | See §2.1. Entries that fail validation — an unknown `controlProps` key, an unparseable `visibleOn` — are logged and skipped, so the control still renders. |
 | `notifyChange(controlId?)` | Commits the parsed value, validates, paints and reports upward. |
-| `validate(sourceControl?)` | Runs the pipeline. Returns valid for a hidden control and for a plugin whose `metadata` was never set; returns **invalid** for a plugin that has metadata but no control. |
+| `validate(sourceControl?)` | Runs the pipeline. Returns valid for a hidden control; fails closed (returns **invalid**) when either `metadata` or the target control is missing. |
 | `commitValue(sourceControl, value)` | Writes a value to the resolved absolute path, resolving the model from the control or from the engine context. Use it for any imperative write — a control that is not yet in the host's tree has no local model of its own. |
 | `createDisplayText(engineScopeId, bindingPath, bindingInfo?)` | The read-only `sap.m.Text` rendering. Assigns `this.control` and returns it. |
 | `resolveAbsolutePath(control?)` | Absolute model path, accounting for table-row binding contexts. |
@@ -271,7 +271,11 @@ Both are read off the class, not the instance, so declare them `static`.
 ### 3.5 `isNavigationAffordance`
 
 ```typescript
-protected override readonly isNavigationAffordance: boolean = true;
+import { BasePlugin } from "nz/co/siliconst/ui5/metaui/plugins/controls/BasePlugin";
+
+export abstract class NavigationAffordancePlugin extends BasePlugin {
+    protected override readonly isNavigationAffordance: boolean = true;
+}
 ```
 
 Set it only on a control whose job is to *reach* something rather than to edit it — a link, a dialog trigger, a URL button. `applyCommonDirectives` disables any control that has no `editable` property when the host is read-only, which for a trigger hides the content behind a dead widget instead of protecting it. With the flag set, the control stays enabled in display mode and under `ui.readOnly`; only an explicit `ui.enabled: false` switches it off, and `ui.enabledOn` still wins. Leave it `false` for anything that mutates state — the built-in submit and clear buttons deliberately do.
@@ -281,23 +285,28 @@ Set it only on a control whose job is to *reach* something rather than to edit i
 ## 4. Registering: the full set of entry points
 
 ```typescript
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
+
 const registry = PluginRegistry.getInstance();
 
 registry.registerPluginPath("string", "myCustomWidget", "demo/metaui/consumer/plugins/MyCustomPlugin");
 registry.registerPluginPath("string", undefined, "demo/metaui/consumer/plugins/MyCustomPlugin"); // replaces the default
 registry.registerLayoutPath("accordion", "demo/metaui/consumer/layouts/AccordionLayout");
+registry.registerActionPath("myGlobalAction", "demo/metaui/consumer/plugins/MyActionPlugin");
 registry.registerPolicyConditionPath("StringContains", "demo/metaui/consumer/policies/StringContainsCondition");
 registry.registerPolicyEffectPath("Highlight", "demo/metaui/consumer/policies/HighlightEffect");
 ```
 
-`registerActionPath()` and its readers `getActionPath()` / `getActionPlugin()` also exist, but **no code path in the engine calls them** — nothing resolves a plugin through the action index while rendering a form. Register action buttons with `registerPluginPath` and a widget name, which is what the built-in action plugins do. See [§5](#5-action-plugins).
+`registerActionPath(actionName, path)` registers a type-agnostic action widget fallback: when a field or `uiLayout` element specifies `widget: actionName` and no exact `(type, actionName)` entry is registered via `registerPluginPath`, `PluginRegistry.getFieldPath()` and `GenerationDelegate.preloadIfNeeded()` resolve it through `getActionPath(actionName)` / `getActionPlugin(actionName)`. See [§5](#5-action-plugins).
 
 ### 4.1 Replacing a built-in
 
 Passing `undefined` as the widget name registers the default plugin for a schema type, replacing the built-in for every form on the page:
 
 ```typescript
-registry.registerPluginPath("boolean", undefined, "demo/metaui/consumer/plugins/MyCustomPlugin");
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
+
+PluginRegistry.getInstance().registerPluginPath("boolean", undefined, "demo/metaui/consumer/plugins/MyCustomPlugin");
 ```
 
 This works, and it is reported once per replaced key, at **error** level:
@@ -309,7 +318,7 @@ This works, and it is reported once per replaced key, at **error** level:
 
 Error level is deliberate rather than cosmetic: UI5's default log level is `ERROR`, so a `warning` is discarded before it is even buffered, and replacing a built-in for an entire application used to produce no observable output at all in a default-configured app. You will now see these without changing any logging configuration.
 
-Nothing throws, though, and nothing is returned, so the log line is the only signal — **there is no way to ask first**. `PluginRegistry` exposes no `has()` and no key listing. Its indices are private, and its only public surface is the five `register…Path` methods plus `getPlugin`, `getLayout`, `getActionPath`, `getActionPlugin`, `getPluginScore`, `isPluginNativelyWide`, `getPathsToLoad`, `preloadDependencies` and the two policy getters.
+To check whether a `(type, widget)` mapping or layout strategy is already registered before overwriting it, call `registry.hasPluginPath(type, widgetName)` / `registry.getRegisteredWidgets(type)` or `registry.hasLayoutPath(strategy)` / `registry.getRegisteredLayouts()`.
 
 In practice: prefer a new widget name over replacing a default, and keep every registration in one function so the whole set is reviewable in one place.
 
@@ -373,9 +382,11 @@ export default class MyActionPlugin extends BasePlugin {
 ```
 
 ```json
-"triggerMyAction": {
-  "type": "string",
-  "ui": { "widget": "myCustomAction", "label": "Click Me", "args": "My Custom Parameter" }
+{
+  "triggerMyAction": {
+    "type": "string",
+    "ui": { "widget": "myCustomAction", "label": "Click Me", "args": "My Custom Parameter" }
+  }
 }
 ```
 
@@ -400,7 +411,11 @@ Omitting `applyCommonDirectives` does not merely cost you the read-only behaviou
 ### 6.1 `IValidator.validate` is synchronous
 
 ```typescript
-validate(parsedValue: unknown, args?: unknown): IValidationResult;
+import { IValidationResult } from "nz/co/siliconst/ui5/metaui/interfaces/IPipeline";
+
+export interface IValidatorContract {
+    validate(parsedValue: unknown, args?: unknown): IValidationResult;
+}
 ```
 
 `IValidationResult` is `{ isValid: boolean; errorMessage?: string }`. There is no asynchronous validator contract, and the pipeline does not await anything.
@@ -432,9 +447,11 @@ GlobalPipeline.validators.register("forbiddenWord", {
 ```
 
 ```json
-"specialField": {
-  "type": "string",
-  "ui": { "validators": ["required", { "name": "forbiddenWord", "args": { "word": "invalid" } }] }
+{
+  "specialField": {
+    "type": "string",
+    "ui": { "validators": ["required", { "name": "forbiddenWord", "args": { "word": "invalid" } }] }
+  }
 }
 ```
 
@@ -483,29 +500,24 @@ A **formatter** turns the stored value into what the user sees. A **parser** tur
 
 ```typescript
 import { GlobalPipeline } from "nz/co/siliconst/ui5/metaui/core/PipelineManager";
-import { IFormatter, IParser } from "nz/co/siliconst/ui5/metaui/interfaces/IPipeline";
 
-const skuFormatter: IFormatter & IParser = {
+GlobalPipeline.formatters.register("sku", {
     format: (rawValue: unknown): string => {
         const digits = String(rawValue ?? "").replace(/[^0-9]/g, "");
         return digits.length === 8 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : String(rawValue ?? "");
     },
     parse: (uiValue: unknown): unknown => String(uiValue ?? "").replace(/[^0-9]/g, "")
-};
-
-GlobalPipeline.formatters.register("sku", skuFormatter);
-GlobalPipeline.parsers.register("sku", skuFormatter);
+});
 ```
 
-Two notes on the types:
-
-- `GlobalPipeline.formatters` is typed `Registry<IFormatter>`, and `IFormatter` has no `parse`. Passing an object **literal** with a `parse` member is rejected by TypeScript's excess-property check (`TS2353`). Declare it as `IFormatter & IParser` in a variable first, as above.
-- Registering the same object in both registries is the idiom the built-in date, phone and currency formatters use, and it is the clearest. The pipeline will also accept a formatter that merely carries a `parse` method with no `parsers` entry, but the explicit second registration is what makes the intent readable.
+`IFormatter` declares `parse?(uiValue: unknown, args?: unknown): unknown`, so an inline object literal with both `format` and `parse` registers directly on `GlobalPipeline.formatters` without a duplicate `GlobalPipeline.parsers.register(...)` call (though registering in `parsers` as well remains supported).
 
 ```json
-"ProductSku": {
-  "type": "string",
-  "ui": { "widget": "myCustomWidget", "formatter": "sku", "label": "SKU" }
+{
+  "ProductSku": {
+    "type": "string",
+    "ui": { "widget": "myCustomWidget", "formatter": "sku", "label": "SKU" }
+  }
 }
 ```
 
@@ -562,11 +574,13 @@ export default class AccordionLayout implements ILayoutManager {
 ```
 
 ```typescript
+import { PluginRegistry } from "nz/co/siliconst/ui5/metaui/core/PluginRegistry";
+
 PluginRegistry.getInstance().registerLayoutPath("accordion", "demo/metaui/consumer/layouts/AccordionLayout");
 ```
 
 ```json
-{ "type": "object", "layoutStrategy": "accordion", "properties": { "…": {} } }
+{ "type": "object", "layoutStrategy": "accordion", "properties": { "Code": { "type": "string" } } }
 ```
 
 Four things to know:
@@ -602,7 +616,7 @@ Covers a 404 on the module path and the export-shape mismatch in §1.2; both wer
 ### 9.2 `render()` throws
 
 - Same placeholder, same warning strip, same per-field containment.
-- **Submission is blocked either way**, whether `render()` threw before or after `initialize()`. Both verified. The two take different routes: a throw after `initialize()` leaves a registered plugin with metadata and no control, which `validate()` already fails closed on; a throw before it leaves a plugin with no metadata at all, whose `validate()` returns valid, and that one is caught only by the generation-failure record described in §9.1.
+- **Submission is blocked either way**, whether `render()` threw before or after `initialize()`. Both verified: `BasePlugin.validate()` fails closed when either `metadata` or the control is missing, and a throw inside `render()` before the plugin is added to `Engine.activePlugins` is also recorded directly by `Engine.generateField`'s `catch` via `ValidationLedger.reportFieldGenerationFailure()` as described in §9.1.
 - Call `initialize()` as the first statement of `render()` anyway, as §2.1 says — not for validity now, but because every helper on `BasePlugin` reads the state it sets.
 
 ### 9.3 A validator throws, or is not registered
@@ -631,25 +645,16 @@ Nothing on `BasePlugin`, `PluginRegistry` or `GlobalPipeline` reports a plugin A
 
 Pin the package. Express the dependency as a caret range on `@siliconst/metaui` and treat a major bump as a release of your plugin. [APIReference.md](APIReference.md) sets out which exports carry a compatibility promise and which do not.
 
-### 10.2 You cannot subclass a concrete built-in plugin from TypeScript if you need its `private` members
+### 10.2 Subclassing a concrete built-in plugin vs extending `BasePlugin`
 
-The repository's own two extension examples, `test/webapp/plugins/MockLiveSearchPlugin.js` and `test/webapp/plugins/MockRemoteValueHelpPlugin.js`, subclass `LiveSearchPlugin` and `RemoteValueHelpPlugin` and override `scheduleSearch` and `openValueHelpDialog`. Both of those members are declared `private`. The examples work only because they are plain JavaScript, where the keyword has no effect at runtime.
+The repository's two sandbox mock plugins, `test/webapp/plugins/MockLiveSearchPlugin.js` and `test/webapp/plugins/MockRemoteValueHelpPlugin.js`, subclass `LiveSearchPlugin` and `RemoteValueHelpPlugin` and override their `protected` hooks `scheduleSearch` and `openValueHelpDialog`. Overriding a `public` or `protected` member of a built-in compiles in TypeScript, whereas `private` members remain closed to subclasses (`TS2415`).
 
-Write the same subclass in TypeScript and it does not compile:
+For production extensions, **prefer extending `BasePlugin` (or the shared abstract bases) over a concrete built-in.** Concrete plugin classes are in the `internal` API tier — see the tier table in [APIReference.md](APIReference.md) — so their `protected` members are not semver-gated and may change in a minor or patch release.
 
-```
-error TS2415: Class 'MockLiveSearchPlugin' incorrectly extends base class 'LiveSearchPlugin'.
-  Property 'scheduleSearch' is private in type 'LiveSearchPlugin' but not in type 'MockLiveSearchPlugin'.
-```
+### 10.3 Checking what is already registered
 
-Declaring your override `private` as well does not help — TypeScript then reports *"Types have separate declarations of a private property"*. There is no legal form. Overriding a `public` or `protected` member of a built-in does compile; it is only the `private` ones that are closed to TypeScript.
-
-So: **extend `BasePlugin`, not a concrete built-in.** If you genuinely need a built-in's behaviour with one piece changed, copy the piece you need into your own `BasePlugin` subclass rather than inheriting it. Note also that the concrete plugin classes are internal — see the tier table in [APIReference.md](APIReference.md) — so their `protected` and `private` members may change in any release, including a patch.
-
-### 10.3 You cannot ask the registry what is already registered
-
-No `has()`, no key enumeration. §4.1 covers what this means in practice.
+`PluginRegistry` exposes `hasPluginPath(type, widgetName?)`, `getRegisteredWidgets(type)`, `hasLayoutPath(strategy)` and `getRegisteredLayouts()` for read-only inspection of the field and layout indices. [§4.1](#41-replacing-a-built-in) covers how overwrites are reported.
 
 ### 10.4 Validators and formatters are eager; control plugins are lazy
 
-`GlobalPipeline` registers validators, formatters and parsers as live instances, immediately, because they run inside synchronous binding formatters and keystroke validation. Control plugins and layouts are registered as *module paths* and required on demand, which is why their registration takes a string rather than a class, and why a typo in that string is not caught until a schema asks for the widget.
+`GlobalPipeline` registers validators, formatters and parsers as live instances, immediately, because they run inside synchronous binding formatters and field change validation. Control plugins and layouts are registered as *module paths* and required on demand, which is why their registration takes a string rather than a class, and why a typo in that string is not caught until a schema asks for the widget.

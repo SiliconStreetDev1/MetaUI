@@ -8,6 +8,7 @@ import { CSSSize } from "sap/ui/core/library";
 import Event from "sap/ui/base/Event";
 import ManagedObject from "sap/ui/base/ManagedObject";
 import { Logger } from "../../utils/Logger";
+import { I18n, TEXT_KEY } from "../../utils/I18n";
 import { Engine } from "../../core/Engine";
 import { StateManager } from "../../core/StateManager";
 import { DataSyncDelegate } from "./delegates/DataSyncDelegate";
@@ -179,7 +180,12 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
             }
             this.validationDelegate.notifyFieldValidation(isValid, fieldKey, errorMessage, overallValid);
             if (hasFieldListeners) {
-                this.fireEvent("fieldChange", { fieldPath: fieldKey || "", value, payload, isValid });
+                this.fireEvent("fieldChange", {
+                    fieldPath: ValidationDelegate.normalizeFieldPath(fieldKey),
+                    value,
+                    payload,
+                    isValid
+                });
             }
         });
         if (fieldKey && this.policyDelegate.hasPolicies()) {
@@ -228,15 +234,12 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         }
         if (this.getProperty("schemaDefinition") || this.getProperty("dataJson") || this.getProperty("data")) {
             void this.generate().catch((err: unknown) => {
-                Logger.debug(
-                    "[MetaUI GeneratorHost]",
-                    `Async generate rejected during onBeforeRendering: ${(err as Error).message}`
-                );
+                Logger.debug(`Async generate rejected during onBeforeRendering: ${(err as Error).message}`, undefined, "GeneratorHost");
             });
             return;
         }
         const msg = "GeneratorHost skipped rendering. Neither 'schemaDefinition' nor 'data' was provided.";
-        Logger.error("[MetaUI]", msg, "GeneratorHost");
+        Logger.error(msg, undefined, "GeneratorHost");
         this.fireEvent("error", { message: msg });
         this.validationDelegate.mountCrashBoundary(new Error(msg));
     }
@@ -468,7 +471,7 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         } catch (error) {
             this.setBusy(false);
             const msg = "Fatal crash during layout generation: " + (error as Error).message;
-            Logger.error("[MetaUI]", msg, "GeneratorHost");
+            Logger.error(msg, undefined, "GeneratorHost");
             this.fireEvent("error", { message: msg, exception: error });
             this.validationDelegate.mountCrashBoundary(error as Error);
             throw error;
@@ -487,9 +490,9 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
 
     /** Programmatic API. Re-parents the generated content into a dialog and opens it. */
     public openInDialog(
-        title: string = "Form",
-        submitButtonText: string = "OK",
-        cancelButtonText: string = "Cancel",
+        title: string = I18n.getText(TEXT_KEY.dialogDefaultTitle),
+        submitButtonText: string = I18n.getText(TEXT_KEY.dialogSubmit),
+        cancelButtonText: string = I18n.getText(TEXT_KEY.dialogCancel),
         dialogWidth: string = "auto",
         parentView?: Control
     ): Promise<void> {

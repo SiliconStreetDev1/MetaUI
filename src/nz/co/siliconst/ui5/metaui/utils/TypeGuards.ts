@@ -116,9 +116,10 @@ function cloneInternal(value: unknown, seen: WeakMap<object, unknown>, depth: nu
         // Returning {} or [] here replaces the consumer's own data with nothing. That is the
         // most expensive silent truncation in the library, so it must never be silent.
         Logger.warn(
-            "[MetaUI TypeGuards]",
             `deepClone exceeded MAX_CLONE_DEPTH (${MAX_CLONE_DEPTH}); the payload below this level was ` +
-                `replaced with an empty ${Array.isArray(value) ? "array" : "object"} and its data is lost.`
+            `replaced with an empty ${Array.isArray(value) ? "array" : "object"} and its data is lost.`,
+            undefined,
+            "TypeGuards"
         );
         return Array.isArray(value) ? [] : {};
     }
