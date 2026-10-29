@@ -44,6 +44,13 @@ export class TextAreaPlugin extends TextLikeInputPlugin {
             id: this.generateStableId(engineScopeId, bindingPath),
             value: this.generateBindingInfo(bindingPath, modelName) as unknown as string,
             rows,
+            // The box starts at `rows` and grows with the text rather than scrolling inside a fixed
+            // height. `ui.rows` therefore sets the starting size, and growth stops at four times it so
+            // one long value cannot push the rest of the form off the screen. Growing was lost in the
+            // 2.0.0 refactor and restored here; `TextLikeInputPlugin` still turns it off explicitly for
+            // the full-screen expanded editor, which has its own height.
+            growing: true,
+            growingMaxLines: rows * 4,
             width: "100%",
             placeholder: metadata.ui?.placeholder || "",
             maxLength: metadata.maxLength || 0,

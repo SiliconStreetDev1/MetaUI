@@ -219,12 +219,25 @@ export const HOST_CONTROL_RENDERER = {
         // takes no width or height from the content below it. The anchor is rendered whether or not there is an
         // icon: UI5 patches a re-render in place by position, so an anchor appearing ahead of the content when the
         // icon is first switched on would make the patcher rebuild the form and lose an edit in progress.
+        // The payload button hangs from an anchor in the top-right corner. The anchor is rendered whether
+        // or not there is a button: UI5 patches a re-render in place by position, so an anchor appearing
+        // ahead of the content when the button is first switched on would make the patcher rebuild the
+        // form and lose an edit in progress.
+        //
+        // The anchor takes no width — that matters in a table column, where width is the scarce axis and
+        // a button stealing a few rem would undo the narrow-container work. It does take height, but only
+        // when a button is actually there. A zero-height anchor was tried first and the button then
+        // overlapped the first field's right edge by 20px, landing exactly on a dropdown's arrow or a
+        // date picker's icon. Height is the cheap axis in a form; width is not.
         const payloadIcon = control.getAggregation("_payload") as Control | null;
-        rm.openStart("div").style("position", "relative").style("height", "0").openEnd();
+        rm.openStart("div")
+            .style("position", "relative")
+            .style("height", payloadIcon ? "1.75rem" : "0")
+            .openEnd();
         if (payloadIcon) {
             rm.openStart("div")
                 .style("position", "absolute")
-                .style("top", "2px")
+                .style("top", "0")
                 .style("right", "0")
                 .style("z-index", "1")
                 .style("line-height", "0")

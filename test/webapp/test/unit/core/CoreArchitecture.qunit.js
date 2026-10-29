@@ -5314,7 +5314,7 @@ sap.ui.define([
         });
     });
 
-    QUnit.test("Payload: the icon costs the form no width or height, wide or narrow", function (assert) {
+    QUnit.test("Payload: the icon costs the form no width, wide or narrow, and only a strip of height", function (assert) {
         var done = assert.async();
         var measure = function (host) {
             var dom = host.getDomRef();
@@ -5336,11 +5336,23 @@ sap.ui.define([
             hosts.forEach(function (h) { h.setShowPayload(true); });
             Core.applyChanges();
             var on = hosts.map(measure);
-            assert.deepEqual(on[0], off[0], "545px: host width, host height and the first field's width are identical with the icon on (" + JSON.stringify(on[0]) + ")");
+            // Width is the axis that must not move: in a table column it is the scarce one, and a button
+            // stealing a few rem would undo the narrow-container work. Height may grow, because the button
+            // hangs from an anchor with its own strip rather than overlapping the first field - a
+            // zero-height anchor put it 20px over the first input's right edge, on top of a dropdown's
+            // arrow or a date picker's icon.
             assert.deepEqual(
-                { width: on[1].width, height: on[1].height },
-                { width: off[1].width, height: off[1].height },
-                "148px (collapsed): host width and height are identical with the payload affordance on (" + JSON.stringify(on[1]) + ")"
+                { width: on[0].width, inputWidth: on[0].inputWidth },
+                { width: off[0].width, inputWidth: off[0].inputWidth },
+                "545px: host width and the first field's width are identical with the icon on (" + JSON.stringify(on[0]) + ")"
+            );
+            assert.ok(
+                on[0].height > off[0].height && on[0].height - off[0].height <= 40,
+                "545px: the icon adds a strip of height and no more (" + off[0].height + " -> " + on[0].height + ")"
+            );
+            assert.strictEqual(
+                on[1].width, off[1].width,
+                "148px (collapsed): host width is identical with the payload affordance on (" + on[1].width + ")"
             );
             hosts.forEach(function (h) { h.destroy(); });
             done();
