@@ -390,7 +390,7 @@ divergence it exists to catch by `scripts/prove-structural-gates.js` (<!-- DOC_C
 - `[DATA_WRITER]` — the committed `data` / `dataJson` pair is written only by
   `DataSyncDelegate.commitDataPair` / `invalidateStaleDataJson`.
 - `[CATCH_SIGNAL]` — a caught failure must log, rethrow or fire; otherwise it needs a counted
-  `// CATCH_EXEMPT:` justification. <!-- DOC_COUNT:catchExemptions -->13 exemptions are recorded and reported in the tally.
+  `// CATCH_EXEMPT:` justification. <!-- DOC_COUNT:catchExemptions -->14 exemptions are recorded and reported in the tally.
 - `[DEPTH_SIGNAL]` — a depth guard must name the limit and what it discarded.
 - `[RENDER_DEGRADATION]` — a layout catch must set `engine.hasPartialRenderingErrors` so the
   partial-render banner appears.

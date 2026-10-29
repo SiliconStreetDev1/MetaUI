@@ -19,14 +19,27 @@ export class OpenApiRefResolver {
     /**
      * Unescapes a single RFC 6901 JSON Pointer reference token (`decodeURIComponent`, then `~1` -> `/`, then `~0` -> `~`).
      *
+     * The shape test is not sufficient on its own. `%A0` is two hex digits after a `%` and so passes it,
+     * but it is a lone UTF-8 continuation byte, and `decodeURIComponent` throws `URIError` on it. A `$ref`
+     * comes out of a specification the library treats as untrusted, so a malformed escape must not be
+     * allowed to throw out of the resolver. The raw token is used instead: it cannot match a real key, so
+     * resolution returns `null` and the caller reports the unresolved reference as it does for any other
+     * pointer that leads nowhere.
+     *
      * @param segment The raw pointer reference token.
      * @returns {string} The unescaped token string.
      */
     public static unescapePointerSegment(segment: string): string {
-        const decoded =
-            segment.includes("%") && !/%(?![0-9A-Fa-f]{2})/.test(segment)
-                ? decodeURIComponent(segment)
-                : segment;
+        let decoded = segment;
+        if (segment.includes("%") && !/%(?![0-9A-Fa-f]{2})/.test(segment)) {
+            try {
+                decoded = decodeURIComponent(segment);
+            } catch (e) {
+                // CATCH_EXEMPT: the caller's own "failed to resolve" report is the signal. Logging here
+                // as well would fire once per malformed token in a pointer the caller already rejects.
+                decoded = segment;
+            }
+        }
         return decoded.replace(/~1/g, "/").replace(/~0/g, "~");
     }
 
