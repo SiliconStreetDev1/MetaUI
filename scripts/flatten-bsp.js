@@ -1,13 +1,13 @@
 // Restructures dist/ for an ABAP BSP upload.
 //
-// `ui5 build` writes the library under dist/resources/<namespace>/. A BSP wants the
-// namespace at the root of the BSP application: /UI5/APP_INDEX_CALCULATE looks for
-// .library and manifest.json there, and a namespace buried under resources/ is not
-// found, which surfaces as 404s on the Fiori Launchpad rather than as an upload error.
-//
-// So: dist/resources/nz/... becomes dist/nz/..., and dist/resources is removed. What is
-// left in dist/ is exactly what gets uploaded, debug files included - sap-ui-debug=true
+// `ui5 build` writes the library under dist/resources/<namespace>/. This moves it to
+// dist/nz/... and removes dist/resources, keeping the debug files - sap-ui-debug=true
 // needs the -dbg.js files present on the server.
+//
+// Which folder becomes the BSP root has never been tested on an SAP system. The App Index
+// is understood to register a library from the manifest.json at the root of its BSP, which
+// would mean uploading dist/nz/co/siliconst/ui5/metaui/ rather than dist/. Until someone
+// settles it, the closing message says so instead of naming one; see Deployment.md, Route B.
 //
 // This replaces a `move`/`rmdir /s /q` shell one-liner that only ran under Windows cmd.
 // It is the BSP counterpart of publish-prep.js, which solves the same problem for npm by
@@ -53,4 +53,5 @@ if (fs.existsSync(declarationRollup)) {
     fs.rmSync(declarationRollup, { force: true });
     console.log("- Removed dist/index.d.ts (npm-only, not served by a BSP)");
 }
-console.log("dist/ is now the BSP payload: upload its contents to the BSP application root.");
+console.log("dist/ now holds the BSP payload; the library itself is in dist/nz/co/siliconst/ui5/metaui/.");
+console.log("Which folder becomes the BSP root is untested - see docs/wiki/Deployment.md, Route B, before uploading.");

@@ -19,7 +19,7 @@ string, and a `sap.m.CheckBox` for the boolean. Submit shows the form's data as 
 ```
 
 That is MetaUI's inference path. Supply a `schemaDefinition` when you want control over widgets,
-validation and layout; see [Schemas & Data Inference](../../docs/wiki/SchemasAndInference.md).
+validation and layout; see [Schemas & Data Inference](https://github.com/SiliconStreetDev1/MetaUI/blob/main/docs/wiki/SchemasAndInference.md).
 
 The browser console shows one warning on this path, `Missing 'uiLayout' array in schema.
 Synthesized a default layout mapping`. It is expected with no schema: MetaUI has generated a default
@@ -41,7 +41,7 @@ published package ships its own `ui5.yaml` declaring itself a library.
 
 ## Deploying it
 
-Two routes, covered in [Deployment](../../docs/wiki/Deployment.md). This app is set up for
+Two routes, covered in [Deployment](https://github.com/SiliconStreetDev1/MetaUI/blob/main/docs/wiki/Deployment.md). This app is set up for
 **Route A** — `ui5 build` produces one deployable containing the app and MetaUI together.
 
 For **Route B**, where MetaUI is deployed once as a shared BSP library and every app references it,
@@ -49,4 +49,5 @@ delete the `builder:` block from `ui5.yaml`. Leave the `manifest.json` declarati
 
 > Getting that backwards is the one mistake worth knowing about. An app with no `builder:` block
 > whose library is *not* on the server builds successfully, with no warning, and then renders a
-> **blank page** with `failed to load '…/library-preload.js'` in the browser console.
+> **blank page**, with 404s for `library-preload.js` and `failed to load '…/library.js'` in the
+> browser console.

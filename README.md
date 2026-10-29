@@ -124,12 +124,18 @@ npm install @siliconst/metaui
     xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
 
     <meta:DynamicHost
+        id="host"
         schemaDefinition="{yourModel>/schema}"
         data="{yourModel>/payload}"
         submit=".onFormSubmitted" />
 
 </mvc:View>
 ```
+
+A form on a page has no submit button of its own. Add one that calls
+`this.byId("host").triggerSubmit()`: it validates the form and fires `submit`, carrying `payload`
+and `payloadJson`, only if the form is valid. The page needs an `App` around it to have any
+height; [Getting Started](docs/wiki/GettingStarted.md#declarative-usage-xml) has the full view.
 
 **3. Define a schema** (or let MetaUI infer one from your data)
 ```json

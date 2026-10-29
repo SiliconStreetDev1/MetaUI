@@ -30,6 +30,12 @@ One deployable holding your app and MetaUI together.
 Your app's `dist/` now carries MetaUI under `resources/nz/co/siliconst/ui5/metaui/`. Deploy it the
 way you deploy any Fiori app.
 
+`dist/` holds your app and MetaUI, **not UI5 itself**: the server you deploy to provides that. So
+if your `index.html` loads UI5 from `resources/`, as most do, and you put `dist/` on a plain local
+web server to try it, the page is blank. That is not the
+mistake below. Tell them apart in the browser console: here the first 404 is for UI5's own
+`sap-ui-core.js`, not for anything under `nz/co/siliconst/ui5/metaui/`.
+
 > **The one mistake to avoid.** Skip step 3 and the build still succeeds, with **no warning at
 > all**. The deployed app then renders a **blank white page**, with `failed to load
 > '…/library.js'` and a handful of 404s in the browser console. If you see that: step 3 is

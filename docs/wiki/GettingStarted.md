@@ -56,6 +56,10 @@ framework:
 That is everything `ui5 serve` needs. UI5 Tooling resolves MetaUI out of `node_modules` with no
 further configuration, because the package ships its own `ui5.yaml`.
 
+`ui5` here and on the [Deployment](Deployment.md) page is the UI5 CLI. If it is not installed
+globally, add it to your app with `npm install --save-dev @ui5/cli` and run it as `npx ui5 serve`,
+`npx ui5 build`, and so on. The starter app does this through `npm start` and `npm run build`.
+
 **If `ui5 serve` was already running when you installed, restart it.** It reads `node_modules`
 only when it starts. Until you restart it, the page is blank and the console shows
 `failed to load 'nz/co/siliconst/ui5/metaui/library.js'`.
@@ -107,6 +111,10 @@ onSubmit: function (oEvent) {
 With `{/booking}` holding a plain object in a `JSONModel` (in the starter app, `Component.js` does
 `this.setModel(new JSONModel({ booking: { … } }))`), that renders a form — MetaUI infers the
 widgets from the data.
+
+With no schema, the browser console shows one warning, `Missing 'uiLayout' array in schema.
+Synthesized a default layout mapping`. That is expected: MetaUI has generated a default layout for
+you. A schema with a `uiLayout` makes it go away.
 
 Three things in this snippet are easy to drop and each one costs you:
 
