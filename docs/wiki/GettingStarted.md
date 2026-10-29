@@ -2,21 +2,24 @@
 
 ## Installation & Setup
 
-MetaUI is an npm package. You do not clone this repository to use it.
+MetaUI is an npm package, and your app installs it from npm. It needs **Node.js 22.14 or later**.
 
 ### Fastest: copy the starter app
 
 A complete, runnable application lives at
-[`examples/starter-app/`](../../examples/starter-app/). Copy the folder, then:
+[`examples/starter-app/`](../../examples/starter-app/). GitHub cannot download one folder, so
+download the repository as a
+[ZIP](https://github.com/SiliconStreetDev1/MetaUI/archive/refs/heads/main.zip), copy
+`examples/starter-app/` out of it, and discard the rest. Then, in the copied folder:
 
 ```bash
 npm install
 npm start          # http://localhost:8080
 ```
 
-It renders a form from a plain object with no schema. Its README explains what every file is for.
-If you are new to MetaUI, start there and edit it — the steps below are for adding MetaUI to an
-app you already have.
+It renders a form with a Submit button from a plain object, with no schema. Its README explains
+what every file is for. If you are new to MetaUI, start there and edit it — the steps below are
+for adding MetaUI to an app you already have.
 
 ### Adding MetaUI to an existing UI5 Tooling app
 
@@ -53,6 +56,10 @@ framework:
 That is everything `ui5 serve` needs. UI5 Tooling resolves MetaUI out of `node_modules` with no
 further configuration, because the package ships its own `ui5.yaml`.
 
+**If `ui5 serve` was already running when you installed, restart it.** It reads `node_modules`
+only when it starts. Until you restart it, the page is blank and the console shows
+`failed to load 'nz/co/siliconst/ui5/metaui/library.js'`.
+
 **4. Use it** — see [Declarative Usage](#declarative-usage-xml) below.
 
 When you come to ship, there are two ways to deploy and the choice changes your app's build.
@@ -67,18 +74,50 @@ Declare the namespace on your view, and place a `DynamicHost`. This is the whole
 ```xml
 <mvc:View
     controllerName="my.app.Main"
+    displayBlock="true"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns="sap.m"
     xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
 
-    <Page title="My App">
-        <meta:DynamicHost data="{/booking}" editable="true" submit=".onSubmit" />
-    </Page>
+    <App>
+        <Page title="My App">
+            <meta:DynamicHost id="host" data="{/booking}" editable="true" submit=".onSubmit" />
+            <footer>
+                <OverflowToolbar>
+                    <ToolbarSpacer />
+                    <Button text="Submit" type="Emphasized" press=".onPressSubmit" />
+                </OverflowToolbar>
+            </footer>
+        </Page>
+    </App>
 </mvc:View>
 ```
 
-With `{/booking}` holding a plain object in a `JSONModel`, that renders a form — MetaUI infers the
-widgets from the data. The `submit` event carries `payload` (object) and `payloadJson` (string).
+```javascript
+// In the controller
+onPressSubmit: function () {
+    this.byId("host").triggerSubmit();   // validates; fires `submit` only if the form is valid
+},
+onSubmit: function (oEvent) {
+    var oPayload = oEvent.getParameter("payload");       // the form's data, as an object
+    var sJson = oEvent.getParameter("payloadJson");      // the same, as a JSON string
+}
+```
+
+With `{/booking}` holding a plain object in a `JSONModel` (in the starter app, `Component.js` does
+`this.setModel(new JSONModel({ booking: { … } }))`), that renders a form — MetaUI infers the
+widgets from the data.
+
+Three things in this snippet are easy to drop and each one costs you:
+
+- **The `App`.** A `Page` takes its height from its parent. Without an `App` around it, the form is
+  laid out at zero height and you see an empty page under the title bar. If your app already has an
+  `App` or `Shell`, put the `DynamicHost` into the page you have.
+- **The Submit button.** A `DynamicHost` on a page renders no submit button of its own; `submit`
+  fires only when you call `triggerSubmit()`. (A form opened with `openInDialog`, below, has its own
+  Save button.)
+- **When the model updates.** Without `liveUpdate="true"`, edits reach `{/booking}` only on a
+  successful submit. With it, they reach the model as the user types.
 
 Everything below is **reference**: the full set of properties and events, not a starting point.
 Add them as you need them, and see [API Reference](APIReference.md) for what each one does.

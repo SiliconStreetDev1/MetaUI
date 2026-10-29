@@ -1,15 +1,25 @@
 <mvc:View
     controllerName="metaui.starter.Main"
+    displayBlock="true"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns="sap.m"
     xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
 
-    <Page title="MetaUI Starter">
-        <meta:DynamicHost
-            data="{/booking}"
-            editable="true"
-            liveUpdate="true"
-            useMessageManager="true"
-            submit=".onSubmit" />
-    </Page>
+    <App>
+        <Page title="MetaUI Starter">
+            <meta:DynamicHost
+                id="host"
+                data="{/booking}"
+                editable="true"
+                liveUpdate="true"
+                useMessageManager="true"
+                submit=".onSubmit" />
+            <footer>
+                <OverflowToolbar>
+                    <ToolbarSpacer />
+                    <Button text="Submit" type="Emphasized" press=".onPressSubmit" />
+                </OverflowToolbar>
+            </footer>
+        </Page>
+    </App>
 </mvc:View>

@@ -22,7 +22,10 @@ One deployable holding your app and MetaUI together.
          - nz.co.siliconst.ui5.metaui
    ```
 
-4. `ui5 build`
+4. `ui5 build --clean-dest`
+
+   `--clean-dest` empties `dist/` first. Without it, files from an earlier build stay behind, so a
+   `dist/` that looks right can still be hiding a missing step 3.
 
 Your app's `dist/` now carries MetaUI under `resources/nz/co/siliconst/ui5/metaui/`. Deploy it the
 way you deploy any Fiori app.
@@ -31,6 +34,9 @@ way you deploy any Fiori app.
 > all**. The deployed app then renders a **blank white page**, with `failed to load
 > '…/library.js'` and a handful of 404s in the browser console. If you see that: step 3 is
 > missing — or you meant Route B and the library is not on the server yet.
+>
+> **The same errors under `ui5 serve`** mean something else: the server was started before
+> `npm install`, and it reads `node_modules` only when it starts. Restart it.
 
 Avoid `ui5 build --all`, which copies the whole UI5 framework into the output.
 
@@ -41,30 +47,52 @@ Avoid `ui5 build --all`, which copies the whole UI5 framework into the output.
 MetaUI lives on the ABAP system as its own BSP application, and every Fiori app references it. Done
 once, and again on each MetaUI upgrade.
 
-**1. Build the BSP payload**, from a clone of this repository:
+> **Route B is not finished.** Step 1, building the payload, is tested: the result is a working
+> library when served. Steps 2 and 3, uploading it and having apps find it, have **never been run
+> against a real SAP system**. They say below what is known and what is not. If you need something
+> that works today, use Route A.
+
+**1. Build the payload.** This is the one step done in this repository rather than in your app:
 
 ```bash
+git clone https://github.com/SiliconStreetDev1/MetaUI.git
+cd MetaUI
+npm install
 npm run pack:bsp
 ```
 
-That runs `ui5 build` and then flattens the result: `dist/resources/nz/…` becomes `dist/nz/…`.
+Build the same version your apps install: `version` in this repository's `package.json` should
+match the `@siliconst/metaui` version in your app's `package.json`.
 
-**Why flatten?** A BSP needs the namespace at the root of the BSP application.
-`/UI5/APP_INDEX_CALCULATE` looks for `.library` and `manifest.json` there, and a namespace nested
-under `resources/` is not found. The symptom is 404s on the Launchpad rather than an upload error,
-which is why it is worth getting right before uploading.
+`pack:bsp` runs `ui5 build` and then moves `dist/resources/nz/…` to `dist/nz/…`. The library's own
+files — `.library`, `manifest.json`, `library.js`, `library-preload.js` and the message bundles —
+are then in `dist/nz/co/siliconst/ui5/metaui/`. That folder also carries the `-dbg.js` files, the
+TypeScript sources and the source maps.
 
-**2. Upload the contents of `dist/`** to the BSP application, so that `nz/` sits at the BSP root.
+The npm package holds the same library files in `src/nz/co/siliconst/ui5/metaui/`, without the
+TypeScript sources or source maps. Whether that folder can be uploaded instead of building one is
+untested too.
+
+**2. Upload it. Not yet documented.** Nothing here has been tried, so the choices are yours: the
+upload tool (`/UI5/UI5_REPOSITORY_LOAD`, `npx fiori deploy`, or a UI5 Tooling deploy task), the BSP
+application name, the package and the transport.
+
+**Which folder becomes the BSP root is unresolved.** The project's working understanding, also
+untested, is that the SAP UI5 App Index registers a library from the `manifest.json` at the
+**root** of its BSP application, and that you run `/UI5/APP_INDEX_CALCULATE` after uploading. On
+that reading you would upload the *contents* of `dist/nz/co/siliconst/ui5/metaui/`. `pack:bsp` was
+written for uploading `dist/` itself, which puts `nz/` at the root and `manifest.json` four folders
+below it. Both cannot be right, and only a real system will say which. Get it wrong and the upload
+still succeeds; the failure shows up later, as 404s for `…/nz/co/siliconst/ui5/metaui/…` when an
+app loads.
 
 **3. In each consuming app:** Route A steps 1 and 2, and deliberately **not** step 3. The library is
 already on the server; bundling it again ships a second copy.
 
-> **What is verified and what is not.** The payload is verified: after `pack:bsp`, `dist/nz/co/
-> siliconst/ui5/metaui/` carries `.library`, `manifest.json`, `library.js`, `library-preload.js`
-> and the message bundles, and the library renders correctly when served from a BSP-style path.
-> **The upload itself is not verified** — neither that the BSP lands the folder where the App Index
-> expects it, nor that a Fiori Launchpad resolves the library afterwards. Nobody has run those
-> against a real system and documented the result.
+How the app then finds the library on the server is untested as well. On a Fiori Launchpad that is
+the App Index's job, and the `manifest.json` declaration from Route A step 2 is all the app
+supplies. For an app started outside the Launchpad, from its own `index.html`, this page does not
+say how it finds the library.
 
 ---
 
@@ -74,6 +102,8 @@ Nothing to configure, either way. `ui5 serve` resolves MetaUI straight out of `n
 because the published package ships its own `ui5.yaml` declaring itself a library — that is what
 maps `src/nz/co/siliconst/ui5/metaui/` onto the virtual `/resources/nz/co/siliconst/ui5/metaui/`.
 
+It does that once, when it starts. **Restart `ui5 serve` after installing or upgrading MetaUI.**
+
 ---
 
 ## Background
@@ -81,9 +111,13 @@ maps `src/nz/co/siliconst/ui5/metaui/` onto the virtual `/resources/nz/co/silico
 **Declare the library; do not merely point a resource root at it.** UI5 fetches a library's
 `library-preload.js` only when the library is *named as a library*, in `manifest.json` under
 `sap.ui5.dependencies.libs` or in `data-sap-ui-libs`. Measured on OpenUI5 1.120.50 rendering one
-eight-field form: **2 HTTP requests when declared, 87 when only `data-sap-ui-resourceroots` is
-set.** On localhost that is easy to miss; across a real network those 87 resolve in serialised
-waves and dominate first render.
+eight-field form from a **built** app: **2 HTTP requests when declared, 87 when only
+`data-sap-ui-resourceroots` is set.** On localhost that is easy to miss; across a real network
+those 87 resolve in serialised waves and dominate first render.
+
+Those figures are for `ui5 build` output. `ui5 serve` builds no preload bundles, so under it every
+module is its own request — around a hundred for MetaUI, declared or not. A long Network tab under
+`ui5 serve` does not mean the declaration failed.
 
 **The two packaging commands are mutually exclusive.**
 

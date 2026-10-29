@@ -44,10 +44,12 @@ dependency anywhere in the library.
 > `data-sap-ui-resourceroots` at MetaUI without also declaring it makes the AMD
 > loader resolve every module individually, in serialised waves.
 >
-> Measured on OpenUI5 1.120.50 rendering one eight-field form: **2 HTTP requests
-> when declared (`library-preload.js` plus the message bundle), 87 when only the
-> resource root is set.** On localhost the difference is easy to miss; across a
-> real network those 87 resolve in serialised waves and dominate first render.
+> Measured on OpenUI5 1.120.50 rendering one eight-field form from a built app:
+> **2 HTTP requests when declared (`library-preload.js` plus the message bundle),
+> 87 when only the resource root is set.** On localhost the difference is easy to
+> miss; across a real network those 87 resolve in serialised waves and dominate
+> first render. `ui5 serve` builds no preload bundles, so under it every module is
+> its own request whether you declared the library or not.
 
 ```html
 <script id="sap-ui-bootstrap"
@@ -74,7 +76,10 @@ library from a control would also defeat the on-demand plugin loading above.
 
 ### Installing from npm
 
+Needs Node.js 22.14 or later.
+
 1. **Install.** `ui5 serve` then resolves MetaUI from `node_modules` with no further configuration.
+   Restart it if it was already running: it reads `node_modules` only when it starts.
 
    ```bash
    npm install @siliconst/metaui
