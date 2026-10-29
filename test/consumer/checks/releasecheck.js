@@ -6,6 +6,12 @@ const puppeteer = require("puppeteer");
 /** Override with BASE_URL to point at a different host or port. */
 const BASE_URL = process.env.BASE_URL || "http://localhost:8123";
 
+// Read from the installed package rather than hardcoded. A literal here asserted "2.0.0"
+// while package.json said 2.1.1, so the check required the drift instead of catching it.
+const EXPECTED_VERSION = require(
+    path.resolve(__dirname, "..", "app", "node_modules", "@siliconst", "metaui", "package.json")
+).version;
+
 const results = [];
 function check(name, ok, detail) {
     results.push({ name, ok, detail });
@@ -49,7 +55,7 @@ function check(name, ok, detail) {
         };
     });
     check("Library nz.co.siliconst.ui5.metaui loaded", libInfo.present, "version " + libInfo.version);
-    check("Reports version 2.0.0", libInfo.version === "2.0.0", "got " + libInfo.version);
+    check(`Reports version ${EXPECTED_VERSION}`, libInfo.version === EXPECTED_VERSION, "got " + libInfo.version);
 
     // 2. Phase 17.1 -- schema.title must render exactly once in the declarative form.
     const titleCount = await page.evaluate(() => {

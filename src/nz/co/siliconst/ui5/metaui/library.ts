@@ -41,7 +41,7 @@ import "nz/co/siliconst/ui5/metaui/layouts/CompactLayout";
 // and therefore the whole form - down with it. Both survivors ship with OpenUI5 too.
 Core.initLibrary({
     name: "nz.co.siliconst.ui5.metaui",
-    version: "2.0.0",
+    version: "${version}",
     dependencies: [
         "sap.ui.core",
         "sap.m",
