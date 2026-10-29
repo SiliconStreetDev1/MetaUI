@@ -642,7 +642,7 @@ Separately, `debugMode="true"` on the host (or `Logger.setDebugMode(true)`) enab
 
 ### 10.1 There is no plugin API version
 
-Nothing on `BasePlugin`, `PluginRegistry` or `GlobalPipeline` reports a plugin API revision, and nothing is negotiated at registration time. A plugin compiled against one release is loaded by any release that can resolve its module path; a mismatch surfaces as a runtime failure, not as a refusal to load. The library does publish its own version — `2.0.0`, readable at runtime from the UI5 library registry — but that is the package version, not an extension contract version.
+Nothing on `BasePlugin`, `PluginRegistry` or `GlobalPipeline` reports a plugin API revision, and nothing is negotiated at registration time. A plugin compiled against one release is loaded by any release that can resolve its module path; a mismatch surfaces as a runtime failure, not as a refusal to load. The library does publish its own version, readable at runtime from the UI5 library registry — but that is the package version, not an extension contract version.
 
 Pin the package. Express the dependency as a caret range on `@siliconst/metaui` and treat a major bump as a release of your plugin. [APIReference.md](APIReference.md) sets out which exports carry a compatibility promise and which do not.
 
