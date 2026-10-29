@@ -2,25 +2,30 @@
 
 ## Installation & Setup
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/SiliconStreetDev1/MetaUI.git
-   ```
+MetaUI is an npm package. You do not clone this repository to use it.
 
-2. **Install Dependencies**
-   ```bash
-   npm install
-   ```
+**1. Install**
 
-3. **Deploy to ABAP**
-   ```bash
-   npm run deploy
-   ```
-   **What does this do?**
-   The `deploy` script automatically executes the build pipeline, flattens the directory structure, and uploads the library to the ABAP server. 
-   
-   **Why is the flattening step necessary?**
-   When deploying a custom SAPUI5 library to an ABAP server, if the compiled library files are buried inside a `/resources/` folder (the standard `ui5 build` output), the SAP App Index calculation program (`/UI5/APP_INDEX_CALCULATE`) will fail to find it, resulting in 404 Not Found errors on the Fiori Launchpad. The deploy script safely restructures the `dist` folder so the `manifest.json` and namespace sit directly at the root of the BSP application before the upload occurs.
+```bash
+npm install @siliconst/metaui
+```
+
+**2. Declare it as a library** in your app's `manifest.json`. Required, not optional: UI5 only
+fetches a library's `library-preload.js` when the library is named as a library.
+
+```json
+{
+  "sap.ui5": { "dependencies": { "libs": { "nz.co.siliconst.ui5.metaui": {} } } }
+}
+```
+
+That is everything `ui5 serve` needs — UI5 Tooling resolves MetaUI out of `node_modules` with no
+further configuration, because the package ships its own `ui5.yaml`.
+
+**3. Use it** — see [Declarative Usage](#declarative-usage-xml) below.
+
+When you come to ship, there are two ways to deploy and the choice changes your app's build.
+See **[Deployment](Deployment.md)**.
 
 ---
 

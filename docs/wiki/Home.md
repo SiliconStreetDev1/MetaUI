@@ -22,33 +22,37 @@ The core of the framework is built on a strict **Plugin-First** philosophy.
    - Declarative Usage (XML)
    - Programmatic Usage (JS/TS)
    - Dialog Popups (Basic Usage)
-2. [Schemas & Data Inference](SchemasAndInference.md)
+2. [Deployment](Deployment.md)
+   - Route A: bundle MetaUI into your app
+   - Route B: deploy MetaUI once as a shared BSP library
+   - Local development
+3. [Schemas & Data Inference](SchemasAndInference.md)
    - Defining a JSON Schema
    - Full Data Inference Mode
    - Supported Field Plugins
-3. [OpenAPI Integration](OpenAPIIntegration.md)
+4. [OpenAPI Integration](OpenAPIIntegration.md)
    - Dynamic Target Extraction
    - OpenAPI v2 / v3 Parsing
    - Feature & Constraint Mapping
-4. [Data Binding & State Management](DataBindingAndState.md)
+5. [Data Binding & State Management](DataBindingAndState.md)
    - The Tri-Binding Interface
    - The Validation Pipeline & State Management
    - Change Handling
-5. [API Reference (DynamicHost)](APIReference.md)
+6. [API Reference (DynamicHost)](APIReference.md)
    - Properties
    - Events
    - Methods
    - Library-Level Configuration (`UrlValidator`, `Logger`)
-6. [Extensibility](CreatingPlugins.md)
+7. [Extensibility](CreatingPlugins.md)
    - Creating Custom Plugins
    - The BasePlugin Lifecycle
-7. [Policy-Based Rules Engine (PBRE)](PolicyBasedRulesEngine.md)
+8. [Policy-Based Rules Engine (PBRE)](PolicyBasedRulesEngine.md)
    - Declarative Conditions (`NumericGreaterThan`, `NumericLessThan`, `StringEquals`, `DateLessThan`, `IsNull`, `IsNotNull`)
    - Symmetrical Effects (`Show`, `Hide`, `Require`, `Optional`, `Validate`, `Invalidate`, `Enable`, `Disable`)
-8. [AI Instruction Manual & Schema Cheat Sheet](AI_Schema_CheatSheet.md)
+9. [AI Instruction Manual & Schema Cheat Sheet](AI_Schema_CheatSheet.md)
    - Exhaustive Schema Dictionary & Widget Registry
-9. [Testing Routines & Automated Verification](09_Testing_Routines_and_Automation.md)
+10. [Testing Routines & Automated Verification](09_Testing_Routines_and_Automation.md)
    - `TestOracle.js`, QUnit Physical DOM Unit Tests, E2E Matrix, Sandbox Smoke Tests, and Standalone Consumer Verification
-10. [Supported Features & Known Limitations](SupportedFeatures.md)
+11. [Supported Features & Known Limitations](SupportedFeatures.md)
    - Complete Source-Derived Capability Inventory (<!-- DOC_COUNT:pluginMappings -->`51` Widget Mappings, <!-- DOC_COUNT:validators -->`14` Validators, <!-- DOC_COUNT:formatters -->`4` Formatters, <!-- DOC_COUNT:parsers -->`3` Parsers, <!-- DOC_COUNT:policyConditions -->`6` Policy Conditions, <!-- DOC_COUNT:policyEffects -->`8` Policy Effects) and Honest Known Limitations
    - **Security Posture & Trust Model** — what an untrusted schema may and may not do, and the residual exposure that remains
