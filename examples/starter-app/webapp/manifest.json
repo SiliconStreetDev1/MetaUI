@@ -1,0 +1,18 @@
+{
+  "sap.app": {
+    "id": "metaui.starter",
+    "type": "application",
+    "title": "MetaUI Starter"
+  },
+  "sap.ui5": {
+    "rootView": { "viewName": "metaui.starter.Main", "type": "XML", "async": true, "id": "app" },
+    "dependencies": {
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.ui.layout": {},
+        "nz.co.siliconst.ui5.metaui": {}
+      }
+    }
+  }
+}

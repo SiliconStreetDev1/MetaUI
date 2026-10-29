@@ -45,4 +45,12 @@ fs.rmSync(resourcesDir, { recursive: true, force: true });
 
 console.log(`- Moved dist/resources/${namespaceRoot} to dist/${namespaceRoot}`);
 console.log("- Removed dist/resources");
+
+// The declaration roll-up is for TypeScript consumers of the npm package. A BSP serves
+// JavaScript to a browser and nothing there reads it, so it is not part of this payload.
+const declarationRollup = path.join(distDir, "index.d.ts");
+if (fs.existsSync(declarationRollup)) {
+    fs.rmSync(declarationRollup, { force: true });
+    console.log("- Removed dist/index.d.ts (npm-only, not served by a BSP)");
+}
 console.log("dist/ is now the BSP payload: upload its contents to the BSP application root.");

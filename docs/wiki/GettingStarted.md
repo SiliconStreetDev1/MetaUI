@@ -4,6 +4,22 @@
 
 MetaUI is an npm package. You do not clone this repository to use it.
 
+### Fastest: copy the starter app
+
+A complete, runnable application lives at
+[`examples/starter-app/`](../../examples/starter-app/). Copy the folder, then:
+
+```bash
+npm install
+npm start          # http://localhost:8080
+```
+
+It renders a form from a plain object with no schema. Its README explains what every file is for.
+If you are new to MetaUI, start there and edit it — the steps below are for adding MetaUI to an
+app you already have.
+
+### Adding MetaUI to an existing UI5 Tooling app
+
 **1. Install**
 
 ```bash
@@ -19,10 +35,25 @@ fetches a library's `library-preload.js` when the library is named as a library.
 }
 ```
 
-That is everything `ui5 serve` needs — UI5 Tooling resolves MetaUI out of `node_modules` with no
+**3. Check your app's `ui5.yaml` declares the UI5 framework itself.** MetaUI needs `sap.m`,
+`sap.ui.core` and `sap.ui.layout` to be available. If your app does not already have this block,
+`ui5 serve` has no UI5 to serve:
+
+```yaml
+framework:
+  name: OpenUI5
+  version: "1.120.50"
+  libraries:
+    - name: sap.m
+    - name: sap.ui.core
+    - name: sap.ui.layout
+    - name: themelib_sap_horizon
+```
+
+That is everything `ui5 serve` needs. UI5 Tooling resolves MetaUI out of `node_modules` with no
 further configuration, because the package ships its own `ui5.yaml`.
 
-**3. Use it** — see [Declarative Usage](#declarative-usage-xml) below.
+**4. Use it** — see [Declarative Usage](#declarative-usage-xml) below.
 
 When you come to ship, there are two ways to deploy and the choice changes your app's build.
 See **[Deployment](Deployment.md)**.
@@ -31,15 +62,29 @@ See **[Deployment](Deployment.md)**.
 
 ## Declarative Usage (XML)
 
-To embed the MetaUI engine inside a standard UI5 XML view natively:
+Declare the namespace on your view, and place a `DynamicHost`. This is the whole of it:
 
-1. **Declare the Namespace**
-   Add the MetaUI namespace to your `<core:View>` or `<core:FragmentDefinition>`:
-   ```xml
-   xmlns:meta="nz.co.siliconst.ui5.metaui.controls"
-   ```
+```xml
+<mvc:View
+    controllerName="my.app.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
 
-2. **Embed the DynamicHost**
+    <Page title="My App">
+        <meta:DynamicHost data="{/booking}" editable="true" submit=".onSubmit" />
+    </Page>
+</mvc:View>
+```
+
+With `{/booking}` holding a plain object in a `JSONModel`, that renders a form — MetaUI infers the
+widgets from the data. The `submit` event carries `payload` (object) and `payloadJson` (string).
+
+Everything below is **reference**: the full set of properties and events, not a starting point.
+Add them as you need them, and see [API Reference](APIReference.md) for what each one does.
+
+### Every property at once
+
    The `DynamicHost` control expects data and (optionally) a schema definition. 
    
    **Understanding the Bindings:**

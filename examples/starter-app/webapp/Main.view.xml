@@ -1,0 +1,15 @@
+<mvc:View
+    controllerName="metaui.starter.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:meta="nz.co.siliconst.ui5.metaui.controls">
+
+    <Page title="MetaUI Starter">
+        <meta:DynamicHost
+            data="{/booking}"
+            editable="true"
+            liveUpdate="true"
+            useMessageManager="true"
+            submit=".onSubmit" />
+    </Page>
+</mvc:View>
