@@ -127,7 +127,7 @@ const FILES = {
         metadata: { manifest: "json" },
         init: function () {
             AppComponent.prototype.init.apply(this, arguments);
-            var lazy = new JSONModel({ schema: null });
+            var lazy = new JSONModel({ schema: null, editable: !/[?&]readonly/.test(location.search) });
             this.setModel(lazy, "lazy");
             var m = /[?&]delay=([0-9]+)/.exec(location.search);
             var delay = m ? parseInt(m[1], 10) : 1500;
@@ -211,7 +211,7 @@ const FILES = {
     <meta:DynamicHost
         schemaDefinition="{lazy>/schema}"
         dataJson="{DetailsJson}"
-        editable="true" />
+        editable="{lazy>/editable}" />
 </core:FragmentDefinition>`
 };
 

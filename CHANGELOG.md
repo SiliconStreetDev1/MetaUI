@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.1] — 2026-10-29
+
+### Fixed
+
+- **A multi-line text area grew with its content until 2.0.0 and has been a fixed, scrolling box
+  since.** The refactor dropped `growing` from `TextAreaPlugin`. `ui.rows` sets the starting
+  height again and the box grows to four times it, so one long value cannot push a form off the
+  screen.
+- **The `showPayload` button overlapped the first field.** It hung from a zero-height anchor and
+  landed 20px over the first input's right edge — on a dropdown's arrow or a date picker's icon.
+  It now has its own strip. The host's width and its fields' widths are unchanged, which is what
+  matters in a table column; the host is 28px taller when the button is shown.
+- **Every published `.js` and `.d.ts` pointed at a source map that had been pruned.**
+  `publish-prep` deleted the maps and left the `//# sourceMappingURL=` comment behind, so a
+  consuming build reported a missing source map 466 times. The reference is now removed with the
+  file it names. No files were added or removed from the package.
+
 ## [2.1.0] — 2026-10-29
 
 Layout and affordances. A form in a narrow container — a table column, a side panel, a dialog —

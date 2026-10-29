@@ -36,7 +36,7 @@ if (fs.existsSync(resourcesDir)) {
 //
 // ui5.yaml already sets `removeSourceFiles: true`; it is not taking effect, so the
 // prune is done here where it can be verified rather than assumed.
-const prunedExtensions = { maps: 0, sources: 0, bytes: 0 };
+const prunedExtensions = { maps: 0, sources: 0, refs: 0, bytes: 0 };
 (function prune(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
@@ -48,6 +48,18 @@ const prunedExtensions = { maps: 0, sources: 0, bytes: 0 };
         // .d.ts must survive; only the hand-written .ts sources go.
         const isRawSource = entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts');
         if (!isMap && !isRawSource) {
+            // Every emitted .js and .d.ts ends with a `//# sourceMappingURL=` line pointing at the
+            // map pruned below. Deleting the map and leaving the reference makes every build tool
+            // and devtools session in the consuming app report a missing source map - 311 of them
+            // in the 2.1.0 package. The reference goes with the file it names.
+            if (entry.name.endsWith('.js') || entry.name.endsWith('.d.ts')) {
+                const text = fs.readFileSync(full, 'utf8');
+                const stripped = text.replace(/\r?\n?\/\/# sourceMappingURL=\S*\s*$/, '\n');
+                if (stripped !== text) {
+                    fs.writeFileSync(full, stripped);
+                    prunedExtensions.refs += 1;
+                }
+            }
             continue;
         }
         prunedExtensions.bytes += fs.statSync(full).size;
@@ -76,7 +88,8 @@ if (survivors.length > 0) {
 }
 console.log(
     `- Pruned ${prunedExtensions.maps} source maps and ${prunedExtensions.sources} raw .ts sources ` +
-    `(${(prunedExtensions.bytes / (1024 * 1024)).toFixed(2)}MB)`
+    `(${(prunedExtensions.bytes / (1024 * 1024)).toFixed(2)}MB), and removed ` +
+    `${prunedExtensions.refs} dangling sourceMappingURL reference(s)`
 );
 
 // 2. Copy and clean package.json
