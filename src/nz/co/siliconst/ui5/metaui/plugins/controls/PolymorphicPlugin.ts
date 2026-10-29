@@ -20,6 +20,7 @@ import JSONModel from "sap/ui/model/json/JSONModel";
 import PropertyBinding from "sap/ui/model/PropertyBinding";
 import Event from "sap/ui/base/Event";
 import { I18n, TEXT_KEY } from "../../utils/I18n";
+import { deepClone } from "../../utils/TypeGuards";
 
 /**
  * Plugin responsible for rendering polymorphic schemas (`ui.widget = "polymorphic"`, `oneOf`, `anyOf`, `discriminator`).
@@ -32,6 +33,13 @@ export class PolymorphicPlugin extends BasePlugin {
     private variantSelect?: Select;
     private fieldsContainer?: VBox;
     private activeChildPlugins: IPlugin[] = [];
+
+    /**
+     * Branch fields whose own schema declares them read-only. The parent's editability is pushed onto its
+     * children in {@link PolymorphicPlugin.applyState}; a child listed here must stay read-only whatever the
+     * parent allows, because an inherited "editable" cannot grant what the branch schema withholds.
+     */
+    private readonly declaredReadOnlyChildren = new WeakSet<IPlugin>();
     private activeChildPaths: string[] = [];
     private variants: IPolymorphicVariant[] = [];
     private engineScopeId?: string;
@@ -205,9 +213,18 @@ export class PolymorphicPlugin extends BasePlugin {
         for (const [propKey, propMeta] of Object.entries(variant.properties)) {
             if (propKey === discProp) continue;
             const childPath = `${basePath}/${propKey}`;
+            // Each child gets its own copy: runtime state writes on the child's metadata must never reach the
+            // variant definition, which outlives the child and is read again on every variant switch.
+            const childMeta: IPropertyMetadata = { ...propMeta, ui: propMeta.ui ? deepClone(propMeta.ui) : undefined };
             const childPlugin = registry.getPlugin(propMeta.type, propMeta.ui?.widget);
+            if (childMeta.readOnly || childMeta.ui?.readOnly) {
+                this.declaredReadOnlyChildren.add(childPlugin);
+            }
             if (typeof childPlugin.setEditable === "function") {
                 childPlugin.setEditable(this.isControlEditable());
+            }
+            if (typeof childPlugin.setEnabled === "function") {
+                childPlugin.setEnabled(this.isControlEnabled());
             }
             if (this.engineContext && typeof childPlugin.setEngineContext === "function") {
                 childPlugin.setEngineContext(this.engineContext);
@@ -245,7 +262,7 @@ export class PolymorphicPlugin extends BasePlugin {
             };
 
             const childControl = childPlugin.render(
-                propMeta,
+                childMeta,
                 childPath,
                 this.modelName,
                 this.engineScopeId,
@@ -377,6 +394,7 @@ export class PolymorphicPlugin extends BasePlugin {
 
     /**
      * Applies dynamic `readOnly` and `editable` state updates to the variant selector and child plugins.
+     * A child its branch schema declares read-only keeps that, whatever the parent's own editability.
      */
     protected applyState(): void {
         const canEdit = this.isControlEditable();
@@ -384,10 +402,11 @@ export class PolymorphicPlugin extends BasePlugin {
             this.variantSelect.setEnabled(canEdit);
         }
         for (const child of this.activeChildPlugins) {
+            const childCanEdit = canEdit && !this.declaredReadOnlyChildren.has(child);
             if (typeof child.setState === "function") {
-                child.setState("editable", canEdit);
+                child.setState("editable", childCanEdit);
             } else if (typeof child.setEditable === "function") {
-                child.setEditable(canEdit);
+                child.setEditable(childCanEdit);
             }
         }
     }

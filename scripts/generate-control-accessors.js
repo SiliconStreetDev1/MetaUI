@@ -7,7 +7,7 @@
  * object literal on the class. DynamicHost and GeneratorHost deliberately share one
  * imported HOST_CONTROL_METADATA constant, which is what guarantees contract parity
  * between the facade and the inner host. Inlining it to satisfy that tool would
- * duplicate 17 properties and 9 events across two files and destroy the invariant.
+ * duplicate 19 properties and 9 events across two files and destroy the invariant.
  * This script reads the shared constant instead.
  *
  *   node scripts/generate-control-accessors.js            rewrite the blocks
@@ -20,8 +20,10 @@ const ts = require('typescript');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CONTROL_DIR = 'src/nz/co/siliconst/ui5/metaui/controls';
 
+// `publicApi` marks a control in the public tier of .github/scripts/api-surface.js: its generated
+// declarations then carry the @public tag that tier requires. The other two are internal.
 const CONTROLS = [
-    { file: `${CONTROL_DIR}/DynamicHost.ts`, className: 'DynamicHost' },
+    { file: `${CONTROL_DIR}/DynamicHost.ts`, className: 'DynamicHost', publicApi: true },
     { file: `${CONTROL_DIR}/host/GeneratorHost.ts`, className: 'GeneratorHost' },
     { file: `${CONTROL_DIR}/BaseHardwareControl.ts`, className: 'BaseHardwareControl' }
 ];
@@ -188,7 +190,8 @@ function declaredMethods(sourceFile, className) {
     return names;
 }
 
-function buildBlock(className, metadata, skipNames) {
+function buildBlock(className, metadata, skipNames, publicApi) {
+    const publicTag = publicApi ? '\n * @public' : '';
     const used = new Set();
     const noteType = (t) => {
         for (const key of Object.keys(REQUIRED_IMPORT)) {
@@ -252,12 +255,12 @@ function buildBlock(className, metadata, skipNames) {
                 return `    ${p}?: ${t};`;
             });
             eventInterfaces.push(
-                `/**\n * Parameters delivered with the \`${name}\` event of \`${className}\`.\n */\n` +
+                `/**\n * Parameters delivered with the \`${name}\` event of \`${className}\`.${publicTag}\n */\n` +
                 `export interface ${paramsTypeName} {\n${fields.join('\n')}\n}`
             );
         } else {
             eventInterfaces.push(
-                `/**\n * Parameters delivered with the \`${name}\` event of \`${className}\` (none).\n */\n` +
+                `/**\n * Parameters delivered with the \`${name}\` event of \`${className}\` (none).${publicTag}\n */\n` +
                 `export type ${paramsTypeName} = object;`
             );
         }
@@ -285,6 +288,7 @@ function buildBlock(className, metadata, skipNames) {
         '/**',
         ` * Accessors UI5 generates at runtime from \`${className}\`'s metadata, declared here so`,
         ' * TypeScript consumers can call them. Merged into the class by declaration merging.',
+        ...(publicApi ? [' * @public'] : []),
         ' */',
         `export default interface ${className} {`,
         ...members,
@@ -318,7 +322,7 @@ for (const control of CONTROLS) {
     const sourceFile = parse(absPath);
     const metadata = resolveMetadata(sourceFile, control.className, absPath);
     const skipNames = declaredMethods(sourceFile, control.className);
-    const { body, used, skipped } = buildBlock(control.className, metadata, skipNames);
+    const { body, used, skipped } = buildBlock(control.className, metadata, skipNames, control.publicApi === true);
 
     const have = importedNames(sourceFile);
     const missing = [...used].filter((name) => !have.has(name));

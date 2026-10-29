@@ -232,6 +232,8 @@ export interface INestedEditorLaunchOptions {
     readonly definitions?: Record<string, ISchema>;
     /** Whether the nested form should be editable. */
     readonly editable: boolean;
+    /** Whether the nested form should be enabled. Defaults to true; the owning field passes its own state. */
+    readonly enabled?: boolean;
     /**
      * Layout budget for the nested host. Passed explicitly so the parent's budget never has to travel
      * as an annotation written onto the consumer's schema. 0 disables inline sub-layouts in the dialog.
@@ -401,6 +403,7 @@ export function openNestedHostDialog(options: INestedEditorLaunchOptions): void 
                 schemaDefinitions: options.definitions || null,
                 data: wrappedData,
                 editable: options.editable,
+                enabled: options.enabled !== false,
                 layoutBudget: options.layoutBudget ?? 0,
                 liveUpdate: false
             });

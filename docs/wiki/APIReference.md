@@ -93,7 +93,9 @@ Until that changes, the only thing to pin is the package version. Express it as 
 | `useMessageManager` | `boolean` | `false` | If true, ties the internal validation errors directly into the global SAPUI5 `Messaging` (`MessageManager`) for centralized error popovers. |
 | `modelName` | `string` | `"meta"` | The internal JSONModel namespace used by the Engine for absolute data bindings. |
 | `debugMode` | `boolean` | `false` | If true, records diagnostic DOM and layout metadata accessible via `getDebugDomMetadata()`. |
-| `editable` | `boolean` | `true` | If false, renders the entire generated layout as read-only. |
+| `editable` | `boolean` | `true` | If false, renders the entire generated layout as read-only: value editors are replaced by display controls (`sap.m.Text` for most widgets). Contrast `enabled`, which keeps the real widgets. |
+| `enabled` | `boolean` | `true` | If false, disables every generated field: the real widgets are still built and render greyed out, rather than being replaced by display text as `editable="false"` does. Composes by AND with each field's `ui.enabled`, reaches table rows and nested dialogs, and re-renders the form when changed at runtime, preserving the payload. |
+| `showPayload` | `boolean` | `false` | If true, shows a small `</>` icon over the host's top-right corner that opens the live payload as read-only JSON in a dialog, with a Formatted / Raw toggle and Copy. Bindable, including per table row. Changing it at runtime adds or removes only the icon: the form is not regenerated, and an edit in progress survives. When unset, `DynamicHost.setShowPayloadDefault` decides. The icon is positioned outside the content flow and costs the form no width or height. |
 | `layoutBudget` | `int` | `0` | Controls how many nested fields can be recursively rendered inline before overflowing into a dialog. `0` disables inline sub-layouts. |
 | `engineScopeId` | `string` | `null` | A deterministic internal prefix passed down recursively to prevent DOM ID collisions between multiple engines. |
 | `width` | `sap.ui.core.CSSSize` | `"100%"` | Explicit CSS width of the host container (`min-width: 0`, `max-width: 100%`, `box-sizing: border-box` enforced for containment). |
@@ -264,6 +266,17 @@ sap.ui.require(["nz/co/siliconst/ui5/metaui/utils/UrlValidator"], function (UrlV
 ```
 
 **Scheme validation is not configurable and is always on:** a data source URL must resolve to `http:` or `https:`, and protocol-relative (`//host/...`) or backslash-prefixed values are refused outright. `mode` governs only the cross-origin decision, and the default (`"any"`) permits cross-origin requests with a one-time warning per origin. See [Supported Features § Security Posture & Trust Model](SupportedFeatures.md) for the reasoning and the residual exposure.
+
+### `DynamicHost.setShowPayloadDefault(show)` / `getShowPayloadDefault()`
+
+The `showPayload` default for every host that does not set the property itself, for an application-wide developer-mode switch. Unlike the settings above, it may be called at any time: it applies at once to hosts already rendered. A host's own `showPayload`, set or bound, always wins, so `showPayload="false"` keeps a host out of it.
+
+```typescript
+import DynamicHost from "nz/co/siliconst/ui5/metaui/controls/DynamicHost";
+
+DynamicHost.setShowPayloadDefault(true);
+const isOn: boolean = DynamicHost.getShowPayloadDefault();
+```
 
 ### `Logger` (`nz/co/siliconst/ui5/metaui/utils/Logger`)
 

@@ -437,6 +437,15 @@ sap.ui.define([
         var registry = PluginRegistry.getInstance();
         var oracleKeys = Object.keys(TestOracle.PLUGIN_MAP);
 
+        // Mappings whose read-only rendering is a drill-down button showing no value at all: the
+        // caption names the field it opens, so it must not follow the model. Every other mapping
+        // must, including a plain array, whose caption carries an entry count that does track it,
+        // and the object/array widgets (dictionaryMap, polymorphic, multiSelect, location, ...)
+        // that render their values inline rather than behind a button.
+        var DRILL_DOWN_KEYS = oracleKeys.filter(function (k) {
+            return k === "object" || k === "object:reference";
+        });
+
         oracleKeys.forEach(function (key, idx) {
             var spec = TestOracle.PLUGIN_MAP[key];
             var parts = key.split(":");
@@ -603,6 +612,19 @@ sap.ui.define([
                     true,
                     "[" + key + " display] Password display text updates dynamically on model mutation"
                 );
+            } else if (DRILL_DOWN_KEYS.indexOf(key) !== -1) {
+                // A drill-down button names the field it opens; it deliberately shows none of the
+                // record's values, so its caption must NOT follow the data. The dialog behind it is
+                // the data view. Previewing values here was withdrawn: the values chosen were a guess
+                // at which ones identify a record, and the caption then truncated twice over.
+                oModel.setProperty("/" + fieldName, cloneVal(spec.mutatedValue));
+                Core.applyChanges();
+                var drillDispVal = readDisplayControlValue(dispControl, spec);
+                assert.strictEqual(
+                    drillDispVal,
+                    initialDispVal,
+                    "[" + key + " display] Drill-down caption names the field, not the data, so it survives a model mutation ('" + drillDispVal + "')"
+                );
             } else {
                 oModel.setProperty("/" + fieldName, cloneVal(spec.mutatedValue));
                 Core.applyChanges();
@@ -617,6 +639,227 @@ sap.ui.define([
             plugin.destroy();
             oModel.destroy();
         });
+    });
+
+    /**
+     * Walks a field's rendered control tree the way a user meets it: the outermost control that owns an
+     * interactivity property answers for its subtree. Returns one entry per such control.
+     *
+     * @param {sap.ui.core.Control} root The field's outer control.
+     * @returns {Array<{control: object, property: string, value: boolean}>} The interactivity owners.
+     */
+    function interactivityOwners(root) {
+        var owners = [];
+        (function walk(ctrl) {
+            if (!ctrl || typeof ctrl.getMetadata !== "function") return;
+            var meta = ctrl.getMetadata();
+            if (typeof meta.hasProperty !== "function") return;
+            var props = ["enabled", "readOnly", "editable"];
+            for (var i = 0; i < props.length; i++) {
+                if (meta.hasProperty(props[i])) {
+                    owners.push({ control: ctrl, property: props[i], value: ctrl.getProperty(props[i]) });
+                    return;
+                }
+            }
+            ctrl.findAggregatedObjects(false).forEach(walk);
+        })(root);
+        return owners;
+    }
+
+    QUnit.test("Disabled state: every plugin mapping with ui.enabled:false renders its real edit control, disabled, with its value and editability intact", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var nestedDefinition = SchemaNormalizer.normalize({ type: "object", properties: { NestedString: { type: "string" } } });
+        var writableSelector =
+            "input:not([type=hidden]):not([disabled]):not([readonly])," +
+            "textarea:not([disabled]):not([readonly])," +
+            "select:not([disabled])," +
+            '[contenteditable="true"],[contenteditable=""]';
+
+        Object.keys(TestOracle.PLUGIN_MAP).forEach(function (key, idx) {
+            var spec = TestOracle.PLUGIN_MAP[key];
+            var parts = key.split(":");
+            var sandboxId = "sandbox-disabled-" + idx;
+            createPhysicalSandbox(sandboxId);
+
+            var fieldName = "OffField_" + idx;
+            var modelData = {};
+            modelData[fieldName] = cloneVal(spec.sampleValue);
+            var oModel = new JSONModel(modelData);
+            var sampleMeta = cloneVal(spec.sampleMeta);
+            sampleMeta.ui = sampleMeta.ui || {};
+            sampleMeta.ui.enabled = false;
+            var properties = {};
+            properties[fieldName] = sampleMeta;
+            var propMeta = SchemaNormalizer.normalize({ type: "object", properties: properties }).properties[fieldName];
+
+            var plugin = registry.getPlugin(parts[0], parts[1]);
+            plugin.setEditable(true);
+            plugin.setEngineContext({
+                getSchemaDefinition: function () { return nestedDefinition; },
+                getSchemaDefinitions: function () { return { MockReference: nestedDefinition }; },
+                triggerSubmit: function () { return true; },
+                getModel: function () { return oModel; }
+            });
+            var control = plugin.render(propMeta, "/" + fieldName, "meta", "offScope_" + idx, function () {}, oModel);
+            control.setModel(oModel, "meta");
+            control.placeAt(sandboxId);
+            Core.applyChanges();
+
+            assert.strictEqual(
+                control.getMetadata().getName(),
+                spec.controlClass,
+                "[" + key + " disabled] Renders the real edit control (" + spec.controlClass + "), not display text"
+            );
+
+            var owners = interactivityOwners(control);
+            var stillLive = owners.filter(function (o) {
+                return o.property === "readOnly" ? o.value !== true : o.value !== false;
+            });
+            assert.ok(owners.length > 0, "[" + key + " disabled] The field has at least one control that can be disabled");
+            assert.strictEqual(
+                stillLive.map(function (o) { return o.control.getMetadata().getName() + "." + o.property; }).join(", "),
+                "",
+                "[" + key + " disabled] Every interactive control in the field is disabled (or read-only where it has no disabled state)"
+            );
+
+            var dom = control.getDomRef();
+            var writableEls = dom ? Array.prototype.slice.call(dom.querySelectorAll(writableSelector)) : [];
+            assert.strictEqual(
+                writableEls.map(function (el) { return el.outerHTML.slice(0, 160); }).join(" | "),
+                "",
+                "[" + key + " disabled] The rendered DOM exposes no writable element"
+            );
+
+            // Only a control with both properties can show the two axes apart; for the rest there is nothing to check.
+            var target = plugin.mainControl || control;
+            var hasBothAxes = target.getMetadata().hasProperty("editable") && target.getMetadata().hasProperty("enabled");
+            assert.strictEqual(
+                hasBothAxes ? target.getEditable() : true,
+                true,
+                "[" + key + " disabled] Disabling leaves the editable axis alone (getEditable() stays true)"
+            );
+
+            assert.deepEqual(
+                readLiveControlValue(control, plugin, spec, key),
+                cloneVal(spec.sampleValue),
+                "[" + key + " disabled] The disabled control still carries its bound value"
+            );
+
+            plugin.destroy();
+            oModel.destroy();
+        });
+    });
+
+    QUnit.test("Disabled state: editable and enabled are independent axes, and no rule re-enables a field another rule disabled", function (assert) {
+        var done = assert.async();
+        var registry = PluginRegistry.getInstance();
+        var schema = SchemaNormalizer.normalize({
+            type: "object",
+            uiLayout: ["Locked", "Frozen", "Both", "Flip", "Coupon"].map(function (k) {
+                return { type: "Control", scope: "#/properties/" + k };
+            }),
+            properties: {
+                Locked: { type: "string", ui: { label: "Locked", enabled: false } },
+                Frozen: { type: "string", readOnly: true, ui: { label: "Frozen" } },
+                Both: { type: "string", readOnly: true, ui: { label: "Both", enabled: false } },
+                Flip: { type: "boolean", ui: { label: "Flip", widget: "switch", enabled: false } },
+                Coupon: { type: "string", ui: { label: "Coupon" } }
+            }
+        });
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/layouts/FormLayout"], function (FormLayoutMod) {
+            registry.preloadDependencies(schema).then(function () { runAxes(FormLayoutMod.FormLayout); });
+        });
+
+        function runAxes(FormLayout) {
+            var data = { Locked: "abc", Frozen: "def", Both: "ghi", Flip: true, Coupon: "SAVE10" };
+
+            function build(hostEnabled, sandboxId) {
+                var model = new JSONModel(cloneVal(data));
+                var engine = new Engine(true, false, registry, hostEnabled);
+                engine.activeModel = model;
+                engine.host = { activeModelName: "meta", getSchemaDefinition: function () { return null; }, getSchemaDefinitions: function () { return {}; } };
+                engine.onChange = function () { return undefined; };
+                createPhysicalSandbox(sandboxId);
+                var container = new FormLayout().render(schema, "meta", engine);
+                container.setModel(model, "meta");
+                container.placeAt(sandboxId);
+                Core.applyChanges();
+                var ctrl = function (path) {
+                    var p = engine.getPluginByPath(path);
+                    if (!p) {
+                        throw new Error("No plugin at " + path + "; generated: " +
+                            engine.activePlugins.map(function (x) { return x.path; }).join(","));
+                    }
+                    return p.mainControl || p.control;
+                };
+                return { engine: engine, model: model, container: container, ctrl: ctrl, plugin: engine.getPluginByPath.bind(engine) };
+            }
+
+            var form = build(true, "sandbox-axes-enabled-host");
+
+            assert.strictEqual(form.ctrl("/Locked").getEnabled(), false, "ui.enabled:false disables the field");
+            assert.strictEqual(form.ctrl("/Locked").getEditable(), true, "...without touching its editability");
+            assert.strictEqual(form.ctrl("/Locked").getValue(), "abc", "...and the disabled input still carries its value");
+            assert.strictEqual(form.ctrl("/Frozen").getEditable(), false, "readOnly makes the field read-only");
+            assert.strictEqual(form.ctrl("/Frozen").getEnabled(), true, "...and leaves it enabled");
+            assert.ok(
+                form.ctrl("/Both").getEditable() === false && form.ctrl("/Both").getEnabled() === false,
+                "readOnly and ui.enabled:false together give a read-only, disabled field"
+            );
+
+            form.plugin("/Locked").setState("required", true);
+            assert.strictEqual(
+                form.ctrl("/Locked").getEditable(),
+                true,
+                "Re-applying state does not fold ui.enabled:false back into editability"
+            );
+
+            form.plugin("/Flip").setState("required", true);
+            form.plugin("/Flip").setState("valid", false, "x");
+            assert.strictEqual(
+                form.ctrl("/Flip").getEnabled(),
+                false,
+                "A switch (whose read-only state is enabled=false) is not re-enabled by its own applyState"
+            );
+
+            form.plugin("/Coupon").setState("enabled", false);
+            assert.ok(
+                form.ctrl("/Coupon").getEnabled() === false && form.ctrl("/Coupon").getEditable() === true,
+                "A Disable policy disables the field and leaves it editable"
+            );
+            form.plugin("/Coupon").setState("enabled", true);
+            assert.strictEqual(form.ctrl("/Coupon").getEnabled(), true, "Enable lifts what Disable imposed");
+
+            form.plugin("/Locked").setState("enabled", false);
+            form.plugin("/Locked").setState("enabled", true);
+            form.plugin("/Locked").setState("editable", true);
+            assert.strictEqual(
+                form.ctrl("/Locked").getEnabled(),
+                false,
+                "Neither Enable nor a runtime editable=true re-enables a field the schema declared ui.enabled:false"
+            );
+            assert.strictEqual(
+                schema.properties.Locked.ui.enabled,
+                false,
+                "...and the declared ui.enabled:false is not overwritten on the metadata"
+            );
+
+            var host = build(false, "sandbox-axes-disabled-host");
+            assert.ok(
+                host.ctrl("/Coupon").getEnabled() === false && host.ctrl("/Coupon").getEditable() === true,
+                "A disabled host renders its fields as real, editable-but-disabled widgets"
+            );
+            assert.strictEqual(host.ctrl("/Coupon").getMetadata().getName(), "sap.m.Input", "...not as display text");
+            host.plugin("/Coupon").setState("enabled", true);
+            assert.strictEqual(host.ctrl("/Coupon").getEnabled(), false, "An Enable policy cannot re-enable a field the host disabled");
+
+            [form, host].forEach(function (f) {
+                f.container.destroy();
+                f.engine.destroy();
+                f.model.destroy();
+            });
+            done();
+        }
     });
 
     QUnit.test("Cloned Table-Row Cells (13.7.3): All supportsRowClone widgets render with geometry in both rows, isolate per-row edits and validation errors, and shift value + error state on deleteRow", function (assert) {
@@ -1237,6 +1480,46 @@ sap.ui.define([
         assert.strictEqual(objPlugin.validate().isValid, true, "ObjectPlugin passes validation when nested property is valid");
         objPlugin.destroy();
         objModel.destroy();
+    });
+
+    QUnit.test("Nested drill-down caption: a read-only host names what the button opens and never previews it", function (assert) {
+        var registry = PluginRegistry.getInstance();
+        var model = new JSONModel({
+            Order: {
+                Code: "PO-1",
+                Customer: { Name: "Acme", Addr: { City: "Auckland" } },
+                Lines: [{ Sku: "A" }, { Sku: "B" }],
+                Notes: "Expedite\nurgently"
+            }
+        });
+        var plugin = registry.getPlugin("object");
+        plugin.setEditable(false);
+        var btn = plugin.render(
+            { type: "object", ui: { label: "Order" }, properties: { Code: { type: "string" } } },
+            "/Order",
+            "meta",
+            "captionScope"
+        );
+        btn.setModel(model, "meta");
+
+        var caption = btn.getText();
+        assert.ok(caption.indexOf("[object Object]") === -1, "No nested value is stringified into the caption: '" + caption + "'");
+        assert.ok(caption.indexOf("PO-1") === -1 && caption.indexOf("Expedite") === -1,
+            "The record's values are not previewed on the button: '" + caption + "'");
+        assert.ok(caption.indexOf("…") === -1, "A caption that previews nothing can never be truncated: '" + caption + "'");
+        assert.ok(/Order/.test(caption), "The caption names the field it opens: '" + caption + "'");
+
+        model.setProperty("/Order", { A: "1111111111", B: "2222222222", C: "3333333333", D: "4444444444" });
+        assert.strictEqual(btn.getText(), caption, "More scalar values do not change the caption");
+
+        model.setProperty("/Order", { Customer: { Name: "Acme" } });
+        assert.strictEqual(btn.getText(), caption, "Nor do nested-only values, and the binding stays live");
+
+        plugin.setState("required", true);
+        assert.strictEqual(btn.getText(), caption, "applyState leaves the read-only caption intact");
+
+        plugin.destroy();
+        model.destroy();
     });
 
     QUnit.test("Hardware Controls, Display Mode Formatting, and UI Directives (visibleOn, enabledOn, controlProps, description, valueState)", function (assert) {
@@ -2203,6 +2486,59 @@ sap.ui.define([
             model.destroy();
             done();
         });
+    });
+
+    QUnit.test("Plugin hardening: a polymorphic branch field declared read-only stays read-only when a policy touches its parent", function (assert) {
+        var done = assert.async();
+        var schema = {
+            type: "object",
+            properties: {
+                Name: { type: "string" },
+                Payment: {
+                    type: "object",
+                    ui: { widget: "polymorphic" },
+                    discriminator: { propertyName: "method" },
+                    oneOf: [
+                        { title: "Card", properties: { method: { type: "string", const: "card" }, cardNo: { type: "string", readOnly: true }, holder: { type: "string" } } },
+                        { title: "Bank", properties: { method: { type: "string", const: "bank" }, iban: { type: "string" } } }
+                    ]
+                }
+            },
+            // Require on the parent runs its applyState, which pushes the parent's editability onto every branch field.
+            uiPolicies: [{ effect: "Require", targets: ["/Payment"], condition: { IsNotNull: "/Name" } }]
+        };
+        var host = new DynamicHost({ schemaDefinition: schema, data: { Name: "x", Payment: { method: "card", cardNo: "1234", holder: "Ada" } } });
+        createPhysicalSandbox("sandbox-poly-readonly");
+        host.placeAt("sandbox-poly-readonly");
+
+        function inputWithValue(value) {
+            var hit = null;
+            (function walk(c) {
+                if (!c || !c.getMetadata || hit) return;
+                if (c.isA && c.isA("sap.m.Input") && c.getValue() === value) { hit = c; return; }
+                Object.keys(c.mAggregations || {}).forEach(function (k) {
+                    var v = c.mAggregations[k];
+                    (Array.isArray(v) ? v : [v]).forEach(walk);
+                });
+            })(host);
+            return hit;
+        }
+
+        var started = Date.now();
+        (function poll() {
+            Core.applyChanges();
+            var cardNo = inputWithValue("1234");
+            var holder = inputWithValue("Ada");
+            if ((!cardNo || !holder) && Date.now() - started < 4000) {
+                setTimeout(poll, 50);
+                return;
+            }
+            assert.ok(cardNo && holder, "Both branch fields rendered as inputs");
+            assert.strictEqual(cardNo && cardNo.getEditable(), false, "The branch field declared readOnly stays read-only after the policy ran");
+            assert.strictEqual(holder && holder.getEditable(), true, "...while its editable sibling still inherits the parent's editability");
+            host.destroy();
+            done();
+        })();
     });
 
     QUnit.test("Plugin hardening: switching a polymorphic variant clears the abandoned branch's validation entries", function (assert) {

@@ -5,7 +5,8 @@ one thing those cannot: it **installs the packed npm tarball into a real UI5 Too
 and drives it in a browser**, so what gets verified is the artefact a consumer actually receives —
 after `ui5 build`, after `publish-prep` renamed and pruned it, after npm packed it.
 
-Three suites, 42 checks. They assert nothing they have not observed in a live page.
+Four suites, 63 checks. The three browser suites assert nothing they have not observed in a live
+page; the fourth reads the installed package and runs the app's own `ui5 build`.
 
 ## Running it
 
@@ -30,9 +31,15 @@ npm run install-lib        # forces a clean reinstall; see the trap below
 # 3. Serve the app, then run the checks from the repository root
 cd test/consumer/app && npm start          # http://localhost:8123
 
-node test/consumer/checks/releasecheck.js  # 13 checks
+node test/consumer/checks/releasecheck.js  # 18 checks
 node test/consumer/checks/panels.js        # 14 checks
 node test/consumer/checks/behaviour.js     # 15 checks
+```
+
+The deployment checks need no server:
+
+```bash
+node test/consumer/checks/deploycheck.js   # 16 checks
 ```
 
 Set `BASE_URL` to point at a different host or port.
@@ -41,8 +48,9 @@ Set `BASE_URL` to point at a different host or port.
 
 | Suite | Covers |
 |---|---|
-| `releasecheck.js` | The library loads and reports its version; the declarative host renders with real geometry; no page-level horizontal overflow; a host inside a table cell does not overflow it; an edit reaches `outputData`; `openInDialog` opens; no console errors, page errors or failed requests. |
+| `releasecheck.js` | The library loads and reports its version; the declarative host renders with real geometry; no page-level horizontal overflow; a host inside a table cell does not overflow it; an edit reaches `outputData`; `openInDialog` opens; the payload viewer's `sap.ui.codeeditor` is not requested until a viewer is opened, not even when the icon is switched on everywhere; no console errors, page errors or failed requests. |
 | `panels.js` | **Inference with no schema** — the primary production path: a date string must produce a `DatePicker` and a boolean a `CheckBox`. Plus a **250-row table**: every row reachable in the binding, one page painted, the growing counter reporting the full collection. |
+| `deploycheck.js` | **Both deployment routes.** The installed package is the current `dist/` build; the library folder carries `.library`, `manifest.json` (at its root), `library.js`, `library-preload.js` and the message bundle; the shipped `ui5.yaml` carries the build exclusions; and `ui5 build --include-dependency nz.co.siliconst.ui5.metaui` produces MetaUI's preload with no `*-dbg-dbg.js`, no `*.d.ts`, and at most 300 files (171 measured). |
 | `behaviour.js` | **Host embedding** — several hosts in one table, each a distinct instance, an edit in one landing only in that row's payload. **Dialog transaction** — an edit stays out of `data` until confirmed, Cancel discards it, Confirm commits it, and it reopens cleanly. |
 
 ## `odata-v4-demo/`

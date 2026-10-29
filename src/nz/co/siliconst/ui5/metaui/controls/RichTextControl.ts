@@ -24,7 +24,9 @@ import { Logger } from "../utils/Logger";
  */
 export default class RichTextControl extends BaseHardwareControl {
     static renderer = BaseHardwareControlRenderer;
-    private editorControl: Control | null = null;
+    // Assigned in init(), which UI5 runs inside the base constructor. An initializer here (`= null`) would
+    // run after it and discard the editor, silently disabling every later readOnly / value / valueState sync.
+    private editorControl!: Control | null;
     private container!: VBox;
 
     constructor(idOrSettings?: string | $BaseHardwareControlSettings, settings?: $BaseHardwareControlSettings) {

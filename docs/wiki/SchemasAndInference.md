@@ -93,9 +93,9 @@ The proprietary `ui` block separates logic from presentation. It supports the fo
 | `label` | `string` | Overrides the schema title with a specific UI label. |
 | `placeholder` | `string` | Placeholder text for input controls. |
 | `isKey` | `boolean` | Marks a field as a primary key (useful for OData payload mapping). |
-| `readOnly` | `boolean` | Structurally locks the field (maps to `setEditable(false)`). |
+| `readOnly` | `boolean` | Read-only: the value is shown but cannot be changed (maps to `setEditable(false)`); the control stays enabled, so its value can still be selected and copied. |
 | `visible` | `boolean` | Initial static visibility of the control. |
-| `enabled` | `boolean` | Initial static enabled state of the control. |
+| `enabled` | `boolean` | `false` disables the field: its real widget renders greyed out and non-interactive (maps to `setEnabled(false)`), independent of `readOnly`. Composes by AND with the host's `enabled` property and with `Disable` policies; none of them can re-enable a field another disabled. |
 | `widget` | `string` | Forces a specific Plugin implementation (e.g., `"slider"` instead of the default numeric input). |
 | `visibleOn` | `string` | Condition expression compiled by `ExpressionBuilder.buildChecked()` and bound to the control's `visible` property (e.g. `"{/Active}"` or `"$root.Active === true"`). Model paths, `{= … }` expression bindings, `$root.` / `$row.` references and OData key predicates are supported; UI5 complex-binding object syntax (`{path:'…', formatter:'…'}`) is refused and the directive skipped. See [Data Binding & State Management](DataBindingAndState.md). |
 | `enabledOn` | `string` | Same grammar as `visibleOn`, bound to the control's `enabled` property. Bound only when the target control declares `enabled`; inert on widgets that fall back to `sap.m.Text` in display mode. |

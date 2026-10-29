@@ -8,6 +8,7 @@ import { ISchema } from "./ISchema";
 
 /**
  * Contract for schema parser plugins (Native MetaUI JSON Schema, OpenAPI 2.0/3.0, etc.).
+ * @public
  */
 export interface ISchemaBuilderPlugin {
     /**

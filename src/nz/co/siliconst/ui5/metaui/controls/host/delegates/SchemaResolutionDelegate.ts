@@ -177,7 +177,10 @@ export class SchemaResolutionDelegate {
         const innerHost = isPureInference ? new InferredGeneratorHost() : new GeneratorHost();
         const props = this.facade.getMetadata().getProperties();
         for (const propName of Object.keys(props)) {
-            if (propName === "width" || propName === "height") {
+            // A property still at its default is left unset on the inner host too: the defaults are the same
+            // metadata, and an inner host that can tell "unset" from "set" is what lets showPayload fall back to
+            // DynamicHost.setShowPayloadDefault.
+            if (propName === "width" || propName === "height" || this.facade.isPropertyInitial(propName)) {
                 continue;
             }
             const val: unknown = this.facade.getBaseProperty(propName);

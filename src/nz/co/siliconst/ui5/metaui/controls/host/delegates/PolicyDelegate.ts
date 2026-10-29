@@ -162,6 +162,9 @@ export class PolicyDelegate {
             case "editable":
                 if (plugin.applyEditable) plugin.applyEditable(delta.value);
                 break;
+            case "enabled":
+                if (plugin.applyEnabled) plugin.applyEnabled(delta.value);
+                break;
         }
         return valuePruned;
     }

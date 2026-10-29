@@ -16,6 +16,7 @@ import {
     extractConstructorJsonLiterals
 } from "./host/HostControlMetadata";
 import { Logger } from "../utils/Logger";
+import { PayloadDelegate } from "./host/delegates/PayloadDelegate";
 import { ODataDelegate } from "./host/delegates/ODataDelegate";
 import { SchemaResolutionDelegate } from "./host/delegates/SchemaResolutionDelegate";
 import { DataSyncDelegate } from "./host/delegates/DataSyncDelegate";
@@ -39,6 +40,7 @@ export interface $DynamicHostSettings extends $ControlSettings {
     engineScopeId?: string | null;
     debugMode?: boolean;
     editable?: boolean;
+    enabled?: boolean;
     layoutBudget?: number;
     width?: CSSSize;
     height?: CSSSize;
@@ -49,6 +51,7 @@ export interface $DynamicHostSettings extends $ControlSettings {
  * and Inference Mode based on the presence of a `'schemaDefinition'`.
  *
  * @namespace nz.co.siliconst.ui5.metaui.controls
+ * @public
  */
 export default class DynamicHost extends Control {
     public sParentAggregationName?: string;
@@ -197,6 +200,26 @@ export default class DynamicHost extends Control {
         }
     }
 
+    /**
+     * Sets whether hosts that do not set `showPayload` themselves show the payload icon, and applies it at once
+     * to every host already rendered. A host's own `showPayload`, set or bound, always wins over this default.
+     * Intended for an application-wide developer-mode switch.
+     *
+     * @param show True to show the payload icon by default.
+     */
+    public static setShowPayloadDefault(show: boolean): void {
+        PayloadDelegate.setShowByDefault(show);
+    }
+
+    /**
+     * Returns the library-wide `showPayload` default set through {@link DynamicHost.setShowPayloadDefault}.
+     *
+     * @returns {boolean} The current default; `false` until set.
+     */
+    public static getShowPayloadDefault(): boolean {
+        return PayloadDelegate.getShowByDefault();
+    }
+
     /** Standard UI5 Lifecycle Hook. Evaluates the initial properties and spawns the GeneratorHost. */
     public onBeforeRendering(): void {
         this.discardDestroyedInnerHost();
@@ -230,7 +253,8 @@ export default class DynamicHost extends Control {
 
     /** Overrides standard UI5 setProperty to act as a transparent proxy. */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
-        super.setProperty(propertyName, value, suppressInvalidate);
+        // showPayload changes only the inner host's corner icon; re-rendering the facade for it would be wasted work.
+        super.setProperty(propertyName, value, propertyName === "showPayload" ? true : suppressInvalidate);
         DataSyncDelegate.invalidateStaleDataJson(this, propertyName);
         if (
             propertyName === "schemaDefinition" &&
@@ -381,6 +405,7 @@ export default class DynamicHost extends Control {
 
 /**
  * Parameters delivered with the `beforeSubmit` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$BeforeSubmitEventParameters {
     payload?: object;
@@ -390,6 +415,7 @@ export interface DynamicHost$BeforeSubmitEventParameters {
 
 /**
  * Parameters delivered with the `submit` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$SubmitEventParameters {
     payload?: object;
@@ -398,11 +424,13 @@ export interface DynamicHost$SubmitEventParameters {
 
 /**
  * Parameters delivered with the `cancel` event of `DynamicHost` (none).
+ * @public
  */
 export type DynamicHost$CancelEventParameters = object;
 
 /**
  * Parameters delivered with the `fieldChange` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$FieldChangeEventParameters {
     fieldPath?: string;
@@ -413,6 +441,7 @@ export interface DynamicHost$FieldChangeEventParameters {
 
 /**
  * Parameters delivered with the `validationStateChanged` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$ValidationStateChangedEventParameters {
     isValid?: boolean;
@@ -420,6 +449,7 @@ export interface DynamicHost$ValidationStateChangedEventParameters {
 
 /**
  * Parameters delivered with the `error` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$ErrorEventParameters {
     message?: string;
@@ -428,6 +458,7 @@ export interface DynamicHost$ErrorEventParameters {
 
 /**
  * Parameters delivered with the `beforeLayoutSectionChange` event of `DynamicHost`.
+ * @public
  */
 export interface DynamicHost$BeforeLayoutSectionChangeEventParameters {
     stepIndex?: number;
@@ -442,6 +473,7 @@ export interface DynamicHost$BeforeLayoutSectionChangeEventParameters {
 /**
  * Accessors UI5 generates at runtime from `DynamicHost`'s metadata, declared here so
  * TypeScript consumers can call them. Merged into the class by declaration merging.
+ * @public
  */
 export default interface DynamicHost {
     setSchemaDefinition(schemaDefinition: unknown): this;
@@ -467,6 +499,10 @@ export default interface DynamicHost {
     setDebugMode(debugMode: boolean): this;
     getEditable(): boolean;
     setEditable(editable: boolean): this;
+    getEnabled(): boolean;
+    setEnabled(enabled: boolean): this;
+    getShowPayload(): boolean;
+    setShowPayload(showPayload: boolean): this;
     getLayoutBudget(): number;
     setLayoutBudget(layoutBudget: number): this;
     getEngineScopeId(): string;

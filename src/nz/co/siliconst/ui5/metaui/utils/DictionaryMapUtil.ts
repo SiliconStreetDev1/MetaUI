@@ -52,6 +52,8 @@ export interface IDictionaryRowBuildOptions {
     readonly index: number;
     /** Whether the row is rendered in editable mode. */
     readonly canEdit: boolean;
+    /** Whether the row is rendered enabled. Defaults to true. */
+    readonly canEnable?: boolean;
     /** The schema metadata for the entry value. */
     readonly valueSchema: IPropertyMetadata;
     /** The local `JSONModel` holding `/entries`. */
@@ -275,6 +277,7 @@ export class DictionaryMapUtil {
                   placeholder: I18n.getText(TEXT_KEY.dictionaryKeyPlaceholder),
                   tooltip: I18n.getText(TEXT_KEY.dictionaryKeyLabel),
                   width: "12rem",
+                  enabled: options.canEnable !== false,
                   valueState: initialKeyStatus.isValid ? ValueState.None : ValueState.Error,
                   valueStateText: initialKeyStatus.message,
                   change: (oEvent: Event) => {
@@ -308,6 +311,9 @@ export class DictionaryMapUtil {
         if (typeof valuePlugin.setEditable === "function") {
             valuePlugin.setEditable(options.canEdit);
         }
+        if (typeof valuePlugin.setEnabled === "function") {
+            valuePlugin.setEnabled(options.canEnable !== false);
+        }
         if (options.engineContext && typeof valuePlugin.setEngineContext === "function") {
             valuePlugin.setEngineContext({
                 ...options.engineContext,
@@ -332,6 +338,7 @@ export class DictionaryMapUtil {
                 new Button({
                     icon: "sap-icon://decline",
                     type: ButtonType.Transparent,
+                    enabled: options.canEnable !== false,
                     tooltip: I18n.getText(TEXT_KEY.dictionaryRemoveEntry),
                     press: () => options.onRemove(options.index)
                 }).addStyleClass("sapUiTinyMarginBegin")

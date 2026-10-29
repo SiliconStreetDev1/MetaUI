@@ -515,10 +515,10 @@ export class ValidationLedger {
         return results;
     }
 
-    /** Applies a policy state (`visibility`, `required`, `editable`) to cloned table row cell controls. */
+    /** Applies a policy state (`visibility`, `required`, `editable`, `enabled`) to cloned table row cell controls. */
     public applyRowControlState(
         targetPath: string,
-        property: "visibility" | "required" | "editable",
+        property: "visibility" | "required" | "editable" | "enabled",
         value: boolean
     ): void {
         const cleanPath = targetPath.replace(/^\//, "");

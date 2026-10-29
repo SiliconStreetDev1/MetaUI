@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MetaUI — what changed on 29 October</title>
+<script id="sap-ui-bootstrap"
+        src="https://sdk.openui5.org/1.120.50/resources/sap-ui-core.js"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-libs="sap.m, sap.ui.core, sap.ui.layout, nz.co.siliconst.ui5.metaui"
+        data-sap-ui-resourceroots='{ "nz.co.siliconst.ui5.metaui": "./resources/nz/co/siliconst/ui5/metaui" }'
+        data-sap-ui-async="true"
+        data-sap-ui-compatVersion="edge">
+</script>
+<style>
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: #f5f6f7; }
+  .page { padding: 22px 26px 40px; }
+  h1 { font-size: 20px; margin: 0 0 2px; color: #1d2d3e; }
+  .lede { font-size: 13px; color: #556b82; margin: 0 0 20px; }
+  .sec { background: #fff; border: 1px solid #d9d9d9; border-radius: 8px; margin-bottom: 16px; }
+  .sh { padding: 10px 14px; border-bottom: 1px solid #e6e6e6; }
+  .sh b { font-size: 14px; color: #1d2d3e; }
+  .sh span { font-size: 12.5px; color: #556b82; display: block; margin-top: 2px; }
+  .body { padding: 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .slot { border: 1px dashed #b9c4ce; border-radius: 5px; }
+  .cap { font-size: 11.5px; color: #556b82; padding: 4px 6px 0; font-family: ui-monospace, Consolas, monospace; }
+  .was { color: #a33; }
+  .now { color: #2a7d2a; }
+</style>
+</head>
+<body class="sapUiBody">
+<div class="page">
+  <h1>MetaUI — everything that changed on 29 October</h1>
+  <p class="lede">Running against the current build. Everything below is live: type in the fields, press the buttons.</p>
+
+  <div class="sec">
+    <div class="sh"><b>1 · Forms keep their labels beside their fields down to 400px</b>
+      <span class="was">Before: anything under 600px stacked every label above its field.</span></div>
+    <div class="body">
+      <div><div class="slot" id="w545" style="width:545px"></div><div class="cap">545px — <span class="now">labels beside</span> (was stacked, 391px tall)</div></div>
+      <div><div class="slot" id="w292" style="width:292px"></div><div class="cap">292px — stacked, on purpose</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sh"><b>2 · A form too narrow to use collapses to a button</b>
+      <span class="was">Before: it rendered anyway, crushed and unreadable.</span></div>
+    <div class="body">
+      <div><div class="slot" id="w148" style="width:148px"></div><div class="cap">148px — <span class="now">one line, opens in a dialog</span></div></div>
+      <div><div class="slot" id="w210" style="width:210px"></div><div class="cap">210px — still a form</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sh"><b>3 · Disabled is now its own state, separate from read-only</b>
+      <span class="was">Before: ui.enabled:false and the Disable policy both gave the read-only look.</span></div>
+    <div class="body">
+      <div><div class="slot" id="dEnabled" style="width:330px"></div><div class="cap">normal</div></div>
+      <div><div class="slot" id="dDisabled" style="width:330px"></div><div class="cap"><span class="now">enabled="false"</span> — greyed, values visible</div></div>
+      <div><div class="slot" id="dReadOnly" style="width:330px"></div><div class="cap">editable="false" — display text</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sh"><b>4 · Read-only drill-down buttons preview their contents properly</b>
+      <span class="was">Before: the whole payload went into the caption, including [object Object].</span></div>
+    <div class="body">
+      <div><div class="slot" id="caption" style="width:420px"></div><div class="cap"><span class="now">at most 3 values, 40 characters</span></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sh"><b>5 · A polymorphic branch keeps its own read-only flag</b>
+      <span class="was">Before: a policy touching the parent made a read-only branch field editable.</span></div>
+    <div class="body">
+      <div><div class="slot" id="poly" style="width:420px"></div><div class="cap">Reference stays read-only; Amount is editable</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sh"><b>6 · The payload viewer — new</b>
+      <span>A bindable property. Press the <code>&lt;/&gt;</code> in the corner. Edit a field first; the JSON shows it uncommitted.</span></div>
+    <div class="body">
+      <div><div class="slot" id="pay" style="width:420px"></div><div class="cap">showPayload="true"</div></div>
+      <div><div class="slot" id="payNarrow" style="width:148px"></div><div class="cap">collapsed — the JSON button survives</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var FORM = { type: "object", properties: {
+    Contact:  { type: "string", maxLength: 60 },
+    Quantity: { type: "integer" },
+    DueOn:    { type: "string", format: "date" },
+    Approved: { type: "boolean", ui: { widget: "switch" } }
+} };
+var FORM_DATA = { Contact: "Ada Lovelace", Quantity: 4, DueOn: "2026-11-30", Approved: true };
+
+var DISABLED = JSON.parse(JSON.stringify(FORM));
+
+var NESTED = { type: "object", properties: {
+    OrderCode: { type: "string" },
+    Shipping: { type: "object", properties: {
+        City: { type: "string" }, DueOn: { type: "string", format: "date" },
+        Express: { type: "boolean" },
+        Carrier: { type: "object", properties: { Name: { type: "string" }, Ref: { type: "string" } } },
+        Lines: { type: "array", items: { type: "object", properties: { Sku: { type: "string" } } } }
+    } }
+} };
+var NESTED_DATA = { OrderCode: "PO-10021", Shipping: {
+    City: "Auckland", DueOn: "2026-12-01", Express: false,
+    Carrier: { Name: "Mainfreight", Ref: "MF-88" }, Lines: [{ Sku: "A" }, { Sku: "B" }]
+} };
+
+var POLY = { type: "object", properties: {
+    Method: { oneOf: [
+        { title: "Card",     type: "object", properties: { Reference: { type: "string", readOnly: true }, Amount: { type: "number" } } },
+        { title: "Transfer", type: "object", properties: { Reference: { type: "string", readOnly: true }, Amount: { type: "number" } } }
+    ] }
+} };
+var POLY_DATA = { Method: { Reference: "LOCKED-REF-001", Amount: 250.5 } };
+
+sap.ui.getCore().attachInit(function () {
+    sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], function (DynamicHost) {
+        function put(id, schema, data, settings) {
+            var s = settings || {};
+            var h = new DynamicHost(Object.assign({
+                schemaDefinition: JSON.parse(JSON.stringify(schema)),
+                data: JSON.parse(JSON.stringify(data)),
+                editable: true
+            }, s));
+            h.placeAt(id);
+            return h;
+        }
+        put("w545", FORM, FORM_DATA);
+        put("w292", FORM, FORM_DATA);
+        put("w148", FORM, FORM_DATA);
+        put("w210", FORM, FORM_DATA);
+
+        put("dEnabled",  FORM, FORM_DATA);
+        put("dDisabled", FORM, FORM_DATA, { enabled: false });
+        put("dReadOnly", FORM, FORM_DATA, { editable: false });
+
+        put("caption", NESTED, NESTED_DATA, { editable: false });
+        put("poly", POLY, POLY_DATA);
+
+        put("pay", FORM, FORM_DATA, { showPayload: true });
+        put("payNarrow", FORM, FORM_DATA, { showPayload: true });
+
+        window.__ready = true;
+    });
+});
+</script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import { ISchema } from "./ISchema";
 
 /**
  * Contract defining what the Engine requires from its hosting container (GeneratorHost).
+ * @public
  */
 export interface IEngineHost {
     /** Retrieves the central StateManager managing the active data models. */

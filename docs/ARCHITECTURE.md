@@ -36,7 +36,7 @@ Schema / OpenAPI / raw data
 
 **`DynamicHost`** is the public facade control. It owns `SchemaResolutionDelegate` and `ODataDelegate`, and spawns an inner host.
 
-**`GeneratorHost`** is the inner engine host. It owns `DataSyncDelegate`, `ValidationDelegate`, `DialogDelegate`, `PolicyDelegate` and `GenerationDelegate`, and holds the `Engine` and `StateManager`.
+**`GeneratorHost`** is the inner engine host. It owns `DataSyncDelegate`, `ValidationDelegate`, `DialogDelegate`, `PolicyDelegate`, `GenerationDelegate`, `SpaceDelegate` and `PayloadDelegate`, and holds the `Engine` and `StateManager`.
 
 **`InferredGeneratorHost`** is spawned instead of `GeneratorHost` when there is data but no schema (`SchemaResolutionDelegate.createAndWireInnerHost`).
 
@@ -66,7 +66,11 @@ Declared once in `HostControlMetadata.ts` and shared by `DynamicHost` and `Gener
 
 If the generated content has a large intrinsic width (long labels, `codeEditor`, `richText`, `dictionaryMap`, or an inline nested table), `min-width: 0` and `max-width: 100%` override Flexbox/Grid `min-width: auto` propagation so the content wraps, stacks, or scrolls inside the host rather than expanding the container or table column past the viewport. Defaulting `height` to `"auto"` (rather than `"100%"`) avoids circular percentage-height resolution inside table cells and auto-height containers.
 
-**Accepted trade-off:** honouring containment means a host mounted in a narrow column with the default `labelSpanS: 12` renders a cramped stacked form (`ResponsiveGridLayout`'s `S12:12` breakpoint stacks labels above fields) rather than forcing the column wider. Consumers embedding `DynamicHost` in a narrow table column can configure root `ui.labelSpan` (`1`–`12` for label-beside-field rows, or `0` to omit labels) or root `ui.controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`), and are expected to give the column a sensible width; MetaUI's job is to respect it, not to fight it.
+**Labels in narrow containers.** `ResponsiveGridLayout` sizes by the form's own width and stacks every label above its field (`labelSpanS: 12`) below its `breakpointM`. `LayoutFieldFactory.createSimpleForm` sets `breakpointM` to 400px rather than UI5's 600px, so a form in a 545px table cell keeps its labels beside the fields (measured: 252px tall instead of 382px), while a full-width form on a 360px or 390px phone still stacks. Root `ui.labelSpan` and root `ui.controlProps` (`labelSpanS`, `labelSpanM`, `labelSpanL`, `labelSpanXL`, `breakpointM`) override these defaults.
+
+**When no layout fits, the host says so.** `SpaceDelegate` is the one place the host layer measures available space: it reads the host's own width when the content renders and, debounced, when the host is resized, and re-decides only when that width crosses a threshold. Below `SpaceDelegate.MIN_USABLE_WIDTH` (180px, where a stacked form starts clipping its values) the form is replaced by a one-line button that opens it through `openInDialog`; it comes back once the host is 196px or wider again. A host that is already inside a dialog keeps its form and shows a banner instead. Both cases log a warning naming the host and its width. Layout selection (`LayoutScorer`) does not read the measured width.
+
+**The payload viewer costs nothing when off.** `PayloadDelegate` owns `showPayload`. The icon lives in the host's hidden `_payload` aggregation, created the first time it is needed, and `HOST_CONTROL_RENDERER` hangs it from a zero-height anchor that is always rendered first: the icon takes no width or height, and because the anchor never appears or disappears, UI5's in-place re-render patching never shifts the form's DOM when the icon is switched on — an edit in progress survives. `GeneratorHost.setProperty` handles `showPayload` without regenerating or invalidating the form. The viewer is an ordinary read-only host with one `codeEditor` field, opened through `openInDialog`, so `sap.ui.codeeditor` loads only when a viewer is first opened. When `SpaceDelegate` has collapsed the form, the payload button joins its collapse button instead of the corner icon.
 
 ### Constructor JSON Literal vs. Binding Disambiguation (`extractConstructorJsonLiterals`)
 
@@ -191,9 +195,10 @@ The wizard is a custom composable rather than `sap.m.Wizard`, because that contr
 ## 9a. Shared utilities, accessibility and internationalization
 
 - **`utils/AccessibilityUtil.ts`** owns WAI-ARIA association and screen-reader plumbing across generated controls and layouts (`applyAriaLabelledBy`, `applyAriaDescribedBy`, `applyTooltipAndDescription`, `ensureControlLabelled`, `ensureFieldLabelledByText`, `syncValidationStateDescription`, `syncRequiredAriaDescription`, `applyDialogLandmark`, `applyTableAccessibility`, `applyGroupAccessibility`, `destroyAssociatedInvisibleTexts`, `IAccessibilityContext`, `IAriaLabelSupport`, `IAriaDescriptionSupport`, `isAriaLabelSupport`, `isAriaDescriptionSupport`). Extracted from `ControlDirectiveUtil.ts` so directive binding (`ControlDirectiveUtil.ts`) and ARIA/screen-reader association (`AccessibilityUtil.ts`) have separate single-purpose owners.
-- **`utils/I18n.ts`** owns localized runtime text resolution via `TEXT_KEY` (<!-- DOC_COUNT:i18nTextKeys -->111 keys) backed by `messagebundle.properties`, `messagebundle_en.properties` and `messagebundle_de.properties`.
+- **`utils/I18n.ts`** owns localized runtime text resolution via `TEXT_KEY` (<!-- DOC_COUNT:i18nTextKeys -->119 keys) backed by `messagebundle.properties`, `messagebundle_en.properties` and `messagebundle_de.properties`.
 - **`utils/ControlCapabilities.ts`** owns `vetControlProperty`, `writeControlProperty`, capability type guards, remote data-source list extraction, and nested modal dialog launching.
 - **`utils/DictionaryMapUtil.ts`** and **`utils/PolymorphicUtil.ts`** own the row serialization and variant-resolution helpers for `DictionaryMapPlugin` and `PolymorphicPlugin`.
+- **`utils/NestedCaption.ts`** (`NestedCaption`) builds the read-only caption of the `NestedDialogPlugin` trigger button: an entry count for an array, otherwise at most three scalar values in at most 40 characters. Nested values are skipped, never stringified.
 - **`controls/BaseHardwareControl.ts`** and **`controls/BaseHardwareControlRenderer.ts`** provide the shared UI5 control lifecycle and renderer for `CameraControl`, `SignatureControl`, `GeolocationControl` and `VoiceInputControl`.
 
 ---
@@ -348,6 +353,7 @@ Two deliberate asymmetries are worth recording, because they look like inconsist
 
 - **The markup sinks are refused by name, not by type.** UI5 property metadata carries no "renders raw HTML" flag, so there is nothing to derive an allowlist from. Every other rule in the gate avoids naming properties; this one cannot.
 - **Read-only constrains editing, not reaching.** A control whose only job is to open or follow a target (`LinkPlugin`, `UrlNavigationActionPlugin`, the `NestedDialogPlugin` trigger buttons) stays enabled when the host is not editable, because disabling it hides the payload behind a dead widget instead of protecting it. The dialog it opens is itself read-only, and the mutating action plugins keep the default and stay disabled. The opt-in is `BasePlugin.isNavigationAffordance`.
+- **Editable and enabled are separate axes.** `readOnly` / `ui.readOnly` / host `editable` drive `isControlEditable()` and `setEditable`; `ui.enabled` / host `enabled` / the `Disable` policy drive `isControlEnabled()` and `ControlDirectiveUtil.applyEnabledState()`. Disabling keeps the real widget; only `editable="false"` swaps in display text. `PluginStateBase.refreshState()` re-asserts a disabled state after every `applyState()`, so a plugin writing `enabled` for its own reasons cannot re-enable a disabled field.
 
 ---
 

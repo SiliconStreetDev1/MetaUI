@@ -1130,8 +1130,8 @@ sap.ui.define([
         );
         assert.strictEqual(
             I18n.getDeclaredKeys().length,
-            111,
-            "TEXT_KEY declares 111 end-user texts (bump this number and the bundles together when adding one)"
+            119,
+            "TEXT_KEY declares 119 end-user texts (bump this number and the bundles together when adding one)"
         );
         assert.deepEqual(
             unresolved,

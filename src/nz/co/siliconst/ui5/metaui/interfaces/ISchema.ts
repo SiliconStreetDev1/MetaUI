@@ -7,20 +7,30 @@
 
 import { RenderModeType, SchemaTypeType } from "../constants/MetaUIConstants";
 
+/**
+ * A property `type`: any JSON Schema type MetaUI renders, plus the `date` shorthand.
+ * @public
+ */
 export type FieldType = SchemaTypeType | "date";
 
 /**
  * Value help structure mapping SAP Key/Text pairs.
+ * @public
  */
 export interface IValueHelp {
     key: string;
     text: string;
 }
 
+/**
+ * One entry of a static value help; an alias of `IValueHelp`.
+ * @public
+ */
 export type IValueHelpOption = IValueHelp;
 
 /**
  * Explicit validation rule descriptor attached to `ui.validators`.
+ * @public
  */
 export interface IValidationRule {
     name: string;
@@ -30,6 +40,7 @@ export interface IValidationRule {
 /**
  * Configuration for asynchronous REST or OData data sources used by `RemoteDropdownPlugin`,
  * `LiveSearchPlugin`, `RemoteValueHelpPlugin`, and `ODataListBindingPlugin`.
+ * @public
  */
 export interface IDataSourceConfig {
     url: string;
@@ -41,6 +52,7 @@ export interface IDataSourceConfig {
 
 /**
  * An element in the visual layout tree.
+ * @public
  */
 export interface ILayoutElement {
     type: "Group" | "Control" | "HorizontalLayout" | "VerticalLayout" | "WizardStep";
@@ -52,6 +64,7 @@ export interface ILayoutElement {
 
 /**
  * Visual orchestration directives to separate layout from data modeling.
+ * @public
  */
 export interface IUIDirective {
     label?: string;
@@ -85,6 +98,7 @@ export interface IUIDirective {
 
 /**
  * Remote endpoint configuration for asynchronous value-help lookups.
+ * @public
  */
 export interface IRemoteValueHelpConfig {
     url: string;
@@ -92,10 +106,15 @@ export interface IRemoteValueHelpConfig {
     textPath: string;
 }
 
+/**
+ * The effect a `uiPolicies` rule applies to its targets while its condition holds.
+ * @public
+ */
 export type PolicyEffectType = "Require" | "Hide" | "Disable" | "Invalidate" | "Show" | "Enable" | "Validate" | "Optional";
 
 /**
  * Map of condition operator keys to their path/threshold payloads for the Policy-Based Rule Engine.
+ * @public
  */
 export interface IPolicyCondition {
     NumericGreaterThan?: Record<string, number>;
@@ -109,6 +128,7 @@ export interface IPolicyCondition {
 
 /**
  * Declarative cross-field rule evaluated by {@link PolicyEngine}.
+ * @public
  */
 export interface IPolicy {
     effect: PolicyEffectType;
@@ -119,6 +139,7 @@ export interface IPolicy {
 
 /**
  * Standard JSON-Schema property definition.
+ * @public
  */
 export interface IPropertyMetadata {
     type: FieldType;
@@ -184,6 +205,7 @@ export interface IPropertyMetadata {
 
 /**
  * The master schema contract ingested by the Engine.
+ * @public
  */
 export interface ISchema {
     title?: string;

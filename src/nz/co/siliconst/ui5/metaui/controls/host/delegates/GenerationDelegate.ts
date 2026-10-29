@@ -204,6 +204,19 @@ export class GenerationDelegate {
     }
 
     /**
+     * Builds one diagnostic banner. Every status banner the host shows goes through here, so they look and
+     * behave alike: an icon, a close button, and the given type and spacing.
+     *
+     * @param text The banner text, already localized where it is user-facing.
+     * @param type The message type, which sets the banner's colour and icon.
+     * @param styleClass The spacing class to apply.
+     * @returns {MessageStrip} The banner.
+     */
+    public static createStatusStrip(text: string, type: MessageType, styleClass: string): MessageStrip {
+        return new MessageStrip({ text, type, showIcon: true, showCloseButton: true }).addStyleClass(styleClass);
+    }
+
+    /**
      * Wraps the generated UI5 control in diagnostic `MessageStrip` banners if the schema had no properties,
      * if input JSON parsing failed, or if the Engine reported partial rendering errors.
      *
@@ -225,22 +238,20 @@ export class GenerationDelegate {
                 : !!normalizedSchema.properties && Object.keys(normalizedSchema.properties).length > 0;
 
         if (!hasProperties) {
-            const strip = new MessageStrip({
-                text: "Warning: The generated UI is blank. Reason: The schema (or inferred schema) contains no valid properties to render.",
-                type: MessageType.Warning,
-                showIcon: true,
-                showCloseButton: true
-            }).addStyleClass("sapUiSmallMargin");
+            const strip = GenerationDelegate.createStatusStrip(
+                "Warning: The generated UI is blank. Reason: The schema (or inferred schema) contains no valid properties to render.",
+                MessageType.Warning,
+                "sapUiSmallMargin"
+            );
             return new VBox({ renderType: FlexRendertype.Bare, items: [strip] });
         }
 
         if (dataParseError) {
-            const strip = new MessageStrip({
-                text: "Data Error: " + dataParseError + ". The form has been rendered with a blank dataset.",
-                type: MessageType.Error,
-                showIcon: true,
-                showCloseButton: true
-            }).addStyleClass("sapUiSmallMargin");
+            const strip = GenerationDelegate.createStatusStrip(
+                "Data Error: " + dataParseError + ". The form has been rendered with a blank dataset.",
+                MessageType.Error,
+                "sapUiSmallMargin"
+            );
 
             type InsertableContainer = Control & {
                 insertItem?: (item: Control, index: number) => void;
@@ -264,14 +275,12 @@ export class GenerationDelegate {
                 : "";
 
         if (hasPartialErrors || targetFallbackWarning) {
-            const strip = new MessageStrip({
-                text:
-                    targetFallbackWarning ||
+            const strip = GenerationDelegate.createStatusStrip(
+                targetFallbackWarning ||
                     "Layout partially rendered. Some fields failed to generate due to configuration errors.",
-                type: MessageType.Warning,
-                showIcon: true,
-                showCloseButton: true
-            }).addStyleClass("sapUiSmallMarginBottom");
+                MessageType.Warning,
+                "sapUiSmallMarginBottom"
+            );
             return new VBox({ renderType: FlexRendertype.Bare, items: [strip, generatedContent] });
         }
 

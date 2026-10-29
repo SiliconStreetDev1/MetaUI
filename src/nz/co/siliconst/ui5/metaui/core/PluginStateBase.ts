@@ -2,7 +2,7 @@
  * @file PluginStateBase.ts
  * @description Abstract base class implementing the IPluginStateReceiver contract for UI5 control plugins.
  * Manages control lifecycle references, visual validation states, and dynamic policy effects
- * (visibility, editability, requirement, and validity) independently of data-binding concerns.
+ * (visibility, editability, enablement, requirement, and validity) independently of data-binding concerns.
  */
 
 import { IPluginStateReceiver } from "../interfaces/IPlugin";
@@ -10,6 +10,7 @@ import { IPropertyMetadata } from "../interfaces/ISchema";
 import { ControlDirectiveUtil } from "../utils/ControlDirectiveUtil";
 import Control from "sap/ui/core/Control";
 import Label from "sap/m/Label";
+import { Logger } from "../utils/Logger";
 
 /**
  * Base class implementing {@link IPluginStateReceiver} for all UI5 control plugins.
@@ -26,6 +27,13 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
     protected metadata?: IPropertyMetadata;
     protected fieldKey?: string;
     protected isEditable: boolean = true;
+    protected isEnabled: boolean = true;
+
+    /**
+     * The enabled state last set by a policy effect (`Enable` / `Disable`). Held here rather than written
+     * onto `metadata.ui.enabled`, so a policy can never overwrite what the schema author declared.
+     */
+    private policyEnabled: boolean = true;
 
     /**
      * Applies dynamic state changes (e.g., `readOnly`, `required`) to the concrete UI5 control.
@@ -62,6 +70,16 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
      */
     public setEditable(editable: boolean): void {
         this.isEditable = editable;
+    }
+
+    /**
+     * Sets the global enabled state for this plugin before rendering. Unlike `setEditable(false)`, which
+     * renders display text, a disabled plugin still builds its real widget and renders it greyed out.
+     *
+     * @param enabled True to render interactive controls, false to render them disabled.
+     */
+    public setEnabled(enabled: boolean): void {
+        this.isEnabled = enabled;
     }
 
     /**
@@ -103,13 +121,17 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
     }
 
     /**
-     * Dynamically updates a specific state property (`visible`, `editable`, `required`, `valid`) at runtime.
+     * Dynamically updates a specific state property (`visible`, `editable`, `enabled`, `required`, `valid`) at runtime.
      *
      * @param property The state aspect to update.
      * @param value The boolean state value.
      * @param message Optional error message when `property === "valid"`.
      */
-    public setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void {
+    public setState(
+        property: "visible" | "editable" | "enabled" | "required" | "valid",
+        value: boolean,
+        message?: string
+    ): void {
         if (!this.control) {
             return;
         }
@@ -120,12 +142,15 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
             case "editable":
                 this.applyEditable(value);
                 break;
+            case "enabled":
+                this.applyEnabled(value);
+                break;
             case "required":
                 this.applyRequired(value);
                 break;
             case "valid":
                 this.setVisualValidationState(value, message);
-                this.applyState();
+                this.refreshState();
                 break;
         }
     }
@@ -166,16 +191,46 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
     }
 
     /**
-     * Evaluates whether the concrete control should be interactive based on host editability
-     * and property-level `readOnly` / `ui.readOnly` / `ui.enabled` directives.
+     * Evaluates whether the concrete control accepts edits, based on host editability and the
+     * property-level `readOnly` / `ui.readOnly` directives. Says nothing about whether the control is
+     * enabled: that is the separate axis read by {@link PluginStateBase.isControlEnabled}.
      *
-     * @returns {boolean} True if the control should be editable/enabled.
+     * @returns {boolean} True if the control should be editable.
      */
     protected isControlEditable(): boolean {
         if (!this.isEditable || !this.metadata) {
             return false;
         }
-        return !this.metadata.readOnly && !this.metadata.ui?.readOnly && this.metadata.ui?.enabled !== false;
+        return !this.metadata.readOnly && !this.metadata.ui?.readOnly;
+    }
+
+    /**
+     * Evaluates whether the concrete control is enabled. The host's `enabled` property, the property-level
+     * `ui.enabled` directive and the last `Enable` / `Disable` policy effect compose by AND: any one of
+     * them can disable the control, and none can re-enable a control another one disabled.
+     *
+     * Independent of editability. A read-only field stays enabled, and a disabled field keeps whatever
+     * editability it had once it is enabled again.
+     *
+     * @returns {boolean} True if the control should be enabled.
+     */
+    protected isControlEnabled(): boolean {
+        return this.isEnabled && this.policyEnabled && this.metadata?.ui?.enabled !== false;
+    }
+
+    /**
+     * Runs the plugin's own {@link PluginStateBase.applyState} and then re-asserts the enabled axis.
+     *
+     * A plugin's `applyState` legitimately writes `enabled` for its own reasons: `sap.m.Switch` has no
+     * `editable`, so its read-only state *is* `enabled: false`, and an action button derives `enabled` from
+     * editability. Re-asserting afterwards stops any such write from silently re-enabling a control the
+     * schema, the host or a policy disabled, without every plugin having to know about the enabled axis.
+     */
+    protected refreshState(): void {
+        this.applyState();
+        if (!this.isControlEnabled()) {
+            ControlDirectiveUtil.applyEnabledState(this.control, false);
+        }
     }
 
     /**
@@ -191,12 +246,32 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
             this.metadata.readOnly = !editable;
             this.metadata.ui = this.metadata.ui || {};
             this.metadata.ui.readOnly = !editable;
-            if (editable && this.metadata.ui.enabled === false) {
-                this.metadata.ui.enabled = true;
-            }
         }
         ControlDirectiveUtil.applyEditableState(this.mainControl ?? this.control, this.isControlEditable());
-        this.applyState();
+        this.refreshState();
+    }
+
+    /**
+     * Applies a dynamic enabled-state change (the `Enable` / `Disable` policy effects) to the field.
+     *
+     * The control is disabled as its real widget, never swapped for display text, and its editability is
+     * left untouched. Enabling only lifts what a policy imposed: a field the schema (`ui.enabled: false`) or
+     * the host (`enabled="false"`) disabled stays disabled.
+     *
+     * @param enabled True to enable the field, false to disable it.
+     */
+    public applyEnabled(enabled: boolean): void {
+        this.policyEnabled = enabled;
+        if (this.metadata?.ui?.enabledOn) {
+            Logger.warn(
+                `Policy ${enabled ? "Enable" : "Disable"} on '${this.getFieldLabel() ?? ""}' is not applied: ` +
+                    "the field's ui.enabledOn expression owns its enabled state.",
+                undefined,
+                "PluginStateBase"
+            );
+        }
+        ControlDirectiveUtil.applyEnabledState(this.control, this.isControlEnabled());
+        this.refreshState();
     }
 
     /**
@@ -212,7 +287,7 @@ export abstract class PluginStateBase implements IPluginStateReceiver {
         if (this.associatedLabel && typeof this.associatedLabel.setRequired === "function") {
             this.associatedLabel.setRequired(required);
         }
-        this.applyState();
+        this.refreshState();
     }
 
     /**

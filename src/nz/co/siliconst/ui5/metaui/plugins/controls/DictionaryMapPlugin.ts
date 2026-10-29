@@ -241,6 +241,7 @@ export class DictionaryMapPlugin extends BasePlugin {
             const { rowBox, valuePlugin } = DictionaryMapUtil.buildEntryRow({
                 index: idx,
                 canEdit,
+                canEnable: this.isControlEnabled(),
                 valueSchema: this.valueSchema,
                 localModel: this.localModel!,
                 scopeId: this.scopeId,

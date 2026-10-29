@@ -141,13 +141,19 @@ export const HOST_CONTROL_METADATA = {
         modelName: { type: "string", defaultValue: "meta" },
         debugMode: { type: "boolean", defaultValue: false },
         editable: { type: "boolean", defaultValue: true },
+        enabled: { type: "boolean", defaultValue: true },
+        showPayload: { type: "boolean", defaultValue: false },
         layoutBudget: { type: "int", defaultValue: 0 },
         engineScopeId: { type: "string", defaultValue: null },
         width: { type: "sap.ui.core.CSSSize", defaultValue: "100%" },
         height: { type: "sap.ui.core.CSSSize", defaultValue: "auto" }
     },
     aggregations: {
-        _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
+        _content: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" },
+        /** What `SpaceDelegate` shows when the host is too narrow for a form: a button or a banner. */
+        _space: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" },
+        /** The `showPayload` icon, positioned over the host's top-right corner by `PayloadDelegate`. */
+        _payload: { type: "sap.ui.core.Control", multiple: false, visibility: "hidden" }
     },
     events: {
         beforeSubmit: {
@@ -209,6 +215,33 @@ export const HOST_CONTROL_RENDERER = {
         rm.style("max-width", "100%");
         rm.style("box-sizing", "border-box");
         rm.openEnd();
+        // The payload icon hangs from a zero-height anchor, absolutely positioned in the top-right corner, so it
+        // takes no width or height from the content below it. The anchor is rendered whether or not there is an
+        // icon: UI5 patches a re-render in place by position, so an anchor appearing ahead of the content when the
+        // icon is first switched on would make the patcher rebuild the form and lose an edit in progress.
+        const payloadIcon = control.getAggregation("_payload") as Control | null;
+        rm.openStart("div").style("position", "relative").style("height", "0").openEnd();
+        if (payloadIcon) {
+            rm.openStart("div")
+                .style("position", "absolute")
+                .style("top", "2px")
+                .style("right", "0")
+                .style("z-index", "1")
+                .style("line-height", "0")
+                .openEnd();
+            rm.renderControl(payloadIcon);
+            rm.close("div");
+        }
+        rm.close("div");
+        // Always rendered, for the same reason as the payload anchor above: the banner shown when a host is
+        // too narrow appears ahead of the form, and an element arriving ahead of the content mid-session makes
+        // UI5's patcher rebuild everything after it, losing an edit in progress. An empty wrapper costs nothing.
+        const spaceNotice = control.getAggregation("_space") as Control | null;
+        rm.openStart("div").openEnd();
+        if (spaceNotice) {
+            rm.renderControl(spaceNotice);
+        }
+        rm.close("div");
         const content = control.getAggregation("_content") as Control;
         if (content) {
             rm.renderControl(content);

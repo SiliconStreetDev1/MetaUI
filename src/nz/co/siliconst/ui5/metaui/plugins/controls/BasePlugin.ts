@@ -271,6 +271,7 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
      */
     protected openNestedEditorDialog(options: INestedEditorLaunchOptions): void {
         ControlDirectiveUtil.openNestedHostDialog({
+            enabled: this.isControlEnabled(),
             ...options,
             onHostCreated: (nestedHost) => {
                 this.trackNestedHost(nestedHost);
@@ -457,7 +458,7 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
      */
     public updateMetadata(newMeta: IPropertyMetadata): void {
         this.metadata = newMeta;
-        this.applyState();
+        this.refreshState();
         this.validate();
     }
 
@@ -477,7 +478,8 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
             this.bindingPath || this.fieldKey || "",
             this.isEditable,
             modelName,
-            { required: this.isRequired(), nameTargets: this.resolveAccessibleNameTargets(control) }
+            { required: this.isRequired(), nameTargets: this.resolveAccessibleNameTargets(control) },
+            this.isEnabled
         );
         if (this.isNavigationAffordance && !metadata.ui?.enabledOn && isEnabledSupport(effectiveTarget)) {
             effectiveTarget.setEnabled(this.isAffordanceEnabled());
@@ -498,13 +500,15 @@ export abstract class BasePlugin extends PluginStateBase implements IPlugin {
     }
 
     /**
-     * Resolves whether a navigation affordance stays interactive. Only an explicit `ui.enabled: false`
-     * switches it off; `readOnly` and host display mode do not, because they constrain editing, not navigation.
+     * Resolves whether a navigation affordance stays interactive. An affordance follows the enabled axis
+     * and nothing else, so this is {@link PluginStateBase.isControlEnabled}: `readOnly` and host display
+     * mode do not switch it off, while `ui.enabled: false`, a host `enabled="false"` and a `Disable`
+     * policy all do.
      *
      * @returns {boolean} True when the affordance should remain clickable.
      */
     protected isAffordanceEnabled(): boolean {
-        return this.metadata?.ui?.enabled !== false;
+        return this.isControlEnabled();
     }
 
     /**

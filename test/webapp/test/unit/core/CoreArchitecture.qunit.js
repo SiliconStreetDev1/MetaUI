@@ -48,7 +48,8 @@ sap.ui.define([
     "nz/co/siliconst/ui5/metaui/controls/VoiceInputControl",
     "nz/co/siliconst/ui5/metaui/controls/CameraControl",
     "nz/co/siliconst/ui5/metaui/controls/GeolocationControl",
-    "sap/ui/model/odata/v4/ODataModel"
+    "sap/ui/model/odata/v4/ODataModel",
+    "sap/ui/model/json/JSONModel"
 ], function (
     TestOracle,
     RegistryMod,
@@ -99,7 +100,8 @@ sap.ui.define([
     VoiceInputControlMod,
     CameraControlMod,
     GeolocationControlMod,
-    ODataModelV4
+    ODataModelV4,
+    JSONModel
 ) {
     "use strict";
 
@@ -441,8 +443,8 @@ sap.ui.define([
         assert.strictEqual(findDelta(deltas1, "/BackupPhone", "required").value, true, "Optional policy marks required when condition is false (symmetrical reversal)");
         assert.strictEqual(findDelta(deltas1, "/Age", "validity").value, false, "Invalidate policy marks invalid when NumericLessThan is true");
         assert.strictEqual(findDelta(deltas1, "/Age", "validity").errorMessage, "Must be 18+", "Invalidate policy attaches message when NumericLessThan is true");
-        assert.strictEqual(findDelta(deltas1, "/Coupon", "editable").value, false, "Disable policy disables target when IsNull is true");
-        assert.strictEqual(findDelta(deltas1, "/ApplyBtn", "editable").value, false, "Enable policy disables target when IsNotNull is false");
+        assert.strictEqual(findDelta(deltas1, "/Coupon", "enabled").value, false, "Disable policy disables target when IsNull is true");
+        assert.strictEqual(findDelta(deltas1, "/ApplyBtn", "enabled").value, false, "Enable policy disables target when IsNotNull is false");
 
         var deltas2 = policyEngine.evaluate({ Role: "Admin", Amount: 2500, Age: 25, PromoCode: "SAVE20", PrimaryPhone: "+6421000" });
 
@@ -451,8 +453,9 @@ sap.ui.define([
         assert.strictEqual(findDelta(deltas2, "/TaxId", "required").value, true, "Require policy requires target when NumericGreaterThan is true");
         assert.strictEqual(findDelta(deltas2, "/BackupPhone", "required").value, false, "Optional policy marks optional when condition is true");
         assert.strictEqual(findDelta(deltas2, "/Age", "validity").value, true, "Invalidate policy clears invalid state when NumericLessThan is false");
-        assert.strictEqual(findDelta(deltas2, "/Coupon", "editable").value, true, "Disable policy re-enables target when IsNull is false");
-        assert.strictEqual(findDelta(deltas2, "/ApplyBtn", "editable").value, true, "Enable policy enables target when IsNotNull is true");
+        assert.strictEqual(findDelta(deltas2, "/Coupon", "enabled").value, true, "Disable policy re-enables target when IsNull is false");
+        assert.strictEqual(findDelta(deltas2, "/ApplyBtn", "enabled").value, true, "Enable policy enables target when IsNotNull is true");
+        assert.strictEqual(findDelta(deltas1, "/Coupon", "editable"), undefined, "Disable emits on the enabled axis only, never the editable one");
         assert.strictEqual(findDelta(deltas1, "/SecretField", "required"), undefined, "Show policy does not emit unrelated required delta on /SecretField");
         assert.strictEqual(findDelta(deltas1, "/SecretField", "editable"), undefined, "Show policy does not emit unrelated editable delta on /SecretField");
 
@@ -4838,6 +4841,535 @@ sap.ui.define([
                 done();
             }, 800);
         }, 1200);
+    });
+
+    QUnit.module("Host enabled: one switch that greys out the whole form");
+
+    /**
+     * Polls until `probe` returns a truthy value or the timeout passes, then calls `then` with the last result.
+     */
+    function waitUntil(probe, timeoutMs, then) {
+        var start = Date.now();
+        (function poll() {
+            Core.applyChanges();
+            var result = probe();
+            if (result || Date.now() - start > timeoutMs) {
+                then(result);
+                return;
+            }
+            setTimeout(poll, 50);
+        })();
+    }
+
+    /** Depth-first search of a control tree, hidden aggregations included, for the first match of `predicate`. */
+    function findInTree(root, predicate) {
+        var found = null;
+        (function walk(c, d) {
+            if (!c || !c.getMetadata || found || d > 30) return;
+            if (predicate(c)) { found = c; return; }
+            var aggs = c.mAggregations || {};
+            Object.keys(aggs).forEach(function (k) {
+                var v = aggs[k];
+                if (Array.isArray(v)) { v.forEach(function (x) { walk(x, d + 1); }); }
+                else { walk(v, d + 1); }
+            });
+        })(root, 0);
+        return found;
+    }
+
+    QUnit.test("Host enabled: a table row clone is disabled at render, and follows enabled toggled at runtime", function (assert) {
+        var done = assert.async();
+        var host = new DynamicHost({
+            schemaDefinition: {
+                type: "array",
+                layoutStrategy: "table",
+                items: { type: "object", properties: { Sku: { type: "string" }, Qty: { type: "integer" } } }
+            },
+            data: [{ Sku: "A-1", Qty: 2 }, { Sku: "B-2", Qty: 5 }],
+            enabled: false
+        });
+        host.placeAt("qunit-fixture");
+
+        var secondRowInput = function () {
+            var table = findInTree(host, function (c) { return c.isA && c.isA("sap.m.Table"); });
+            var items = table ? table.getItems() : [];
+            return items.length > 1 ? firstInputIn(items[1]) : null;
+        };
+        var addRowButton = function () {
+            return findInTree(host, function (c) { return c.data && c.data("metauiTableAddBtn") === true; });
+        };
+
+        waitUntil(secondRowInput, 4000, function (cell) {
+            assert.ok(cell, "The table rendered cloned rows with an input cell");
+            if (!cell) { host.destroy(); done(); return; }
+            assert.strictEqual(cell.getEnabled(), false, "A cloned row cell is disabled when the host renders with enabled=false");
+            assert.strictEqual(cell.getEditable(), true, "...as a real widget, not the display text editable=false would give");
+            assert.strictEqual(cell.getValue(), "B-2", "...still showing its own row's value");
+            assert.strictEqual(addRowButton().getEnabled(), false, "...and Add Row is disabled with it");
+
+            host.setEnabled(true);
+            waitUntil(function () {
+                var c = secondRowInput();
+                return c && c !== cell && c.getEnabled() === true ? c : null;
+            }, 4000, function (enabledCell) {
+                assert.ok(enabledCell, "Setting enabled=true at runtime re-renders the row cells enabled");
+                host.setEnabled(false);
+                waitUntil(function () {
+                    var c = secondRowInput();
+                    return c && c !== enabledCell && c.getEnabled() === false ? c : null;
+                }, 4000, function (disabledCell) {
+                    assert.ok(disabledCell, "Setting enabled=false at runtime disables row cells that were already rendered enabled");
+                    assert.strictEqual(disabledCell && disabledCell.getValue(), "B-2", "...and the payload survives the re-render");
+                    host.destroy();
+                    done();
+                });
+            });
+        });
+    });
+
+    QUnit.test("Host enabled: a nested drill-down dialog opened from a disabled host is disabled too", function (assert) {
+        var done = assert.async();
+        var host = new DynamicHost({
+            schemaDefinition: {
+                type: "object",
+                properties: {
+                    Name: { type: "string" },
+                    Address: {
+                        type: "object",
+                        ui: { label: "Address", renderMode: "dialog" },
+                        properties: { Street: { type: "string" } }
+                    }
+                }
+            },
+            data: { Name: "Acme", Address: { Street: "1 Queen St" } },
+            enabled: false
+        });
+        host.placeAt("qunit-fixture");
+
+        var trigger = function () {
+            return findInTree(host, function (c) {
+                return c.isA && c.isA("sap.m.Button") && /Address/.test(String(c.data && c.data("metauiBindingPath")));
+            });
+        };
+        var nestedInput = function () {
+            var dialog = findOpenDialog();
+            return dialog ? firstInputIn(dialog) : null;
+        };
+
+        waitUntil(trigger, 4000, function (btn) {
+            assert.ok(btn, "The nested object renders its drill-down trigger");
+            if (!btn) { host.destroy(); done(); return; }
+            assert.strictEqual(btn.getEnabled(), false, "The drill-down trigger is disabled on a disabled host");
+
+            // firePress bypasses the disabled state on purpose: it is how a consumer opening the dialog
+            // programmatically reaches it, and the nested host must not come up live behind a disabled form.
+            btn.firePress();
+            waitUntil(nestedInput, 4000, function (input) {
+                assert.ok(input, "The nested dialog host rendered its own input");
+                assert.strictEqual(input && input.getEnabled(), false, "A control inside the nested dialog host is disabled");
+                assert.strictEqual(input && input.getValue(), "1 Queen St", "...and still shows the nested value");
+                var dialog = findOpenDialog();
+                if (dialog) { dialog.close(); dialog.destroy(); }
+
+                host.setEnabled(true);
+                waitUntil(function () {
+                    var b = trigger();
+                    return b && b !== btn && b.getEnabled() === true ? b : null;
+                }, 4000, function (liveBtn) {
+                    assert.ok(liveBtn, "Setting enabled=true at runtime re-enables the trigger");
+                    if (!liveBtn) { host.destroy(); done(); return; }
+                    liveBtn.firePress();
+                    waitUntil(function () {
+                        var i = nestedInput();
+                        return i && i !== input ? i : null;
+                    }, 4000, function (liveInput) {
+                        assert.strictEqual(liveInput && liveInput.getEnabled(), true, "...and the dialog it opens is enabled");
+                        var d = findOpenDialog();
+                        if (d) { d.close(); d.destroy(); }
+                        host.destroy();
+                        done();
+                    });
+                });
+            });
+        });
+    });
+
+    QUnit.module("Space: a host reads the width it is given");
+
+    function spaceSchema() {
+        return {
+            type: "object",
+            title: "Order",
+            properties: {
+                OrderCode: { type: "string", title: "Order Code" },
+                DeliveryOn: { type: "string", format: "date", title: "Delivery Date" },
+                Priority: { type: "string", title: "Priority", ui: { widget: "select" },
+                    valueHelp: [{ key: "S", text: "Standard" }, { key: "E", text: "Express" }] },
+                Quantity: { type: "integer", title: "Quantity" },
+                Urgent: { type: "boolean", title: "Urgent" }
+            }
+        };
+    }
+
+    function spaceData() {
+        return { OrderCode: "PO-1", DeliveryOn: "2026-11-30", Priority: "S", Quantity: 12, Urgent: true };
+    }
+
+    /** A sized box in the fixture for a host to live in. */
+    function spaceBox(id, width) {
+        var existing = document.getElementById(id);
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        var div = document.createElement("div");
+        div.id = id;
+        div.style.width = width + "px";
+        document.getElementById("qunit-fixture").appendChild(div);
+        return div;
+    }
+
+    /** Reads what the host shows: the collapse button, or the form and where its first label sits. */
+    function readSpace(host) {
+        var dom = host.getDomRef();
+        if (!dom) return null;
+        var visible = function (el) { return el && el.offsetParent !== null; };
+        var button = Array.prototype.slice.call(dom.querySelectorAll("button")).filter(function (b) {
+            return visible(b) && /Order/.test(b.textContent);
+        })[0];
+        var label = Array.prototype.slice.call(dom.querySelectorAll("label")).filter(visible)[0];
+        var input = Array.prototype.slice.call(dom.querySelectorAll("input")).filter(visible)[0];
+        var banner = Array.prototype.slice.call(dom.querySelectorAll(".sapMMsgStrip")).filter(visible)[0];
+        var placement = "none";
+        if (label && input) {
+            var lr = label.getBoundingClientRect();
+            var ir = input.getBoundingClientRect();
+            placement = Math.abs(lr.top - ir.top) < 16 && lr.right <= ir.left + 2 ? "beside" : "stacked";
+        }
+        return {
+            collapsed: !!button,
+            button: button || null,
+            formShown: !!input,
+            labels: placement,
+            banner: !!banner,
+            height: Math.round(dom.getBoundingClientRect().height)
+        };
+    }
+
+    QUnit.test("Space: labels sit beside fields in a 545px container, stack at 292px, and a 148px host collapses to a button", function (assert) {
+        var done = assert.async();
+        var warnings = [];
+        var originalWarn = Logger.warn;
+        Logger.warn = function (message) {
+            warnings.push(String(message));
+            return originalWarn.apply(Logger, arguments);
+        };
+        var widths = [545, 292, 148];
+        var hosts = widths.map(function (w) {
+            spaceBox("space-" + w, w);
+            var host = new DynamicHost({ schemaDefinition: spaceSchema(), data: spaceData() });
+            host.placeAt("space-" + w);
+            return host;
+        });
+        var settled = function () {
+            var r = hosts.map(readSpace);
+            return r[0] && r[0].formShown && r[1] && r[1].formShown && r[2] && r[2].collapsed ? r : null;
+        };
+        waitUntil(settled, 5000, function (r) {
+            Logger.warn = originalWarn;
+            r = r || hosts.map(readSpace);
+            assert.strictEqual(r[0] && r[0].labels, "beside", "545px: labels sit beside their fields, not stacked as on a phone");
+            assert.strictEqual(r[1] && r[1].labels, "stacked", "292px: labels stack, which is the readable choice at that width");
+            assert.ok(r[2] && r[2].collapsed && !r[2].formShown, "148px: the form is replaced by a button rather than rendered mangled");
+            assert.ok(r[2] && r[2].height < 80, "148px: the collapsed host stays one line tall (" + (r[2] && r[2].height) + "px)");
+            assert.ok(
+                warnings.some(function (w) { return /was given 148px/.test(w) && /collapsed/.test(w); }),
+                "The collapse is logged with the host and the width it was given"
+            );
+            assert.ok(
+                !warnings.some(function (w) { return /was given (545|292)px/.test(w); }),
+                "...and nothing is logged for hosts that fit"
+            );
+            hosts.forEach(function (h) { h.destroy(); });
+            done();
+        });
+    });
+
+    QUnit.test("Space: a collapsed host comes back when its container widens, and opens the form in a dialog when pressed", function (assert) {
+        var done = assert.async();
+        var box = spaceBox("space-resize", 148);
+        var host = new DynamicHost({ schemaDefinition: spaceSchema(), data: spaceData() });
+        host.placeAt("space-resize");
+        waitUntil(function () { var r = readSpace(host); return r && r.collapsed ? r : null; }, 5000, function (collapsed) {
+            assert.ok(collapsed, "The host collapses at 148px");
+            if (!collapsed) { host.destroy(); done(); return; }
+
+            sap.ui.getCore().byId(collapsed.button.id).firePress();
+            waitUntil(function () {
+                var dialog = findOpenDialog();
+                return dialog && firstInputIn(dialog) ? dialog : null;
+            }, 5000, function (dialog) {
+                assert.ok(dialog, "Pressing the button opens the form in a dialog");
+                var inDialog = dialog ? readSpace(dialog.getContent()[0]) : null;
+                assert.ok(inDialog && inDialog.formShown && !inDialog.collapsed, "...where the form is shown, not another button");
+                if (dialog) { dialog.getEndButton().firePress(); }
+
+                waitUntil(function () { var r = readSpace(host); return !findOpenDialog() && r && r.collapsed ? r : null; }, 5000, function (back) {
+                    assert.ok(back, "After the dialog closes, the host in the narrow cell is collapsed again");
+                    box.style.width = "545px";
+                    waitUntil(function () { var r = readSpace(host); return r && r.formShown ? r : null; }, 5000, function (wide) {
+                        assert.ok(wide && wide.formShown && !wide.collapsed, "Widening the container to 545px brings the form back");
+                        assert.strictEqual(wide && wide.labels, "beside", "...with labels beside the fields");
+                        host.destroy();
+                        done();
+                    });
+                });
+            });
+        });
+    });
+
+    QUnit.test("Space: a too-narrow host already inside a dialog keeps its form and says why under a banner", function (assert) {
+        var done = assert.async();
+        sap.ui.require(["sap/m/Dialog", "sap/m/VBox"], function (Dialog, VBox) {
+        var host = new DynamicHost({ schemaDefinition: spaceSchema(), data: spaceData() });
+        var dialog = new Dialog({ content: [new VBox({ width: "150px", items: [host] })] });
+        dialog.open();
+        waitUntil(function () { var r = readSpace(host); return r && r.banner ? r : null; }, 5000, function (r) {
+            assert.ok(r && r.banner, "A banner says the form has too little room");
+            assert.ok(r && r.formShown && !r.collapsed, "The form stays, because a button opening a second dialog would help nobody");
+            dialog.close();
+            dialog.destroy();
+            done();
+        });
+        });
+    });
+
+    QUnit.module("Payload: showPayload shows the live JSON on demand");
+
+    function payloadSchema() {
+        return { type: "object", properties: { Name: { type: "string", title: "Name" }, Qty: { type: "integer", title: "Quantity" } } };
+    }
+
+    /** The corner icon of a host when it is rendered and visible, otherwise null. */
+    function payloadIcon(host) {
+        var inner = host._innerHost;
+        var icon = inner && inner.getAggregation("_payload");
+        return icon && icon.getVisible() && icon.getDomRef() ? icon : null;
+    }
+
+    /** Opens the viewer from a host's icon and resolves with the dialog's code editor. */
+    function openViewer(pressable, then) {
+        pressable.firePress();
+        waitUntil(function () {
+            var dialog = findOpenDialog();
+            var editor = dialog && findInTree(dialog, function (c) { return c.isA && c.isA("sap.ui.codeeditor.CodeEditor"); });
+            return editor && editor.getValue() ? { dialog: dialog, editor: editor } : null;
+        }, 6000, then);
+    }
+
+    function closeViewer(viewer) {
+        if (!viewer) return;
+        var buttons = viewer.dialog.getButtons();
+        buttons[buttons.length - 1].firePress();
+    }
+
+    QUnit.test("Payload: the icon is absent by default, and present when set, bound, or defaulted app-wide", function (assert) {
+        var done = assert.async();
+        var appState = new JSONModel({ devMode: true });
+        var plain = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "a", Qty: 1 } });
+        var set = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "b", Qty: 2 }, showPayload: true });
+        var bound = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "c", Qty: 3 }, showPayload: "{appState>/devMode}" });
+        var optedOut = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "d", Qty: 4 }, showPayload: false });
+        bound.setModel(appState, "appState");
+        [plain, set, bound, optedOut].forEach(function (h, i) { spaceBox("payload-presence-" + i, 545); h.placeAt("payload-presence-" + i); });
+
+        waitUntil(function () { return set._innerHost && payloadIcon(set) && payloadIcon(bound) && plain._innerHost && plain._innerHost.generatedContent ? true : null; }, 5000, function () {
+            assert.strictEqual(payloadIcon(plain), null, "Absent by default");
+            assert.ok(payloadIcon(set), "Present when showPayload is set");
+            assert.ok(payloadIcon(bound), "Present when showPayload is bound to a true value");
+            assert.strictEqual(plain._innerHost.getAggregation("_payload"), null, "A host that never shows it carries no icon control at all");
+
+            DynamicHost.setShowPayloadDefault(true);
+            waitUntil(function () { return payloadIcon(plain) ? true : null; }, 3000, function () {
+                assert.ok(payloadIcon(plain), "The app-wide default turns it on for a host already rendered");
+                assert.strictEqual(payloadIcon(optedOut), null, "...but an explicit showPayload: false still wins over the default");
+                DynamicHost.setShowPayloadDefault(false);
+                waitUntil(function () { return payloadIcon(plain) ? null : true; }, 3000, function () {
+                    assert.strictEqual(payloadIcon(plain), null, "Clearing the default removes it again");
+                    assert.ok(payloadIcon(set), "...from hosts relying on it, not from hosts that set it themselves");
+                    [plain, set, bound, optedOut].forEach(function (h) { h.destroy(); });
+                    appState.destroy();
+                    done();
+                });
+            });
+        });
+    });
+
+    QUnit.test("Payload: flipping the bound flag adds and removes the icon without touching an edit in progress", function (assert) {
+        var done = assert.async();
+        var appState = new JSONModel({ devMode: false });
+        spaceBox("payload-flip", 545);
+        var host = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "Acme", Qty: 3 }, showPayload: "{appState>/devMode}" });
+        host.setModel(appState, "appState");
+        host.placeAt("payload-flip");
+
+        waitUntil(function () { return firstInputIn(host) && firstInputIn(host).getDomRef("inner") ? firstInputIn(host) : null; }, 5000, function (input) {
+            var dom = input.getDomRef("inner");
+            dom.focus();
+            dom.value = "Acme Half-ty";
+            dom.dispatchEvent(new Event("input", { bubbles: true }));
+            assert.strictEqual(payloadIcon(host), null, "Off while the bound flag is false");
+
+            appState.setProperty("/devMode", true);
+            Core.applyChanges();
+            var afterOn = input.getDomRef("inner");
+            assert.ok(payloadIcon(host), "Setting the bound flag shows the icon");
+            assert.strictEqual(afterOn, dom, "The field's DOM node is the same one: the form was not re-rendered from scratch");
+            assert.strictEqual(afterOn.value, "Acme Half-ty", "The half-typed value is still there");
+            assert.strictEqual(document.activeElement, afterOn, "...and the field still has focus");
+
+            appState.setProperty("/devMode", false);
+            Core.applyChanges();
+            var afterOff = input.getDomRef("inner");
+            assert.strictEqual(payloadIcon(host), null, "Clearing the bound flag hides the icon");
+            assert.ok(afterOff === dom && afterOff.value === "Acme Half-ty", "The edit in progress survives turning it off as well");
+            host.destroy();
+            appState.destroy();
+            done();
+        });
+    });
+
+    QUnit.test("Payload: bound per row, the icon appears on the rows that allow it and not on the others", function (assert) {
+        var done = assert.async();
+        sap.ui.require(["sap/m/Table", "sap/m/Column", "sap/m/ColumnListItem"], function (Table, Column, ColumnListItem) {
+            var rows = new JSONModel({ rows: [
+                { CanInspect: true, Order: { Name: "row0", Qty: 1 } },
+                { CanInspect: false, Order: { Name: "row1", Qty: 2 } },
+                { CanInspect: true, Order: { Name: "row2", Qty: 3 } }
+            ] });
+            var table = new Table({ columns: [new Column({ width: "545px" })] });
+            table.bindItems({
+                path: "rows>/rows",
+                template: new ColumnListItem({ cells: [new DynamicHost({
+                    schemaDefinition: payloadSchema(),
+                    data: "{rows>Order}",
+                    showPayload: "{rows>CanInspect}"
+                })] })
+            });
+            table.setModel(rows, "rows");
+            spaceBox("payload-rows", 700);
+            table.placeAt("payload-rows");
+            var hosts = function () { return table.getItems().map(function (item) { return item.getCells()[0]; }); };
+            waitUntil(function () {
+                var h = hosts();
+                return h.length === 3 && h.every(function (x) { return x._innerHost && x._innerHost.generatedContent; }) && payloadIcon(h[0]) ? h : null;
+            }, 6000, function (h) {
+                h = h || hosts();
+                assert.deepEqual(
+                    h.map(function (x) { return !!payloadIcon(x); }),
+                    [true, false, true],
+                    "Each row's host follows its own row's CanInspect"
+                );
+                rows.setProperty("/rows/1/CanInspect", true);
+                Core.applyChanges();
+                assert.ok(payloadIcon(hosts()[1]), "Changing one row's flag turns its icon on without touching the others");
+                table.destroy();
+                rows.destroy();
+                done();
+            });
+        });
+    });
+
+    QUnit.test("Payload: the viewer shows the payload as it is now, formatted or raw, read-only", function (assert) {
+        var done = assert.async();
+        spaceBox("payload-live", 545);
+        var host = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "Acme", Qty: 3 }, showPayload: true });
+        host.placeAt("payload-live");
+        waitUntil(function () { return payloadIcon(host) && firstInputIn(host) ? firstInputIn(host) : null; }, 5000, function (input) {
+            input.setValue("Acme Edited");
+            input.fireChange({ value: "Acme Edited" });
+            Core.applyChanges();
+            openViewer(payloadIcon(host), function (viewer) {
+                assert.ok(viewer, "Pressing the icon opens a dialog holding a code editor");
+                if (!viewer) { host.destroy(); done(); return; }
+                var shown = JSON.parse(viewer.editor.getValue());
+                assert.strictEqual(shown.Name, "Acme Edited", "The JSON includes the edit made since render, read when the icon was pressed");
+                assert.strictEqual(viewer.editor.getValue(), JSON.stringify(shown, null, 2), "Formatted with two-space indentation");
+                assert.strictEqual(viewer.editor.getEditable(), false, "The viewer is read-only");
+                assert.strictEqual(
+                    JSON.stringify(host.getProperty("data")).indexOf("Acme Edited"),
+                    -1,
+                    "...while the edit is still uncommitted to the host's data"
+                );
+                var footer = viewer.dialog.getButtons();
+                assert.strictEqual(footer.length, 3, "The footer offers Raw, Copy and Close");
+                footer[0].setPressed(true);
+                footer[0].firePress();
+                Core.applyChanges();
+                assert.strictEqual(viewer.editor.getValue(), JSON.stringify(shown), "Raw shows the same JSON unindented");
+                closeViewer(viewer);
+                waitUntil(function () { return findOpenDialog() ? null : true; }, 3000, function () {
+                    assert.ok(!findOpenDialog(), "Close closes the viewer");
+                    host.destroy();
+                    done();
+                });
+            });
+        });
+    });
+
+    QUnit.test("Payload: the icon costs the form no width or height, wide or narrow", function (assert) {
+        var done = assert.async();
+        var measure = function (host) {
+            var dom = host.getDomRef();
+            var input = firstInputIn(host);
+            var inner = input && input.getDomRef() ? input.getDomRef().getBoundingClientRect() : null;
+            var r = dom.getBoundingClientRect();
+            return { width: Math.round(r.width), height: Math.round(r.height), inputWidth: inner ? Math.round(inner.width) : null };
+        };
+        var hosts = [545, 148].map(function (w) {
+            spaceBox("payload-width-" + w, w);
+            var h = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "Acme", Qty: 3 } });
+            h.placeAt("payload-width-" + w);
+            return h;
+        });
+        waitUntil(function () {
+            return hosts[0]._innerHost && firstInputIn(hosts[0]) && hosts[1]._innerHost && hosts[1]._innerHost.isSpaceCollapsed() ? true : null;
+        }, 6000, function () {
+            var off = hosts.map(measure);
+            hosts.forEach(function (h) { h.setShowPayload(true); });
+            Core.applyChanges();
+            var on = hosts.map(measure);
+            assert.deepEqual(on[0], off[0], "545px: host width, host height and the first field's width are identical with the icon on (" + JSON.stringify(on[0]) + ")");
+            assert.deepEqual(
+                { width: on[1].width, height: on[1].height },
+                { width: off[1].width, height: off[1].height },
+                "148px (collapsed): host width and height are identical with the payload affordance on (" + JSON.stringify(on[1]) + ")"
+            );
+            hosts.forEach(function (h) { h.destroy(); });
+            done();
+        });
+    });
+
+    QUnit.test("Payload: a host collapsed for lack of width offers the JSON beside its form button, and opens the JSON", function (assert) {
+        var done = assert.async();
+        spaceBox("payload-collapsed", 148);
+        var host = new DynamicHost({ schemaDefinition: payloadSchema(), data: { Name: "Acme", Qty: 3 }, showPayload: true });
+        host.placeAt("payload-collapsed");
+        waitUntil(function () {
+            var notice = host._innerHost && host._innerHost.getAggregation("_space");
+            return notice && notice.getVisible() && notice.getDomRef() ? notice : null;
+        }, 6000, function (notice) {
+            assert.ok(notice, "The host collapses at 148px");
+            if (!notice) { host.destroy(); done(); return; }
+            var items = notice.getItems();
+            assert.ok(items.length === 2 && items[1].getVisible(), "The collapsed state shows two affordances: the form and the JSON");
+            assert.strictEqual(payloadIcon(host), null, "...and the corner icon gives way to the second button");
+            openViewer(items[1], function (viewer) {
+                assert.ok(viewer && JSON.parse(viewer.editor.getValue()).Name === "Acme", "Pressing it opens the JSON, not the form");
+                closeViewer(viewer);
+                waitUntil(function () { return findOpenDialog() ? null : true; }, 3000, function () {
+                    host.destroy();
+                    done();
+                });
+            });
+        });
     });
 
     QUnit.module("OData V4: the path a V4 consumer actually exercises");

@@ -46,16 +46,22 @@ export const MAX_CLONE_DEPTH = 200;
 
 /**
  * Defines the physical layout rendering mode of a schema node.
+ * @public
  */
 export const RENDER_MODE = {
     INLINE: "inline",
     DIALOG: "dialog"
 } as const;
 
+/**
+ * One of the `RENDER_MODE` values: how a nested object or array is presented.
+ * @public
+ */
 export type RenderModeType = typeof RENDER_MODE[keyof typeof RENDER_MODE];
 
 /**
  * Standard JSON schema and MetaUI extended types.
+ * @public
  */
 export const SCHEMA_TYPE = {
     OBJECT: "object",
@@ -67,6 +73,10 @@ export const SCHEMA_TYPE = {
     DATE: "date"
 } as const;
 
+/**
+ * One of the `SCHEMA_TYPE` values: a JSON Schema `type` MetaUI renders.
+ * @public
+ */
 export type SchemaTypeType = typeof SCHEMA_TYPE[keyof typeof SCHEMA_TYPE];
 
 /**

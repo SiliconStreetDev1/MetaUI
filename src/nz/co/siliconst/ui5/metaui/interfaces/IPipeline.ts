@@ -7,6 +7,7 @@ import { IPropertyMetadata } from "./ISchema";
 
 /**
  * Contract for pipeline formatters that transform raw model values into UI display strings.
+ * @public
  */
 export interface IFormatter {
     /**
@@ -29,6 +30,7 @@ export interface IFormatter {
 
 /**
  * Contract for pipeline parsers that convert UI input strings back into typed model values.
+ * @public
  */
 export interface IParser {
     /**
@@ -42,6 +44,7 @@ export interface IParser {
 
 /**
  * Result returned by a single pipeline validator execution.
+ * @public
  */
 export interface IValidationResult {
     isValid: boolean;
@@ -50,6 +53,7 @@ export interface IValidationResult {
 
 /**
  * Result returned by `IValidator.extractRule` when inspecting a schema property descriptor.
+ * @public
  */
 export interface IValidatorRuleExtraction {
     /** True if this validator plugin should run for the given schema property. */
@@ -60,6 +64,7 @@ export interface IValidatorRuleExtraction {
 
 /**
  * Contract for synchronous data validators registered in the {@link PipelineManager}.
+ * @public
  */
 export interface IValidator {
     /**

@@ -88,8 +88,8 @@ export class TableLayout implements ILayoutManager {
 
         const resolvedItemsSchema: IPropertyMetadata = itemsSchema;
         const tableTitle = schema.title || schema.ui?.label || I18n.getText(TEXT_KEY.tableDefaultTitle);
-        const canEditTable =
-            engine.isEditable && !schema.readOnly && !schema.ui?.readOnly && schema.ui?.enabled !== false;
+        const canEditTable = engine.isEditable && !schema.readOnly && !schema.ui?.readOnly;
+        const isTableEnabled = engine.isEnabled && schema.ui?.enabled !== false;
 
         let effectiveBindingPath = bindingPath;
         if (bindingPath === "/") {
@@ -104,6 +104,7 @@ export class TableLayout implements ILayoutManager {
             text: I18n.getText(TEXT_KEY.tableAddRow),
             icon: "sap-icon://add",
             visible: canEditTable,
+            enabled: isTableEnabled,
             press: (oEvent: Event) => {
                 const btn = oEvent.getSource() as Button;
                 const tbl = btn.getParent()?.getParent() as Table | undefined;
@@ -127,7 +128,7 @@ export class TableLayout implements ILayoutManager {
             // exist beyond the ones drawn, and how many. `growingTriggerText` is left unset so the
             // button keeps sap.m's own translated "More" rather than an English literal.
             growingScrollToLoad: false,
-            mode: !canEditTable ? ListMode.None : ListMode.Delete,
+            mode: canEditTable && isTableEnabled ? ListMode.Delete : ListMode.None,
             delete: (oEvent: Event) => {
                 const params = oEvent.getParameters() as { listItem?: ColumnListItem };
                 TableRowHelper.deleteRow(params.listItem, modelName, engine, effectiveBindingPath, schema);
@@ -155,7 +156,8 @@ export class TableLayout implements ILayoutManager {
             isPrimitive,
             modelName,
             engine,
-            canEditTable
+            canEditTable,
+            isTableEnabled
         );
 
         table.bindItems({
@@ -179,6 +181,7 @@ export class TableLayout implements ILayoutManager {
      * @param modelName The UI5 JSONModel alias.
      * @param engine The owning `Engine` instance.
      * @param canEditTable True if the table allows editing.
+     * @param isTableEnabled False when the array itself is declared disabled, which disables every cell.
      * @returns {Control[]} The array of template cell controls for `ColumnListItem`.
      */
     private buildColumnsAndCells(
@@ -188,7 +191,8 @@ export class TableLayout implements ILayoutManager {
         isPrimitive: boolean,
         modelName: string,
         engine: Engine,
-        canEditTable: boolean = true
+        canEditTable: boolean = true,
+        isTableEnabled: boolean = true
     ): Control[] {
         const templateCells: Control[] = [];
         const props = resolvedItemsSchema.properties;
@@ -196,7 +200,7 @@ export class TableLayout implements ILayoutManager {
         const effectiveModel = modelName || "meta";
 
         const withTableReadOnly = (meta: IPropertyMetadata, widgetOverride?: string): IPropertyMetadata => {
-            return LayoutFieldFactory.cloneFieldMetadata(meta, widgetOverride, !canEditTable);
+            return LayoutFieldFactory.cloneFieldMetadata(meta, widgetOverride, !canEditTable, !isTableEnabled);
         };
 
         if (isPrimitive) {

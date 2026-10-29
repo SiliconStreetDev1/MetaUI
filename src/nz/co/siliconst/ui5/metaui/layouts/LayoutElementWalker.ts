@@ -92,6 +92,10 @@ export class LayoutFieldFactory {
             const raw = cp ? readNumber(cp, key) : undefined;
             return typeof raw === "number" && raw >= 0 && raw <= 11 ? Math.round(raw) : fallback;
         };
+        const resolveBreakpoint = (key: string, fallback: number): number => {
+            const raw = cp ? readNumber(cp, key) : undefined;
+            return typeof raw === "number" && raw >= 1 ? Math.round(raw) : fallback;
+        };
         const resolveCols = (key: string, fallback: number): number => {
             const raw = cp ? readNumber(cp, key) : undefined;
             return typeof raw === "number" && raw >= 1 && raw <= 4 ? Math.round(raw) : fallback;
@@ -100,6 +104,12 @@ export class LayoutFieldFactory {
             editable: true,
             title,
             layout: "ResponsiveGridLayout",
+            // ResponsiveGridLayout sizes by the form's own width, and below breakpointM it applies labelSpanS,
+            // which stacks every label above its field. UI5's default of 600px put a 545px table cell in that
+            // phone class. Measured on a five-field form: at 545px, 382px tall with labels stacked at 600 and
+            // 252px with labels beside the fields at 400. At 400 a full-width form on a 360px or 390px phone
+            // still stacks; at 350 it would not.
+            breakpointM: resolveBreakpoint("breakpointM", 400),
             labelSpanXL: resolveSpan("labelSpanXL", 4),
             labelSpanL: resolveSpan("labelSpanL", 4),
             labelSpanM: resolveSpan("labelSpanM", 4),
@@ -128,7 +138,8 @@ export class LayoutFieldFactory {
     public static cloneFieldMetadata(
         meta: IPropertyMetadata,
         widgetOverride?: string,
-        forceReadOnly: boolean = false
+        forceReadOnly: boolean = false,
+        forceDisabled: boolean = false
     ): IPropertyMetadata {
         const clonedUi = meta.ui ? deepClone(meta.ui) : {};
         if (widgetOverride) {
@@ -136,6 +147,9 @@ export class LayoutFieldFactory {
         }
         if (forceReadOnly) {
             clonedUi.readOnly = true;
+        }
+        if (forceDisabled) {
+            clonedUi.enabled = false;
         }
         return {
             ...meta,

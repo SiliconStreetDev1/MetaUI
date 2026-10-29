@@ -51,3 +51,6 @@ test/swagger_schemas/github_oa3.json
 
 # Agent worktrees are scratch checkouts, never part of the repository.
 .claude/worktrees/
+
+# Tool-specific pointer to AGENTS.md; kept locally, not published.
+CLAUDE.md

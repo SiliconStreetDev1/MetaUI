@@ -72,6 +72,39 @@ declaration: by the time any MetaUI code executes, the loader has already walked
 the module graph that the declaration exists to replace, and loading the whole
 library from a control would also defeat the on-demand plugin loading above.
 
+### Installing from npm
+
+1. **Install.** `ui5 serve` then resolves MetaUI from `node_modules` with no further configuration.
+
+   ```bash
+   npm install @siliconst/metaui
+   ```
+
+2. **Declare the library in your app's `manifest.json`** — required for every route, bundled or
+   not. See [Declare MetaUI as a library](#declare-metaui-as-a-library-not-just-a-resource-root)
+   above.
+3. **Bundled route only:** opt MetaUI into your app build, in the app's `ui5.yaml`.
+
+   ```yaml
+   builder:
+     settings:
+       includeDependency:
+         - nz.co.siliconst.ui5.metaui
+   ```
+
+**With step 3**, `ui5 build` produces one deployable holding your app and MetaUI, under
+`resources/nz/co/siliconst/ui5/metaui/`. **Without it**, the build holds only your app, and MetaUI
+is deployed separately as its own library that the app references. UI5 Tooling bundles only the
+dependencies an application opts in; a library cannot opt itself in. Avoid `ui5 build --all`,
+which copies the whole UI5 framework into the output.
+
+> **What is verified.** Installing, `ui5 serve`, and the bundled `ui5 build` are verified by
+> running them against the packed package (`test/consumer/`). For the separately deployed route,
+> the package contains the files a library deployment needs — `.library`, `manifest.json` at the
+> root of `src/nz/co/siliconst/ui5/metaui/`, `library.js`, `library-preload.js` and the message
+> bundles. Deploying that folder to an ABAP system as a BSP, and how the SAP App Index resolves it
+> there, has **not** been tested.
+
 ## Quickstart
 
 **1. Install**

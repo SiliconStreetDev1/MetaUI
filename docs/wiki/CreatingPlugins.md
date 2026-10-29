@@ -229,7 +229,7 @@ A `sap.m.Input` carrying the bound value and the placeholder, with the control I
 | :--- | :--- | :--- |
 | `render(metadata, bindingPath, modelName?, engineScopeId?, onChange?, model?)` | `Engine.generateField()` | Create, bind and return the control. |
 | `getValue(sourceControl?)` | `BasePlugin.validate()` and `BasePlugin.notifyChange()` | Return the raw current value from the control. Honour `sourceControl` when given — it is the table-row clone, not `this.control`. |
-| `applyState()` | `updateMetadata()`, `applyEditable()`, `applyRequired()`, `setState()` | Push the current `metadata` onto the live control. |
+| `applyState()` | `updateMetadata()`, `applyEditable()`, `applyEnabled()`, `applyRequired()`, `setState()` | Push the current `metadata` onto the live control. You may write `enabled` here (a widget with no `editable` expresses read-only that way); the base class re-asserts a disabled state afterwards, so you cannot re-enable a disabled field by accident. |
 
 `getValue()` is **not** called by `StateManager` — `StateManager` contains no call to it at all. Its only two callers in the library are `BasePlugin.validate()` and `BasePlugin.notifyChange()`. The payload reaches the model through UI5 two-way binding on the binding you created in `render()`; `getValue()` exists so the validation pipeline and the change notification can read the control's live, pre-binding-commit value.
 
@@ -248,13 +248,14 @@ Measured consequence: a plugin that binds through `generateBindingInfo()` and re
 | `commitValue(sourceControl, value)` | Writes a value to the resolved absolute path, resolving the model from the control or from the engine context. Use it for any imperative write — a control that is not yet in the host's tree has no local model of its own. |
 | `createDisplayText(engineScopeId, bindingPath, bindingInfo?)` | The read-only `sap.m.Text` rendering. Assigns `this.control` and returns it. |
 | `resolveAbsolutePath(control?)` | Absolute model path, accounting for table-row binding contexts. |
-| `isControlEditable()` | `isEditable && !metadata.readOnly && !metadata.ui.readOnly && metadata.ui.enabled !== false`. |
+| `isControlEditable()` | `isEditable && !metadata.readOnly && !metadata.ui.readOnly`. The editable axis only. |
+| `isControlEnabled()` | Host `enabled` && `metadata.ui.enabled !== false` && no active `Disable` policy. The enabled axis only, independent of `isControlEditable()`. |
 | `isRequired()` | Handles both `required: boolean` and the JSON Schema `required: string[]` form. |
 | `isVisible()` | The outer control's visibility. A hidden control does not block submission. |
-| `isAffordanceEnabled()` | `metadata.ui.enabled !== false`. Used with the flag in §3.5. |
+| `isAffordanceEnabled()` | Returns `isControlEnabled()`. Used with the flag in §3.5. |
 | `setAssociatedLabel(label)` | Links the companion label so `required` and `visible` stay in step. |
 | `setVisualValidationState(isValid, errorMessage?)` | `ValueState.Error` / `ValueState.None`, or `ButtonType.Reject` on a `sap.m.Button`. |
-| `setState(property, value, message?)` | Runtime update of `visible`, `editable`, `required` or `valid`; calls `applyState()`. |
+| `setState(property, value, message?)` | Runtime update of `visible`, `editable`, `enabled`, `required` or `valid`; calls `applyState()`. |
 | `onStateChange(newMetadata)` | The policy engine's entry point. Replaces `metadata`, then calls `applyState()` and `validate()`. |
 | `openNestedEditorDialog(options)` | Opens a nested modal host and tracks it for destruction. |
 | `destroy()` | Destroys the control, any nested hosts and the accessibility helper texts. Override it — and call `super.destroy()` — if you own extra models or controls. |

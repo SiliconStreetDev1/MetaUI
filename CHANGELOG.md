@@ -7,9 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] — 2026-10-29
+
+Layout and affordances. A form in a narrow container — a table column, a side panel, a dialog —
+now lays out sensibly instead of stacking every label, and a container with no usable room says so
+instead of rendering a column nobody can read.
+
+**One change affects existing forms without being asked for:** any container between 400px and
+600px wide now places labels beside their fields. See *Changed* below.
+
+### ⚠️ Breaking Changes
+
+#### 1. `ui.enabled: false` and the `Disable` policy disable rather than lock
+
+- **Before:** both made a field *read-only* — `setEditable(false)`, the same appearance as
+  `ui.readOnly: true` — and `Enable` re-enabled a field even when its schema declared
+  `ui.enabled: false`.
+- **After:** both set the field *disabled*: its real widget renders greyed out and
+  non-interactive, independently of editability. `Enable` lifts only a `Disable`; it never
+  overrides `ui.enabled: false`. `PolicyEngine` emits these as `enabled` deltas, not `editable`.
+- **Migration:** for the old appearance, use `ui.readOnly: true`.
+
+#### 2. A read-only drill-down button no longer previews the record
+
+- **Before:** the `View <label>` caption of a nested object stringified the object's values, so a
+  nested value rendered as `[object Object]` and nothing capped the length.
+- **After:** the caption names the field it opens and shows none of the record — the dialog behind
+  the button is the data view. An array keeps its entry count, which is bounded rather than a
+  guess at which values identify a record.
+- **Migration:** `ui.dialogButtonText` sets any caption you want, and is unchanged.
+
+### Changed
+
+- **Labels stay beside their fields down to 400px.** `ResponsiveGridLayout` applies `labelSpanS`
+  below its `breakpointM`, which defaulted to 600px, so any container under 600 stacked every
+  label above its field. The breakpoint is now **400**. Measured on a five-field form in a 545px
+  column: **391px tall and stacked becomes 261px with the labels beside the fields.** A
+  phone-width container still stacks, which is what `labelSpanS` is for. Override per form with
+  `ui.controlProps.breakpointM`.
+- **Below 180px a form collapses to a single button** that opens it in a dialog rather than
+  rendering a column too narrow to read — at 148px the date value was already clipped. It returns
+  to a form at 196px; the gap stops it flickering at the boundary. Every collapse logs a warning
+  naming the host and the width it was given.
+
+### Added
+
+- `enabled` property (`boolean`, default `true`) on `DynamicHost` and `GeneratorHost`.
+  `enabled="false"` disables every generated field while still rendering the real widgets —
+  unlike `editable="false"`, which renders display text. It composes by AND with each field's
+  `ui.enabled`, reaches table rows and nested dialogs, and preserves the payload when changed at
+  runtime. Intended for greying out a form while a request is in flight.
+- `showPayload` property (`boolean`, default `false`) on `DynamicHost` and `GeneratorHost`, plus
+  `DynamicHost.setShowPayloadDefault()` / `getShowPayloadDefault()`. Shows a small braces button
+  that opens the live payload as read-only JSON (Formatted / Raw, Copy). Bindable per host and per
+  table row; toggling it never regenerates the form, so an edit in progress survives. It costs no
+  layout width or height, and `sap.ui.codeeditor` loads only when a viewer is first opened.
+
+### Fixed
+
+- **A polymorphic branch field lost its own `readOnly`.** The parent's editability was pushed onto
+  every child, so a branch field declared `readOnly: true` became editable as soon as any policy
+  touched its parent. A child's own `readOnly` now wins. Each branch also gets its own copy of its
+  metadata, so runtime state no longer leaks into the variant definition that outlives it.
+- **A rich-text editor ignored every read-only change after it was created.** A field initializer
+  cleared the editor reference that UI5's `init()` had already set.
+- **An OpenAPI `type` naming an `Object.prototype` member returned a function.** `"constructor"`
+  or `"toString"` resolved through the prototype chain of the lookup object and was handed to the
+  layout engine in place of a field type. The table is a `Map` now.
+- **An unsupported `$ref` was dropped at debug level**, which UI5's default `ERROR` log level
+  discards, so a multi-file specification rendered a form missing its fields with no indication
+  why. It is reported at warning level and names the reference.
+
+### Packaging
+
+- **The published `ui5.yaml` carries build exclusions**, so an application that bundles MetaUI no
+  longer copies the shipped debug files, re-minifies already-minified code, or carries the
+  TypeScript declarations into its build output. Measured on a consuming application:
+  **938 files / 5,113 KB becomes 171 files / 932 KB**, with no action required from the consumer.
+  The declarations stay in `node_modules` for TypeScript users.
+- The README documents both deployment routes: bundled into the application, or deployed
+  separately as its own library.
+
 ## [2.0.0] — 2026-10-23
 
-A correctness and quality release, and the first published 2.x. Twelve changes
+A correctness and quality release, and the first published 2.x. Fourteen changes
 require action when upgrading — please read **Breaking Changes** before updating.
 
 Highlights: MetaUI now runs on OpenUI5 as well as SAPUI5; validation fails closed
@@ -359,9 +440,9 @@ divergence it exists to catch by `scripts/prove-structural-gates.js` (<!-- DOC_C
   containers such as table columns, plus per-breakpoint overrides via
   `ui.controlProps` (`labelSpanXL`, `labelSpanL`, `labelSpanM`, `labelSpanS`).
   A value of `1`–`12` places the label beside the field; `0` suppresses the
-  label entirely for cells that rely on column headers. Purely additive — with
-  neither set, the spans remain `4` / `4` / `4` / `12` and existing forms
-  render unchanged.
+  label entirely for cells that rely on column headers. With neither set, the
+  spans remain `4` / `4` / `4` / `12`. See *Changed — narrow forms* below for
+  the breakpoint at which those spans now apply.
 - Parser stage: `IParser` with `runParsers()`, and registered parsers for `phone`,
   `currency` and `date`. Custom formatters may implement `parse()` to declare
   themselves presentational.

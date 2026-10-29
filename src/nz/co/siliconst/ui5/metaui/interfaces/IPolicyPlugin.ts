@@ -9,6 +9,7 @@ import { PropertyName } from "../core/PolicyEngine";
 
 /**
  * Resolves whether a specific schema condition passes or fails against the live UI data payload.
+ * @public
  */
 export interface IPolicyConditionPlugin {
     /**
@@ -32,6 +33,7 @@ export interface IPolicyConditionPlugin {
 
 /**
  * Translates a semantic policy effect (e.g., "Hide", "Invalidate") into a strict binary structural property state.
+ * @public
  */
 export interface IPolicyEffectPlugin {
     /**

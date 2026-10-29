@@ -8,7 +8,11 @@ import { PluginRegistry } from "./PluginRegistry";
 import { Logger } from "../utils/Logger";
 import { isRecord } from "../utils/TypeGuards";
 
-export type PropertyName = "visibility" | "validity" | "required" | "editable";
+/**
+ * The field state a policy effect changes, as carried by an `IDeltaState`.
+ * @public
+ */
+export type PropertyName = "visibility" | "validity" | "required" | "editable" | "enabled";
 
 /**
  * Represents a single differential UI state mutation emitted by {@link PolicyEngine} for a target JSON Pointer.
@@ -36,6 +40,7 @@ interface ITargetState {
     validity?: boolean;
     required?: boolean;
     editable?: boolean;
+    enabled?: boolean;
     errorMessage?: string;
     degraded?: Partial<Record<PropertyName, boolean>>;
 }
@@ -60,7 +65,7 @@ interface IConditionOutcome {
 
 type TargetLedger = Record<PropertyName, IPropertyCounts>;
 
-const ALL_PROPERTY_NAMES: readonly PropertyName[] = ["visibility", "validity", "required", "editable"];
+const ALL_PROPERTY_NAMES: readonly PropertyName[] = ["visibility", "validity", "required", "editable", "enabled"];
 
 /**
  * The PolicyEngine is responsible for evaluating complex, cross-field conditional logic defined in the schema's `uiPolicies` array.
@@ -398,7 +403,8 @@ export class PolicyEngine {
                     visibility: createCounts(),
                     validity: createCounts(),
                     required: createCounts(),
-                    editable: createCounts()
+                    editable: createCounts(),
+                    enabled: createCounts()
                 };
                 ledger.set(target, entry);
             }
@@ -467,6 +473,9 @@ export class PolicyEngine {
             const edit = resolveProperty("editable", false);
             if (edit !== undefined) entry.editable = edit;
 
+            const enab = resolveProperty("enabled", false);
+            if (enab !== undefined) entry.enabled = enab;
+
             if (Object.keys(degraded).length > 0) {
                 entry.degraded = degraded;
             }
@@ -515,6 +524,14 @@ export class PolicyEngine {
                     degraded: isDegraded("editable") || undefined
                 });
             }
+            if (newState.enabled !== undefined && newState.enabled !== lastState.enabled) {
+                deltas.push({
+                    target,
+                    property: "enabled",
+                    value: newState.enabled,
+                    degraded: isDegraded("enabled") || undefined
+                });
+            }
         }
 
         // Emit cleanup deltas for targets that disappeared (e.g. deleted table rows)
@@ -531,6 +548,9 @@ export class PolicyEngine {
                 }
                 if (lastState.editable === false) {
                     deltas.push({ target: prevTarget, property: "editable", value: true });
+                }
+                if (lastState.enabled === false) {
+                    deltas.push({ target: prevTarget, property: "enabled", value: true });
                 }
             }
         }

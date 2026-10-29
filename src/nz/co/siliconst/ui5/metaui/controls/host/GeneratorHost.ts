@@ -16,6 +16,9 @@ import { ValidationDelegate } from "./delegates/ValidationDelegate";
 import { DialogDelegate, IHostDialog } from "./delegates/DialogDelegate";
 import { PolicyDelegate } from "./delegates/PolicyDelegate";
 import { GenerationDelegate } from "./delegates/GenerationDelegate";
+import { SpaceDelegate } from "./delegates/SpaceDelegate";
+import { PayloadDelegate } from "./delegates/PayloadDelegate";
+import Button from "sap/m/Button";
 import {
     HOST_CONTROL_METADATA,
     HOST_CONTROL_RENDERER,
@@ -43,6 +46,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
     protected dialogDelegate!: DialogDelegate;
     protected policyDelegate!: PolicyDelegate;
     protected generationDelegate!: GenerationDelegate;
+    protected spaceDelegate!: SpaceDelegate;
+    protected payloadDelegate!: PayloadDelegate;
 
     private normalizedDefinitions: Record<string, ISchema> | undefined;
     protected parsedSchema: ISchema | null = null;
@@ -82,6 +87,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
             this.syncOverallValidity();
         });
         this.generationDelegate = new GenerationDelegate(this);
+        this.spaceDelegate = new SpaceDelegate(this);
+        this.payloadDelegate = new PayloadDelegate(this);
         this.onInternalFieldChange = this.onInternalFieldChange.bind(this);
     }
 
@@ -210,6 +217,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         this._generationId++;
         this.policyDelegate.destroy();
         this.dialogDelegate.destroy();
+        this.spaceDelegate.destroy();
+        this.payloadDelegate.destroy();
         this.engine?.destroy();
         this.engine = null;
         this.stateManager?.destroy();
@@ -242,6 +251,54 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         Logger.error(msg, undefined, "GeneratorHost");
         this.fireEvent("error", { message: msg });
         this.validationDelegate.mountCrashBoundary(new Error(msg));
+    }
+
+    /** Standard UI5 Rendering Hook. Re-reads the width the host was given, now that it has one. */
+    public onAfterRendering(): void {
+        this.spaceDelegate.measure();
+    }
+
+    /**
+     * Reports whether this host shows the `showPayload` affordance.
+     *
+     * @returns {boolean} True when the payload icon, or its collapsed-form button, is shown.
+     */
+    public isPayloadViewerActive(): boolean {
+        return this.payloadDelegate.isActive();
+    }
+
+    /**
+     * Builds the payload button shown beside a collapsed form's own button.
+     *
+     * @returns {Button} The button.
+     */
+    public createCollapsedPayloadButton(): Button {
+        return this.payloadDelegate.createCollapsedButton();
+    }
+
+    /** Opens the live payload in the read-only JSON viewer. */
+    public openPayloadViewer(): void {
+        this.payloadDelegate.open();
+    }
+
+    /**
+     * Reports whether the form is currently collapsed to a button because the host is too narrow.
+     *
+     * @returns {boolean} True when collapsed.
+     */
+    public isSpaceCollapsed(): boolean {
+        return this.spaceDelegate.isCollapsed();
+    }
+
+    /** Re-applies the payload affordance: the corner icon, and the button beside a collapsed form. */
+    public refreshPayloadAffordances(): void {
+        this.spaceDelegate.refresh();
+        this.payloadDelegate.sync();
+    }
+
+    /** Applies the corner icon's visibility after the collapse decision changed. */
+    public syncPayloadIcon(): void {
+        this.payloadDelegate?.sync();
     }
 
     /** Public API method to manually trigger form submission. */
@@ -291,6 +348,15 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
 
     /** Intercepts property changes. Hot-swaps data gracefully or forces UI teardown on structural changes. */
     public setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this {
+        if (propertyName === "showPayload") {
+            // Only the payload icon changes; the generated form is neither regenerated nor invalidated, so an
+            // edit in progress survives the flag being bound, toggled or defaulted.
+            super.setProperty(propertyName, value, true);
+            if (this.payloadDelegate) {
+                this.refreshPayloadAffordances();
+            }
+            return this;
+        }
         if (propertyName === "useMessageManager") {
             this.stateManager?.setUseMessageManager(value === true);
             this.engine?.setUseMessageManager(value === true);
@@ -307,10 +373,17 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         if (propertyName === "schemaDefinitions") {
             this.normalizedDefinitions = undefined;
         }
-        if (["editable", "debugMode", "layoutBudget", "schemaDefinition", "schemaTarget"].includes(propertyName)) {
+        if (
+            ["editable", "enabled", "debugMode", "layoutBudget", "schemaDefinition", "schemaTarget"].includes(propertyName)
+        ) {
             if (this.getProperty(propertyName) !== value) {
                 super.setProperty(propertyName, value, suppressInvalidate);
-                if (propertyName === "editable" || propertyName === "debugMode" || propertyName === "layoutBudget") {
+                if (
+                    propertyName === "editable" ||
+                    propertyName === "enabled" ||
+                    propertyName === "debugMode" ||
+                    propertyName === "layoutBudget"
+                ) {
                     this.preservePayloadOnRegenerate = true;
                 } else {
                     this.preservePayloadOnRegenerate = false;
@@ -444,7 +517,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
             this.engine = new Engine(
                 this.getProperty("editable") !== false,
                 this.getProperty("useMessageManager") === true,
-                activeRegistry
+                activeRegistry,
+                this.getProperty("enabled") !== false
             );
             this.engine.host = this;
             this.generatedContent = this.engine.build(
@@ -462,6 +536,7 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
                 this.engine.hasPartialRenderingErrors
             );
             this.setAggregation("_content", container, this.sParentAggregationName === "dependents");
+            this.spaceDelegate.attach(container);
             this.policyDelegate.evaluateNow(this.stateManager, this.engine);
             this.syncOverallValidity();
             if (this.getProperty("liveUpdate") === true) {
@@ -494,7 +569,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
         submitButtonText: string = I18n.getText(TEXT_KEY.dialogSubmit),
         cancelButtonText: string = I18n.getText(TEXT_KEY.dialogCancel),
         dialogWidth: string = "auto",
-        parentView?: Control
+        parentView?: Control,
+        extraButtons: Button[] = []
     ): Promise<void> {
         return this.dialogDelegate.openInDialog(
             title,
@@ -502,7 +578,8 @@ export default class GeneratorHost extends Control implements IEngineHost, IHost
             !!this.generatedContent,
             cancelButtonText,
             dialogWidth,
-            parentView
+            parentView,
+            extraButtons
         );
     }
 }
@@ -598,6 +675,10 @@ export default interface GeneratorHost {
     getDebugMode(): boolean;
     getEditable(): boolean;
     setEditable(editable: boolean): this;
+    getEnabled(): boolean;
+    setEnabled(enabled: boolean): this;
+    getShowPayload(): boolean;
+    setShowPayload(showPayload: boolean): this;
     getLayoutBudget(): number;
     setLayoutBudget(layoutBudget: number): this;
     getEngineScopeId(): string;

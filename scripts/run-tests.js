@@ -1898,7 +1898,6 @@ const UNDOCUMENTED_SYMBOL_ALLOWLIST = new Map([
     ["layouts/LayoutElementWalker.ts#ILabelledFieldResult", "Internal label-and-control pair returned to layouts by LayoutElementWalker."],
     ["layouts/LayoutElementWalker.ts#IResolvedLayoutControl", "Internal resolved control descriptor passed to ILayoutWalkerSink callbacks."],
     ["layouts/LayoutElementWalker.ts#ILayoutWalkerSink", "Internal sink interface implemented by FormLayout, WizardLayout, and FlexibleColumnLayout."],
-    ["layouts/LayoutElementWalker.ts#LayoutFieldFactory", "Internal callback type for rendering a single field inside LayoutElementWalker."],
     ["layouts/LayoutElementWalker.ts#ArraySubSchemaFactory", "Internal callback type for rendering an inline array sub-schema in LayoutElementWalker."],
     ["plugins/actions/ActionButtonPlugin.ts#IActionButtonConfig", "Internal configuration struct passed by SubmitActionPlugin and ClearFormActionPlugin."],
     ["plugins/controls/NestedDialogPlugin.ts#INestedDialogDescriptor", "Internal descriptor struct passed by NestedFormPlugin and NestedArrayPlugin."],

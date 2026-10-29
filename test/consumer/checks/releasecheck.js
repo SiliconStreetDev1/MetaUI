@@ -30,6 +30,9 @@ function check(name, ok, detail) {
         consoleErrors.push(`${m.text()} @ ${loc || "unknown"}`);
     });
     page.on("pageerror", (e) => pageErrors.push(e.message));
+    const requested = [];
+    page.on("request", (r) => requested.push(r.url()));
+    const codeEditorRequested = () => requested.some((u) => u.indexOf("sap/ui/codeeditor/") !== -1);
     page.on("requestfailed", (r) => { if (!isFavicon(r.url())) failedRequests.push(`${r.url()} :: ${r.failure() && r.failure().errorText}`); });
     page.on("response", (r) => { if (r.status() >= 400 && !isFavicon(r.url())) failedRequests.push(`${r.url()} -> HTTP ${r.status()}`); });
 
@@ -131,7 +134,49 @@ function check(name, ok, detail) {
         check("Dialog form body shows the title at most once", dialog.inForm <= 1, "occurrences = " + dialog.inForm);
     }
 
-    // 8. Clean console.
+    // 8. The payload viewer's code editor is lazy: nothing on this page uses a code editor, so the library may
+    //    only be fetched once a viewer is actually opened - not on load, and not when the icon is switched on.
+    check("sap.ui.codeeditor is not requested by a page that never opens the payload viewer", !codeEditorRequested());
+    const iconShown = await page.evaluate(() => new Promise((resolve) => {
+        sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DH) => {
+            (DH.default || DH).setShowPayloadDefault(true);
+            setTimeout(() => {
+                const Element = sap.ui.require("sap/ui/core/Element");
+                const icons = Element.registry.filter((e) => e.isA("sap.m.Button") && e.getParent() &&
+                    e.getParent().isA("nz.co.siliconst.ui5.metaui.controls.host.GeneratorHost") && e.getVisible() && !!e.getDomRef());
+                resolve(icons.length);
+            }, 1500);
+        });
+    }));
+    check("setShowPayloadDefault(true) shows the payload icon on hosts already rendered", iconShown > 0, iconShown + " buttons");
+    check("...and showing the icon alone still does not request sap.ui.codeeditor", !codeEditorRequested());
+    const viewer = await page.evaluate(() => new Promise((resolve) => {
+        const Element = sap.ui.require("sap/ui/core/Element");
+        const icon = Element.registry.filter((e) => e.isA("sap.m.Button") && e.getParent() &&
+            e.getParent().isA("nz.co.siliconst.ui5.metaui.controls.host.GeneratorHost") && e.getVisible())[0];
+        if (!icon) { resolve({ ok: false, why: "no payload button" }); return; }
+        icon.firePress();
+        const started = Date.now();
+        (function poll() {
+            const editor = Element.registry.filter((e) => e.isA("sap.ui.codeeditor.CodeEditor"))[0];
+            if (editor && editor.getValue()) {
+                let parsed = false;
+                try { JSON.parse(editor.getValue()); parsed = true; } catch (e) { parsed = false; }
+                const dialog = Element.registry.filter((e) => e.isA("sap.m.Dialog") && e.isOpen())[0];
+                if (dialog) { const b = dialog.getButtons(); b[b.length - 1].firePress(); }
+                sap.ui.require(["nz/co/siliconst/ui5/metaui/controls/DynamicHost"], (DH) => (DH.default || DH).setShowPayloadDefault(false));
+                resolve({ ok: parsed, why: parsed ? "" : "editor value is not JSON" });
+                return;
+            }
+            if (Date.now() - started > 15000) { resolve({ ok: false, why: "viewer did not open" }); return; }
+            setTimeout(poll, 100);
+        })();
+    }));
+    check("Pressing the icon opens the payload as JSON in the code editor", viewer.ok, viewer.why);
+    check("...and only then is sap.ui.codeeditor requested", codeEditorRequested());
+    await new Promise((r) => setTimeout(r, 800));
+
+    // 9. Clean console.
     const ignorable = (t) => /favicon|DevTools|sap-ui-debug/i.test(t);
     const realConsole = consoleErrors.filter((t) => !ignorable(t));
     const realFailed = failedRequests.filter((t) => !ignorable(t));

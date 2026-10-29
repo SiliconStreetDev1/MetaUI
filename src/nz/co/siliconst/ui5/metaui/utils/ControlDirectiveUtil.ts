@@ -29,6 +29,19 @@ import { ButtonType, ListMode } from "sap/m/library";
 export * from "./ControlCapabilities";
 
 /**
+ * CustomData key recording how MetaUI disabled a control on the enabled axis (`enabled`, `readOnly`,
+ * `editable` or `mode`), so that enabling it again restores exactly what disabling changed and nothing
+ * the control's own editability had set.
+ */
+const AXIS_DISABLED_KEY = "metauiAxisDisabled";
+
+/**
+ * CustomData key marking a field whose schema (`ui.enabled: false`) or host (`enabled="false"`) disabled
+ * it at render. A runtime `Enable` can never lift it. Being CustomData, it survives table row cloning.
+ */
+const DECLARED_DISABLED_KEY = "metauiDeclaredDisabled";
+
+/**
  * Binding-info members `BindingParser` fills by resolving a name against the global scope. None of them
  * can legitimately appear in a binding MetaUI builds from a schema rule.
  */
@@ -110,14 +123,138 @@ export class ControlDirectiveUtil {
         }
         if (isEditableSupport(target)) {
             target.setEditable(effectiveEditable);
-            if (effectiveEditable && isEnabledSupport(target)) {
-                target.setEnabled(true);
-            }
         } else if (isEnabledSupport(target)) {
-            target.setEnabled(effectiveEditable);
+            target.setEnabled(effectiveEditable && !this.isAxisDisabled(target));
         } else if (target.getMetadata().hasProperty("readOnly")) {
-            target.setProperty("readOnly", !effectiveEditable);
+            target.setProperty("readOnly", !effectiveEditable || this.isAxisDisabled(target));
         }
+    }
+
+    /**
+     * Applies the enabled axis to a field's outer control: disabled renders the real widget greyed out and
+     * non-interactive, which is a different state from read-only and is never swapped for display text.
+     *
+     * Each control is disabled through the first mechanism it has:
+     * 1. `enabled` — every standard input, picker, select, check box and button;
+     * 2. `readOnly` — the hardware and canvas controls, which have no disabled state of their own;
+     * 3. `editable` — editors such as the code editor that expose no `enabled`;
+     * 4. none of these — a container (a polymorphic or dictionary field, a field with an expand button,
+     *    a table), whose descendants are disabled instead, nested fields included.
+     *
+     * Each change is recorded against the field that made it, keyed by its binding path rather than its
+     * control id so that the record survives table row cloning. Enabling reverses only the changes the same
+     * field recorded: a nested field disabled by its own schema or policy stays disabled when its parent is
+     * enabled again, and nothing the control's editability had set is touched. Enabling is refused outright
+     * for a field its schema or host declared disabled. A control whose `enabled` is bound by a
+     * `ui.enabledOn` expression is left to that expression.
+     *
+     * @param target The field's outer control.
+     * @param enabled True to enable, false to disable.
+     */
+    public static applyEnabledState(target: Control | undefined, enabled: boolean): void {
+        if (!target || (enabled && target.data(DECLARED_DISABLED_KEY) === true)) {
+            return;
+        }
+        const tag: unknown = target.data("metauiBindingPath");
+        const owner = typeof tag === "string" ? tag : "";
+        const visit = (ctrl: Control): void => {
+            if (typeof ctrl.data !== "function" || typeof ctrl.getMetadata !== "function") {
+                return;
+            }
+            const ownsState = enabled ? this.liftAxisDisabled(ctrl, owner) : this.imposeAxisDisabled(ctrl, owner);
+            if (ownsState) {
+                return;
+            }
+            for (const child of ctrl.findAggregatedObjects(false) as Control[]) {
+                visit(child);
+            }
+        };
+        visit(target);
+    }
+
+    /**
+     * Records that a field was declared disabled by its schema or host, so no runtime `Enable` lifts it.
+     *
+     * @param controls The field's outer control and its primary interactive control.
+     */
+    private static declareDisabled(...controls: Control[]): void {
+        for (const ctrl of controls) {
+            ctrl.data(DECLARED_DISABLED_KEY, true);
+        }
+    }
+
+    /**
+     * Reports whether the enabled axis currently holds a control disabled.
+     *
+     * @param ctrl The control to inspect.
+     * @returns {boolean} True when MetaUI disabled it on the enabled axis or its field was declared disabled.
+     */
+    private static isAxisDisabled(ctrl: Control): boolean {
+        return Boolean(ctrl.data(AXIS_DISABLED_KEY)) || ctrl.data(DECLARED_DISABLED_KEY) === true;
+    }
+
+    /**
+     * Disables one control through the first mechanism it has, recording which and for which field.
+     *
+     * @param ctrl The control to disable.
+     * @param owner Binding path of the field doing the disabling.
+     * @returns {boolean} True when the control owns an interactivity state, so its descendants are left alone.
+     */
+    private static imposeAxisDisabled(ctrl: Control, owner: string): boolean {
+        const meta = ctrl.getMetadata();
+        const table = ctrl as Control & { getMode?: () => string; setMode?: (mode: ListMode) => void };
+        if (meta.getName() === "sap.m.Table") {
+            if (table.getMode?.() === ListMode.Delete) {
+                table.setMode?.(ListMode.None);
+                ctrl.data(AXIS_DISABLED_KEY, `mode|${owner}`);
+            }
+            return false;
+        }
+        if (meta.hasProperty("enabled")) {
+            if (!ctrl.isBound("enabled") && ctrl.getProperty("enabled") !== false) {
+                ctrl.setProperty("enabled", false);
+                ctrl.data(AXIS_DISABLED_KEY, `enabled|${owner}`);
+            }
+            return true;
+        }
+        for (const property of ["readOnly", "editable"] as const) {
+            if (meta.hasProperty(property)) {
+                const disabledValue = property === "readOnly";
+                if (ctrl.getProperty(property) !== disabledValue) {
+                    ctrl.setProperty(property, disabledValue);
+                    ctrl.data(AXIS_DISABLED_KEY, `${property}|${owner}`);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Reverses what {@link ControlDirectiveUtil.imposeAxisDisabled} recorded on one control, when the same
+     * field recorded it.
+     *
+     * @param ctrl The control to enable.
+     * @param owner Binding path of the field doing the enabling.
+     * @returns {boolean} True when the control owns an interactivity state, so its descendants are left alone.
+     */
+    private static liftAxisDisabled(ctrl: Control, owner: string): boolean {
+        const meta = ctrl.getMetadata();
+        const recorded: unknown = ctrl.data(AXIS_DISABLED_KEY);
+        const separator = typeof recorded === "string" ? recorded.indexOf("|") : -1;
+        if (typeof recorded === "string" && separator !== -1 && recorded.slice(separator + 1) === owner) {
+            const mechanism = recorded.slice(0, separator);
+            if (mechanism === "mode") {
+                (ctrl as Control & { setMode?: (mode: ListMode) => void }).setMode?.(ListMode.Delete);
+            } else {
+                ctrl.setProperty(mechanism, mechanism !== "readOnly");
+            }
+            ctrl.data(AXIS_DISABLED_KEY, null);
+        }
+        if (meta.getName() === "sap.m.Table") {
+            return false;
+        }
+        return meta.hasProperty("enabled") || meta.hasProperty("readOnly") || meta.hasProperty("editable");
     }
 
     /**
@@ -143,6 +280,7 @@ export class ControlDirectiveUtil {
      * @param isEditable Whether the owning plugin is in edit mode.
      * @param modelName The UI5 JSONModel alias name.
      * @param accessibility Optional plugin-supplied required flag and inner name targets.
+     * @param isEnabled Whether the owning host is enabled. Composes with `ui.enabled` by AND.
      */
     public static applyCommonDirectives(
         control: Control,
@@ -151,7 +289,8 @@ export class ControlDirectiveUtil {
         pathForExpr: string,
         isEditable: boolean,
         modelName: string = "meta",
-        accessibility?: IAccessibilityContext
+        accessibility?: IAccessibilityContext,
+        isEnabled: boolean = true
     ): void {
         if (pathForExpr) {
             control.data("metauiBindingPath", pathForExpr);
@@ -160,13 +299,19 @@ export class ControlDirectiveUtil {
             }
         }
         const isPropReadOnly = Boolean(metadata.readOnly || metadata.ui?.readOnly);
-        const canEdit = isEditable && !isPropReadOnly && metadata.ui?.enabled !== false;
+        const canEdit = isEditable && !isPropReadOnly;
         if (isEditableSupport(effectiveTarget)) {
             effectiveTarget.setEditable(canEdit);
         } else if (!canEdit && isEnabledSupport(effectiveTarget)) {
             effectiveTarget.setEnabled(false);
         } else if (!canEdit && effectiveTarget.getMetadata().hasProperty("readOnly")) {
             effectiveTarget.setProperty("readOnly", true);
+        }
+
+        const canEnable = isEnabled && metadata.ui?.enabled !== false;
+        if (!canEnable) {
+            this.declareDisabled(control, effectiveTarget);
+            this.applyEnabledState(control, false);
         }
 
         if (metadata.description && !effectiveTarget.getTooltip()) {
@@ -188,9 +333,7 @@ export class ControlDirectiveUtil {
             }
         }
 
-        if (metadata.ui.enabled === false && isEnabledSupport(effectiveTarget)) {
-            effectiveTarget.setEnabled(false);
-        } else if (metadata.ui.enabledOn && effectiveTarget.getMetadata().hasProperty("enabled")) {
+        if (canEnable && metadata.ui.enabledOn && effectiveTarget.getMetadata().hasProperty("enabled")) {
             // The hasProperty guard is not optional: ManagedObject.bindProperty throws for a
             // property the control does not declare. sap.m.Text has no `enabled`, and it backs
             // the display mode of most widgets, so an unguarded bind turned `enabledOn` into a
@@ -493,7 +636,7 @@ export class ControlDirectiveUtil {
     }
 
     /**
-     * Applies a row policy state (`visibility`, `required`, `editable`) to all controls bound to `cleanPath`.
+     * Applies a row policy state (`visibility`, `required`, `editable`, `enabled`) to all controls bound to `cleanPath`.
      *
      * @param root The root generated UI5 control tree.
      * @param host The owning engine host.
@@ -503,7 +646,7 @@ export class ControlDirectiveUtil {
      */
     public static applyBoundRowPolicyState(
         root: Control, host: IEngineHost, cleanPath: string,
-        property: "visibility" | "required" | "editable", value: boolean
+        property: "visibility" | "required" | "editable" | "enabled", value: boolean
     ): void {
         forEachBoundControl(root, host, cleanPath, (inspectable) => {
             const ctrl = inspectable as Control;
@@ -513,6 +656,8 @@ export class ControlDirectiveUtil {
                 if (!value) this.applyVisualValidationState(ctrl, true);
             } else if (property === "editable") {
                 this.applyEditableState(ctrl, value);
+            } else if (property === "enabled") {
+                this.applyEnabledState(ctrl, value);
             } else if (property === "required") {
                 inspectable.data?.("metauiDynamicRequired", value);
                 this.applyRequiredState(ctrl, value);
@@ -521,6 +666,10 @@ export class ControlDirectiveUtil {
         if (property === "editable") {
             forEachBoundControl(root, host, cleanPath, (inspectable) => {
                 this.applyEditableState(inspectable as Control, value);
+            }, true);
+        } else if (property === "enabled") {
+            forEachBoundControl(root, host, cleanPath, (inspectable) => {
+                this.applyEnabledState(inspectable as Control, value);
             }, true);
         }
     }

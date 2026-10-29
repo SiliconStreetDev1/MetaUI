@@ -12,6 +12,7 @@ import type { PluginRegistry } from "../core/PluginRegistry";
 
 /**
  * Result returned when a control plugin executes its internal validation pipeline.
+ * @public
  */
 export interface IPluginValidationResult {
     isValid: boolean;
@@ -23,6 +24,7 @@ export interface IPluginValidationResult {
 /**
  * Contextual callbacks and services injected into a plugin by the orchestrating {@link Engine}.
  * Replaces parent-tree walking and singleton lookups with explicit dependency injection.
+ * @public
  */
 export interface IPluginEngineContext {
     /** The active PluginRegistry for this engine instance. */
@@ -50,6 +52,7 @@ export interface IPluginEngineContext {
 /**
  * Standardized hooks for the Policy-Based Rule Engine (PBRE) to dynamically mutate visual state.
  * Implemented by `PluginStateBase` and inherited by every control plugin via `BasePlugin`.
+ * @public
  */
 export interface IPluginStateReceiver {
     applyError(errorMessage: string): void;
@@ -57,6 +60,8 @@ export interface IPluginStateReceiver {
     applyVisibility(isVisible: boolean): void;
     applyRequired(isRequired: boolean): void;
     applyEditable(isEditable: boolean): void;
+    /** Applies the `Enable` / `Disable` policy effects. Optional, so plugins written before it still conform. */
+    applyEnabled?(isEnabled: boolean): void;
     isVisible(): boolean;
     getFieldLabel(): string | undefined;
     getControlId(): string | undefined;
@@ -65,6 +70,7 @@ export interface IPluginStateReceiver {
 
 /**
  * Core contract for all UI5 control, action, and datasource generation plugins in MetaUI.
+ * @public
  */
 export interface IPlugin extends IPluginStateReceiver {
     /**
@@ -135,9 +141,16 @@ export interface IPlugin extends IPluginStateReceiver {
     setEditable(editable: boolean): void;
 
     /**
-     * Dynamically updates a specific state property (`visible`, `editable`, `required`, `valid`) at runtime.
+     * Injects the global enabled state into the plugin before rendering. A disabled plugin still renders
+     * its real widget, greyed out. Optional, so plugins written before it still conform.
+     * @param enabled True if the plugin should render interactive controls.
      */
-    setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void;
+    setEnabled?(enabled: boolean): void;
+
+    /**
+     * Dynamically updates a specific state property (`visible`, `editable`, `enabled`, `required`, `valid`) at runtime.
+     */
+    setState(property: "visible" | "editable" | "enabled" | "required" | "valid", value: boolean, message?: string): void;
 
     /**
      * Resolves a nested child plugin by its binding path when this plugin manages dynamic child plugins (e.g. `PolymorphicPlugin`).

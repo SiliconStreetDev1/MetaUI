@@ -13,6 +13,7 @@ import Event from "sap/ui/base/Event";
 import { PayloadValidator } from "../../core/PayloadValidator";
 import { deepClone } from "../../utils/TypeGuards";
 import { I18n, MetaUITextKey, TEXT_KEY } from "../../utils/I18n";
+import { NestedCaption } from "../../utils/NestedCaption";
 
 /**
  * Resolved sub-schema and modal dialog configuration for a nested dialog launch.
@@ -148,18 +149,7 @@ export abstract class NestedDialogPlugin extends BasePlugin {
         const textBinding =
             !this.isEditable && !metadata.ui?.dialogButtonText
                 ? this.generateBindingInfo(bindingPath, modelName, undefined, {
-                      formatter: (val: unknown) => {
-                          if (Array.isArray(val)) {
-                              return I18n.getText(TEXT_KEY.nestedViewSummary, [label, val.length]);
-                          }
-                          if (val && typeof val === "object") {
-                              const summary = Object.values(val as Record<string, unknown>).join(", ");
-                              return summary
-                                  ? I18n.getText(TEXT_KEY.nestedViewSummary, [label, summary])
-                                  : I18n.getText(TEXT_KEY.nestedView, [label]);
-                          }
-                          return I18n.getText(TEXT_KEY.nestedView, [label]);
-                      }
+                      formatter: (val: unknown) => NestedCaption.build(label, val)
                   })
                 : btnText;
 

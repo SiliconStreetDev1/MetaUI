@@ -163,7 +163,8 @@ export class DialogDelegate {
         _isGenerated: boolean = false,
         cancelButtonText: string = I18n.getText(TEXT_KEY.dialogCancel),
         dialogWidth: string = "auto",
-        parentView?: Control
+        parentView?: Control,
+        extraButtons: Button[] = []
     ): Promise<void> {
         const requestId = ++this.openRequestId;
         this.destroy();
@@ -270,6 +271,17 @@ export class DialogDelegate {
             });
 
             this.activeDialog = dialog;
+
+            if (extraButtons.length > 0) {
+                // sap.m.Dialog ignores beginButton and endButton once its buttons aggregation is used, so the
+                // standard buttons move there too, after the caller's own.
+                const footer = [...extraButtons, dialog.getBeginButton(), dialog.getEndButton()];
+                for (const button of footer) {
+                    if (button) {
+                        dialog.addButton(button);
+                    }
+                }
+            }
 
             const origDialogInvalidate = dialog.invalidate.bind(dialog);
             dialog.invalidate = (oOrigin?: ManagedObject): void => {

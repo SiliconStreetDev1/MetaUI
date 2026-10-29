@@ -49,6 +49,9 @@ export class Engine {
     /** Tracks whether the entire engine is running in Editable mode. */
     public readonly isEditable: boolean = true;
 
+    /** Tracks whether the entire engine renders its controls enabled. */
+    public readonly isEnabled: boolean = true;
+
     /** Tracks if any fields or sub-layouts failed to render, requiring a warning strip. */
     public hasPartialRenderingErrors: boolean = false;
 
@@ -63,9 +66,16 @@ export class Engine {
      * @param editable Whether the engine should render form fields as editable or read-only.
      * @param useMessageManager Whether to delegate visual state to UI5 MessageManager.
      * @param pluginRegistry Optional injected plugin registry. Defaults to singleton.
+     * @param enabled Whether the engine should render form fields enabled or disabled.
      */
-    constructor(editable: boolean = true, useMessageManager: boolean = false, pluginRegistry?: PluginRegistry) {
+    constructor(
+        editable: boolean = true,
+        useMessageManager: boolean = false,
+        pluginRegistry?: PluginRegistry,
+        enabled: boolean = true
+    ) {
         this.isEditable = editable;
+        this.isEnabled = enabled;
         this.useMessageManager = useMessageManager;
         this.pluginRegistry = pluginRegistry || PluginRegistry.getInstance();
         this.validationLedger = new ValidationLedger(
@@ -144,6 +154,9 @@ export class Engine {
         try {
             const plugin = this.pluginRegistry.getPlugin(fieldMeta.type || "string", fieldMeta.ui?.widget);
             plugin.setEditable(this.isEditable);
+            if (typeof plugin.setEnabled === "function") {
+                plugin.setEnabled(this.isEnabled);
+            }
             if (typeof plugin.setUseMessageManager === "function") {
                 plugin.setUseMessageManager(this.useMessageManager);
             }
@@ -333,7 +346,7 @@ export class Engine {
     }
 
     /**
-     * Applies a PBRE state mutation (`visibility`, `required`, `editable`) to cloned table row cell controls.
+     * Applies a PBRE state mutation (`visibility`, `required`, `editable`, `enabled`) to cloned table row cell controls.
      *
      * @param targetPath The expanded row cell path (e.g. `"/Items/0/Price"`).
      * @param property The state property to update.
@@ -341,10 +354,10 @@ export class Engine {
      */
     public applyRowPolicyState(
         targetPath: string,
-        property: "visibility" | "required" | "editable",
+        property: "visibility" | "required" | "editable" | "enabled",
         value: boolean
     ): void {
-        if (property === "editable" && !this.isEditable) {
+        if ((property === "editable" && !this.isEditable) || (property === "enabled" && !this.isEnabled)) {
             return;
         }
         this.validationLedger.applyRowControlState(targetPath, property, value);

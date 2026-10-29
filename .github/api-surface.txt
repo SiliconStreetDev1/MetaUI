@@ -57,8 +57,10 @@ module nz/co/siliconst/ui5/metaui/controls/DynamicHost
     setBindingContext(oContext: Context | null | undefined, sModelName?: string): this;
     setProperty(propertyName: string, value: unknown, suppressInvalidate?: boolean): this;
     setSchemaDefinitions(definitions: Record<string, ISchema>): this;
+    static getShowPayloadDefault(): boolean;
     static readonly metadata: any;
     static renderer: any;
+    static setShowPayloadDefault(show: boolean): void;
     triggerSubmit(): boolean;
   export type DynamicHost$CancelEventParameters = object;
   interface DynamicHost
@@ -92,6 +94,7 @@ module nz/co/siliconst/ui5/metaui/controls/DynamicHost
     getDataJson(): string;
     getDebugMode(): boolean;
     getEditable(): boolean;
+    getEnabled(): boolean;
     getEngineScopeId(): string;
     getHeight(): CSSSize;
     getIsValid(): boolean;
@@ -101,12 +104,14 @@ module nz/co/siliconst/ui5/metaui/controls/DynamicHost
     getPluginRegistry(): object;
     getSchemaBuilderRegistry(): object;
     getSchemaTarget(): string;
+    getShowPayload(): boolean;
     getUseMessageManager(): boolean;
     getWidth(): CSSSize;
     setData(data: unknown): this;
     setDataJson(dataJson: string): this;
     setDebugMode(debugMode: boolean): this;
     setEditable(editable: boolean): this;
+    setEnabled(enabled: boolean): this;
     setEngineScopeId(engineScopeId: string): this;
     setHeight(height: CSSSize): this;
     setIsValid(isValid: boolean): this;
@@ -117,6 +122,7 @@ module nz/co/siliconst/ui5/metaui/controls/DynamicHost
     setSchemaBuilderRegistry(schemaBuilderRegistry: object): this;
     setSchemaDefinition(schemaDefinition: unknown): this;
     setSchemaTarget(schemaTarget: string): this;
+    setShowPayload(showPayload: boolean): this;
     setUseMessageManager(useMessageManager: boolean): this;
     setWidth(width: CSSSize): this;
   interface DynamicHost$BeforeLayoutSectionChangeEventParameters
@@ -293,11 +299,11 @@ module nz/co/siliconst/ui5/metaui/utils/UrlValidator
 === tier: extension ===
 module nz/co/siliconst/ui5/metaui/core/Engine
   class Engine
-    applyRowPolicyState(targetPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
+    applyRowPolicyState(targetPath: string, property: "visibility" | "required" | "editable" | "enabled", value: boolean): void;
     build(schema: ISchema, model: Model | undefined, modelName?: string, onSubmit?: () => void, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void): Control;
     clearValidationErrors(): void;
     clearValidationPrefix(prefix: string): void;
-    constructor(editable?: boolean, useMessageManager?: boolean, pluginRegistry?: PluginRegistry);
+    constructor(editable?: boolean, useMessageManager?: boolean, pluginRegistry?: PluginRegistry, enabled?: boolean);
     destroy(): void;
     engineScopeId?: string;
     generateField(fieldMeta: IPropertyMetadata, bindingPath: string, modelName: string, isTemplate?: boolean): Control;
@@ -314,6 +320,7 @@ module nz/co/siliconst/ui5/metaui/core/Engine
     onArrayMutated(arrayPath: string, deletedRowIndex?: number): void;
     onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void;
     readonly isEditable: boolean;
+    readonly isEnabled: boolean;
     readonly pluginRegistry: PluginRegistry;
     refreshFieldValidationState(fieldPath: string): void;
     reportCustomError(fieldPath: string, errorMessage: string | null): void;
@@ -362,6 +369,7 @@ module nz/co/siliconst/ui5/metaui/core/PluginRegistry
 module nz/co/siliconst/ui5/metaui/core/PluginStateBase
   abstract class PluginStateBase implements IPluginStateReceiver
     applyEditable(editable: boolean): void;
+    applyEnabled(enabled: boolean): void;
     applyError(errorMessage: string): void;
     applyRequired(required: boolean): void;
     applyVisibility(visible: boolean): void;
@@ -375,15 +383,19 @@ module nz/co/siliconst/ui5/metaui/core/PluginStateBase
     protected control?: Control;
     protected fieldKey?: string;
     protected isControlEditable(): boolean;
+    protected isControlEnabled(): boolean;
     protected isEditable: boolean;
+    protected isEnabled: boolean;
     protected mainControl?: Control;
     protected metadata?: IPropertyMetadata;
+    protected refreshState(): void;
     setAssociatedLabel(label: Label): void;
     setEditable(editable: boolean): void;
-    setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void;
+    setEnabled(enabled: boolean): void;
+    setState(property: "visible" | "editable" | "enabled" | "required" | "valid", value: boolean, message?: string): void;
     setVisualValidationState(isValid: boolean, errorMessage?: string): void;
 module nz/co/siliconst/ui5/metaui/core/PolicyEngine
-  export type PropertyName = "visibility" | "validity" | "required" | "editable";
+  export type PropertyName = "visibility" | "validity" | "required" | "editable" | "enabled";
 module nz/co/siliconst/ui5/metaui/core/Registry
   class Registry<T>
     clear(): void;
@@ -432,8 +444,9 @@ module nz/co/siliconst/ui5/metaui/interfaces/IPlugin
     onStateChange(newMetadata: IPropertyMetadata): void;
     render(fieldMetadata: IPropertyMetadata, bindingPath: string, modelName?: string, engineScopeId?: string, onChange?: (isValid: boolean, fieldKey?: string, errorMessage?: string, controlId?: string) => void, model?: unknown): Control;
     setEditable(editable: boolean): void;
+    setEnabled?(enabled: boolean): void;
     setEngineContext(context: IPluginEngineContext): void;
-    setState(property: "visible" | "editable" | "required" | "valid", value: boolean, message?: string): void;
+    setState(property: "visible" | "editable" | "enabled" | "required" | "valid", value: boolean, message?: string): void;
     setUseMessageManager?(useMessageManager: boolean): void;
     setVisualValidationState(isValid: boolean, errorMessage?: string): void;
     validate(): IPluginValidationResult;
@@ -450,6 +463,7 @@ module nz/co/siliconst/ui5/metaui/interfaces/IPlugin
     resolveSchemaRef?: (refPath: string) => ISchema | undefined;
   interface IPluginStateReceiver
     applyEditable(isEditable: boolean): void;
+    applyEnabled?(isEnabled: boolean): void;
     applyError(errorMessage: string): void;
     applyRequired(isRequired: boolean): void;
     applyVisibility(isVisible: boolean): void;
@@ -521,6 +535,7 @@ module nz/co/siliconst/ui5/metaui/utils/ControlCapabilities
     readonly currentData: unknown;
     readonly definitions?: Record<string, ISchema>;
     readonly editable: boolean;
+    readonly enabled?: boolean;
     readonly isArrayRoot?: boolean;
     readonly layoutBudget?: number;
     readonly onHostCreated?: (host: DynamicHost) => void;
@@ -617,6 +632,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     addCustomError(fieldPath: string, message: string): void;
     clearCustomError(fieldPath: string): void;
     constructor(idOrSettings?: string | object, settings?: object);
+    createCollapsedPayloadButton(): Button;
     evaluatePoliciesNow(): void;
     exit(): void;
     generate(): Promise<void>;
@@ -631,19 +647,26 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     getStateManager(): StateManager | null;
     init(): void;
     invalidate(oOrigin?: ManagedObject): void;
+    isPayloadViewerActive(): boolean;
+    isSpaceCollapsed(): boolean;
     notifyAsyncDataArrived(): void;
+    onAfterRendering(): void;
     onBeforeRendering(): void;
     onDataHotSwapped(): void;
-    openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): Promise<void>;
+    openInDialog(title?: string, submitButtonText?: string, cancelButtonText?: string, dialogWidth?: string, parentView?: Control, extraButtons?: Button[]): Promise<void>;
+    openPayloadViewer(): void;
     protected dataSyncDelegate: DataSyncDelegate;
     protected dialogDelegate: DialogDelegate;
     protected engine: Engine | null;
     protected generationDelegate: GenerationDelegate;
     protected onInternalFieldChange(isValid: boolean, fieldKey?: string, errorMessage?: string): void;
     protected parsedSchema: ISchema | null;
+    protected payloadDelegate: PayloadDelegate;
     protected policyDelegate: PolicyDelegate;
+    protected spaceDelegate: SpaceDelegate;
     protected stateManager: StateManager | null;
     protected validationDelegate: ValidationDelegate;
+    refreshPayloadAffordances(): void;
     resetAndEvaluatePoliciesNow(): void;
     revertUncommittedChanges(): void;
     sParentAggregationName?: string;
@@ -655,6 +678,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     static readonly metadata: any;
     static renderer: any;
     syncOverallValidity(): void;
+    syncPayloadIcon(): void;
     tearDownGeneratedLayout(): void;
     triggerSubmit(): boolean;
   export type GeneratorHost$CancelEventParameters = object;
@@ -691,6 +715,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     getDataJson(): string;
     getDebugMode(): boolean;
     getEditable(): boolean;
+    getEnabled(): boolean;
     getEngineScopeId(): string;
     getHeight(): CSSSize;
     getIsValid(): boolean;
@@ -700,11 +725,13 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     getPluginRegistry(): object;
     getSchemaBuilderRegistry(): object;
     getSchemaTarget(): string;
+    getShowPayload(): boolean;
     getUseMessageManager(): boolean;
     getWidth(): CSSSize;
     setData(data: unknown): this;
     setDataJson(dataJson: string): this;
     setEditable(editable: boolean): this;
+    setEnabled(enabled: boolean): this;
     setEngineScopeId(engineScopeId: string): this;
     setHeight(height: CSSSize): this;
     setIsValid(isValid: boolean): this;
@@ -715,6 +742,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
     setSchemaBuilderRegistry(schemaBuilderRegistry: object): this;
     setSchemaDefinition(schemaDefinition: unknown): this;
     setSchemaTarget(schemaTarget: string): this;
+    setShowPayload(showPayload: boolean): this;
     setUseMessageManager(useMessageManager: boolean): this;
     setWidth(width: CSSSize): this;
   interface GeneratorHost$BeforeLayoutSectionChangeEventParameters
@@ -743,7 +771,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/GeneratorHost
   interface GeneratorHost$ValidationStateChangedEventParameters
     isValid?: boolean;
 module nz/co/siliconst/ui5/metaui/controls/host/HostControlMetadata
-  export const HOST_CONTROL_METADATA: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
+  export const HOST_CONTROL_METADATA: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; enabled: { type: string; defaultValue: boolean; }; showPayload: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; _space: { type: string; multiple: boolean; visibility: string; }; _payload: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
   export const HOST_CONTROL_RENDERER: { apiVersion: number; render(rm: RenderManager, control: Control): void; };
   export function extractConstructorJsonLiterals<T extends object>(idOrSettings?: string | T, settings?: T): IExtractedHostSettings<T>;
   export function isJsonLiteralString(val: unknown): val is string;
@@ -754,7 +782,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/HostControlMetadata
     settings?: T;
 module nz/co/siliconst/ui5/metaui/controls/host/InferredGeneratorHost
   class InferredGeneratorHost extends GeneratorHost
-    static readonly metadata: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
+    static readonly metadata: { properties: { schemaDefinition: { type: string; defaultValue: any; }; schemaDefinitions: { type: string; defaultValue: {}; }; schemaTarget: { type: string; defaultValue: any; }; pluginRegistry: { type: string; defaultValue: any; }; schemaBuilderRegistry: { type: string; defaultValue: any; }; data: { type: string; defaultValue: any; bindable: string; }; dataJson: { type: string; defaultValue: any; bindable: string; }; liveUpdate: { type: string; defaultValue: boolean; }; isValid: { type: string; defaultValue: boolean; }; useMessageManager: { type: string; defaultValue: boolean; }; modelName: { type: string; defaultValue: string; }; debugMode: { type: string; defaultValue: boolean; }; editable: { type: string; defaultValue: boolean; }; enabled: { type: string; defaultValue: boolean; }; showPayload: { type: string; defaultValue: boolean; }; layoutBudget: { type: string; defaultValue: number; }; engineScopeId: { type: string; defaultValue: any; }; width: { type: string; defaultValue: string; }; height: { type: string; defaultValue: string; }; }; aggregations: { _content: { type: string; multiple: boolean; visibility: string; }; _space: { type: string; multiple: boolean; visibility: string; }; _payload: { type: string; multiple: boolean; visibility: string; }; }; events: { beforeSubmit: { parameters: { payload: { type: string; }; addError: { type: string; }; preventDefault: { type: string; }; }; }; submit: { parameters: { payload: { type: string; }; payloadJson: { type: string; }; }; }; cancel: {}; fieldChange: { parameters: { fieldPath: { type: string; }; value: { type: string; }; payload: { type: string; }; isValid: { type: string; }; }; }; validationStateChanged: { parameters: { isValid: { type: string; }; }; }; validationError: { parameters: { fieldPath: { type: string; }; message: { type: string; }; }; }; validationSuccess: { parameters: { fieldPath: { type: string; }; }; }; error: { parameters: { message: { type: string; }; exception: { type: string; }; }; }; beforeLayoutSectionChange: { parameters: { stepIndex: { type: string; }; currentSectionIndex: { type: string; }; newSectionIndex: { type: string; }; payload: { type: string; }; preventDefault: { type: string; }; addError: { type: string; }; resumeNavigation: { type: string; }; }; }; }; };
     static renderer: { apiVersion: number; render(rm: import("sap/ui/core/RenderManager").default, control: import("sap/ui/core/Control").default): void; };
 module nz/co/siliconst/ui5/metaui/controls/host/delegates/DataSyncDelegate
   class DataSyncDelegate
@@ -791,7 +819,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/delegates/DialogDelegate
     calculateAndApplyOptimalWidth(schema: ISchema | null): void;
     constructor(host: IHostDialog & Control);
     destroy(): void;
-    openInDialog(title?: string, submitButtonText?: string, _isGenerated?: boolean, cancelButtonText?: string, dialogWidth?: string, parentView?: Control): Promise<void>;
+    openInDialog(title?: string, submitButtonText?: string, _isGenerated?: boolean, cancelButtonText?: string, dialogWidth?: string, parentView?: Control, extraButtons?: Button[]): Promise<void>;
   interface IHostDialog
     fireEvent(eventName: string, parameters?: Record<string, unknown>): unknown;
     generate(): Promise<void> | void;
@@ -804,6 +832,7 @@ module nz/co/siliconst/ui5/metaui/controls/host/delegates/GenerationDelegate
     constructor(host: GeneratorHost);
     preloadIfNeeded(schema: ISchema, registry: PluginRegistry, normalizedDefinitions?: Record<string, ISchema>): Promise<void>;
     prepareSchemaAndData(previousPayload: unknown): IPreparedGenerationInput | null;
+    static createStatusStrip(text: string, type: MessageType, styleClass: string): MessageStrip;
     wrapWithStatusBanners(generatedContent: Control, normalizedSchema: ISchema, dataParseError: string, hasPartialErrors: boolean): Control;
   interface IPreparedGenerationInput
     readonly dataParseError: string;
@@ -818,6 +847,16 @@ module nz/co/siliconst/ui5/metaui/controls/host/delegates/ODataDelegate
     getContext(): ODataV4Context | Context;
     handleFieldChange(fieldPath: string, value: unknown): void;
     syncToEngine(): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/PayloadDelegate
+  class PayloadDelegate
+    constructor(host: GeneratorHost);
+    createCollapsedButton(): Button;
+    destroy(): void;
+    isActive(): boolean;
+    open(): void;
+    static getShowByDefault(): boolean;
+    static setShowByDefault(show: boolean): void;
+    sync(): void;
 module nz/co/siliconst/ui5/metaui/controls/host/delegates/PolicyDelegate
   class PolicyDelegate
     cancelPendingEvaluation(): void;
@@ -835,6 +874,16 @@ module nz/co/siliconst/ui5/metaui/controls/host/delegates/SchemaResolutionDelega
     isDataNonEmpty(data: unknown, dataJson: unknown): boolean;
     resolveAndSpawnInnerHost(): GeneratorHost | null;
     startRemoteFetch(url: string): void;
+module nz/co/siliconst/ui5/metaui/controls/host/delegates/SpaceDelegate
+  class SpaceDelegate
+    attach(content: Control): void;
+    constructor(host: GeneratorHost);
+    destroy(): void;
+    isCollapsed(): boolean;
+    measure(): void;
+    refresh(): void;
+    static readonly MIN_USABLE_WIDTH = 180;
+    static readonly RESTORE_WIDTH = 196;
 module nz/co/siliconst/ui5/metaui/controls/host/delegates/ValidationDelegate
   class ValidationDelegate
     addCustomError(fieldPath: string, message: string): void;
@@ -1053,7 +1102,7 @@ module nz/co/siliconst/ui5/metaui/core/StateManager
     setUseMessageManager(use: boolean): void;
 module nz/co/siliconst/ui5/metaui/core/ValidationLedger
   class ValidationLedger
-    applyRowControlState(targetPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
+    applyRowControlState(targetPath: string, property: "visibility" | "required" | "editable" | "enabled", value: boolean): void;
     clear(resetVisuals?: boolean): void;
     clearArrayEntries(arrayPath: string): void;
     clearFieldGenerationFailures(): void;
@@ -1092,7 +1141,7 @@ module nz/co/siliconst/ui5/metaui/layouts/LayoutElementWalker
     static resolveControlElement(element: ILayoutElement, schema: ISchema, engine: Engine, layoutName: string, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): { meta: IPropertyMetadata; bindingPath: string; propKey: string; } | null;
     static walk(elements: ILayoutElement[], schema: ISchema, engine: Engine, sink: ILayoutWalkerSink, layoutName: string, depth?: number, activeNodes?: WeakSet<object>, activeRefs?: Set<string>): number;
   class LayoutFieldFactory
-    static cloneFieldMetadata(meta: IPropertyMetadata, widgetOverride?: string, forceReadOnly?: boolean): IPropertyMetadata;
+    static cloneFieldMetadata(meta: IPropertyMetadata, widgetOverride?: string, forceReadOnly?: boolean, forceDisabled?: boolean): IPropertyMetadata;
     static createHorizontalCell(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata, modelName: string, engine: Engine): { cellBox: VBox; absolutePath: string; };
     static createLabelledField(element: ILayoutElement, bindingPath: string, meta: IPropertyMetadata, modelName: string, engine: Engine, isLabelRendered?: boolean): ILabelledFieldResult;
     static createSimpleForm(title?: string, rootUi?: IUIDirective): SimpleForm;
@@ -1661,9 +1710,10 @@ module nz/co/siliconst/ui5/metaui/utils/ControlCapabilities
     setValueStateText?(text: string): unknown;
 module nz/co/siliconst/ui5/metaui/utils/ControlDirectiveUtil
   class ControlDirectiveUtil
-    static applyBoundRowPolicyState(root: Control, host: IEngineHost, cleanPath: string, property: "visibility" | "required" | "editable", value: boolean): void;
-    static applyCommonDirectives(control: Control, effectiveTarget: Control, metadata: IPropertyMetadata, pathForExpr: string, isEditable: boolean, modelName?: string, accessibility?: IAccessibilityContext): void;
+    static applyBoundRowPolicyState(root: Control, host: IEngineHost, cleanPath: string, property: "visibility" | "required" | "editable" | "enabled", value: boolean): void;
+    static applyCommonDirectives(control: Control, effectiveTarget: Control, metadata: IPropertyMetadata, pathForExpr: string, isEditable: boolean, modelName?: string, accessibility?: IAccessibilityContext, isEnabled?: boolean): void;
     static applyEditableState(target: Control | undefined, effectiveEditable: boolean): void;
+    static applyEnabledState(target: Control | undefined, enabled: boolean): void;
     static applyRequiredState(target: Control | undefined, required: boolean): void;
     static applyVisualValidationState(target: Control, isValid: boolean, errorMessage?: string): void;
     static clearBoundControlSubtree(root: Control, host: IEngineHost, cleanPrefix: string): void;
@@ -1687,6 +1737,7 @@ module nz/co/siliconst/ui5/metaui/utils/DictionaryMapUtil
     value: unknown;
   interface IDictionaryRowBuildOptions
     readonly canEdit: boolean;
+    readonly canEnable?: boolean;
     readonly engineContext?: IPluginEngineContext;
     readonly fieldKey?: string;
     readonly index: number;
@@ -1710,8 +1761,11 @@ module nz/co/siliconst/ui5/metaui/utils/I18n
     static getText(key: MetaUITextKey, args?: (string | number)[]): string;
     static hasText(key: string): boolean;
   export const METAUI_LIBRARY_NAME = "nz.co.siliconst.ui5.metaui";
-  export const TEXT_KEY: { readonly required: "metaui.validation.required"; readonly requiredNull: "metaui.validation.required.null"; readonly minLength: "metaui.validation.minLength"; readonly maxLength: "metaui.validation.maxLength"; readonly pattern: "metaui.validation.pattern"; readonly email: "metaui.validation.email"; readonly url: "metaui.validation.url"; readonly urlProtocol: "metaui.validation.url.protocol"; readonly iban: "metaui.validation.iban"; readonly ibanChecksum: "metaui.validation.iban.checksum"; readonly integer: "metaui.validation.integer"; readonly finiteNumber: "metaui.validation.number.finite"; readonly multipleOf: "metaui.validation.multipleOf"; readonly rangeMinimum: "metaui.validation.range.minimum"; readonly rangeExclusiveMinimum: "metaui.validation.range.exclusiveMinimum"; readonly rangeMaximum: "metaui.validation.range.maximum"; readonly rangeExclusiveMaximum: "metaui.validation.range.exclusiveMaximum"; readonly enumMembership: "metaui.validation.enum"; readonly constEquality: "metaui.validation.const"; readonly arrayMinItems: "metaui.validation.array.minItems"; readonly arrayMaxItems: "metaui.validation.array.maxItems"; readonly arrayUniqueItems: "metaui.validation.array.uniqueItems"; readonly objectMinProperties: "metaui.validation.object.minProperties"; readonly objectMaxProperties: "metaui.validation.object.maxProperties"; readonly systemError: "metaui.validation.systemError"; readonly fieldPrefix: "metaui.validation.field"; readonly rowPrefix: "metaui.validation.row"; readonly invalidValue: "metaui.validation.invalidValue"; readonly invalidItem: "metaui.validation.invalidItem"; readonly dateParseError: "metaui.picker.date.parseError"; readonly timeParseError: "metaui.picker.time.parseError"; readonly dateTimeParseError: "metaui.picker.dateTime.parseError"; readonly numberParseError: "metaui.number.parseError"; readonly integerParseError: "metaui.number.integerParseError"; readonly dictionaryLabel: "metaui.dictionary.defaultLabel"; readonly dictionaryAddEntry: "metaui.dictionary.addEntry"; readonly dictionaryEmpty: "metaui.dictionary.empty"; readonly dictionaryInvalidKeys: "metaui.dictionary.invalidKeys"; readonly fileUploadNoFile: "metaui.fileUpload.noFile"; readonly fileUploadImageAlt: "metaui.fileUpload.imageAlt"; readonly fileUploadPlaceholder: "metaui.fileUpload.placeholder"; readonly fileUploadBrowse: "metaui.fileUpload.browse"; readonly hardwareImageAlt: "metaui.hardware.imageAlt"; readonly hardwareSignatureAlt: "metaui.hardware.signatureAlt"; readonly geolocationCoordinates: "metaui.geolocation.coordinates"; readonly multiInputPlaceholder: "metaui.multiInput.placeholder"; readonly passwordPlaceholder: "metaui.password.placeholder"; readonly editorExpand: "metaui.editor.expand"; readonly editorDialogTitle: "metaui.editor.dialogTitle"; readonly editorClose: "metaui.editor.close"; readonly nestedEdit: "metaui.nested.edit"; readonly nestedView: "metaui.nested.view"; readonly nestedViewSummary: "metaui.nested.viewSummary"; readonly nestedArrayLabel: "metaui.nested.array.label"; readonly nestedArrayInvalid: "metaui.nested.array.invalid"; readonly nestedObjectLabel: "metaui.nested.object.label"; readonly nestedObjectTitle: "metaui.nested.object.title"; readonly nestedObjectInvalid: "metaui.nested.object.invalid"; readonly nestedReferenceLabel: "metaui.nested.reference.label"; readonly nestedReferenceInvalid: "metaui.nested.reference.invalid"; readonly actionClearForm: "metaui.action.clearForm"; readonly actionSubmit: "metaui.action.submit"; readonly actionOpenLink: "metaui.action.openLink"; readonly dataSourceSearchPlaceholder: "metaui.dataSource.searchPlaceholder"; readonly dataSourceSelectPlaceholder: "metaui.dataSource.selectPlaceholder"; readonly dataSourceValueHelpPlaceholder: "metaui.dataSource.valueHelpPlaceholder"; readonly dataSourceValueHelpTitle: "metaui.dataSource.valueHelpTitle"; readonly hardwareUnsupported: "metaui.hardware.failure.unsupported"; readonly hardwareDenied: "metaui.hardware.failure.denied"; readonly hardwareTimeout: "metaui.hardware.failure.timeout"; readonly hardwareFailed: "metaui.hardware.failure.failed"; readonly fieldRenderFailed: "metaui.validation.fieldRenderFailed"; readonly fieldInitFailed: "metaui.validation.fieldInitFailed"; readonly schemaConfigUnregisteredValidator: "metaui.validation.config.unregisteredValidator"; readonly schemaConfigArrayItemsObject: "metaui.validation.config.arrayItemsObject"; readonly schemaConfigMustBeNumber: "metaui.validation.config.mustBeNumber"; readonly schemaConfigMustBePositiveNumber: "metaui.validation.config.mustBePositiveNumber"; readonly schemaConfigMustBeString: "metaui.validation.config.mustBeString"; readonly schemaConfigPatternTooLong: "metaui.validation.config.patternTooLong"; readonly schemaConfigPatternTimeout: "metaui.validation.config.patternTimeout"; readonly schemaConfigInvalidRegex: "metaui.validation.config.invalidRegex"; readonly schemaConfigPatternUnsafe: "metaui.validation.config.patternUnsafe"; readonly schemaConfigPatternUnproven: "metaui.validation.config.patternUnproven"; readonly cameraStartCapture: "metaui.camera.startCapture"; readonly cameraTakeSnapshot: "metaui.camera.takeSnapshot"; readonly cameraClearRetake: "metaui.camera.clearRetake"; readonly geolocationPlaceholder: "metaui.geolocation.placeholder"; readonly geolocationGetLocation: "metaui.geolocation.getLocation"; readonly signatureClear: "metaui.signature.clear"; readonly voiceInputPlaceholder: "metaui.voiceInput.placeholder"; readonly voiceInputStart: "metaui.voiceInput.start"; readonly dialogDefaultTitle: "metaui.dialog.defaultTitle"; readonly dialogSubmit: "metaui.dialog.submit"; readonly dialogCancel: "metaui.dialog.cancel"; readonly dialogBuilding: "metaui.dialog.building"; readonly dialogSave: "metaui.dialog.save"; readonly dictionaryKeyEmpty: "metaui.dictionary.keyEmpty"; readonly dictionaryKeyReserved: "metaui.dictionary.keyReserved"; readonly dictionaryKeyDuplicate: "metaui.dictionary.keyDuplicate"; readonly dictionaryKeyPlaceholder: "metaui.dictionary.keyPlaceholder"; readonly dictionaryKeyLabel: "metaui.dictionary.keyLabel"; readonly dictionaryValueLabel: "metaui.dictionary.valueLabel"; readonly dictionaryRemoveEntry: "metaui.dictionary.removeEntry"; readonly tableDefaultTitle: "metaui.table.defaultTitle"; readonly tableAddRow: "metaui.table.addRow"; readonly tableValueColumn: "metaui.table.valueColumn"; readonly wizardStepTitle: "metaui.wizard.stepTitle"; readonly wizardStepCounter: "metaui.wizard.stepCounter"; readonly wizardPrevious: "metaui.wizard.previous"; readonly wizardNextStep: "metaui.wizard.nextStep"; readonly wizardComplete: "metaui.wizard.complete"; };
+  export const TEXT_KEY: { readonly required: "metaui.validation.required"; readonly requiredNull: "metaui.validation.required.null"; readonly minLength: "metaui.validation.minLength"; readonly maxLength: "metaui.validation.maxLength"; readonly pattern: "metaui.validation.pattern"; readonly email: "metaui.validation.email"; readonly url: "metaui.validation.url"; readonly urlProtocol: "metaui.validation.url.protocol"; readonly iban: "metaui.validation.iban"; readonly ibanChecksum: "metaui.validation.iban.checksum"; readonly integer: "metaui.validation.integer"; readonly finiteNumber: "metaui.validation.number.finite"; readonly multipleOf: "metaui.validation.multipleOf"; readonly rangeMinimum: "metaui.validation.range.minimum"; readonly rangeExclusiveMinimum: "metaui.validation.range.exclusiveMinimum"; readonly rangeMaximum: "metaui.validation.range.maximum"; readonly rangeExclusiveMaximum: "metaui.validation.range.exclusiveMaximum"; readonly enumMembership: "metaui.validation.enum"; readonly constEquality: "metaui.validation.const"; readonly arrayMinItems: "metaui.validation.array.minItems"; readonly arrayMaxItems: "metaui.validation.array.maxItems"; readonly arrayUniqueItems: "metaui.validation.array.uniqueItems"; readonly objectMinProperties: "metaui.validation.object.minProperties"; readonly objectMaxProperties: "metaui.validation.object.maxProperties"; readonly systemError: "metaui.validation.systemError"; readonly fieldPrefix: "metaui.validation.field"; readonly rowPrefix: "metaui.validation.row"; readonly invalidValue: "metaui.validation.invalidValue"; readonly invalidItem: "metaui.validation.invalidItem"; readonly dateParseError: "metaui.picker.date.parseError"; readonly timeParseError: "metaui.picker.time.parseError"; readonly dateTimeParseError: "metaui.picker.dateTime.parseError"; readonly numberParseError: "metaui.number.parseError"; readonly integerParseError: "metaui.number.integerParseError"; readonly dictionaryLabel: "metaui.dictionary.defaultLabel"; readonly dictionaryAddEntry: "metaui.dictionary.addEntry"; readonly dictionaryEmpty: "metaui.dictionary.empty"; readonly dictionaryInvalidKeys: "metaui.dictionary.invalidKeys"; readonly fileUploadNoFile: "metaui.fileUpload.noFile"; readonly fileUploadImageAlt: "metaui.fileUpload.imageAlt"; readonly fileUploadPlaceholder: "metaui.fileUpload.placeholder"; readonly fileUploadBrowse: "metaui.fileUpload.browse"; readonly hardwareImageAlt: "metaui.hardware.imageAlt"; readonly hardwareSignatureAlt: "metaui.hardware.signatureAlt"; readonly geolocationCoordinates: "metaui.geolocation.coordinates"; readonly multiInputPlaceholder: "metaui.multiInput.placeholder"; readonly passwordPlaceholder: "metaui.password.placeholder"; readonly editorExpand: "metaui.editor.expand"; readonly editorDialogTitle: "metaui.editor.dialogTitle"; readonly editorClose: "metaui.editor.close"; readonly nestedEdit: "metaui.nested.edit"; readonly nestedView: "metaui.nested.view"; readonly nestedViewSummary: "metaui.nested.viewSummary"; readonly nestedArrayLabel: "metaui.nested.array.label"; readonly nestedArrayInvalid: "metaui.nested.array.invalid"; readonly nestedObjectLabel: "metaui.nested.object.label"; readonly nestedObjectTitle: "metaui.nested.object.title"; readonly nestedObjectInvalid: "metaui.nested.object.invalid"; readonly nestedReferenceLabel: "metaui.nested.reference.label"; readonly nestedReferenceInvalid: "metaui.nested.reference.invalid"; readonly actionClearForm: "metaui.action.clearForm"; readonly actionSubmit: "metaui.action.submit"; readonly actionOpenLink: "metaui.action.openLink"; readonly dataSourceSearchPlaceholder: "metaui.dataSource.searchPlaceholder"; readonly dataSourceSelectPlaceholder: "metaui.dataSource.selectPlaceholder"; readonly dataSourceValueHelpPlaceholder: "metaui.dataSource.valueHelpPlaceholder"; readonly dataSourceValueHelpTitle: "metaui.dataSource.valueHelpTitle"; readonly hardwareUnsupported: "metaui.hardware.failure.unsupported"; readonly hardwareDenied: "metaui.hardware.failure.denied"; readonly hardwareTimeout: "metaui.hardware.failure.timeout"; readonly hardwareFailed: "metaui.hardware.failure.failed"; readonly fieldRenderFailed: "metaui.validation.fieldRenderFailed"; readonly fieldInitFailed: "metaui.validation.fieldInitFailed"; readonly schemaConfigUnregisteredValidator: "metaui.validation.config.unregisteredValidator"; readonly schemaConfigArrayItemsObject: "metaui.validation.config.arrayItemsObject"; readonly schemaConfigMustBeNumber: "metaui.validation.config.mustBeNumber"; readonly schemaConfigMustBePositiveNumber: "metaui.validation.config.mustBePositiveNumber"; readonly schemaConfigMustBeString: "metaui.validation.config.mustBeString"; readonly schemaConfigPatternTooLong: "metaui.validation.config.patternTooLong"; readonly schemaConfigPatternTimeout: "metaui.validation.config.patternTimeout"; readonly schemaConfigInvalidRegex: "metaui.validation.config.invalidRegex"; readonly schemaConfigPatternUnsafe: "metaui.validation.config.patternUnsafe"; readonly schemaConfigPatternUnproven: "metaui.validation.config.patternUnproven"; readonly cameraStartCapture: "metaui.camera.startCapture"; readonly cameraTakeSnapshot: "metaui.camera.takeSnapshot"; readonly cameraClearRetake: "metaui.camera.clearRetake"; readonly geolocationPlaceholder: "metaui.geolocation.placeholder"; readonly geolocationGetLocation: "metaui.geolocation.getLocation"; readonly signatureClear: "metaui.signature.clear"; readonly voiceInputPlaceholder: "metaui.voiceInput.placeholder"; readonly voiceInputStart: "metaui.voiceInput.start"; readonly dialogDefaultTitle: "metaui.dialog.defaultTitle"; readonly spaceTooNarrow: "metaui.space.tooNarrow"; readonly payloadShow: "metaui.payload.show"; readonly payloadTitle: "metaui.payload.title"; readonly payloadRaw: "metaui.payload.raw"; readonly payloadCopy: "metaui.payload.copy"; readonly payloadCopied: "metaui.payload.copied"; readonly payloadCopyFailed: "metaui.payload.copyFailed"; readonly payloadUnavailable: "metaui.payload.unavailable"; readonly dialogSubmit: "metaui.dialog.submit"; readonly dialogCancel: "metaui.dialog.cancel"; readonly dialogBuilding: "metaui.dialog.building"; readonly dialogSave: "metaui.dialog.save"; readonly dictionaryKeyEmpty: "metaui.dictionary.keyEmpty"; readonly dictionaryKeyReserved: "metaui.dictionary.keyReserved"; readonly dictionaryKeyDuplicate: "metaui.dictionary.keyDuplicate"; readonly dictionaryKeyPlaceholder: "metaui.dictionary.keyPlaceholder"; readonly dictionaryKeyLabel: "metaui.dictionary.keyLabel"; readonly dictionaryValueLabel: "metaui.dictionary.valueLabel"; readonly dictionaryRemoveEntry: "metaui.dictionary.removeEntry"; readonly tableDefaultTitle: "metaui.table.defaultTitle"; readonly tableAddRow: "metaui.table.addRow"; readonly tableValueColumn: "metaui.table.valueColumn"; readonly wizardStepTitle: "metaui.wizard.stepTitle"; readonly wizardStepCounter: "metaui.wizard.stepCounter"; readonly wizardPrevious: "metaui.wizard.previous"; readonly wizardNextStep: "metaui.wizard.nextStep"; readonly wizardComplete: "metaui.wizard.complete"; };
   export type MetaUITextKey = (typeof TEXT_KEY)[keyof typeof TEXT_KEY];
+module nz/co/siliconst/ui5/metaui/utils/NestedCaption
+  class NestedCaption
+    static build(label: string, value: unknown): string;
 module nz/co/siliconst/ui5/metaui/utils/PolicyConditionUtil
   class PolicyConditionUtil
     static coerceToNumber(value: unknown): number;
@@ -1737,6 +1791,6 @@ module nz/co/siliconst/ui5/metaui/utils/TypeGuards
   export function readStringArray(record: JsonRecord, key: string): string[] | undefined;
   export type JsonRecord = Record<string, unknown>;
 
-# modules: 152 (public 6, extension 16, internal 133)
-# declarations: 305 (public 30, extension 25, internal 250)
+# modules: 155 (public 6, extension 16, internal 136)
+# declarations: 308 (public 30, extension 25, internal 253)
 # excluded, not MetaUI's API: sap/ui/base/BindingParser, sap/ui/richtexteditor/RichTextEditor

@@ -45,8 +45,8 @@ If the user selects "South African" in the example above, the condition (`String
 | `Show` | Displays a previously hidden field. | `Hide` |
 | `Require` | Makes a field mandatory (shows red asterisk). Blocks submission. | `Optional` |
 | `Optional` | Removes mandatory enforcement. | `Require` |
-| `Disable` | Greys out the field (read-only). | `Enable` |
-| `Enable` | Restores field editability. | `Disable` |
+| `Disable` | Disables the field: its real widget renders greyed out and non-interactive (`setEnabled(false)`). Editability is untouched; for a read-only look use `ui.readOnly`. | `Enable` |
+| `Enable` | Lifts a `Disable`. Cannot enable a field that `ui.enabled: false` or the host's `enabled="false"` disabled, and has no effect on a field whose `ui.enabledOn` expression owns its enabled state (a warning is logged). | `Disable` |
 | `Invalidate` | Instantly paints the field red and blocks submission. | `Validate` |
 | `Validate` | Clears custom error states. | `Invalidate` |
 

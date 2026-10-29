@@ -1,6 +1,6 @@
 {
   "name": "@siliconst/metaui",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Metadata-driven UI engine for SAPUI5 and OpenUI5: renders Fiori control trees at runtime from JSON Schema, OpenAPI or OData metadata",
   "author": "SiliconStreetDev1",
   "license": "MIT",

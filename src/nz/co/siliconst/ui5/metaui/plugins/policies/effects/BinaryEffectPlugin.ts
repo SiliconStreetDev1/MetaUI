@@ -14,8 +14,8 @@ const EFFECT_TABLE: Readonly<Record<string, readonly [PropertyName, boolean]>> =
     Invalidate: ["validity", false],
     Require: ["required", true],
     Optional: ["required", false],
-    Enable: ["editable", true],
-    Disable: ["editable", false]
+    Enable: ["enabled", true],
+    Disable: ["enabled", false]
 };
 
 /**
