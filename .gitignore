@@ -49,8 +49,8 @@ scrape.js
 test/swagger_schemas/k8s_oa2.json
 test/swagger_schemas/github_oa3.json
 
-# Agent worktrees are scratch checkouts, never part of the repository.
-.claude/worktrees/
+# Local tool settings and scratch checkouts, never part of the repository.
+.claude/
 
 # Tool-specific pointer to AGENTS.md; kept locally, not published.
 CLAUDE.md
