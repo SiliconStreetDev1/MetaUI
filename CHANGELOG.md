@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.2] — 2026-10-30
+
+### Fixed
+
+- **The library reported version 2.0.0 whatever version was installed.** `library.ts` and
+  `.library` hardcoded it, so the generated `manifest.json` carried 2.0.0 into the npm package
+  and into a BSP upload, where the App Index and cache-busting key off it. Both now take the
+  version from `package.json` at build time.
+
+### Added
+
+- **One command per deployment route.** `npm run pack:npm` builds the npm package;
+  `npm run pack:bsp` builds and flattens the shared-library payload. The flatten is now a Node
+  script, so it runs outside Windows, and it stops with a clear message when `dist/` is missing
+  or already flattened.
+- **`docs/wiki/Deployment.md`.** Two routes, bundled into the app or deployed once as a shared
+  library, each with its pitfall. The shared-library upload and App Index registration are not
+  yet verified against a real system, and the page says so.
+- **A runnable starter app** in `examples/starter-app/`: the smallest app that renders a MetaUI
+  form, with a Submit button. Getting Started now begins with it.
+
+### Removed
+
+- **`npm run deploy`.** It called a `ui5-deploy.yaml` that has never existed in this repository
+  and has never run. The shared-library upload is a manual step for now.
+
+### Build
+
+- TypeScript is held at 5.9. TypeScript 7 drops the compiler API that the lint gate and
+  `ui5-tooling-transpile` rely on; with it, the type definitions silently stopped being
+  generated. mocha is updated to 12.0.3.
+
 ## [2.1.1] — 2026-10-29
 
 ### Fixed
